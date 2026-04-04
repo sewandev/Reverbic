@@ -35,15 +35,12 @@ impl<'a> Widget for SavedTracksWidget<'a> {
         if count == 0 {
             return;
         }
-
-        // Cuántos tracks caben — se muestran los más recientes
         let visible = (inner.height as usize).min(count);
 
         let items: Vec<ListItem> = self.tracks[..visible]
             .iter()
             .enumerate()
             .map(|(i, title)| {
-                // El más reciente (i=0) tiene acento especial
                 let (num_style, title_style) = if i == 0 {
                     (
                         Style::new().fg(theme::ACCENT).add_modifier(Modifier::BOLD),

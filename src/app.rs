@@ -7,10 +7,6 @@ use crate::audio::{AudioPlayer, PlayerCommand, PlayerState, PlayerStatus};
 use crate::config::Config;
 use crate::library::{self, SaveResult};
 use crate::station::{all_stations, Station};
-
-// ---------------------------------------------------------------------------
-// Utilidades de zona horaria (Bélgica CET/CEST → local)
-// ---------------------------------------------------------------------------
 fn brussels_offset_secs() -> i32 {
     let now = Local::now();
     let (y, m, d, h) = (now.year(), now.month(), now.day(), now.hour());
@@ -51,25 +47,16 @@ fn utc_to_local_hhmm(utc_str: &str) -> String {
         .map(|dt| dt.with_timezone(&Local).format("%H:%M").to_string())
         .unwrap_or_else(|_| "??:??".to_string())
 }
-
-// ---------------------------------------------------------------------------
-// Polling de metadata API oficial (Tomorrowland)
-// ---------------------------------------------------------------------------
 async fn fetch_schedule(client: &reqwest::Client, url: &str) -> Option<serde_json::Value> {
     let resp = client.get(url).send().await.ok()?;
     if !resp.status().is_success() { return None; }
     serde_json::from_str(&resp.text().await.ok()?).ok()
 }
 fn current_show_time(schedule: &serde_json::Value) -> Option<String> {
-    // Hora actual en Bélgica como "HH:MM" para comparar con el schedule
     let offset = FixedOffset::east_opt(brussels_offset_secs())?;
     let now_brussels = Local::now().with_timezone(&offset).format("%H:%M").to_string();
-
-    // Día de la semana en inglés en minúsculas ("monday", "tuesday", ...)
     let day = Local::now().format("%A").to_string().to_lowercase();
     let shows = schedule[&day].as_array()?;
-
-    // Último programa cuyo startTime <= now_brussels
     let pos = shows.iter().rposition(|e| {
         e["startTime"].as_str().map(|t| t <= now_brussels.as_str()).unwrap_or(false)
     })?;
@@ -118,25 +105,19 @@ fn parse_api_response(
     let v: serde_json::Value = serde_json::from_str(body).ok()?;
     let title  = v["title"].as_str()?.to_string();
     let artist = v["artist"].as_str().unwrap_or("").to_string();
-
-    // OnlyHit: show es un objeto {name, permalink, ...}; Tomorrowland: string directo
     let show_name = if v["show"].is_object() {
         v["show"]["name"].as_str().unwrap_or("").to_string()
     } else {
         v["show"].as_str().unwrap_or("").to_string()
     };
-
-    // Enriquecer el show con el horario local si está disponible (solo Tomorrowland)
     let show = match schedule.and_then(current_show_time) {
         Some(time) => format!("{show_name}  {time}"),
         None       => show_name,
     };
 
     let recent = if let Some(hist) = history_body {
-        // OnlyHit: historial viene de endpoint separado
         parse_history(hist)
     } else {
-        // Tomorrowland: historial embebido en `tracklog`
         v["tracklog"]
             .as_array()
             .map(|entries| {
@@ -173,8 +154,6 @@ async fn poll_metadata_loop(
             return;
         }
     };
-
-    // Schedule se descarga una sola vez al inicio; se reutiliza en todos los polls
     let schedule = if let Some(ref s_url) = schedule_url {
         let s = fetch_schedule(&client, s_url).await;
         if s.is_none() {
@@ -186,7 +165,6 @@ async fn poll_metadata_loop(
     };
 
     loop {
-        // Fetch historial separado si la estación lo tiene (e.g. OnlyHit)
         let history_body: Option<String> = if let Some(ref h_url) = history_url {
             match client.get(h_url).send().await {
                 Ok(resp) if resp.status().is_success() => resp.text().await.ok(),
@@ -222,10 +200,6 @@ async fn poll_metadata_loop(
         tokio::time::sleep(std::time::Duration::from_secs(30)).await;
     }
 }
-
-// ---------------------------------------------------------------------------
-// Integración Deezer — búsqueda de preview de 30s
-// ---------------------------------------------------------------------------
 fn strip_version_info(title: &str) -> String {
     const VERSION_KEYWORDS: &[&str] = &[
         "remix", "edit", "mix", "version", "remaster", "live", "extended",
@@ -233,7 +207,6 @@ fn strip_version_info(title: &str) -> String {
         "bootleg", "rework", "flip", "dub", "remi",
     ];
     let mut result = title.to_string();
-    // Itera hasta que no haya más cambios (puede haber múltiples paréntesis)
     loop {
         let before = result.clone();
         for (open, close) in [('(', ')'), ('[', ']')] {
@@ -278,22 +251,15 @@ fn log_deezer_not_found(raw: &str, query: &str) {
     }
 }
 async fn deezer_preview(raw: &str) -> Option<(String, String)> {
-    // Quitar prefijo de timestamp "HH:MM  " si existe
     let clean = raw.splitn(2, "  ").nth(1).unwrap_or(raw).trim();
-
-    // Construir query Deezer con campos precisos
     let q = if let Some(sep) = clean.find(" - ") {
         let raw_artist = clean[..sep].trim();
         let raw_title  = clean[sep + 3..].trim();
-
-        // Tomar solo el artista principal (antes de la primera "," o "&")
         let primary_artist = raw_artist
             .split([',', '&'])
             .next()
             .unwrap_or(raw_artist)
             .trim();
-
-        // Quitar info de remix/versión del título
         let clean_title = strip_version_info(raw_title);
 
         tracing::debug!("Deezer query: artist='{primary_artist}' track='{clean_title}' (original: '{clean}')");
@@ -371,8 +337,6 @@ impl App {
     pub async fn new() -> Self {
         let config = Config::load();
         let player = AudioPlayer::spawn();
-
-        // Aplicar volumen guardado al arrancar
         player.send(PlayerCommand::SetVolume(config.volume)).await;
 
         let last = config.last_selected.min(all_stations().len().saturating_sub(1));
@@ -414,10 +378,7 @@ impl App {
         }
     }
     pub async fn on_key(&mut self, key: KeyCode) {
-        // Limpiar el notice en cualquier tecla nueva
         self.save_notice = None;
-
-        // Teclas globales — actúan sin importar el foco
         match key {
             KeyCode::Char(' ') => {
                 match self.player.state().status {
@@ -516,7 +477,6 @@ impl App {
             self.focus = AppFocus::Stations;
             return;
         }
-        // Clamp por si la lista encogió desde la última vez
         self.recent_selected = self.recent_selected.min(len - 1);
 
         match key {
@@ -544,34 +504,25 @@ impl App {
             KeyCode::Char('p') => {
                 let state = self.player.state();
                 if state.preview_title.is_some() || state.preview_searching {
-                    // Preview activo o buscando → parar / cancelar
                     self.player.send(PlayerCommand::StopPreview).await;
                     self.player.send(PlayerCommand::SetPreviewSearching(false)).await;
                 } else if !titles.is_empty() {
                     let raw = titles[self.recent_selected].clone();
                     let cmd_tx = self.player.clone_sender();
-                    // Feedback inmediato: spinner en la fila + texto "Buscando..." en help bar
                     let _ = cmd_tx.send(PlayerCommand::SetPreviewSearching(true)).await;
                     let _ = cmd_tx.send(PlayerCommand::SetPreviewLoadingTrack(Some(raw.clone()))).await;
                     tokio::spawn(async move {
                         match deezer_preview(&raw).await {
                             Some((url, title)) => {
-                                // Quitar spinner: ya va a reproducir
                                 let _ = cmd_tx.send(PlayerCommand::SetPreviewLoadingTrack(None)).await;
-                                // Streaming: el audio empieza a reproducirse de inmediato
-                                // sin esperar a que se descargue el archivo completo.
                                 if cmd_tx.send(PlayerCommand::PlayPreview { url, title, raw_track: raw }).await.is_err() {
                                     return;
                                 }
-                                // Auto-stop de seguridad: los previews de Deezer duran ~30s.
-                                // El audio termina solo cuando el stream llega a EOF,
-                                // pero limpiamos el estado de UI tras 35s como fallback.
                                 tokio::time::sleep(std::time::Duration::from_secs(35)).await;
                                 let _ = cmd_tx.send(PlayerCommand::StopPreview).await;
                             }
                             None => {
                                 tracing::warn!("Deezer: sin resultado para '{raw}'");
-                                // Quitar spinner y marcar como no disponible para esta sesión
                                 let _ = cmd_tx.send(PlayerCommand::SetPreviewLoadingTrack(None)).await;
                                 let _ = cmd_tx.send(PlayerCommand::SetPreviewSearching(false)).await;
                                 let _ = cmd_tx.send(PlayerCommand::MarkPreviewUnavailable(raw)).await;

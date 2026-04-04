@@ -23,14 +23,11 @@ use error::Result;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // 1. Panic hook PRIMERO — garantiza restaurar terminal incluso en errores de startup
     let original_hook = panic::take_hook();
     panic::set_hook(Box::new(move |info| {
         terminal::restore();
         original_hook(info);
     }));
-
-    // 2. Logging — el guard DEBE vivir en main() para que no se pierdan mensajes
     let _log_guard = init_logging();
 
     tracing::info!("reverbic iniciando");
@@ -83,16 +80,12 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
     loop {
         tui.draw(|frame| ui::render(frame, &app))
             .map_err(|e| error::AppError::Terminal(e.to_string()))?;
-
-        // Fase 1: esperar el primer evento (teclado, resize o tick)
         tokio::select! {
             _ = ticker.tick() => {}
             maybe_event = events.next() => {
                 handle_event(&mut app, maybe_event).await;
             }
         }
-
-        // Fase 2: drenar eventos pendientes sin bloquear
         loop {
             match events.next().now_or_never() {
                 Some(Some(maybe_event)) => handle_event(&mut app, Some(maybe_event)).await,

@@ -20,10 +20,6 @@ pub struct RecentTracksWidget<'a> {
     pub preview_playing_track: Option<&'a str>,
     pub preview_unavailable: &'a HashSet<String>,
 }
-
-// ---------------------------------------------------------------------------
-// Estilos
-// ---------------------------------------------------------------------------
 const NOW_PLAYING_STYLE: Style = Style::new()
     .fg(theme::PLAYING)
     .add_modifier(Modifier::BOLD);
@@ -40,10 +36,6 @@ const PREVIEW_PLAYING_STYLE: Style = Style::new()
     .add_modifier(Modifier::BOLD);
 const SPINNER_STYLE: Style = Style::new().fg(theme::FESTIVAL_ACCENT);
 
-// ---------------------------------------------------------------------------
-// Spinner animado
-// ---------------------------------------------------------------------------
-
 const SPINNER_FRAMES: &[&str] = &["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 const FRAME_MS: u128 = 120;
 fn spinner_frame() -> &'static str {
@@ -54,10 +46,6 @@ fn spinner_frame() -> &'static str {
     let idx = ((ms / FRAME_MS) as usize) % SPINNER_FRAMES.len();
     SPINNER_FRAMES[idx]
 }
-
-// ---------------------------------------------------------------------------
-// Widget
-// ---------------------------------------------------------------------------
 
 impl<'a> Widget for RecentTracksWidget<'a> {
     fn render(self, area: Rect, buf: &mut Buffer) {
@@ -113,7 +101,6 @@ impl<'a> Widget for RecentTracksWidget<'a> {
                 ];
 
                 if is_loading {
-                    // Spinner junto al título mientras se busca en Deezer
                     let style = if is_selected {
                         Style::new().fg(Color::Black).bg(theme::ACCENT).add_modifier(Modifier::BOLD)
                     } else {
@@ -121,7 +108,6 @@ impl<'a> Widget for RecentTracksWidget<'a> {
                     };
                     spans.push(Span::styled(format!("  {spinner}"), style));
                 } else if is_previewing {
-                    // El preview de esta canción está sonando ahora mismo
                     let style = if is_selected {
                         Style::new().fg(Color::Black).bg(theme::ACCENT).add_modifier(Modifier::BOLD)
                     } else {
@@ -129,7 +115,6 @@ impl<'a> Widget for RecentTracksWidget<'a> {
                     };
                     spans.push(Span::styled("  Playing preview", style));
                 } else if is_unavailable {
-                    // El usuario ya intentó el preview y no estuvo disponible
                     let style = if is_selected {
                         Style::new().fg(Color::Black).bg(theme::ACCENT)
                     } else {

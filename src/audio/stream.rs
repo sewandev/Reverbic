@@ -49,10 +49,6 @@ impl StreamReader {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Descarga HTTP con diagnóstico y stripping ICY
-// ---------------------------------------------------------------------------
-
 async fn download_stream(
     url: String,
     audio_tx: mpsc::SyncSender<Bytes>,
@@ -130,14 +126,11 @@ async fn download_preview(
 
     let client = reqwest::Client::builder()
         .user_agent("reverbic/0.1")
-        // connect_timeout solo para la conexión TCP; sin timeout de body (streaming)
         .connect_timeout(std::time::Duration::from_secs(10))
         .build()?;
 
     let resp = client.get(&url).send().await?;
     let status = resp.status();
-
-    // Loguear headers relevantes para diagnóstico de cortes
     let content_length = resp.headers()
         .get(reqwest::header::CONTENT_LENGTH)
         .and_then(|v| v.to_str().ok())
@@ -165,8 +158,6 @@ async fn download_preview(
 
     use futures_util::StreamExt;
     let mut stream = resp.bytes_stream();
-
-    // Bytes a saltar al inicio (ID3v2 header + body).
     let mut skip_remaining: usize = 0;
     let mut header_buf: Vec<u8> = Vec::new();
     let mut header_analyzed = false;
@@ -250,8 +241,6 @@ async fn download_preview(
             return Ok(());
         }
     }
-
-    // Resumen final — crítico para detectar descargas truncadas
     match content_length {
         Some(expected) if total_raw < expected => {
             tracing::warn!(
@@ -314,10 +303,6 @@ fn log_first_chunk(bytes: &Bytes) {
     }
 }
 
-// ---------------------------------------------------------------------------
-// IcyStripper — máquina de estados para el protocolo ICY metadata
-// ---------------------------------------------------------------------------
-
 #[derive(Clone, Copy)]
 enum IcyState {
     Audio(usize),
@@ -347,9 +332,6 @@ impl IcyStripper {
     }
     fn process(&mut self, input: &[u8], output: &mut Vec<u8>) {
         for &byte in input {
-            // IcyState es Copy: la copia se hace para el match; self queda libre.
-            // El flag `emit` evita llamar self.emit_title() dentro del match (donde
-            // la asignación a self.state todavía no completó).
             let mut emit = false;
             self.state = match self.state {
                 IcyState::Audio(remaining) => {
@@ -401,10 +383,6 @@ impl IcyStripper {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -425,13 +403,9 @@ mod tests {
     }
     #[test]
     fn strips_metadata_block() {
-        // metaint = 8 — cada 8 bytes de audio aparece un bloque ICY
         let metaint = 8usize;
         let (mut s, rx) = make_stripper(metaint);
-
-        // Construimos: 8 bytes de audio + bloque ICY con título
         let title_str = b"StreamTitle='Test Artist - Test Track';StreamUrl='';";
-        // El byte de longitud ICY es ceil(len / 16); rellenamos con nulos hasta múltiplo de 16
         let padded_len = ((title_str.len() + 15) / 16) * 16;
         let mut meta_block = vec![0u8; padded_len];
         meta_block[..title_str.len()].copy_from_slice(title_str);
@@ -445,11 +419,7 @@ mod tests {
 
         let mut out = Vec::new();
         s.process(&input, &mut out);
-
-        // Solo los 8 bytes de audio deben pasar
         assert_eq!(out, audio);
-
-        // El título debe haberse emitido
         let title = rx.try_recv().expect("debería haber un título");
         assert_eq!(title, "Test Artist - Test Track");
     }
@@ -457,8 +427,6 @@ mod tests {
     fn empty_metadata_block() {
         let metaint = 4usize;
         let (mut s, rx) = make_stripper(metaint);
-
-        // 4 bytes de audio + byte de meta_len=0 + 4 bytes de audio más
         let mut input = vec![1u8, 2, 3, 4, 0u8, 5, 6, 7, 8];
         let mut out = Vec::new();
         s.process(&mut input, &mut out);
@@ -476,18 +444,12 @@ mod tests {
         let mut meta_block = vec![0u8; padded_len];
         meta_block[..title_str.len()].copy_from_slice(title_str);
         let meta_len_byte = (padded_len / 16) as u8;
-
-        // Chunk 1: 2 bytes de audio
         let mut out = Vec::new();
         s.process(&[10, 20], &mut out);
         assert_eq!(out, [10, 20]);
-
-        // Chunk 2: 2 bytes de audio + byte de longitud ICY (estado cruza chunks)
         out.clear();
         s.process(&[30, 40, meta_len_byte], &mut out);
         assert_eq!(out, [30, 40]);
-
-        // Chunk 3: el bloque de metadata partido en dos
         out.clear();
         let mid = meta_block.len() / 2;
         s.process(&meta_block[..mid], &mut out);
@@ -500,10 +462,6 @@ mod tests {
         assert_eq!(title, "Chunked");
     }
 }
-
-// ---------------------------------------------------------------------------
-// Read / Seek
-// ---------------------------------------------------------------------------
 
 impl Read for StreamReader {
     fn read(&mut self, out: &mut [u8]) -> io::Result<usize> {

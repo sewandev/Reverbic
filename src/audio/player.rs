@@ -14,10 +14,6 @@ use crate::audio::meter::rms_to_db;
 use crate::audio::stream::StreamReader;
 use crate::station::Station;
 
-// ---------------------------------------------------------------------------
-// Tipos públicos
-// ---------------------------------------------------------------------------
-
 pub enum PlayerCommand {
     Play(Station),
     Pause,
@@ -82,10 +78,6 @@ impl Default for PlayerState {
     }
 }
 
-// ---------------------------------------------------------------------------
-// MeterSource — intercepta muestras para calcular el nivel RMS
-// ---------------------------------------------------------------------------
-
 struct MeterSource<S> {
     inner:      S,
     level:      Arc<AtomicU32>,
@@ -113,8 +105,6 @@ impl<S: Source<Item = f32>> Iterator for MeterSource<S> {
 
         if self.batch.len() >= self.batch_size {
             let db = rms_to_db(&self.batch);
-            // Release: garantiza que el valor es visible antes de cualquier
-            // lectura posterior en audio_loop (que usa Acquire).
             self.level.store(db.to_bits(), Ordering::Release);
             self.batch.clear();
         }
@@ -128,10 +118,6 @@ impl<S: Source<Item = f32>> Source for MeterSource<S> {
     fn sample_rate(&self) -> NonZero<u32>         { self.inner.sample_rate() }
     fn total_duration(&self) -> Option<std::time::Duration> { self.inner.total_duration() }
 }
-
-// ---------------------------------------------------------------------------
-// AudioPlayer — handle público para enviar comandos y leer estado
-// ---------------------------------------------------------------------------
 
 pub struct AudioPlayer {
     cmd_tx:   mpsc::Sender<PlayerCommand>,
@@ -167,10 +153,6 @@ impl AudioPlayer {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Audio loop — OS thread dedicado
-// ---------------------------------------------------------------------------
-
 fn audio_loop(
     mut cmd_rx: mpsc::Receiver<PlayerCommand>,
     state_tx: watch::Sender<PlayerState>,
@@ -192,19 +174,13 @@ fn audio_loop(
     let mut player: Option<Player> = None;
     let mut preview_player: Option<Player> = None;
     let mut current_volume: f32 = 1.0;
-    // Volumen guardado antes del ducking. `Some` mientras hay preview activo.
     let mut volume_before_duck: Option<f32> = None;
     let mut title_rx: Option<std_mpsc::Receiver<String>> = None;
-    // Última vez que la API oficial respondió correctamente.
-    // Si han pasado >60s sin respuesta, ICY retoma el control.
     let mut api_last_success: Option<std::time::Instant> = None;
-    // Estación activa — necesaria para auto-reconexión.
     let mut current_station: Option<Station> = None;
-    // Momento en que se debe intentar la reconexión (None = sin reconexión pendiente).
     let mut reconnect_at: Option<std::time::Instant> = None;
 
     loop {
-        // Verificar si llegó un nuevo título ICY; detectar fin del stream (Disconnected)
         if let Some(ref rx) = title_rx {
             let api_fresh = api_last_success
                 .map(|t| t.elapsed().as_secs() < 60)
@@ -225,7 +201,6 @@ fn audio_loop(
                     }
                     Err(std_mpsc::TryRecvError::Empty) => break,
                     Err(std_mpsc::TryRecvError::Disconnected) => {
-                        // El task de descarga terminó (error o EOF): programar reconexión
                         title_rx = None;
                         if current_station.is_some() && reconnect_at.is_none() {
                             warn!("Stream terminado inesperadamente — reconectando en 3s");
@@ -239,8 +214,6 @@ fn audio_loop(
                 }
             }
         }
-
-        // Actualizar nivel de audio
         let db = f32::from_bits(level.load(Ordering::Acquire));
         {
             let mut state = state_tx.borrow().clone();
@@ -249,8 +222,6 @@ fn audio_loop(
                 let _ = state_tx.send(state);
             }
         }
-
-        // Si hay una reconexión pendiente y ya venció el timer, inyectarla como Play
         let cmd = if reconnect_at.map(|t| std::time::Instant::now() >= t).unwrap_or(false) {
             reconnect_at = None;
             current_station.clone().map(PlayerCommand::Play)
@@ -372,8 +343,6 @@ fn audio_loop(
             PlayerCommand::SetVolume(v) => {
                 current_volume = v.clamp(0.0, 1.0);
                 if volume_before_duck.is_some() {
-                    // Durante el preview: actualizar el volumen target (el que se restaurará)
-                    // pero mantener la radio duckeada al 5%
                     volume_before_duck = Some(current_volume);
                 } else {
                     if let Some(ref p) = player {
@@ -392,16 +361,11 @@ fn audio_loop(
             }
 
             PlayerCommand::PlayPreview { url, title, raw_track } => {
-                // Detener preview anterior si lo hubiera
                 if let Some(p) = preview_player.take() { p.stop(); }
-
-                // Streaming: descarga en paralelo mientras rodio reproduce.
-                // connect_preview stripea el ID3v2 al vuelo y retorna EOF al terminar.
                 let preview_reader = StreamReader::connect_preview(url, handle.clone());
                 let reader = std::io::BufReader::new(preview_reader);
                 match Decoder::try_from(reader) {
                     Ok(decoder) => {
-                        // Duck: bajar el stream principal al 5% mientras suena el preview
                         volume_before_duck = Some(current_volume);
                         if let Some(ref p) = player {
                             p.set_volume(0.05);
@@ -431,7 +395,6 @@ fn audio_loop(
 
             PlayerCommand::StopPreview => {
                 if let Some(p) = preview_player.take() { p.stop(); }
-                // Restaurar volumen original de la radio
                 if let Some(pre_duck) = volume_before_duck.take() {
                     if let Some(ref p) = player {
                         p.set_volume(pre_duck);

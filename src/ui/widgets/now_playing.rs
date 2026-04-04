@@ -51,8 +51,6 @@ impl<'a> Widget for NowPlayingWidget<'a> {
                 Span::styled(msg.as_str(), Style::default().fg(theme::ERROR)),
             ]),
         };
-
-        // Si hay show de API, lo mostramos en lugar del separador
         let middle_line = if let Some(show) = &self.state.api_show {
             Line::from(vec![
                 Span::styled("Show: ", Style::default().fg(theme::ACCENT)),

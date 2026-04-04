@@ -91,16 +91,8 @@ pub fn render(frame: &mut Frame, app: &App) {
         player_state.preview_searching,
     );
 }
-
-// ---------------------------------------------------------------------------
-// Layout dinámico según altura del terminal
-// ---------------------------------------------------------------------------
-
-// Umbrales de altura del terminal para cambiar el layout
 const HEIGHT_NORMAL:  u16 = 19; // 5 top mínimo + 5 now_playing + 3 countdown + 4 audio + 2 help
 const HEIGHT_COMPACT: u16 = 10;
-
-// Alturas fijas de cada sección
 const HEIGHT_NOW_PLAYING_NORMAL:  u16 = 5;
 const HEIGHT_NOW_PLAYING_COMPACT: u16 = 3;
 const HEIGHT_COUNTDOWN:           u16 = 3;
@@ -154,7 +146,6 @@ fn compute_layout(area: Rect, has_recent: bool, has_saved: bool, show_countdown:
 
     if area.height >= HEIGHT_NORMAL {
         let (chunks, countdown_slot) = if show_countdown {
-            // [top, now_playing, countdown, audio, help]
             let c = Layout::vertical([
                 Constraint::Fill(1),
                 Constraint::Length(HEIGHT_NOW_PLAYING_NORMAL),
@@ -166,7 +157,6 @@ fn compute_layout(area: Rect, has_recent: bool, has_saved: bool, show_countdown:
             let slot = c[2];
             (c, Some(slot))
         } else {
-            // [top, now_playing, audio, help]
             let c = Layout::vertical([
                 Constraint::Fill(1),
                 Constraint::Length(HEIGHT_NOW_PLAYING_NORMAL),
@@ -176,8 +166,6 @@ fn compute_layout(area: Rect, has_recent: bool, has_saved: bool, show_countdown:
             .split(area);
             (c, None)
         };
-
-        // Índices de audio y help varían según si hay countdown
         let (audio_idx, help_idx) = if show_countdown { (3, 4) } else { (2, 3) };
 
         let (stations, saved_tracks, recent_tracks) = if has_right {
@@ -196,7 +184,6 @@ fn compute_layout(area: Rect, has_recent: bool, has_saved: bool, show_countdown:
             help:        chunks[help_idx],
         }
     } else if area.height >= HEIGHT_COMPACT {
-        // Sin countdown en modo compacto — pantalla demasiado pequeña
         let chunks = Layout::vertical([
             Constraint::Fill(1),
             Constraint::Length(HEIGHT_NOW_PLAYING_COMPACT),
@@ -238,10 +225,6 @@ fn compute_layout(area: Rect, has_recent: bool, has_saved: bool, show_countdown:
     }
 }
 
-// ---------------------------------------------------------------------------
-// Help bar
-// ---------------------------------------------------------------------------
-
 fn render_help(
     frame: &mut Frame,
     area: Rect,
@@ -251,7 +234,6 @@ fn render_help(
     preview_title: Option<&str>,
     preview_searching: bool,
 ) {
-    // Prioridad: preview activo > buscando > save notice > atajos normales
     let (text, color) = if let Some(title) = preview_title {
         (format!("  >> PREVIEW: {title}  [p] Parar"), theme::PLAYING)
     } else if preview_searching {
