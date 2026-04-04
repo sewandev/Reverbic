@@ -1,0 +1,64 @@
+
+use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Config {
+    pub volume:        f32,
+    pub last_selected: usize,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self { volume: 1.0, last_selected: 0 }
+    }
+}
+
+impl Config {
+    pub fn load() -> Self {
+        let path = Self::path();
+        let Ok(data) = std::fs::read_to_string(&path) else {
+            return Self::default();
+        };
+        match serde_json::from_str::<Self>(&data) {
+            Ok(c) => {
+                tracing::info!("Config cargada desde {:?}", path);
+                c
+            }
+            Err(e) => {
+                tracing::warn!("Config inválida ({e}), usando defaults");
+                Self::default()
+            }
+        }
+    }
+    pub fn save(&self) {
+        let path = Self::path();
+        let Some(dir) = path.parent() else { return };
+
+        if std::fs::create_dir_all(dir).is_err() {
+            tracing::error!("No se pudo crear directorio de config: {:?}", dir);
+            return;
+        }
+
+        let tmp = path.with_extension("tmp");
+        match serde_json::to_string_pretty(self) {
+            Ok(json) => {
+                if std::fs::write(&tmp, &json).is_ok() {
+                    if let Err(e) = std::fs::rename(&tmp, &path) {
+                        tracing::error!("No se pudo guardar config: {e}");
+                    } else {
+                        tracing::info!("Config guardada en {:?}", path);
+                    }
+                }
+            }
+            Err(e) => tracing::error!("Error serializando config: {e}"),
+        }
+    }
+
+    fn path() -> PathBuf {
+        let home = std::env::var("USERPROFILE")
+            .or_else(|_| std::env::var("HOME"))
+            .unwrap_or_else(|_| ".".to_string());
+        PathBuf::from(home).join(".reverbic").join("config.json")
+    }
+}

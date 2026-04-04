@@ -1,0 +1,34 @@
+# Rust build artifacts
+/target
+
+# Cargo lock solo se ignora en librerías, no en binarios/aplicaciones
+# (mantener Cargo.lock en VCS para reproducibilidad)
+
+# Logs generados por la app
+/logs
+
+# Configuración local de usuario (no compartir entre devs)
+.env
+.env.local
+
+# Archivos de IDE
+.idea/
+.vscode/
+*.iml
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# macOS
+.DS_Store
+
+# Binarios compilados sueltos
+*.exe
+*.pdb
+
+# Otros
+plan.md
+CLAUDE.md
+.gitnexus
+.claude
