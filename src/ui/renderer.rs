@@ -93,7 +93,7 @@ pub fn render(frame: &mut Frame, app: &App) {
         );
     }
 
-    let overlay_width = 19;
+    let overlay_width = 23;
     let overlay_height = 1;
     let overlay_x = frame.area().width.saturating_sub(overlay_width);
     let overlay_y = 0;
@@ -136,8 +136,9 @@ fn build_right_column(
     has_recent: bool,
     has_saved: bool,
 ) -> (Rect, Option<Rect>, Option<Rect>) {
+    // STATIONS se limita a 40 cols como máximo; el resto va a saved/recent
     let cols =
-        Layout::horizontal([Constraint::Percentage(45), Constraint::Percentage(55)]).split(top);
+        Layout::horizontal([Constraint::Max(40), Constraint::Fill(1)]).split(top);
 
     let left = cols[0];
     let right = cols[1];

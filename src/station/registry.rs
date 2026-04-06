@@ -8,6 +8,7 @@ pub struct Station {
     pub history_api_url:  Option<&'static str>,
     pub schedule_url:    Option<&'static str>,
     pub show_countdown:  bool,
+    pub bitrate_kbps:    Option<u16>,
 }
 
 pub fn all_stations() -> &'static [Station] {
@@ -20,6 +21,7 @@ pub fn all_stations() -> &'static [Station] {
             history_api_url:  None,
             schedule_url:     Some("https://owr-schedule-cdn.tomorrowland.com/owr-schedule.json"),
             show_countdown:   true,
+            bitrate_kbps:     Some(256),
         },
         Station {
             key:              "tomorrowland_anthems",
@@ -29,6 +31,7 @@ pub fn all_stations() -> &'static [Station] {
             history_api_url:  None,
             schedule_url:     Some("https://owr-schedule-cdn.tomorrowland.com/anthems-schedule.json"),
             show_countdown:   true,
+            bitrate_kbps:     Some(128),
         },
         Station {
             key:              "tomorrowland_daybreak",
@@ -38,6 +41,7 @@ pub fn all_stations() -> &'static [Station] {
             history_api_url:  None,
             schedule_url:     Some("https://owr-schedule-cdn.tomorrowland.com/daybreak-schedule.json"),
             show_countdown:   true,
+            bitrate_kbps:     Some(128),
         },
         Station {
             key:              "onlyhit_onlyhits",
@@ -47,6 +51,7 @@ pub fn all_stations() -> &'static [Station] {
             history_api_url:  Some("https://onlyhit.us/api/nowplaying/history?station=onlyhit&limit=10"),
             schedule_url:     None,
             show_countdown:   false,
+            bitrate_kbps:     Some(128),
         },
         Station {
             key:              "onlyhit_tophits",
@@ -56,6 +61,7 @@ pub fn all_stations() -> &'static [Station] {
             history_api_url:  Some("https://onlyhit.us/api/nowplaying/history?station=tophits&limit=10"),
             schedule_url:     None,
             show_countdown:   false,
+            bitrate_kbps:     Some(128),
         },
         Station {
             key:              "onlyhit_kpop",
@@ -65,6 +71,7 @@ pub fn all_stations() -> &'static [Station] {
             history_api_url:  Some("https://onlyhit.us/api/nowplaying/history?station=kpop&limit=10"),
             schedule_url:     None,
             show_countdown:   false,
+            bitrate_kbps:     Some(128),
         },
         Station {
             key:              "onlyhit_japan",
@@ -74,6 +81,7 @@ pub fn all_stations() -> &'static [Station] {
             history_api_url:  Some("https://onlyhit.us/api/nowplaying/history?station=japan&limit=10"),
             schedule_url:     None,
             show_countdown:   false,
+            bitrate_kbps:     Some(128),
         },
     ];
     STATIONS
