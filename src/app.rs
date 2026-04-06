@@ -541,4 +541,28 @@ impl App {
     pub fn player_state(&self) -> PlayerState {
         self.player.state()
     }
+
+    pub async fn on_mouse_scroll(&mut self, delta: i32) {
+        match self.focus {
+            AppFocus::RecentTracks => {
+                let titles = self.player.state().recent_titles;
+                let len = titles.len();
+                if len == 0 {
+                    return;
+                }
+                if delta > 0 {
+                    self.recent_selected = (self.recent_selected + delta as usize).min(len - 1);
+                } else {
+                    self.recent_selected = self.recent_selected.saturating_sub((-delta) as usize);
+                }
+            }
+            AppFocus::Stations => {
+                if delta > 0 {
+                    self.selected = (self.selected + delta as usize).min(self.stations.len() - 1);
+                } else {
+                    self.selected = self.selected.saturating_sub((-delta) as usize);
+                }
+            }
+        }
+    }
 }

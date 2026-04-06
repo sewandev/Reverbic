@@ -1,7 +1,9 @@
-
 use crossterm::{
+    event::EnableMouseCapture,
     execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen, SetTitle},
+    terminal::{
+        disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen, SetTitle,
+    },
 };
 use ratatui::{backend::CrosstermBackend, Terminal};
 use std::io::{self, Stdout};
@@ -12,9 +14,14 @@ pub type Tui = Terminal<CrosstermBackend<Stdout>>;
 pub fn init() -> Result<Tui> {
     enable_raw_mode().map_err(|e| AppError::Terminal(e.to_string()))?;
     let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen, SetTitle("Reverbic"))
-        .map_err(|e| AppError::Terminal(e.to_string()))?;
-    let backend  = CrosstermBackend::new(io::stdout());
+    execute!(
+        stdout,
+        EnterAlternateScreen,
+        SetTitle("Reverbic"),
+        EnableMouseCapture
+    )
+    .map_err(|e| AppError::Terminal(e.to_string()))?;
+    let backend = CrosstermBackend::new(io::stdout());
     let terminal = Terminal::new(backend).map_err(|e| AppError::Terminal(e.to_string()))?;
     Ok(terminal)
 }

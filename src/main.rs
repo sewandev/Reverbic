@@ -4,7 +4,7 @@
 use std::panic;
 use std::time::Duration;
 
-use crossterm::event::{Event, EventStream, KeyEventKind};
+use crossterm::event::{Event, EventStream, KeyEventKind, MouseEventKind};
 use futures_util::{FutureExt, StreamExt};
 use tracing_subscriber::{fmt, fmt::time::ChronoLocal, EnvFilter};
 
@@ -105,6 +105,17 @@ async fn handle_event(app: &mut App, maybe_event: Option<std::io::Result<Event>>
     match maybe_event {
         Some(Ok(Event::Key(key))) if key.kind == KeyEventKind::Press => {
             app.on_key(key.code).await;
+        }
+        Some(Ok(Event::Mouse(mouse))) => {
+            match mouse.kind {
+                MouseEventKind::ScrollUp => {
+                    app.on_mouse_scroll(-3).await;
+                }
+                MouseEventKind::ScrollDown => {
+                    app.on_mouse_scroll(3).await;
+                }
+                _ => {}
+            }
         }
         Some(Ok(Event::Resize(_, _))) => {
             tracing::debug!("Terminal redimensionado");
