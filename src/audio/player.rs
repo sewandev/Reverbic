@@ -38,6 +38,7 @@ pub enum PlayerStatus {
     #[default]
     Idle,
     Connecting,
+    Reconnecting(u32),
     Playing,
     Paused,
     Error(String),
@@ -179,6 +180,10 @@ fn audio_loop(
     let mut api_last_success: Option<std::time::Instant> = None;
     let mut current_station: Option<Station> = None;
     let mut reconnect_at: Option<std::time::Instant> = None;
+    let mut stream_retry_at: Option<(u32, std::time::Instant)> = None;
+    const MAX_STREAM_RETRIES: u32 = 5;
+    const BASE_RETRY_DELAY_SECS: u64 = 3;
+    const MAX_RETRY_DELAY_SECS: u64 = 30;
 
     loop {
         if let Some(ref rx) = title_rx {
@@ -225,6 +230,8 @@ fn audio_loop(
         let cmd = if reconnect_at.map(|t| std::time::Instant::now() >= t).unwrap_or(false) {
             reconnect_at = None;
             current_station.clone().map(PlayerCommand::Play)
+        } else if stream_retry_at.map(|(_, t)| std::time::Instant::now() >= t).unwrap_or(false) {
+            current_station.clone().map(PlayerCommand::Play)
         } else {
             let result = handle.block_on(async {
                 tokio::time::timeout(
@@ -235,8 +242,8 @@ fn audio_loop(
             });
             match result {
                 Ok(Some(c)) => Some(c),
-                Ok(None)    => break,   // canal cerrado
-                Err(_)      => None,    // timeout
+                Ok(None)    => break,
+                Err(_)      => None,
             }
         };
 
@@ -264,8 +271,9 @@ fn audio_loop(
             PlayerCommand::Play(station) => {
                 current_station    = Some(station.clone());
                 reconnect_at       = None;
+                stream_retry_at    = None;
                 api_last_success   = None;
-                volume_before_duck = None; // nueva estación: duck ya no aplica
+                volume_before_duck = None;
                 if let Some(p) = player.take() {
                     p.stop();
                 }
@@ -286,6 +294,7 @@ fn audio_loop(
 
                 match Decoder::try_from(reader) {
                     Ok(decoder) => {
+                        stream_retry_at = None;
                         let metered = MeterSource::new(decoder, Arc::clone(&level));
                         let new_player = Player::connect_new(&device_sink.mixer());
                         new_player.set_volume(current_volume);
@@ -310,14 +319,34 @@ fn audio_loop(
                         info!("Reproduciendo: {}", station.name);
                     }
                     Err(e) => {
-                        error!("Error al decodificar stream: {e}");
+                        let retry_count = stream_retry_at.take().map(|(count, _)| count + 1).unwrap_or(1);
                         title_rx = None;
-                        let _ = state_tx.send(PlayerState {
-                            status:  PlayerStatus::Error(format!("Decoder: {e}")),
-                            station: Some(station),
-                            volume:  current_volume,
-                            ..Default::default()
-                        });
+                        if retry_count <= MAX_STREAM_RETRIES {
+                            let delay_secs = (BASE_RETRY_DELAY_SECS * (2_u64.pow(retry_count - 1)))
+                                .min(MAX_RETRY_DELAY_SECS);
+                            warn!(
+                                "Error al decodificar stream (intento {}/{}): {e}. Reintentando en {delay_secs}s",
+                                retry_count, MAX_STREAM_RETRIES
+                            );
+                            stream_retry_at = Some((
+                                retry_count,
+                                std::time::Instant::now() + std::time::Duration::from_secs(delay_secs),
+                            ));
+                            let _ = state_tx.send(PlayerState {
+                                status:  PlayerStatus::Reconnecting(retry_count),
+                                station: Some(station),
+                                volume:  current_volume,
+                                ..Default::default()
+                            });
+                        } else {
+                            error!("Stream falló después de {} intentos: {e}", retry_count);
+                            let _ = state_tx.send(PlayerState {
+                                status:  PlayerStatus::Error(format!("Stream: {} intentos fallidos", retry_count)),
+                                station: Some(station),
+                                volume:  current_volume,
+                                ..Default::default()
+                            });
+                        }
                     }
                 }
             }
@@ -426,10 +455,11 @@ fn audio_loop(
                     p.stop();
                 }
                 if let Some(p) = preview_player.take() { p.stop(); }
-                title_rx           = None;
-                api_last_success   = None;
-                current_station    = None;
-                reconnect_at       = None;
+                title_rx            = None;
+                api_last_success    = None;
+                current_station     = None;
+                reconnect_at        = None;
+                stream_retry_at     = None;
                 volume_before_duck = None;
                 level.store((-60.0f32).to_bits(), Ordering::Release);
                 let _ = state_tx.send(PlayerState {

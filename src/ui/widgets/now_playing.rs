@@ -50,6 +50,18 @@ impl<'a> Widget for NowPlayingWidget<'a> {
                 Span::styled("Error: ", Style::default().fg(theme::ERROR)),
                 Span::styled(msg.as_str(), Style::default().fg(theme::ERROR)),
             ]),
+            PlayerStatus::Reconnecting(attempt) => Line::from(vec![
+                Span::styled("Reconectando (", Style::default().fg(theme::ACCENT)),
+                Span::styled(
+                    format!("{}", attempt),
+                    Style::default().fg(theme::HIGHLIGHT),
+                ),
+                Span::styled(")… ", Style::default().fg(theme::ACCENT)),
+                Span::styled(
+                    self.state.station.as_ref().map(|s| s.name).unwrap_or(""),
+                    theme::SELECTED_STYLE,
+                ),
+            ]),
         };
         let middle_line = if let Some(show) = &self.state.api_show {
             Line::from(vec![

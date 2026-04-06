@@ -51,6 +51,9 @@ impl<'a> Widget for StationListWidget<'a> {
                         PlayerStatus::Error(_) => {
                             Span::styled(" !", Style::default().fg(theme::ERROR))
                         }
+                        PlayerStatus::Reconnecting(n) => {
+                            Span::styled(format!(" {} ", n), Style::default().fg(theme::ACCENT))
+                        }
                         PlayerStatus::Idle => Span::raw(""),
                     }
                 } else {
