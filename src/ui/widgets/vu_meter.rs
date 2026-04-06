@@ -1,4 +1,3 @@
-
 use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Layout, Rect},
@@ -9,14 +8,14 @@ use ratatui::{
 
 use crate::ui::theme;
 
-const DB_MIN:  f32 = -60.0;
-const DB_MAX:  f32 =   0.0;
-const DB_WARN: f32 =  -6.0;
-const DB_CLIP: f32 =  -1.0;
+const DB_MIN: f32 = -60.0;
+const DB_MAX: f32 = 0.0;
+const DB_WARN: f32 = -6.0;
+const DB_CLIP: f32 = -1.0;
 
 pub struct VuMeterWidget {
     pub level_db: f32,
-    pub volume:   f32,
+    pub volume: f32,
 }
 
 impl Widget for VuMeterWidget {
@@ -33,11 +32,7 @@ impl Widget for VuMeterWidget {
             return;
         }
 
-        let rows = Layout::vertical([
-            Constraint::Length(1),
-            Constraint::Length(1),
-        ])
-        .split(inner);
+        let rows = Layout::vertical([Constraint::Length(1), Constraint::Length(1)]).split(inner);
 
         render_level_bar(self.level_db, rows[0], buf);
 
@@ -58,7 +53,7 @@ fn render_level_bar(level_db: f32, area: Rect, buf: &mut Buffer) {
     let db = level_db.clamp(DB_MIN, DB_MAX);
     let ratio = (db - DB_MIN) / (DB_MAX - DB_MIN);
     let filled = (ratio * bar_width as f32).round() as usize;
-    let empty  = bar_width.saturating_sub(filled);
+    let empty = bar_width.saturating_sub(filled);
 
     let bar_color = if db >= DB_CLIP {
         Color::Red
@@ -69,10 +64,10 @@ fn render_level_bar(level_db: f32, area: Rect, buf: &mut Buffer) {
     };
 
     let line = Line::from(vec![
-        Span::styled(prefix,               Style::default().fg(theme::MUTED)),
-        Span::styled("█".repeat(filled),   Style::default().fg(bar_color)),
-        Span::styled("░".repeat(empty),    Style::default().fg(theme::MUTED)),
-        Span::styled(label,                Style::default().fg(theme::ACCENT)),
+        Span::styled(prefix, Style::default().fg(theme::MUTED)),
+        Span::styled("█".repeat(filled), Style::default().fg(bar_color)),
+        Span::styled("░".repeat(empty), Style::default().fg(theme::MUTED)),
+        Span::styled(label, Style::default().fg(theme::ACCENT)),
     ]);
     Paragraph::new(line).render(area, buf);
 }
@@ -87,7 +82,7 @@ fn render_volume_bar(volume: f32, area: Rect, buf: &mut Buffer) {
         .max(1);
 
     let filled = (volume.clamp(0.0, 1.0) * bar_width as f32).round() as usize;
-    let empty  = bar_width.saturating_sub(filled);
+    let empty = bar_width.saturating_sub(filled);
 
     let vol_color = if volume > 0.85 {
         Color::Yellow
@@ -96,10 +91,10 @@ fn render_volume_bar(volume: f32, area: Rect, buf: &mut Buffer) {
     };
 
     let line = Line::from(vec![
-        Span::styled(prefix,             Style::default().fg(theme::MUTED)),
+        Span::styled(prefix, Style::default().fg(theme::MUTED)),
         Span::styled("█".repeat(filled), Style::default().fg(vol_color)),
-        Span::styled("░".repeat(empty),  Style::default().fg(theme::MUTED)),
-        Span::styled(label,              Style::default().fg(theme::ACCENT)),
+        Span::styled("░".repeat(empty), Style::default().fg(theme::MUTED)),
+        Span::styled(label, Style::default().fg(theme::ACCENT)),
     ]);
     Paragraph::new(line).render(area, buf);
 }

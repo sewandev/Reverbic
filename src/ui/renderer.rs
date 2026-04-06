@@ -1,4 +1,3 @@
-
 use ratatui::{
     layout::{Constraint, Layout, Rect},
     style::Style,
@@ -12,30 +11,32 @@ use crate::audio::PlayerStatus;
 use crate::ui::{
     theme,
     widgets::{
-        countdown::CountdownWidget,
-        now_playing::NowPlayingWidget,
-        recent_tracks::RecentTracksWidget,
-        saved_tracks::SavedTracksWidget,
-        station_list::StationListWidget,
-        vu_meter::VuMeterWidget,
+        countdown::CountdownWidget, local_time::LocalTimeWidget, now_playing::NowPlayingWidget,
+        recent_tracks::RecentTracksWidget, saved_tracks::SavedTracksWidget,
+        station_list::StationListWidget, vu_meter::VuMeterWidget,
     },
 };
 pub fn render(frame: &mut Frame, app: &App) {
     let player_state = app.player_state();
 
-    let playing_index = player_state.station.as_ref().and_then(|playing| {
-        app.stations.iter().position(|s| s.url == playing.url)
-    });
+    let playing_index = player_state
+        .station
+        .as_ref()
+        .and_then(|playing| app.stations.iter().position(|s| s.url == playing.url));
 
-    let has_recent      = !player_state.recent_titles.is_empty();
-    let has_saved       = !app.saved_tracks.is_empty();
-    let show_countdown  = player_state.station.as_ref().map(|s| s.show_countdown).unwrap_or(false);
+    let has_recent = !player_state.recent_titles.is_empty();
+    let has_saved = !app.saved_tracks.is_empty();
+    let show_countdown = player_state
+        .station
+        .as_ref()
+        .map(|s| s.show_countdown)
+        .unwrap_or(false);
     let layout = compute_layout(frame.area(), has_recent, has_saved, show_countdown);
 
     frame.render_widget(
         StationListWidget {
-            stations:      app.stations,
-            selected:      app.selected,
+            stations: app.stations,
+            selected: app.selected,
             playing_index,
             player_status: &player_state.status,
         },
@@ -45,7 +46,10 @@ pub fn render(frame: &mut Frame, app: &App) {
     if let Some(saved_area) = layout.saved_tracks {
         let station_name = player_state.station.as_ref().map(|s| s.name);
         frame.render_widget(
-            SavedTracksWidget { tracks: &app.saved_tracks, station_name },
+            SavedTracksWidget {
+                tracks: &app.saved_tracks,
+                station_name,
+            },
             saved_area,
         );
     }
@@ -54,20 +58,25 @@ pub fn render(frame: &mut Frame, app: &App) {
         let focused = matches!(app.focus, AppFocus::RecentTracks);
         frame.render_widget(
             RecentTracksWidget {
-                tracks:                &player_state.recent_titles,
-                selected:              app.recent_selected,
+                tracks: &player_state.recent_titles,
+                selected: app.recent_selected,
                 focused,
-                preview_active:        player_state.preview_title.is_some(),
+                preview_active: player_state.preview_title.is_some(),
                 preview_loading_track: player_state.preview_loading_track.as_deref(),
                 preview_playing_track: player_state.preview_playing_track.as_deref(),
-                preview_unavailable:   &player_state.preview_unavailable,
+                preview_unavailable: &player_state.preview_unavailable,
             },
             recent_area,
         );
     }
 
     if let Some(now_playing_area) = layout.now_playing {
-        frame.render_widget(NowPlayingWidget { state: &player_state }, now_playing_area);
+        frame.render_widget(
+            NowPlayingWidget {
+                state: &player_state,
+            },
+            now_playing_area,
+        );
     }
 
     if let Some(countdown_area) = layout.countdown {
@@ -78,59 +87,65 @@ pub fn render(frame: &mut Frame, app: &App) {
         frame.render_widget(
             VuMeterWidget {
                 level_db: player_state.level_db,
-                volume:   player_state.volume,
+                volume: player_state.volume,
             },
             audio_area,
         );
     }
 
+    let overlay_width = 19;
+    let overlay_height = 1;
+    let overlay_x = frame.area().width.saturating_sub(overlay_width);
+    let overlay_y = 0;
+    if overlay_x > 1 && overlay_height > 0 {
+        let overlay_area = Rect::new(overlay_x, overlay_y, overlay_width, overlay_height);
+        frame.render_widget(LocalTimeWidget::new(), overlay_area);
+    }
+
     render_help(
-        frame, layout.help, &player_state.status, &app.focus,
+        frame,
+        layout.help,
+        &player_state.status,
+        &app.focus,
         app.save_notice.as_deref(),
         player_state.preview_title.as_deref(),
         player_state.preview_searching,
     );
 }
-const HEIGHT_NORMAL:  u16 = 19; // 5 top mínimo + 5 now_playing + 3 countdown + 4 audio + 2 help
+const HEIGHT_NORMAL: u16 = 19; // 5 top mínimo + 5 now_playing + 3 countdown + 4 audio + 2 help
 const HEIGHT_COMPACT: u16 = 10;
-const HEIGHT_NOW_PLAYING_NORMAL:  u16 = 5;
+const HEIGHT_NOW_PLAYING_NORMAL: u16 = 5;
 const HEIGHT_NOW_PLAYING_COMPACT: u16 = 3;
-const HEIGHT_COUNTDOWN:           u16 = 3;
-const HEIGHT_AUDIO:               u16 = 4;
-const HEIGHT_AUDIO_COMPACT:       u16 = 3;
-const HEIGHT_HELP:                u16 = 2;
-const HEIGHT_HELP_MINIMAL:        u16 = 1;
+const HEIGHT_COUNTDOWN: u16 = 3;
+const HEIGHT_AUDIO: u16 = 4;
+const HEIGHT_AUDIO_COMPACT: u16 = 3;
+const HEIGHT_HELP: u16 = 2;
+const HEIGHT_HELP_MINIMAL: u16 = 1;
 
 struct AppLayout {
-    stations:      Rect,
-    saved_tracks:  Option<Rect>,
+    stations: Rect,
+    saved_tracks: Option<Rect>,
     recent_tracks: Option<Rect>,
-    now_playing:   Option<Rect>,
-    countdown:     Option<Rect>,
-    audio:         Option<Rect>,
-    help:          Rect,
+    now_playing: Option<Rect>,
+    countdown: Option<Rect>,
+    audio: Option<Rect>,
+    help: Rect,
 }
 fn build_right_column(
     top: Rect,
     has_recent: bool,
     has_saved: bool,
 ) -> (Rect, Option<Rect>, Option<Rect>) {
-    let cols = Layout::horizontal([
-        Constraint::Percentage(45),
-        Constraint::Percentage(55),
-    ])
-    .split(top);
+    let cols =
+        Layout::horizontal([Constraint::Percentage(45), Constraint::Percentage(55)]).split(top);
 
-    let left  = cols[0];
+    let left = cols[0];
     let right = cols[1];
 
     let (saved, recent) = match (has_saved, has_recent) {
         (true, true) => {
-            let rows = Layout::vertical([
-                Constraint::Percentage(58),
-                Constraint::Percentage(42),
-            ])
-            .split(right);
+            let rows = Layout::vertical([Constraint::Percentage(58), Constraint::Percentage(42)])
+                .split(right);
             (Some(rows[0]), Some(rows[1]))
         }
         (true, false) => (Some(right), None),
@@ -141,7 +156,12 @@ fn build_right_column(
     (left, saved, recent)
 }
 
-fn compute_layout(area: Rect, has_recent: bool, has_saved: bool, show_countdown: bool) -> AppLayout {
+fn compute_layout(
+    area: Rect,
+    has_recent: bool,
+    has_saved: bool,
+    show_countdown: bool,
+) -> AppLayout {
     let has_right = has_recent || has_saved;
 
     if area.height >= HEIGHT_NORMAL {
@@ -179,9 +199,9 @@ fn compute_layout(area: Rect, has_recent: bool, has_saved: bool, show_countdown:
             saved_tracks,
             recent_tracks,
             now_playing: Some(chunks[1]),
-            countdown:   countdown_slot,
-            audio:       Some(chunks[audio_idx]),
-            help:        chunks[help_idx],
+            countdown: countdown_slot,
+            audio: Some(chunks[audio_idx]),
+            help: chunks[help_idx],
         }
     } else if area.height >= HEIGHT_COMPACT {
         let chunks = Layout::vertical([
@@ -203,24 +223,22 @@ fn compute_layout(area: Rect, has_recent: bool, has_saved: bool, show_countdown:
             saved_tracks,
             recent_tracks,
             now_playing: Some(chunks[1]),
-            countdown:   None,
-            audio:       Some(chunks[2]),
-            help:        chunks[3],
+            countdown: None,
+            audio: Some(chunks[2]),
+            help: chunks[3],
         }
     } else {
-        let chunks = Layout::vertical([
-            Constraint::Fill(1),
-            Constraint::Length(HEIGHT_HELP_MINIMAL),
-        ])
-        .split(area);
+        let chunks =
+            Layout::vertical([Constraint::Fill(1), Constraint::Length(HEIGHT_HELP_MINIMAL)])
+                .split(area);
         AppLayout {
-            stations:      chunks[0],
-            saved_tracks:  None,
+            stations: chunks[0],
+            saved_tracks: None,
             recent_tracks: None,
-            now_playing:   None,
-            countdown:     None,
-            audio:         None,
-            help:          chunks[1],
+            now_playing: None,
+            countdown: None,
+            audio: None,
+            help: chunks[1],
         }
     }
 }
@@ -237,9 +255,16 @@ fn render_help(
     let (text, color) = if let Some(title) = preview_title {
         (format!("  >> PREVIEW: {title}  [p] Parar"), theme::PLAYING)
     } else if preview_searching {
-        ("  Buscando en Deezer...  [p] Cancelar".to_string(), theme::ACCENT)
+        (
+            "  Buscando en Deezer...  [p] Cancelar".to_string(),
+            theme::ACCENT,
+        )
     } else if let Some(msg) = save_notice {
-        let color = if msg.starts_with("Ya guardada") { theme::ACCENT } else { theme::PLAYING };
+        let color = if msg.starts_with("Ya guardada") {
+            theme::ACCENT
+        } else {
+            theme::PLAYING
+        };
         (format!("  {msg}"), color)
     } else {
         let hint = match focus {
@@ -268,8 +293,7 @@ fn render_help(
         .border_style(theme::BORDER_STYLE);
 
     frame.render_widget(
-        Paragraph::new(Line::from(Span::styled(text, Style::default().fg(color))))
-            .block(block),
+        Paragraph::new(Line::from(Span::styled(text, Style::default().fg(color)))).block(block),
         area,
     );
 }

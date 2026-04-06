@@ -1,4 +1,3 @@
-
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
@@ -25,7 +24,10 @@ impl<'a> Widget for NowPlayingWidget<'a> {
         block.render(area, buf);
 
         let station_line = match &self.state.status {
-            PlayerStatus::Idle => Line::from(Span::styled("(sin estación)", Style::default().fg(theme::MUTED))),
+            PlayerStatus::Idle => Line::from(Span::styled(
+                "(sin estación)",
+                Style::default().fg(theme::MUTED),
+            )),
             PlayerStatus::Connecting => Line::from(vec![
                 Span::styled("Conectando a ", Style::default().fg(theme::ACCENT)),
                 Span::styled(
@@ -33,12 +35,10 @@ impl<'a> Widget for NowPlayingWidget<'a> {
                     theme::PLAYING_STYLE,
                 ),
             ]),
-            PlayerStatus::Playing => Line::from(vec![
-                Span::styled(
-                    self.state.station.as_ref().map(|s| s.name).unwrap_or(""),
-                    theme::PLAYING_STYLE,
-                ),
-            ]),
+            PlayerStatus::Playing => Line::from(vec![Span::styled(
+                self.state.station.as_ref().map(|s| s.name).unwrap_or(""),
+                theme::PLAYING_STYLE,
+            )]),
             PlayerStatus::Paused => Line::from(vec![
                 Span::styled("⏸ ", Style::default().fg(theme::ACCENT)),
                 Span::styled(

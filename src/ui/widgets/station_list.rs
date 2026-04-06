@@ -1,4 +1,3 @@
-
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
@@ -7,15 +6,15 @@ use ratatui::{
     widgets::{Block, Borders, List, ListItem, Widget},
 };
 
-use crate::station::Station;
 use crate::audio::PlayerStatus;
+use crate::station::Station;
 use crate::ui::theme;
 
 pub struct StationListWidget<'a> {
-    pub stations:        &'a [Station],
-    pub selected:        usize,
-    pub playing_index:   Option<usize>,
-    pub player_status:   &'a PlayerStatus,
+    pub stations: &'a [Station],
+    pub selected: usize,
+    pub playing_index: Option<usize>,
+    pub player_status: &'a PlayerStatus,
 }
 
 impl<'a> Widget for StationListWidget<'a> {
@@ -26,7 +25,7 @@ impl<'a> Widget for StationListWidget<'a> {
             .enumerate()
             .map(|(i, station)| {
                 let is_selected = i == self.selected;
-                let is_playing  = self.playing_index == Some(i);
+                let is_playing = self.playing_index == Some(i);
 
                 let prefix = if is_selected { "▶ " } else { "  " };
 
@@ -40,11 +39,19 @@ impl<'a> Widget for StationListWidget<'a> {
 
                 let status_tag = if is_playing {
                     match self.player_status {
-                        PlayerStatus::Playing    => Span::styled(" >>", Style::default().fg(theme::PLAYING)),
-                        PlayerStatus::Paused     => Span::styled(" ⏸", Style::default().fg(theme::ACCENT)),
-                        PlayerStatus::Connecting => Span::styled(" …", Style::default().fg(theme::ACCENT)),
-                        PlayerStatus::Error(_)   => Span::styled(" !", Style::default().fg(theme::ERROR)),
-                        PlayerStatus::Idle       => Span::raw(""),
+                        PlayerStatus::Playing => {
+                            Span::styled(" >>", Style::default().fg(theme::PLAYING))
+                        }
+                        PlayerStatus::Paused => {
+                            Span::styled(" ⏸", Style::default().fg(theme::ACCENT))
+                        }
+                        PlayerStatus::Connecting => {
+                            Span::styled(" …", Style::default().fg(theme::ACCENT))
+                        }
+                        PlayerStatus::Error(_) => {
+                            Span::styled(" !", Style::default().fg(theme::ERROR))
+                        }
+                        PlayerStatus::Idle => Span::raw(""),
                     }
                 } else {
                     Span::raw("")

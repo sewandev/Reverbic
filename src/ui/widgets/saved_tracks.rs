@@ -1,4 +1,3 @@
-
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
@@ -10,8 +9,8 @@ use ratatui::{
 use crate::ui::theme;
 
 pub struct SavedTracksWidget<'a> {
-    pub tracks:        &'a [String],
-    pub station_name:  Option<&'a str>,
+    pub tracks: &'a [String],
+    pub station_name: Option<&'a str>,
 }
 
 impl<'a> Widget for SavedTracksWidget<'a> {
@@ -20,8 +19,8 @@ impl<'a> Widget for SavedTracksWidget<'a> {
         let title = match (self.station_name, count) {
             (Some(name), 0) => format!(" LIBRARY — {name} "),
             (Some(name), n) => format!(" LIBRARY — {name} ({n}) "),
-            (None, 0)       => " LIBRARY ".to_string(),
-            (None, n)       => format!(" LIBRARY ({n}) "),
+            (None, 0) => " LIBRARY ".to_string(),
+            (None, n) => format!(" LIBRARY ({n}) "),
         };
 
         let block = Block::default()
@@ -44,7 +43,9 @@ impl<'a> Widget for SavedTracksWidget<'a> {
                 let (num_style, title_style) = if i == 0 {
                     (
                         Style::new().fg(theme::ACCENT).add_modifier(Modifier::BOLD),
-                        Style::new().fg(theme::HIGHLIGHT).add_modifier(Modifier::BOLD),
+                        Style::new()
+                            .fg(theme::HIGHLIGHT)
+                            .add_modifier(Modifier::BOLD),
                     )
                 } else {
                     (
