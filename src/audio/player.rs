@@ -178,6 +178,9 @@ fn audio_loop(
     let mut volume_before_duck: Option<f32> = None;
     let mut title_rx: Option<std_mpsc::Receiver<String>> = None;
     let mut api_last_success: Option<std::time::Instant> = None;
+    // true cuando la API ya proveyó historial para la estación actual.
+    // Se resetea al cambiar de estación. Controla si ICY actúa como fallback.
+    let mut api_has_recent: bool = false;
     let mut current_station: Option<Station> = None;
     let mut reconnect_at: Option<std::time::Instant> = None;
     let mut stream_retry_at: Option<(u32, std::time::Instant)> = None;
@@ -194,7 +197,11 @@ fn audio_loop(
             loop {
                 match rx.try_recv() {
                     Ok(title) => {
-                        if !api_fresh {
+                        // Usar ICY si:
+                        // - la API no está fresca (o no hay API), O
+                        // - la API está fresca pero nunca proveyó historial
+                        let use_icy = !api_fresh || !api_has_recent;
+                        if use_icy {
                             let mut state = state_tx.borrow().clone();
                             if state.recent_titles.first().map(String::as_str) != Some(title.as_str()) {
                                 state.recent_titles.insert(0, title.clone());
@@ -264,6 +271,7 @@ fn audio_loop(
                 state.api_show = Some(show);
                 if !recent.is_empty() {
                     state.recent_titles = recent;
+                    api_has_recent = true;
                 }
                 let _ = state_tx.send(state);
             }
@@ -273,6 +281,7 @@ fn audio_loop(
                 reconnect_at       = None;
                 stream_retry_at    = None;
                 api_last_success   = None;
+                api_has_recent     = false;
                 volume_before_duck = None;
                 if let Some(p) = player.take() {
                     p.stop();

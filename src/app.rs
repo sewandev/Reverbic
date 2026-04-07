@@ -7,7 +7,7 @@ use tokio::sync::mpsc;
 use crate::audio::{AudioPlayer, PlayerCommand, PlayerState, PlayerStatus};
 use crate::config::Config;
 use crate::library::{self, SaveResult};
-use crate::station::{is_duplicate, resolve_stations, search_stations, DynamicStation, Station};
+use crate::station::{enrich, find_enrichment, is_duplicate, search_stations, DynamicStation, Station};
 fn brussels_offset_secs() -> i32 {
     let now = Local::now();
     let (y, m, d, h) = (now.year(), now.month(), now.day(), now.hour());
@@ -347,13 +347,10 @@ impl App {
         let player = AudioPlayer::spawn();
         player.send(PlayerCommand::SetVolume(config.volume)).await;
 
-        let stations = resolve_stations().await;
-        let last = config.last_selected.min(stations.len().saturating_sub(1));
-
         Self {
             screen:          AppScreen::StationList,
-            stations,
-            selected:        last,
+            stations:        Vec::new(),
+            selected:        0,
             player,
             should_quit:     false,
             focus:           AppFocus::Stations,
@@ -635,9 +632,10 @@ impl App {
             return;
         }
         let ds = self.search_results[index].clone();
-        let station = Station {
+
+        let mut station = Station {
             key:             ds.key,
-            name:            ds.name,
+            name:            ds.name.clone(),
             url:             ds.url,
             metadata_api_url: None,
             history_api_url:  None,
@@ -645,10 +643,21 @@ impl App {
             show_countdown:  false,
             bitrate_kbps:    ds.bitrate_kbps,
         };
+
+        // Detectar si esta estación tiene metadatos especiales (Tomorrowland, OnlyHit, etc.)
+        if let Some(enrichment) = find_enrichment(&ds.name) {
+            enrich(&mut station, enrichment);
+            tracing::info!("Enriquecimiento activado para '{}'", station.name);
+        }
+
         self.stop_metadata_polling();
-        if self.player.send(PlayerCommand::Play(station)).await {
+        if self.player.send(PlayerCommand::Play(station.clone())).await {
             self.screen = AppScreen::Playing;
-            self.saved_tracks = Vec::new();
+            self.saved_tracks = library::load_saved_tracks(&station.key);
+            // Activar polling de metadatos si la estación lo soporta
+            if let Some(api_url) = station.metadata_api_url {
+                self.start_metadata_polling(api_url, station.history_api_url, station.schedule_url);
+            }
         }
     }
 
