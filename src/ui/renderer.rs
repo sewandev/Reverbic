@@ -24,6 +24,12 @@ pub fn render(frame: &mut Frame, app: &App) {
         .as_ref()
         .and_then(|playing| app.stations.iter().position(|s| s.url == playing.url));
 
+    let playing_dynamic_index = if let Some(ref station) = player_state.station {
+        app.search_results.iter().position(|s| s.url == station.url)
+    } else {
+        None
+    };
+
     let has_recent = !player_state.recent_titles.is_empty();
     let has_saved = !app.saved_tracks.is_empty();
     let show_countdown = player_state
@@ -35,16 +41,21 @@ pub fn render(frame: &mut Frame, app: &App) {
 
     frame.render_widget(
         StationListWidget {
-            stations: app.stations,
+            stations: &app.stations,
+            dynamic_stations: &app.search_results,
             selected: app.selected,
             playing_index,
+            playing_dynamic_index,
             player_status: &player_state.status,
+            search_query: &app.search_query,
+            search_loading: app.search_loading,
+            is_searching: matches!(app.focus, AppFocus::StationSearch),
         },
         layout.stations,
     );
 
     if let Some(saved_area) = layout.saved_tracks {
-        let station_name = player_state.station.as_ref().map(|s| s.name);
+        let station_name = player_state.station.as_ref().map(|s| s.name.as_str());
         frame.render_widget(
             SavedTracksWidget {
                 tracks: &app.saved_tracks,
@@ -112,6 +123,7 @@ pub fn render(frame: &mut Frame, app: &App) {
         player_state.preview_searching,
     );
 }
+
 const HEIGHT_NORMAL: u16 = 19; // 5 top mínimo + 5 now_playing + 3 countdown + 4 audio + 2 help
 const HEIGHT_COMPACT: u16 = 10;
 const HEIGHT_NOW_PLAYING_NORMAL: u16 = 5;
@@ -137,8 +149,7 @@ fn build_right_column(
     has_saved: bool,
 ) -> (Rect, Option<Rect>, Option<Rect>) {
     // STATIONS se limita a 40 cols como máximo; el resto va a saved/recent
-    let cols =
-        Layout::horizontal([Constraint::Max(40), Constraint::Fill(1)]).split(top);
+    let cols = Layout::horizontal([Constraint::Max(40), Constraint::Fill(1)]).split(top);
 
     let left = cols[0];
     let right = cols[1];
@@ -272,6 +283,9 @@ fn render_help(
             AppFocus::RecentTracks => {
                 "[↑↓/jk] Nav  [Enter] Guardar  [Esc] Volver  [Tab] Panel  [q] Salir".to_string()
             }
+            AppFocus::StationSearch => {
+                "[Backspace] Borrar  [Enter] Play  [Esc] Cancelar".to_string()
+            }
             AppFocus::Stations => {
                 let is_active = matches!(status, PlayerStatus::Playing | PlayerStatus::Paused);
                 let pause_hint = if matches!(status, PlayerStatus::Paused) {
@@ -280,9 +294,9 @@ fn render_help(
                     "[Space] Pause"
                 };
                 if is_active {
-                    format!("[↑↓/jk] Nav  [Enter] Play  {}  [s] Stop  [+/-] Vol  [Tab] Recent  [q] Salir", pause_hint)
+                    format!("[↑↓/jk] Nav  [Enter] Play  {}  [s] Stop  [+/-] Vol  [Tab] Recent  [Esc] Salir", pause_hint)
                 } else {
-                    "[↑↓/jk] Nav  [Enter] Play  [+/-] Vol  [Tab] Recent  [q] Salir".to_string()
+                    "[↑↓/jk] Nav  [Enter] Play  [+/-] Vol  [Tab] Recent  [Esc] Salir".to_string()
                 }
             }
         };

@@ -41,7 +41,7 @@ impl<'a> Widget for NowPlayingWidget<'a> {
 
 impl<'a> NowPlayingWidget<'a> {
     fn build_station_line(&self, width: u16, bitrate_tag: &str) -> Line<'a> {
-        let name = self.state.station.as_ref().map(|s| s.name).unwrap_or("…");
+        let name = self.state.station.as_ref().map(|s| s.name.as_str()).unwrap_or("…");
 
         // Right-align the bitrate tag on the same line as the station name
         let right_pad = if bitrate_tag.is_empty() {

@@ -62,9 +62,8 @@ impl<'a> Widget for RecentTracksWidget<'a> {
                 "[p] Preview"
             };
             if area.width >= 60 {
-                focused_title_long = format!(
-                    " RECENT  [↑↓] Nav  [Enter] Guardar  {preview_hint}  [Esc] Volver "
-                );
+                focused_title_long =
+                    format!(" RECENT  [↑↓] Nav  [Enter] Guardar  {preview_hint}  [Esc] Volver ");
                 focused_title_long.as_str()
             } else {
                 focused_title_short = format!(" RECENT  {preview_hint} ");

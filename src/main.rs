@@ -2,7 +2,7 @@
 #![deny(warnings)]
 
 use std::panic;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use crossterm::event::{Event, EventStream, KeyEventKind, MouseEventKind};
 use futures_util::{FutureExt, StreamExt};
@@ -76,19 +76,40 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
     let mut app = App::new().await;
     let mut ticker = tokio::time::interval(Duration::from_millis(50));
     let mut events = EventStream::new();
+    let mut last_click: Option<Instant> = None;
+    let mut click_count: u8 = 0;
 
     loop {
-        tui.draw(|frame| ui::render(frame, &app))
-            .map_err(|e| error::AppError::Terminal(e.to_string()))?;
+        app.poll_search_results();
+        let mut last_area = app.terminal_area;
+        tui.draw(|frame| {
+            last_area = frame.area();
+            ui::render(frame, &app);
+        })
+        .map_err(|e| error::AppError::Terminal(e.to_string()))?;
+        app.terminal_area = last_area;
         tokio::select! {
-            _ = ticker.tick() => {}
+            _ = ticker.tick() => {
+                app.poll_search_results();
+            }
             maybe_event = events.next() => {
-                handle_event(&mut app, maybe_event).await;
+                let now = Instant::now();
+                if let Some(prev) = last_click {
+                    if now.duration_since(prev).as_millis() < 300 {
+                        click_count += 1;
+                    } else {
+                        click_count = 1;
+                    }
+                } else {
+                    click_count = 1;
+                }
+                last_click = Some(now);
+                handle_event(&mut app, maybe_event, click_count).await;
             }
         }
         loop {
             match events.next().now_or_never() {
-                Some(Some(maybe_event)) => handle_event(&mut app, Some(maybe_event)).await,
+                Some(Some(maybe_event)) => handle_event(&mut app, Some(maybe_event), click_count).await,
                 _ => break,
             }
         }
@@ -101,7 +122,7 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
     Ok(())
 }
 
-async fn handle_event(app: &mut App, maybe_event: Option<std::io::Result<Event>>) {
+async fn handle_event(app: &mut App, maybe_event: Option<std::io::Result<Event>>, click_count: u8) {
     match maybe_event {
         Some(Ok(Event::Key(key))) if key.kind == KeyEventKind::Press => {
             app.on_key(key.code).await;
@@ -113,6 +134,12 @@ async fn handle_event(app: &mut App, maybe_event: Option<std::io::Result<Event>>
                 }
                 MouseEventKind::ScrollDown => {
                     app.on_mouse_scroll(3).await;
+                }
+                MouseEventKind::Down(_) if click_count >= 2 => {
+                    app.on_double_click().await;
+                }
+                MouseEventKind::Down(_) => {
+                    app.on_click(mouse.column, mouse.row);
                 }
                 _ => {}
             }

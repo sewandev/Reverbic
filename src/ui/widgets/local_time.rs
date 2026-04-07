@@ -65,9 +65,7 @@ impl Widget for LocalTimeWidget {
         let line = Line::from(vec![
             Span::styled(
                 tc.time,
-                Style::new()
-                    .fg(theme::ACCENT)
-                    .add_modifier(Modifier::BOLD),
+                Style::new().fg(theme::ACCENT).add_modifier(Modifier::BOLD),
             ),
             Span::styled("  ", Style::new().fg(theme::MUTED)),
             Span::styled(date_str, Style::new().fg(theme::MUTED)),
