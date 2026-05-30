@@ -182,6 +182,7 @@ pub fn render(frame: &mut Frame, app: &App) {
                 selected:       app.modal_selected,
                 mode:           &app.modal_mode,
                 genre_selected: app.genre_selected,
+                genre_filter:   &app.genre_filter,
                 genre_query:    &app.genre_query,
             },
             frame.area(),

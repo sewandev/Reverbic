@@ -50,6 +50,7 @@ pub struct SearchModalWidget<'a> {
     pub selected:       usize,
     pub mode:           &'a SearchMode,
     pub genre_selected: usize,
+    pub genre_filter:   &'a str,
     pub genre_query:    &'a str,
 }
 
@@ -217,8 +218,39 @@ impl SearchModalWidget<'_> {
             return;
         }
 
+        let [input_row, cap_row, list_body] = Layout::vertical([
+            Constraint::Length(1),
+            Constraint::Length(1),
+            Constraint::Fill(1),
+        ])
+        .areas(area);
+
+        buf[(content_x, input_row.y)]
+            .set_symbol("┃").set_fg(theme::ACCENT).set_bg(BG);
+
+        let text_x    = content_x + 2;
+        let text_w    = content_w.saturating_sub(2);
+        let text_area = Rect::new(text_x, input_row.y, text_w, 1);
+
+        if self.genre_filter.is_empty() {
+            Paragraph::new(Span::styled(
+                "Filtrar genero…",
+                Style::default().fg(theme::MUTED),
+            ))
+            .render(text_area, buf);
+        } else {
+            Paragraph::new(Line::from(vec![
+                Span::styled(self.genre_filter, Style::default().fg(theme::HIGHLIGHT)),
+                Span::styled("_", Style::default().fg(theme::ACCENT).add_modifier(Modifier::BOLD)),
+            ]))
+            .render(text_area, buf);
+        }
+
+        buf[(content_x, cap_row.y)]
+            .set_symbol("╹").set_fg(theme::ACCENT).set_bg(BG);
+
         if self.loading {
-            let area = Rect::new(content_x + 2, area.y + 1, content_w.saturating_sub(2), 1);
+            let area = Rect::new(text_x, list_body.y, text_w, 1);
             Paragraph::new(Span::styled(
                 format!("{}  Buscando genero…", spin_frame()),
                 Style::default().fg(theme::MUTED),
@@ -227,22 +259,29 @@ impl SearchModalWidget<'_> {
             return;
         }
 
-        let list_x = content_x + 2;
-        let list_w = content_w.saturating_sub(2);
-        let list_area = Rect::new(list_x, area.y, list_w, area.height);
+        let filtered = filtered_genres(self.genre_filter);
+        let list_x    = content_x + 2;
+        let list_w    = content_w.saturating_sub(2);
+        let list_area = Rect::new(list_x, list_body.y, list_w, list_body.height);
         let visible_n = list_area.height as usize;
-        let offset = if self.genre_selected >= visible_n {
+        let offset    = if self.genre_selected >= visible_n {
             self.genre_selected - visible_n + 1
         } else {
             0
         };
 
-        let items: Vec<ListItem> = GENRES
+        if filtered.is_empty() {
+            Paragraph::new(Span::styled("Sin coincidencias", Style::default().fg(theme::MUTED)))
+                .render(list_area, buf);
+            return;
+        }
+
+        let items: Vec<ListItem> = filtered
             .iter()
             .enumerate()
             .skip(offset)
             .take(visible_n)
-            .map(|(i, &(_, label))| {
+            .map(|(i, (_, label))| {
                 let active = i == self.genre_selected;
                 let (prefix, style) = if active {
                     ("▶  ", Style::default().fg(theme::PLAYING).add_modifier(Modifier::BOLD))
@@ -251,15 +290,15 @@ impl SearchModalWidget<'_> {
                 };
                 ListItem::new(Line::from(vec![
                     Span::styled(prefix, style),
-                    Span::styled(label, style),
+                    Span::styled(*label, style),
                 ]))
             })
             .collect();
 
         List::new(items).render(list_area, buf);
 
-        if GENRES.len() > visible_n {
-            self.render_scrollbar(list_area, GENRES.len(), self.genre_selected, buf);
+        if filtered.len() > visible_n {
+            self.render_scrollbar(list_area, filtered.len(), self.genre_selected, buf);
         }
     }
 
@@ -358,6 +397,17 @@ impl SearchModalWidget<'_> {
             buf[(sb_x, sy)].set_symbol(sym).set_fg(fg).set_bg(BG);
         }
     }
+}
+
+fn filtered_genres(filter: &str) -> Vec<(&'static str, &'static str)> {
+    if filter.is_empty() {
+        return GENRES.iter().map(|&(t, l)| (t, l)).collect();
+    }
+    let f = filter.to_lowercase();
+    GENRES.iter()
+        .filter(|(_, label)| label.to_lowercase().contains(&f))
+        .map(|&(t, l)| (t, l))
+        .collect()
 }
 
 fn key(s: &'static str) -> Span<'static> {
