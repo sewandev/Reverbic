@@ -133,6 +133,7 @@ impl SearchModalWidget<'_> {
             return vec![
                 Span::raw(" "),
                 key("[↵]"), sep(" Play  "),
+                key("[v]"), sep(" Votar  "),
                 key("[R]"), sep(" Random  "),
                 key("[↑↓]"), sep(" Nav  "),
                 key("[Esc]"), sep(" Volver "),
@@ -156,6 +157,7 @@ impl SearchModalWidget<'_> {
             SearchMode::Trending => vec![
                 Span::raw(" "),
                 key("[↵]"), sep(" Play  "),
+                key("[v]"), sep(" Votar  "),
                 key("[R]"), sep(" Random  "),
                 key("[r]"), sep(" Recargar  "),
                 key("[↑↓]"), sep(" Nav  "),
@@ -366,7 +368,7 @@ impl SearchModalWidget<'_> {
         let list_x  = content_x + 2;
         let visible_n = area.height as usize;
         let needs_scroll = self.results.len() > visible_n;
-        let name_w  = content_w.saturating_sub(if needs_scroll { 9 } else { 8 }) as usize;
+        let name_w  = content_w.saturating_sub(if needs_scroll { 14 } else { 13 }) as usize;
         let items_w = content_w.saturating_sub(if needs_scroll { 3 } else { 2 });
         let items_area = Rect::new(list_x, area.y, items_w, area.height);
 
@@ -409,7 +411,8 @@ impl SearchModalWidget<'_> {
                 let bitrate = s.bitrate_kbps
                     .map(|b| format!("{b:>4}k"))
                     .unwrap_or_else(|| "    ".to_string());
-                let (name_st, br_st) = if active {
+                let votes = format_votes(s.votes);
+                let (name_st, meta_st) = if active {
                     (
                         Style::default().fg(theme::PLAYING).add_modifier(Modifier::BOLD),
                         Style::default().fg(theme::ACCENT),
@@ -423,7 +426,8 @@ impl SearchModalWidget<'_> {
                 ListItem::new(Line::from(vec![
                     Span::styled(prefix,  name_st),
                     Span::styled(name,    name_st),
-                    Span::styled(bitrate, br_st),
+                    Span::styled(bitrate, meta_st),
+                    Span::styled(votes,   meta_st),
                 ]))
             })
             .collect();
@@ -482,7 +486,7 @@ impl SearchModalWidget<'_> {
 
         let visible_n    = area.height as usize;
         let needs_scroll = self.trending_results.len() > visible_n;
-        let name_w       = content_w.saturating_sub(if needs_scroll { 12 } else { 11 }) as usize;
+        let name_w       = content_w.saturating_sub(if needs_scroll { 17 } else { 16 }) as usize;
         let items_w      = content_w.saturating_sub(if needs_scroll { 3 } else { 2 });
         let items_area   = Rect::new(list_x, area.y, items_w, area.height);
         let offset       = if self.trending_selected >= visible_n {
@@ -507,16 +511,18 @@ impl SearchModalWidget<'_> {
                 let bitrate = s.bitrate_kbps
                     .map(|b| format!("{b:>4}k"))
                     .unwrap_or_else(|| "    ".to_string());
+                let votes = format_votes(s.votes);
                 let (name_st, meta_st) = if active {
                     (Style::default().fg(theme::PLAYING).add_modifier(Modifier::BOLD), Style::default().fg(theme::ACCENT))
                 } else {
                     (Style::default().fg(theme::HIGHLIGHT), Style::default().fg(theme::MUTED))
                 };
                 ListItem::new(Line::from(vec![
-                    Span::styled(prefix, name_st),
-                    Span::styled(rank,   meta_st),
-                    Span::styled(name,   name_st),
+                    Span::styled(prefix,  name_st),
+                    Span::styled(rank,    meta_st),
+                    Span::styled(name,    name_st),
                     Span::styled(bitrate, meta_st),
+                    Span::styled(votes,   meta_st),
                 ]))
             })
             .collect();
@@ -697,4 +703,13 @@ fn key(s: &'static str) -> Span<'static> {
 
 fn sep(s: &'static str) -> Span<'static> {
     Span::styled(s, Style::default().fg(theme::MUTED))
+}
+
+fn format_votes(v: u32) -> String {
+    match v {
+        0           => "     ".to_string(),
+        1..=999     => format!("{:>4}v", v),
+        1000..=9999 => format!("{:.1}kv", v as f32 / 1000.0),
+        _           => format!("{:>3}kv", v / 1000),
+    }
 }

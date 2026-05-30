@@ -4,5 +4,5 @@ pub mod radio_browser;
 pub mod registry;
 
 pub use enrichment::{enrich, find_enrichment};
-pub use radio_browser::{is_duplicate, search_stations, search_stations_by_tag, search_stations_by_country, fetch_trending, DynamicStation, GENRES, COUNTRIES};
+pub use radio_browser::{is_duplicate, vote_station, search_stations, search_stations_by_tag, search_stations_by_country, fetch_trending, DynamicStation, GENRES, COUNTRIES};
 pub use registry::Station;
