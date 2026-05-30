@@ -1,5 +1,70 @@
 use serde::Deserialize;
 
+pub const COUNTRIES: &[(&str, &str)] = &[
+    ("United States",    "United States"),
+    ("Germany",          "Germany"),
+    ("France",           "France"),
+    ("Brazil",           "Brazil"),
+    ("Mexico",           "Mexico"),
+    ("Spain",            "Spain"),
+    ("United Kingdom",   "United Kingdom"),
+    ("Argentina",        "Argentina"),
+    ("Italy",            "Italy"),
+    ("Russia",           "Russia"),
+    ("Poland",           "Poland"),
+    ("Netherlands",      "Netherlands"),
+    ("Belgium",          "Belgium"),
+    ("Austria",          "Austria"),
+    ("Switzerland",      "Switzerland"),
+    ("Australia",        "Australia"),
+    ("Canada",           "Canada"),
+    ("Colombia",         "Colombia"),
+    ("Chile",            "Chile"),
+    ("Peru",             "Peru"),
+    ("Venezuela",        "Venezuela"),
+    ("Bolivia",          "Bolivia"),
+    ("Uruguay",          "Uruguay"),
+    ("Paraguay",         "Paraguay"),
+    ("Ecuador",          "Ecuador"),
+    ("Cuba",             "Cuba"),
+    ("Costa Rica",       "Costa Rica"),
+    ("Puerto Rico",      "Puerto Rico"),
+    ("India",            "India"),
+    ("Japan",            "Japan"),
+    ("South Korea",      "South Korea"),
+    ("China",            "China"),
+    ("Thailand",         "Thailand"),
+    ("Indonesia",        "Indonesia"),
+    ("Philippines",      "Philippines"),
+    ("Turkey",           "Turkey"),
+    ("Israel",           "Israel"),
+    ("Ukraine",          "Ukraine"),
+    ("Czech Republic",   "Czech Republic"),
+    ("Romania",          "Romania"),
+    ("Hungary",          "Hungary"),
+    ("Greece",           "Greece"),
+    ("Portugal",         "Portugal"),
+    ("Sweden",           "Sweden"),
+    ("Norway",           "Norway"),
+    ("Denmark",          "Denmark"),
+    ("Finland",          "Finland"),
+    ("Ireland",          "Ireland"),
+    ("New Zealand",      "New Zealand"),
+    ("South Africa",     "South Africa"),
+    ("Nigeria",          "Nigeria"),
+    ("Kenya",            "Kenya"),
+    ("Egypt",            "Egypt"),
+    ("Morocco",          "Morocco"),
+    ("Bulgaria",         "Bulgaria"),
+    ("Serbia",           "Serbia"),
+    ("Croatia",          "Croatia"),
+    ("Slovakia",         "Slovakia"),
+    ("Lithuania",        "Lithuania"),
+    ("Latvia",           "Latvia"),
+    ("Estonia",          "Estonia"),
+    ("Slovenia",         "Slovenia"),
+];
+
 pub const GENRES: &[(&str, &str)] = &[
     ("pop",                        "Pop"),
     ("music",                      "Music"),
@@ -123,6 +188,10 @@ pub async fn search_stations(name: &str, limit: u32) -> Option<Vec<DynamicStatio
 
 pub async fn search_stations_by_tag(tag: &str, limit: u32) -> Option<Vec<DynamicStation>> {
     fetch("tag", tag, limit).await
+}
+
+pub async fn search_stations_by_country(country: &str, limit: u32) -> Option<Vec<DynamicStation>> {
+    fetch("country", country, limit).await
 }
 
 async fn fetch(param: &str, value: &str, limit: u32) -> Option<Vec<DynamicStation>> {

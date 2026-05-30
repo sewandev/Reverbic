@@ -1,5 +1,5 @@
 use crossterm::{
-    event::EnableMouseCapture,
+    event::{EnableBracketedPaste, EnableMouseCapture},
     execute,
     terminal::{
         disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen, SetTitle,
@@ -18,7 +18,8 @@ pub fn init() -> Result<Tui> {
         stdout,
         EnterAlternateScreen,
         SetTitle("Reverbic"),
-        EnableMouseCapture
+        EnableMouseCapture,
+        EnableBracketedPaste
     )
     .map_err(|e| AppError::Terminal(e.to_string()))?;
     let backend = CrosstermBackend::new(io::stdout());

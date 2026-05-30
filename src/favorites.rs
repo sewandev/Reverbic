@@ -63,6 +63,18 @@ pub fn toggle(favorites: &mut Vec<FavoriteStation>, fav: FavoriteStation) -> boo
 }
 
 
+pub fn move_up(favorites: &mut Vec<FavoriteStation>, i: usize) {
+    if i > 0 && i < favorites.len() {
+        favorites.swap(i, i - 1);
+    }
+}
+
+pub fn move_down(favorites: &mut Vec<FavoriteStation>, i: usize) {
+    if i + 1 < favorites.len() {
+        favorites.swap(i, i + 1);
+    }
+}
+
 fn path() -> PathBuf {
     reverbic_dir().join("favorites.json")
 }

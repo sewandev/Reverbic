@@ -176,17 +176,24 @@ pub fn render(frame: &mut Frame, app: &App) {
         use crate::ui::widgets::search_modal::SearchModalWidget;
         frame.render_widget(
             SearchModalWidget {
-                query:          &app.search_query,
-                results:        &app.search_results,
-                loading:        app.search_loading,
-                selected:       app.modal_selected,
-                mode:           &app.modal_mode,
-                genre_selected: app.genre_selected,
-                genre_filter:   &app.genre_filter,
-                genre_query:    &app.genre_query,
+                query:            &app.search_query,
+                results:          &app.search_results,
+                loading:          app.search_loading,
+                selected:         app.modal_selected,
+                mode:             &app.modal_mode,
+                genre_selected:   app.genre_selected,
+                genre_filter:     &app.genre_filter,
+                genre_query:      &app.genre_query,
+                country_selected: app.country_selected,
+                country_filter:   &app.country_filter,
+                history:          &app.config.search_history,
             },
             frame.area(),
         );
+    }
+
+    if let Some(_) = app.renaming_favorite {
+        render_rename_overlay(frame, &app.rename_input);
     }
 
     if app.show_settings {
@@ -417,6 +424,44 @@ fn render_help(
     frame.render_widget(
         Paragraph::new(Line::from(Span::styled(text, Style::default().fg(color)))),
         area,
+    );
+}
+
+fn render_rename_overlay(frame: &mut Frame, input: &str) {
+    use ratatui::widgets::{Block, BorderType, Borders, Clear};
+    let area  = frame.area();
+    let w     = area.width.min(50).max(30);
+    let h: u16 = 5;
+    let x     = area.width.saturating_sub(w) / 2;
+    let y     = area.height.saturating_sub(h) / 2;
+    let panel = ratatui::layout::Rect::new(x, y, w, h);
+
+    frame.render_widget(Clear, panel);
+
+    let block = Block::default()
+        .title_top(Line::from(Span::styled(
+            " Renombrar favorita ",
+            Style::default().fg(theme::HIGHLIGHT).add_modifier(Modifier::BOLD),
+        )).alignment(ratatui::layout::Alignment::Center))
+        .title_bottom(Line::from(Span::styled(
+            " [↵] Guardar  [Esc] Cancelar ",
+            Style::default().fg(theme::MUTED),
+        )).alignment(ratatui::layout::Alignment::Center))
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(theme::ACCENT))
+        .style(Style::default().bg(ratatui::style::Color::Rgb(13, 13, 13)));
+
+    let inner = block.inner(panel);
+    frame.render_widget(block, panel);
+
+    let text_area = ratatui::layout::Rect::new(inner.x + 1, inner.y + 1, inner.width.saturating_sub(2), 1);
+    frame.render_widget(
+        Paragraph::new(Line::from(vec![
+            Span::styled(input, Style::default().fg(theme::HIGHLIGHT)),
+            Span::styled("_", Style::default().fg(theme::ACCENT).add_modifier(Modifier::BOLD)),
+        ])),
+        text_area,
     );
 }
 

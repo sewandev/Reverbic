@@ -143,7 +143,10 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
 async fn handle_event(app: &mut App, maybe_event: Option<std::io::Result<Event>>, click_count: u8) {
     match maybe_event {
         Some(Ok(Event::Key(key))) if key.kind == KeyEventKind::Press => {
-            app.on_key(key.code).await;
+            app.on_key_event(key).await;
+        }
+        Some(Ok(Event::Paste(text))) => {
+            app.on_paste(text);
         }
         Some(Ok(Event::Mouse(mouse))) => {
             match mouse.kind {
