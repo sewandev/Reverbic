@@ -1,8 +1,9 @@
+use chrono::{Datelike, Local};
 use ratatui::{
     layout::{Constraint, Layout, Rect},
-    style::Style,
+    style::{Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Paragraph},
+    widgets::Paragraph,
     Frame,
 };
 
@@ -13,7 +14,6 @@ use crate::ui::{
     theme,
     widgets::{
         countdown::CountdownWidget,
-        local_time::LocalTimeWidget,
         now_playing::NowPlayingWidget,
         now_playing_overlay::NowPlayingOverlayWidget,
         on_demand_panel::OnDemandPanelWidget,
@@ -23,8 +23,8 @@ use crate::ui::{
         vu_meter::VuMeterWidget,
     },
 };
-/// Devuelve el `Rect` del widget NOW PLAYING dados los parámetros de layout.
-/// Usado por `App::on_click` para detectar clicks sobre la barra de progreso.
+
+/// Rect del widget NOW PLAYING — usado por `App::on_click` para seek.
 pub fn now_playing_rect(
     area: Rect,
     has_recent: bool,
@@ -41,112 +41,109 @@ pub fn render(frame: &mut Frame, app: &App) {
     let playing_index = player_state
         .station
         .as_ref()
-        .and_then(|playing| app.stations.iter().position(|s| s.url == playing.url));
+        .and_then(|p| app.stations.iter().position(|s| s.url == p.url));
 
-    let playing_dynamic_index = if let Some(ref station) = player_state.station {
-        app.search_results.iter().position(|s| s.url == station.url)
-    } else {
-        None
-    };
+    let playing_dynamic_index = player_state
+        .station
+        .as_ref()
+        .and_then(|p| app.search_results.iter().position(|s| s.url == p.url));
 
     let playing_favorite_index = player_state
         .station
         .as_ref()
-        .and_then(|playing| app.favorites.iter().position(|f| f.url == playing.url));
+        .and_then(|p| app.favorites.iter().position(|f| f.url == p.url));
 
-    // ID del show on-demand en reproducción (clave con prefijo "ondemand_")
     let playing_ondemand_id: Option<String> = player_state
         .station
         .as_ref()
         .and_then(|s| s.key.strip_prefix("ondemand_"))
         .map(str::to_string);
 
-    let has_recent = !player_state.recent_titles.is_empty();
-    let has_saved = !app.saved_tracks.is_empty();
+    let has_recent    = !player_state.recent_titles.is_empty();
+    let has_saved     = !app.saved_tracks.is_empty();
     let has_on_demand = !app.on_demand_shows.is_empty() || app.on_demand_loading;
-    let show_countdown = player_state
-        .station
-        .as_ref()
-        .map(|s| s.show_countdown)
-        .unwrap_or(false);
+    let show_countdown = player_state.station.as_ref().map(|s| s.show_countdown).unwrap_or(false);
+
     let layout = compute_layout(frame.area(), has_recent, has_saved, show_countdown, has_on_demand);
 
+    // ── Header ────────────────────────────────────────────────────
+    if let Some(h) = layout.header {
+        render_header(frame, h);
+    }
+    if let Some(s) = layout.sep_header {
+        render_sep(frame, s);
+    }
+
+    // ── Columnas de contenido ─────────────────────────────────────
     frame.render_widget(
         StationListWidget {
-            stations:              &app.stations,
-            dynamic_stations:      &app.search_results,
-            favorites:             &app.favorites,
-            selected:              app.selected,
+            stations:               &app.stations,
+            dynamic_stations:       &app.search_results,
+            favorites:              &app.favorites,
+            selected:               app.selected,
             playing_index,
             playing_dynamic_index,
             playing_favorite_index,
-            player_status:         &player_state.status,
-            search_query:          &app.search_query,
-            search_loading:        app.search_loading,
-            is_searching:          matches!(app.focus, AppFocus::StationSearch),
+            player_status:          &player_state.status,
+            search_query:           &app.search_query,
+            search_loading:         app.search_loading,
+            is_searching:           matches!(app.focus, AppFocus::StationSearch),
         },
         layout.stations,
     );
 
-    if let Some(od_area) = layout.on_demand {
+    if let Some(r) = layout.on_demand {
         let focused = matches!(app.focus, AppFocus::OnDemandList);
         frame.render_widget(
             OnDemandPanelWidget {
-                shows: &app.on_demand_shows,
-                selected: app.on_demand_selected,
+                shows:        &app.on_demand_shows,
+                selected:     app.on_demand_selected,
                 focused,
-                loading: app.on_demand_loading,
-                playing_id: playing_ondemand_id.as_deref(),
+                loading:      app.on_demand_loading,
+                playing_id:   playing_ondemand_id.as_deref(),
                 program_name: crate::station::on_demand::PROGRAMS
                     .get(app.selected_program)
                     .map(|p| p.name)
                     .unwrap_or("Shows"),
             },
-            od_area,
+            r,
         );
     }
 
-    if let Some(saved_area) = layout.saved_tracks {
+    if let Some(r) = layout.saved_tracks {
         let station_name = player_state.station.as_ref().map(|s| s.name.as_str());
         frame.render_widget(
-            SavedTracksWidget {
-                tracks: &app.saved_tracks,
-                station_name,
-            },
-            saved_area,
+            SavedTracksWidget { tracks: &app.saved_tracks, station_name },
+            r,
         );
     }
 
-    if let Some(recent_area) = layout.recent_tracks {
+    if let Some(r) = layout.recent_tracks {
         let focused = matches!(app.focus, AppFocus::RecentTracks);
         frame.render_widget(
             RecentTracksWidget {
-                tracks: &player_state.recent_titles,
-                selected: app.recent_selected,
+                tracks:                &player_state.recent_titles,
+                selected:              app.recent_selected,
                 focused,
-                preview_active: player_state.preview_title.is_some(),
+                preview_active:        player_state.preview_title.is_some(),
                 preview_loading_track: player_state.preview_loading_track.as_deref(),
                 preview_playing_track: player_state.preview_playing_track.as_deref(),
-                preview_unavailable: &player_state.preview_unavailable,
+                preview_unavailable:   &player_state.preview_unavailable,
             },
-            recent_area,
+            r,
         );
     }
 
-    if let Some(now_playing_area) = layout.now_playing {
-        frame.render_widget(
-            NowPlayingWidget {
-                state: &player_state,
-            },
-            now_playing_area,
-        );
+    // ── Footer ────────────────────────────────────────────────────
+    if let Some(s) = layout.sep_body {
+        render_sep(frame, s);
     }
 
-    if let Some(countdown_area) = layout.countdown {
-        frame.render_widget(CountdownWidget, countdown_area);
+    if let Some(r) = layout.now_playing {
+        frame.render_widget(NowPlayingWidget { state: &player_state }, r);
     }
 
-    if let Some(audio_area) = layout.audio {
+    if let Some(r) = layout.vu {
         let buffer_fill_pct = if let PlayerStatus::Buffering(pct) = player_state.status {
             Some(pct)
         } else {
@@ -154,21 +151,20 @@ pub fn render(frame: &mut Frame, app: &App) {
         };
         frame.render_widget(
             VuMeterWidget {
-                level_db: player_state.level_db,
-                volume: player_state.volume,
+                level_db:        player_state.level_db,
+                volume:          player_state.volume,
                 buffer_fill_pct,
             },
-            audio_area,
+            r,
         );
     }
 
-    let overlay_width = 23;
-    let overlay_height = 1;
-    let overlay_x = frame.area().width.saturating_sub(overlay_width);
-    let overlay_y = 0;
-    if overlay_x > 1 && overlay_height > 0 {
-        let overlay_area = Rect::new(overlay_x, overlay_y, overlay_width, overlay_height);
-        frame.render_widget(LocalTimeWidget::new(), overlay_area);
+    if let Some(s) = layout.sep_footer {
+        render_sep(frame, s);
+    }
+
+    if let Some(r) = layout.countdown {
+        frame.render_widget(CountdownWidget, r);
     }
 
     render_help(
@@ -182,9 +178,11 @@ pub fn render(frame: &mut Frame, app: &App) {
         &app.seek_input,
     );
 
-    render_now_playing_overlay(frame, app, &player_state);
+    // Overlay TUI (cambio de canción)
+    let footer_lines: u16 = if layout.countdown.is_some() { 3 } else { 2 };
+    render_now_playing_overlay(frame, app, &player_state, footer_lines);
 
-    // Panel de configuración — overlay modal por encima de todo lo demás
+    // Panel de configuración — modal encima de todo
     if app.show_settings {
         use crate::ui::widgets::settings_panel::{SettingsItem, SettingsPanelWidget};
         let items = [SettingsItem {
@@ -198,37 +196,110 @@ pub fn render(frame: &mut Frame, app: &App) {
     }
 }
 
-const HEIGHT_NORMAL: u16 = 19; // 5 top mínimo + 5 now_playing + 3 countdown + 4 audio + 2 help
-const HEIGHT_COMPACT: u16 = 10;
-const HEIGHT_NOW_PLAYING_NORMAL: u16 = 5;
-const HEIGHT_NOW_PLAYING_COMPACT: u16 = 3;
-const HEIGHT_COUNTDOWN: u16 = 3;
-const HEIGHT_AUDIO: u16 = 4;
-const HEIGHT_AUDIO_COMPACT: u16 = 3;
-const HEIGHT_HELP: u16 = 2;
-const HEIGHT_HELP_MINIMAL: u16 = 1;
+// ── Layout ────────────────────────────────────────────────────────────────────
+
+// Normal: header(1)+sep(1)+content(fill)+sep(1)+np(1)+vu(1)+sep(1)+[cd(1)]+help(1)
+const HEIGHT_NORMAL:  u16 = 11;
+const HEIGHT_COMPACT: u16 = 5;
 
 struct AppLayout {
+    header:       Option<Rect>,
+    sep_header:   Option<Rect>,
     stations:     Rect,
     on_demand:    Option<Rect>,
     saved_tracks: Option<Rect>,
     recent_tracks: Option<Rect>,
+    sep_body:     Option<Rect>,
     now_playing:  Option<Rect>,
+    vu:           Option<Rect>,
+    sep_footer:   Option<Rect>,
     countdown:    Option<Rect>,
-    audio:        Option<Rect>,
     help:         Rect,
 }
 
-// Reparte el área horizontal entre estaciones, panel on-demand (opcional) y columna derecha.
-// Cuando hay on_demand, la columna derecha solo se muestra si hay espacio suficiente (>= 90 cols).
-fn build_columns(
-    top: Rect,
+fn compute_layout(
+    area:          Rect,
+    has_recent:    bool,
+    has_saved:     bool,
+    show_countdown: bool,
     has_on_demand: bool,
-    has_recent: bool,
-    has_saved: bool,
+) -> AppLayout {
+    let countdown_h: u16 = u16::from(show_countdown);
+
+    if area.height >= HEIGHT_NORMAL + countdown_h {
+        let rows = Layout::vertical([
+            Constraint::Length(1),              // header
+            Constraint::Length(1),              // sep_header
+            Constraint::Fill(1),                // content
+            Constraint::Length(1),              // sep_body
+            Constraint::Length(1),              // now_playing
+            Constraint::Length(1),              // vu
+            Constraint::Length(1),              // sep_footer
+            Constraint::Length(countdown_h),    // countdown (0 si no hay)
+            Constraint::Length(1),              // help
+        ])
+        .split(area);
+
+        let countdown = if show_countdown { Some(rows[7]) } else { None };
+        let (stations, on_demand, saved_tracks, recent_tracks) =
+            build_columns(rows[2], has_on_demand, has_recent, has_saved);
+
+        AppLayout {
+            header:       Some(rows[0]),
+            sep_header:   Some(rows[1]),
+            stations,
+            on_demand,
+            saved_tracks,
+            recent_tracks,
+            sep_body:     Some(rows[3]),
+            now_playing:  Some(rows[4]),
+            vu:           Some(rows[5]),
+            sep_footer:   Some(rows[6]),
+            countdown,
+            help:         rows[8],
+        }
+    } else if area.height >= HEIGHT_COMPACT {
+        let rows = Layout::vertical([
+            Constraint::Fill(1),
+            Constraint::Length(1),
+            Constraint::Length(1),
+        ])
+        .split(area);
+
+        let (stations, on_demand, saved_tracks, recent_tracks) =
+            build_columns(rows[0], has_on_demand, has_recent, has_saved);
+
+        AppLayout {
+            header: None, sep_header: None,
+            stations, on_demand, saved_tracks, recent_tracks,
+            sep_body: None,
+            now_playing:  Some(rows[1]),
+            vu:           None,
+            sep_footer:   None,
+            countdown:    None,
+            help:         rows[2],
+        }
+    } else {
+        let rows = Layout::vertical([Constraint::Fill(1), Constraint::Length(1)]).split(area);
+        let (stations, on_demand, saved_tracks, recent_tracks) =
+            build_columns(rows[0], false, false, false);
+
+        AppLayout {
+            header: None, sep_header: None,
+            stations, on_demand, saved_tracks, recent_tracks,
+            sep_body: None, now_playing: None, vu: None, sep_footer: None, countdown: None,
+            help: rows[1],
+        }
+    }
+}
+
+fn build_columns(
+    top:           Rect,
+    has_on_demand: bool,
+    has_recent:    bool,
+    has_saved:     bool,
 ) -> (Rect, Option<Rect>, Option<Rect>, Option<Rect>) {
     if has_on_demand {
-        // Muestra columna derecha solo cuando el terminal es suficientemente ancho
         let show_right = top.width >= 90 && (has_recent || has_saved);
         if show_right {
             let cols = Layout::horizontal([
@@ -253,14 +324,17 @@ fn build_columns(
 }
 
 fn split_saved_recent(
-    right: Rect,
+    right:      Rect,
     has_recent: bool,
-    has_saved: bool,
+    has_saved:  bool,
 ) -> (Option<Rect>, Option<Rect>) {
     match (has_saved, has_recent) {
         (true, true) => {
-            let rows = Layout::vertical([Constraint::Percentage(58), Constraint::Percentage(42)])
-                .split(right);
+            let rows = Layout::vertical([
+                Constraint::Percentage(58),
+                Constraint::Percentage(42),
+            ])
+            .split(right);
             (Some(rows[0]), Some(rows[1]))
         }
         (true, false) => (Some(right), None),
@@ -269,90 +343,39 @@ fn split_saved_recent(
     }
 }
 
-fn compute_layout(
-    area: Rect,
-    has_recent: bool,
-    has_saved: bool,
-    show_countdown: bool,
-    has_on_demand: bool,
-) -> AppLayout {
-    if area.height >= HEIGHT_NORMAL {
-        let (chunks, countdown_slot) = if show_countdown {
-            let c = Layout::vertical([
-                Constraint::Fill(1),
-                Constraint::Length(HEIGHT_NOW_PLAYING_NORMAL),
-                Constraint::Length(HEIGHT_COUNTDOWN),
-                Constraint::Length(HEIGHT_AUDIO),
-                Constraint::Length(HEIGHT_HELP),
-            ])
-            .split(area);
-            let slot = c[2];
-            (c, Some(slot))
-        } else {
-            let c = Layout::vertical([
-                Constraint::Fill(1),
-                Constraint::Length(HEIGHT_NOW_PLAYING_NORMAL),
-                Constraint::Length(HEIGHT_AUDIO),
-                Constraint::Length(HEIGHT_HELP),
-            ])
-            .split(area);
-            (c, None)
-        };
-        let (audio_idx, help_idx) = if show_countdown { (3, 4) } else { (2, 3) };
+// ── Helpers de render ─────────────────────────────────────────────────────────
 
-        let (stations, on_demand, saved_tracks, recent_tracks) =
-            build_columns(chunks[0], has_on_demand, has_recent, has_saved);
+fn render_header(frame: &mut Frame, area: Rect) {
+    let now      = Local::now();
+    let time_str = format!("{}  {:02} {}", now.format("%H:%M"), now.day(), month_es(now.month()));
+    let brand    = " ♫ REVERBIC";
+    let brand_w  = brand.chars().count();
+    let time_w   = time_str.chars().count();
+    let pad      = (area.width as usize).saturating_sub(brand_w + time_w + 1);
 
-        AppLayout {
-            stations,
-            on_demand,
-            saved_tracks,
-            recent_tracks,
-            now_playing: Some(chunks[1]),
-            countdown: countdown_slot,
-            audio: Some(chunks[audio_idx]),
-            help: chunks[help_idx],
-        }
-    } else if area.height >= HEIGHT_COMPACT {
-        let chunks = Layout::vertical([
-            Constraint::Fill(1),
-            Constraint::Length(HEIGHT_NOW_PLAYING_COMPACT),
-            Constraint::Length(HEIGHT_AUDIO_COMPACT),
-            Constraint::Length(HEIGHT_HELP),
-        ])
-        .split(area);
-
-        let (stations, on_demand, saved_tracks, recent_tracks) =
-            build_columns(chunks[0], has_on_demand, has_recent, has_saved);
-
-        AppLayout {
-            stations,
-            on_demand,
-            saved_tracks,
-            recent_tracks,
-            now_playing: Some(chunks[1]),
-            countdown: None,
-            audio: Some(chunks[2]),
-            help: chunks[3],
-        }
-    } else {
-        let chunks =
-            Layout::vertical([Constraint::Fill(1), Constraint::Length(HEIGHT_HELP_MINIMAL)])
-                .split(area);
-        AppLayout {
-            stations: chunks[0],
-            on_demand: None,
-            saved_tracks: None,
-            recent_tracks: None,
-            now_playing: None,
-            countdown: None,
-            audio: None,
-            help: chunks[1],
-        }
-    }
+    let line = Line::from(vec![
+        Span::styled(brand, Style::new().fg(theme::ACCENT).add_modifier(Modifier::BOLD)),
+        Span::raw(" ".repeat(pad)),
+        Span::styled(time_str, Style::new().fg(theme::MUTED)),
+        Span::raw(" "),
+    ]);
+    frame.render_widget(Paragraph::new(line), area);
 }
 
-fn render_now_playing_overlay(frame: &mut Frame, app: &App, state: &PlayerState) {
+fn render_sep(frame: &mut Frame, area: Rect) {
+    let line = "─".repeat(area.width as usize);
+    frame.render_widget(
+        Paragraph::new(Span::styled(line, Style::default().fg(theme::MUTED))),
+        area,
+    );
+}
+
+fn render_now_playing_overlay(
+    frame:        &mut Frame,
+    app:          &App,
+    state:        &PlayerState,
+    footer_lines: u16,
+) {
     if !app.overlay.is_visible() {
         return;
     }
@@ -362,11 +385,11 @@ fn render_now_playing_overlay(frame: &mut Frame, app: &App, state: &PlayerState)
     const H: u16 = 4;
 
     let area = frame.area();
-    if area.width < W || area.height < H + HEIGHT_HELP {
+    if area.width < W || area.height < H + footer_lines {
         return;
     }
 
-    let overlay_area = Rect::new(area.width - W, area.height - H - HEIGHT_HELP, W, H);
+    let overlay_area = Rect::new(area.width - W, area.height - H - footer_lines, W, H);
     frame.render_widget(
         NowPlayingOverlayWidget {
             station_name: &station.name,
@@ -377,67 +400,55 @@ fn render_now_playing_overlay(frame: &mut Frame, app: &App, state: &PlayerState)
 }
 
 fn render_help(
-    frame: &mut Frame,
-    area: Rect,
-    status: &PlayerStatus,
-    focus: &AppFocus,
-    save_notice: Option<&str>,
-    preview_title: Option<&str>,
+    frame:             &mut Frame,
+    area:              Rect,
+    status:            &PlayerStatus,
+    focus:             &AppFocus,
+    save_notice:       Option<&str>,
+    preview_title:     Option<&str>,
     preview_searching: bool,
-    seek_input: &str,
+    seek_input:        &str,
 ) {
     let (text, color) = if let Some(title) = preview_title {
-        (format!("  >> PREVIEW: {title}  [p] Parar"), theme::PLAYING)
+        (format!(" ♪ PREVIEW: {title}   [p] Parar"), theme::PLAYING)
     } else if preview_searching {
-        (
-            "  Buscando en Deezer...  [p] Cancelar".to_string(),
-            theme::ACCENT,
-        )
+        (" Buscando en Deezer…   [p] Cancelar".to_string(), theme::ACCENT)
     } else if let Some(msg) = save_notice {
-        let color = if msg.starts_with("Ya guardada") {
-            theme::ACCENT
-        } else {
-            theme::PLAYING
-        };
-        (format!("  {msg}"), color)
+        let color = if msg.starts_with("Ya guardada") { theme::ACCENT } else { theme::PLAYING };
+        (format!(" {msg}"), color)
     } else {
         let hint = match focus {
-            AppFocus::RecentTracks => {
-                "[↑↓/jk] Nav  [Enter] Guardar  [Esc] Volver  [Tab] Panel  [q] Salir".to_string()
-            }
-            AppFocus::StationSearch => {
-                "[Backspace] Borrar  [Enter] Play  [Esc] Cancelar".to_string()
-            }
-            AppFocus::OnDemandList => {
+            AppFocus::RecentTracks  =>
+                "[↵] Guardar   [p] Preview   [Esc] Volver".to_string(),
+            AppFocus::StationSearch =>
+                "[Enter] Play   [Backspace] Borrar   [Esc] Cancelar".to_string(),
+            AppFocus::OnDemandList  => {
                 if !seek_input.is_empty() {
-                    format!("  Saltar a: {seek_input}_   [Enter] Go  [Backspace] Borrar  [Esc] Cancelar")
+                    format!(" Saltar a: {seek_input}_   [Enter] Go   [Esc] Cancelar")
                 } else {
-                    "[↑↓/jk] Nav  [p] Show  [Enter] Play  [0-9] Min  [[] -1min  []] +1min  [Esc] Volver".to_string()
+                    "[↵] Play   [[] -1min   []] +1min   [p] Programa   [Esc] Volver".to_string()
                 }
             }
             AppFocus::Stations => {
-                let is_active = matches!(status, PlayerStatus::Playing | PlayerStatus::Paused);
-                let pause_hint = if matches!(status, PlayerStatus::Paused) {
-                    "[Space] Resume"
+                let active = matches!(status, PlayerStatus::Playing | PlayerStatus::Paused);
+                if active {
+                    let pause = if matches!(status, PlayerStatus::Paused) { "[Space] Resume" } else { "[Space] ⏸" };
+                    format!("[↵] Play   {pause}   [F] ★   [+/-] Vol   [Esc] Salir")
                 } else {
-                    "[Space] Pause"
-                };
-                if is_active {
-                    format!("[↑↓/jk] Nav  [Enter] Play  {}  [s] Stop  [f] ★  [o] Config  [+/-] Vol  [Tab] Panel  [Esc] Salir", pause_hint)
-                } else {
-                    "[↑↓/jk] Nav  [Enter] Play  [f] ★  [o] Config  [+/-] Vol  [Tab] Panel  [Esc] Salir".to_string()
+                    "[↵] Play   [F] ★   [+/-] Vol   [Tab] Shows   [Esc] Salir".to_string()
                 }
             }
         };
-        (hint, theme::MUTED)
+        (format!(" {hint}"), theme::MUTED)
     };
 
-    let block = Block::default()
-        .borders(Borders::TOP)
-        .border_style(theme::BORDER_STYLE);
-
     frame.render_widget(
-        Paragraph::new(Line::from(Span::styled(text, Style::default().fg(color)))).block(block),
+        Paragraph::new(Line::from(Span::styled(text, Style::default().fg(color)))),
         area,
     );
+}
+
+fn month_es(m: u32) -> &'static str {
+    ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"]
+        [(m.saturating_sub(1) as usize).min(11)]
 }

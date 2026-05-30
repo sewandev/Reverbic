@@ -183,8 +183,10 @@ impl App {
             let s = &self.stations[i];
             Some(FavoriteStation { key: s.key.clone(), name: s.name.clone(), url: s.url.clone(), bitrate_kbps: s.bitrate_kbps })
         } else if let Some(i) = self.search_result_index() {
-            let ds = &self.search_results[i];
-            Some(FavoriteStation { key: ds.key.clone(), name: ds.name.clone(), url: ds.url.clone(), bitrate_kbps: ds.bitrate_kbps })
+            self.search_results.get(i).map(|ds| FavoriteStation {
+                key: ds.key.clone(), name: ds.name.clone(),
+                url: ds.url.clone(), bitrate_kbps: ds.bitrate_kbps,
+            })
         } else {
             None
         }
@@ -424,7 +426,7 @@ impl App {
                     self.play_station(station).await;
                 }
             }
-            KeyCode::Char('f') => {
+            KeyCode::Char('F') => {
                 self.toggle_selected_favorite();
             }
             KeyCode::Right => {
@@ -599,11 +601,11 @@ impl App {
                 show_countdown,
                 has_on_demand,
             ) {
-                // border(1) + station_line(1) = fila 2 del área (índice desde np_area.y)
-                let progress_row = np_area.y + 2;
+                // Widget compacto: 1 sola línea — la barra de progreso ES esa línea
+                let progress_row = np_area.y;
                 if row == progress_row {
-                    let inner_x     = np_area.x + 1;
-                    let inner_width = np_area.width.saturating_sub(2);
+                    let inner_x     = np_area.x + 1; // +1 por el espacio inicial del widget
+                    let inner_width = np_area.width.saturating_sub(1);
                     let pos = player_state.playback_pos_secs.unwrap_or(0.0);
                     // Longitud del texto de tiempo: " mm:ss / mm:ss " (con espacios)
                     let time_str_len = format!(
@@ -629,13 +631,15 @@ impl App {
         if h == 0 {
             return;
         }
-        // La lista de estaciones ocupa desde la fila 0 hasta
-        // aproximadamente (height - 11): now_playing(5) + audio(4) + help(2)
-        let list_max_row = h.saturating_sub(11);
-        if row == 0 || row >= list_max_row {
+        // Nuevo layout: header(1)+sep(1)+search(2) = 4 filas antes de la lista
+        // Footer: sep+np+vu+sep+help = 5 filas. En compact solo np+help = 2.
+        let content_start: u16 = if h >= 11 { 4 } else { 2 };
+        let footer_rows:   u16 = if h >= 11 { 5 } else { 2 };
+        let list_max_row = h.saturating_sub(footer_rows);
+        if row < content_start || row >= list_max_row {
             return;
         }
-        let item_idx = (row - 1) as usize; // -1 por el borde superior
+        let item_idx = (row - content_start) as usize;
 
         match &self.focus {
             AppFocus::StationSearch => {

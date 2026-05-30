@@ -5,44 +5,27 @@ use ratatui::{
     layout::Rect,
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, List, ListItem, Widget},
+    widgets::{Block, Borders, List, ListItem, Paragraph, Widget},
 };
 
 use crate::ui::theme;
 
 pub struct RecentTracksWidget<'a> {
-    pub tracks: &'a [String],
-    pub selected: usize,
-    pub focused: bool,
-    pub preview_active: bool,
+    pub tracks:                &'a [String],
+    pub selected:              usize,
+    pub focused:               bool,
+    pub preview_active:        bool,
     pub preview_loading_track: Option<&'a str>,
     pub preview_playing_track: Option<&'a str>,
-    pub preview_unavailable: &'a HashSet<String>,
+    pub preview_unavailable:   &'a HashSet<String>,
 }
 
-const NOW_PLAYING_STYLE: Style = Style::new().fg(theme::PLAYING).add_modifier(Modifier::BOLD);
-
-const CURSOR_STYLE: Style = Style::new()
-    .fg(Color::Black)
-    .bg(theme::ACCENT)
-    .add_modifier(Modifier::BOLD);
-
-const NORMAL_STYLE: Style = Style::new().fg(theme::MUTED);
-const UNAVAILABLE_STYLE: Style = Style::new().fg(Color::Yellow);
-const PREVIEW_PLAYING_STYLE: Style = Style::new().fg(theme::PLAYING).add_modifier(Modifier::BOLD);
-const SPINNER_STYLE: Style = Style::new().fg(theme::FESTIVAL_ACCENT);
-
-const SPINNER_FRAMES: &[&str] = &["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
-const FRAME_MS: u128 = 120;
-
-fn spinner_frame() -> &'static str {
-    let ms = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis())
-        .unwrap_or(0);
-    let idx = ((ms / FRAME_MS) as usize) % SPINNER_FRAMES.len();
-    SPINNER_FRAMES[idx]
-}
+const NOW_PLAYING_STYLE:  Style = Style::new().fg(theme::PLAYING).add_modifier(Modifier::BOLD);
+const CURSOR_STYLE:       Style = Style::new().fg(Color::Black).bg(theme::ACCENT).add_modifier(Modifier::BOLD);
+const NORMAL_STYLE:       Style = Style::new().fg(theme::MUTED);
+const UNAVAILABLE_STYLE:  Style = Style::new().fg(Color::Yellow);
+const PREVIEW_PLAY_STYLE: Style = Style::new().fg(theme::PLAYING).add_modifier(Modifier::BOLD);
+const SPINNER_STYLE:      Style = Style::new().fg(theme::FESTIVAL_ACCENT);
 
 impl<'a> Widget for RecentTracksWidget<'a> {
     fn render(self, area: Rect, buf: &mut Buffer) {
@@ -52,112 +35,81 @@ impl<'a> Widget for RecentTracksWidget<'a> {
             theme::BORDER_STYLE
         };
 
-        // Título responsivo según el ancho disponible
-        let focused_title_long;
-        let focused_title_short;
-        let title = if self.focused {
-            let preview_hint = if self.preview_active {
-                "[p] Parar"
-            } else {
-                "[p] Preview"
-            };
-            if area.width >= 60 {
-                focused_title_long =
-                    format!(" RECENT  [↑↓] Nav  [Enter] Guardar  {preview_hint}  [Esc] Volver ");
-                focused_title_long.as_str()
-            } else {
-                focused_title_short = format!(" RECENT  {preview_hint} ");
-                focused_title_short.as_str()
-            }
-        } else if area.width >= 40 {
-            " RECENT TRACKS  [Tab] "
-        } else {
-            " RECENT "
-        };
-
         let block = Block::default()
-            .title(title)
-            .borders(Borders::ALL)
+            .borders(Borders::LEFT)
             .border_style(border_style);
-
         let inner = block.inner(area);
         block.render(area, buf);
 
-        let total = self.tracks.len();
-        if total == 0 {
+        if inner.height == 0 {
             return;
         }
 
-        let height = inner.height as usize;
-        let selected = self.selected.min(total.saturating_sub(1));
-
-        // Scroll offset: mantiene el cursor siempre visible
-        let offset = if selected >= height {
-            selected + 1 - height
+        // Título en primera línea
+        let preview_hint = if self.preview_active { "  [p] Parar" } else { "  [p] Preview" };
+        let title_text = if self.focused {
+            format!("RECENT{preview_hint}  [↵] Guardar  [Esc] Volver")
         } else {
-            0
+            "RECENT  [Tab]".to_string()
         };
-        let slice_end = (offset + height).min(total);
-        let spinner = spinner_frame();
+        let title_style = if self.focused {
+            Style::new().fg(theme::ACCENT).add_modifier(Modifier::BOLD)
+        } else {
+            Style::new().fg(theme::DIM)
+        };
+        Paragraph::new(Line::from(Span::styled(title_text, title_style)))
+            .render(Rect::new(inner.x, inner.y, inner.width, 1), buf);
 
-        let items: Vec<ListItem> = self.tracks[offset..slice_end]
+        if inner.height < 2 || self.tracks.is_empty() {
+            return;
+        }
+
+        let list_area = Rect::new(inner.x, inner.y + 1, inner.width, inner.height - 1);
+        let total     = self.tracks.len();
+        let height    = list_area.height as usize;
+        let selected  = self.selected.min(total.saturating_sub(1));
+        let offset    = if selected >= height { selected + 1 - height } else { 0 };
+        let spinner   = super::spinner_frame();
+
+        let items: Vec<ListItem> = self.tracks[offset..(offset + height).min(total)]
             .iter()
             .enumerate()
-            .map(|(local_i, track)| {
-                let abs_i = offset + local_i;
-                let is_now_playing = abs_i == 0;
-                let is_selected = abs_i == selected && self.focused;
-                let is_loading = self.preview_loading_track == Some(track.as_str());
+            .map(|(li, track)| {
+                let abs_i        = offset + li;
+                let is_playing   = abs_i == 0;
+                let is_sel       = abs_i == selected && self.focused;
+                let is_loading   = self.preview_loading_track == Some(track.as_str());
                 let is_previewing = self.preview_playing_track == Some(track.as_str());
-                let is_unavailable = self.preview_unavailable.contains(track);
+                let is_unavail   = self.preview_unavailable.contains(track);
 
-                let row_style = if is_selected {
+                let row_style = if is_sel {
                     CURSOR_STYLE
-                } else if is_now_playing {
+                } else if is_playing {
                     NOW_PLAYING_STYLE
                 } else {
                     NORMAL_STYLE
                 };
 
-                let prefix = format!("{:>2}. ", abs_i + 1);
                 let mut spans = vec![
-                    Span::styled(prefix, row_style),
+                    Span::styled(format!("{:>2}. ", abs_i + 1), row_style),
                     Span::styled(track.as_str(), row_style),
                 ];
 
                 if is_loading {
-                    let style = if is_selected {
-                        Style::new()
-                            .fg(Color::Black)
-                            .bg(theme::ACCENT)
-                            .add_modifier(Modifier::BOLD)
-                    } else {
-                        SPINNER_STYLE
-                    };
-                    spans.push(Span::styled(format!("  {spinner}"), style));
+                    let s = if is_sel { Style::new().fg(Color::Black).bg(theme::ACCENT).add_modifier(Modifier::BOLD) } else { SPINNER_STYLE };
+                    spans.push(Span::styled(format!("  {spinner}"), s));
                 } else if is_previewing {
-                    let style = if is_selected {
-                        Style::new()
-                            .fg(Color::Black)
-                            .bg(theme::ACCENT)
-                            .add_modifier(Modifier::BOLD)
-                    } else {
-                        PREVIEW_PLAYING_STYLE
-                    };
-                    spans.push(Span::styled("  Playing preview", style));
-                } else if is_unavailable {
-                    let style = if is_selected {
-                        Style::new().fg(Color::Black).bg(theme::ACCENT)
-                    } else {
-                        UNAVAILABLE_STYLE
-                    };
-                    spans.push(Span::styled("  Preview no disponible", style));
+                    let s = if is_sel { Style::new().fg(Color::Black).bg(theme::ACCENT).add_modifier(Modifier::BOLD) } else { PREVIEW_PLAY_STYLE };
+                    spans.push(Span::styled("  ♪ preview", s));
+                } else if is_unavail {
+                    let s = if is_sel { Style::new().fg(Color::Black).bg(theme::ACCENT) } else { UNAVAILABLE_STYLE };
+                    spans.push(Span::styled("  no disponible", s));
                 }
 
                 ListItem::new(Line::from(spans))
             })
             .collect();
 
-        List::new(items).render(inner, buf);
+        List::new(items).render(list_area, buf);
     }
 }
