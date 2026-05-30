@@ -15,7 +15,7 @@ use windows::{
             Threading::AttachThreadInput,
         },
         UI::{
-            Shell::{Shell_NotifyIconW, NOTIFYICONDATAW, NIF_ICON, NIF_MESSAGE, NIF_TIP, NIF_INFO, NIM_ADD, NIM_DELETE, NIM_MODIFY, NIIF_NOSOUND, NIIF_INFO},
+            Shell::{Shell_NotifyIconW, NOTIFYICONDATAW, NIF_ICON, NIF_MESSAGE, NIF_TIP, NIF_INFO, NIM_ADD, NIM_DELETE, NIM_MODIFY, NIIF_NOSOUND},
             WindowsAndMessaging::*,
         },
     },
@@ -535,7 +535,7 @@ unsafe fn show_balloon(hwnd: HWND, id: u32, title: &str, body: &str) -> windows:
         uFlags:       NIF_INFO,
         szInfoTitle:  info_title,
         szInfo:       info,
-        dwInfoFlags:  NIIF_INFO | NIIF_NOSOUND,
+        dwInfoFlags:  NIIF_NOSOUND,
         ..Default::default()
     };
     Shell_NotifyIconW(NIM_MODIFY, &mut nid).ok()
