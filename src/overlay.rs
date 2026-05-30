@@ -109,8 +109,28 @@ unsafe fn run(
     mut config_rx: watch::Receiver<Config>,
     cmd_tx:        mpsc::Sender<PlayerCommand>,
 ) -> windows::core::Result<()> {
-    let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
+    // WASAPI corre en su propio hilo para no bloquear el message loop Win32.
+    // COM y COINIT_MULTITHREADED solo se inicializan en ese hilo dedicado.
     let own_pid = std::process::id();
+    let audio_activity: Arc<Mutex<(f32, Option<String>)>> = Arc::new(Mutex::new((0.0, None)));
+    {
+        let activity = Arc::clone(&audio_activity);
+        std::thread::Builder::new()
+            .name("wasapi-monitor".into())
+            .spawn(move || {
+                unsafe {
+                    let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
+                    loop {
+                        let result = detect_audio_activity(own_pid);
+                        if let Ok(mut g) = activity.lock() {
+                            *g = result;
+                        }
+                        std::thread::sleep(Duration::from_millis(500));
+                    }
+                }
+            })
+            .expect("wasapi-monitor thread");
+    }
 
     let hinstance = HINSTANCE(GetModuleHandleW(None)?.0);
     let class     = w!("ReverbicOverlay");
@@ -297,7 +317,9 @@ unsafe fn run(
         if Instant::now() >= next_duck_check {
             next_duck_check = Instant::now() + Duration::from_millis(500);
 
-            let (peak, detected_game) = detect_audio_activity(own_pid);
+            let (peak, detected_game) = audio_activity.lock()
+                .map(|g| g.clone())
+                .unwrap_or((0.0, None));
 
             // Actualiza el juego activo y notifica al player si cambió
             if detected_game != current_game {
