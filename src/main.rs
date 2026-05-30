@@ -89,10 +89,25 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
     }
 
     // Auto-play de la última radio si está habilitado
-    if app.config.autoplay_last && !app.stations.is_empty() {
-        let idx = app.config.last_selected.min(app.stations.len() - 1);
-        let station = app.stations[idx].clone();
-        app.player.send(PlayerCommand::Play(station)).await;
+    if app.config.autoplay_last {
+        if let Some(saved) = app.config.last_station.clone() {
+            use crate::station::{enrich, find_enrichment, Station};
+            let mut station = Station {
+                key:              saved.key.clone(),
+                name:             saved.name.clone(),
+                url:              saved.url.clone(),
+                metadata_api_url: None,
+                history_api_url:  None,
+                schedule_url:     None,
+                show_countdown:   false,
+                bitrate_kbps:     saved.bitrate_kbps,
+            };
+            if let Some(enrichment) = find_enrichment(&saved.name) {
+                enrich(&mut station, enrichment);
+            }
+            app.show_search_modal = false;
+            app.player.send(PlayerCommand::Play(station)).await;
+        }
     }
     let mut ticker = tokio::time::interval(Duration::from_millis(50));
     let mut events = EventStream::new();

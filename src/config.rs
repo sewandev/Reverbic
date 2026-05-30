@@ -2,6 +2,14 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LastStation {
+    pub key:          String,
+    pub name:         String,
+    pub url:          String,
+    pub bitrate_kbps: Option<u16>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum OverlayMode {
@@ -42,6 +50,8 @@ pub struct Config {
     pub search_history: Vec<String>,
     #[serde(default)]
     pub overlay_mode:   OverlayMode,
+    #[serde(default)]
+    pub last_station:   Option<LastStation>,
 }
 
 impl Default for Config {
@@ -52,6 +62,7 @@ impl Default for Config {
             autoplay_last: false,
             search_history: Vec::new(),
             overlay_mode: OverlayMode::WhenPlaying,
+            last_station: None,
         }
     }
 }
