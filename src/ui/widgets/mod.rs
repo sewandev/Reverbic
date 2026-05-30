@@ -4,7 +4,6 @@ pub mod on_demand_panel;
 pub mod search_modal;
 pub mod recent_tracks;
 pub mod saved_tracks;
-pub mod settings_panel;
 pub mod station_list;
 pub mod vu_meter;
 

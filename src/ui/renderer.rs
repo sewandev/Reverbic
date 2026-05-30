@@ -176,17 +176,20 @@ pub fn render(frame: &mut Frame, app: &App) {
         use crate::ui::widgets::search_modal::SearchModalWidget;
         frame.render_widget(
             SearchModalWidget {
-                query:            &app.search_query,
-                results:          &app.search_results,
-                loading:          app.search_loading,
-                selected:         app.modal_selected,
-                mode:             &app.modal_mode,
-                genre_selected:   app.genre_selected,
-                genre_filter:     &app.genre_filter,
-                genre_query:      &app.genre_query,
-                country_selected: app.country_selected,
-                country_filter:   &app.country_filter,
-                history:          &app.config.search_history,
+                query:             &app.search_query,
+                results:           &app.search_results,
+                loading:           app.search_loading,
+                selected:          app.modal_selected,
+                mode:              &app.modal_mode,
+                genre_selected:    app.genre_selected,
+                genre_filter:      &app.genre_filter,
+                genre_query:       &app.genre_query,
+                country_selected:  app.country_selected,
+                country_filter:    &app.country_filter,
+                history:           &app.config.search_history,
+                settings_selected: app.settings_selected,
+                autoplay_last:     app.config.autoplay_last,
+                overlay_mode:      app.config.overlay_mode.display(),
             },
             frame.area(),
         );
@@ -196,23 +199,6 @@ pub fn render(frame: &mut Frame, app: &App) {
         render_rename_overlay(frame, &app.rename_input);
     }
 
-    if app.show_settings {
-        use crate::ui::widgets::settings_panel::{SettingsItem, SettingsPanelWidget, SettingsValue};
-        let items = [
-            SettingsItem {
-                label: "Auto-play ultima radio al iniciar",
-                value: SettingsValue::Toggle(app.config.autoplay_last),
-            },
-            SettingsItem {
-                label: "Overlay Windows",
-                value: SettingsValue::Choice(app.config.overlay_mode.display()),
-            },
-        ];
-        frame.render_widget(
-            SettingsPanelWidget { items: &items, selected: app.settings_selected },
-            frame.area(),
-        );
-    }
 }
 
 const HEIGHT_NORMAL:  u16 = 11;
@@ -395,32 +381,32 @@ fn render_help(
     seek_input:        &str,
 ) {
     let (text, color) = if let Some(title) = preview_title {
-        (format!(" PREVIEW: {title}   [p] Parar"), theme::PLAYING)
+        (format!(" PREVIEW: {title}  [p] Detener"), theme::PLAYING)
     } else if preview_searching {
-        (" Buscando en Deezer…   [p] Cancelar".to_string(), theme::ACCENT)
+        (" Buscando en Deezer…  [p] Cancelar".to_string(), theme::ACCENT)
     } else if let Some(msg) = save_notice {
         let color = if msg.starts_with("Ya guardada") { theme::ACCENT } else { theme::PLAYING };
         (format!(" {msg}"), color)
     } else {
         let hint = match focus {
             AppFocus::RecentTracks  =>
-                "[↵] Guardar   [p] Preview   [Esc] Volver".to_string(),
+                "[↵] Guardar  [p] Preview  [Esc] Volver".to_string(),
             AppFocus::StationSearch =>
-                "[Enter] Play   [Backspace] Borrar   [Esc] Cancelar".to_string(),
+                "[↵] Play  [Backspace] Borrar  [Esc] Cancelar".to_string(),
             AppFocus::OnDemandList  => {
                 if !seek_input.is_empty() {
-                    format!(" Saltar a: {seek_input}_   [Enter] Go   [Esc] Cancelar")
+                    format!(" Saltar a: {seek_input}_  [↵] Ir  [Esc] Cancelar")
                 } else {
-                    "[↵] Play   [[] -1min   []] +1min   [p] Programa   [Esc] Volver".to_string()
+                    "[↵] Play  [[] -1min  []] +1min  [p] Programa  [Esc] Volver".to_string()
                 }
             }
             AppFocus::Stations => {
                 let active = matches!(status, PlayerStatus::Playing | PlayerStatus::Paused);
                 if active {
-                    let pause = if matches!(status, PlayerStatus::Paused) { "[Space] Resume" } else { "[Space] ⏸" };
-                    format!("[↵] Play   {pause}   [F] ★   [+/-] Vol   [Esc] Salir")
+                    let pause = if matches!(status, PlayerStatus::Paused) { "[Space] Reanudar" } else { "[Space] ⏸" };
+                    format!("[↵] Play  {pause}  [F] ★  [+/-] Vol  [/] Buscar  [Esc] Salir")
                 } else {
-                    "[↵] Play   [F] ★   [+/-] Vol   [Tab] Shows   [Esc] Salir".to_string()
+                    "[↵] Play  [F] ★  [+/-] Vol  [/] Buscar  [o] Config  [Esc] Salir".to_string()
                 }
             }
         };

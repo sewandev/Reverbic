@@ -14,6 +14,7 @@ pub enum SearchMode {
     Name,
     Genre,
     Country,
+    Settings,
 }
 
 pub enum AppFocus {
@@ -346,6 +347,7 @@ impl App {
                     }
                     self.country_selected = 0;
                 }
+                SearchMode::Settings => {}
             }
         }
     }
@@ -416,7 +418,8 @@ impl App {
                 return;
             }
             KeyCode::Char('o') if !matches!(self.focus, AppFocus::StationSearch) => {
-                self.show_settings = true;
+                self.show_search_modal = true;
+                self.modal_mode = SearchMode::Settings;
                 self.settings_selected = 0;
                 return;
             }
@@ -462,9 +465,10 @@ impl App {
     async fn on_key_search_modal(&mut self, key: KeyCode) {
         if key == KeyCode::Tab {
             self.modal_mode = match self.modal_mode {
-                SearchMode::Name    => SearchMode::Genre,
-                SearchMode::Genre   => SearchMode::Country,
-                SearchMode::Country => SearchMode::Name,
+                SearchMode::Name     => SearchMode::Genre,
+                SearchMode::Genre    => SearchMode::Country,
+                SearchMode::Country  => SearchMode::Settings,
+                SearchMode::Settings => SearchMode::Name,
             };
             self.modal_selected = 0;
             self.search_results.clear();
@@ -480,9 +484,10 @@ impl App {
         }
 
         match self.modal_mode {
-            SearchMode::Name    => self.on_key_modal_name(key).await,
-            SearchMode::Genre   => self.on_key_modal_genre(key).await,
-            SearchMode::Country => self.on_key_modal_country(key).await,
+            SearchMode::Name     => self.on_key_modal_name(key).await,
+            SearchMode::Genre    => self.on_key_modal_genre(key).await,
+            SearchMode::Country  => self.on_key_modal_country(key).await,
+            SearchMode::Settings => self.on_key_modal_settings(key),
         }
     }
 
@@ -702,6 +707,27 @@ impl App {
             KeyCode::Char(c) if !c.is_control() => {
                 self.country_filter.push(c);
                 self.country_selected = 0;
+            }
+            _ => {}
+        }
+    }
+
+    fn on_key_modal_settings(&mut self, key: KeyCode) {
+        const SETTINGS_COUNT: usize = 2;
+        match key {
+            KeyCode::Esc => {
+                self.show_search_modal = false;
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                if self.settings_selected > 0 { self.settings_selected -= 1; }
+            }
+            KeyCode::Down | KeyCode::Char('j') => {
+                if self.settings_selected + 1 < SETTINGS_COUNT {
+                    self.settings_selected += 1;
+                }
+            }
+            KeyCode::Enter | KeyCode::Char(' ') => {
+                self.apply_settings_toggle(self.settings_selected);
             }
             _ => {}
         }
