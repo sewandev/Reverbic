@@ -109,7 +109,6 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
             _ = ticker.tick() => {
                 app.poll_search_results();
                 app.poll_on_demand_results();
-                app.tick_overlay();
             }
             maybe_event = events.next() => {
                 let now = Instant::now();

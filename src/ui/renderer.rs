@@ -176,14 +176,9 @@ pub fn render(frame: &mut Frame, app: &App) {
         &app.seek_input,
     );
 
-    // Modal de búsqueda — encima de la UI base
+    // Modal de búsqueda — ocupa toda la pantalla, centra su contenido internamente
     if app.show_search_modal {
         use crate::ui::widgets::search_modal::SearchModalWidget;
-        let area = frame.area();
-        let w = area.width.min(64).max(40);
-        let h = area.height.min(20).max(10);
-        let x = area.width.saturating_sub(w) / 2;
-        let y = area.height.saturating_sub(h) / 2;
         frame.render_widget(
             SearchModalWidget {
                 query:    &app.search_query,
@@ -191,7 +186,7 @@ pub fn render(frame: &mut Frame, app: &App) {
                 loading:  app.search_loading,
                 selected: app.modal_selected,
             },
-            Rect::new(x, y, w, h),
+            frame.area(),
         );
     }
 
