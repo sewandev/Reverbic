@@ -8,7 +8,7 @@ use ratatui::{
 };
 
 use crate::app::{App, AppFocus};
-use crate::audio::PlayerStatus;
+use crate::audio::{PlayerState, PlayerStatus};
 use crate::i18n::t;
 use crate::ui::{
     theme,
@@ -179,6 +179,7 @@ pub fn render(frame: &mut Frame, app: &App) {
 
     if app.show_search_modal {
         use crate::ui::widgets::search_modal::SearchModalWidget;
+        let full_area = frame.area();
         frame.render_widget(
             SearchModalWidget {
                 query:             &app.search_query,
@@ -194,7 +195,7 @@ pub fn render(frame: &mut Frame, app: &App) {
                 settings_selected:  app.settings_selected,
                 autoplay_last:      app.config.autoplay_last,
                 overlay_mode:       app.config.overlay_mode.display(),
-                crossfade:          app.config.crossfade_display(),   // String
+                crossfade:          app.config.crossfade_display(),
                 media_keys:         app.config.media_keys,
                 tray_icon:          app.config.tray_icon,
                 notifications:      app.config.notifications,
@@ -202,8 +203,18 @@ pub fn render(frame: &mut Frame, app: &App) {
                 trending_loading:   app.trending_loading,
                 trending_selected:  app.trending_selected,
             },
-            frame.area(),
+            full_area,
         );
+
+        let modal_w = full_area.width.min(66).max(44);
+        let modal_h = full_area.height.min(14).max(10);
+        let modal_x = full_area.x + full_area.width.saturating_sub(modal_w) / 2;
+        let modal_y = full_area.y + full_area.height.saturating_sub(modal_h) / 2;
+        let strip_y = modal_y + modal_h;
+        if strip_y < full_area.bottom() {
+            let strip = Rect::new(modal_x, strip_y, modal_w, 1);
+            render_modal_np_strip(frame, strip, &player_state);
+        }
     }
 
     if let Some(_) = app.renaming_favorite {
@@ -468,6 +479,59 @@ fn render_rename_overlay(frame: &mut Frame, input: &str) {
         ])),
         text_area,
     );
+}
+
+fn render_modal_np_strip(frame: &mut Frame, area: Rect, state: &PlayerState) {
+    use ratatui::style::Color;
+    const STRIP_BG: Color = Color::Rgb(13, 13, 13);
+
+    let vol_pct   = (state.volume.clamp(0.0, 1.0) * 100.0).round() as u32;
+    let vol_color = if state.volume > 0.85 { theme::WARNING } else { theme::ACCENT };
+    let vol_str   = format!(" {vol_pct:>3}% ");
+    let vol_w     = vol_str.len() as u16;
+    let left_w    = area.width.saturating_sub(vol_w);
+
+    let left_rect = Rect::new(area.x, area.y, left_w, 1);
+    let vol_rect  = Rect::new(area.x + left_w, area.y, vol_w, 1);
+
+    frame.render_widget(
+        Paragraph::new(build_modal_np_left(state)).style(Style::default().bg(STRIP_BG)),
+        left_rect,
+    );
+    frame.render_widget(
+        Paragraph::new(Line::from(Span::styled(vol_str, Style::default().fg(vol_color))))
+            .style(Style::default().bg(STRIP_BG)),
+        vol_rect,
+    );
+}
+
+fn build_modal_np_left(state: &PlayerState) -> Line<'static> {
+    match &state.status {
+        PlayerStatus::Idle | PlayerStatus::Error(_) => Line::default(),
+
+        PlayerStatus::Connecting | PlayerStatus::Reconnecting(_) => Line::from(vec![
+            Span::styled("  …  ", Style::default().fg(theme::ACCENT)),
+            Span::styled(
+                state.station.as_ref().map(|s| s.name.clone()).unwrap_or_default(),
+                Style::default().fg(theme::MUTED),
+            ),
+        ]),
+
+        PlayerStatus::Buffering(_) | PlayerStatus::Playing | PlayerStatus::Paused => {
+            let icon  = if matches!(state.status, PlayerStatus::Paused) { " ⏸  " } else { " >>  " };
+            let name  = state.station.as_ref().map(|s| s.name.clone()).unwrap_or_default();
+            let title = state.title.clone().unwrap_or_default();
+            let mut spans: Vec<Span<'static>> = vec![
+                Span::styled(icon, Style::default().fg(theme::ACCENT)),
+                Span::styled(name, theme::PLAYING_STYLE),
+            ];
+            if !title.is_empty() {
+                spans.push(Span::styled("  ·  ", Style::default().fg(theme::MUTED)));
+                spans.push(Span::styled(title, Style::default().fg(theme::HIGHLIGHT)));
+            }
+            Line::from(spans)
+        }
+    }
 }
 
 fn month_es(m: u32) -> &'static str {

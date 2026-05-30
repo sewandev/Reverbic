@@ -517,6 +517,20 @@ impl App {
     }
 
     async fn on_key_search_modal(&mut self, key: KeyCode) {
+        match key {
+            KeyCode::Char('+') | KeyCode::Char('=') => {
+                let new_vol = (self.player.state().volume + 0.05).min(1.0);
+                self.player.send(PlayerCommand::SetVolume(new_vol)).await;
+                return;
+            }
+            KeyCode::Char('-') => {
+                let new_vol = (self.player.state().volume - 0.05).max(0.0);
+                self.player.send(PlayerCommand::SetVolume(new_vol)).await;
+                return;
+            }
+            _ => {}
+        }
+
         if key == KeyCode::Tab {
             self.modal_mode = match self.modal_mode {
                 SearchMode::Name     => SearchMode::Genre,
