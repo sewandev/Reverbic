@@ -52,6 +52,14 @@ pub struct Config {
     pub overlay_mode:   OverlayMode,
     #[serde(default)]
     pub last_station:   Option<LastStation>,
+    #[serde(default)]
+    pub crossfade_secs: u8,
+    #[serde(default)]
+    pub media_keys:     bool,
+    #[serde(default)]
+    pub tray_icon:      bool,
+    #[serde(default)]
+    pub notifications:  bool,
 }
 
 impl Default for Config {
@@ -63,7 +71,31 @@ impl Default for Config {
             search_history: Vec::new(),
             overlay_mode: OverlayMode::WhenPlaying,
             last_station: None,
+            crossfade_secs: 0,
+            media_keys: false,
+            tray_icon: false,
+            notifications: false,
         }
+    }
+}
+
+impl Config {
+    pub fn crossfade_display(&self) -> &'static str {
+        match self.crossfade_secs {
+            0 => "Desactivado",
+            1 => "1 seg",
+            2 => "2 seg",
+            _ => "3 seg",
+        }
+    }
+
+    pub fn crossfade_next(&mut self) {
+        self.crossfade_secs = match self.crossfade_secs {
+            0 => 1,
+            1 => 2,
+            2 => 3,
+            _ => 0,
+        };
     }
 }
 

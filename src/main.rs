@@ -83,9 +83,9 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
 
     #[cfg(target_os = "windows")]
     {
-        let (mode_tx, mode_rx) = tokio::sync::watch::channel(app.config.overlay_mode);
-        overlay::spawn(app.player.subscribe(), mode_rx);
-        app.overlay_mode_tx = Some(mode_tx);
+        let (config_tx, config_rx) = tokio::sync::watch::channel(app.config.clone());
+        overlay::spawn(app.player.subscribe(), config_rx, app.player.clone_sender());
+        app.windows_tx = Some(config_tx);
     }
 
     // Auto-play de la última radio si está habilitado
@@ -117,6 +117,7 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
     loop {
         app.poll_search_results();
         app.poll_on_demand_results();
+        app.poll_trending_results();
         let mut last_area = app.terminal_area;
         tui.draw(|frame| {
             last_area = frame.area();
@@ -128,6 +129,7 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
             _ = ticker.tick() => {
                 app.poll_search_results();
                 app.poll_on_demand_results();
+                app.poll_trending_results();
             }
             maybe_event = events.next() => {
                 let now = Instant::now();

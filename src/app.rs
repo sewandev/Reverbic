@@ -1,3 +1,5 @@
+use std::time::{Duration, Instant};
+
 use crossterm::event::KeyCode;
 use ratatui::layout::Rect;
 
@@ -8,12 +10,13 @@ use crate::library::{self, SaveResult};
 use crate::preview::{deezer_preview, parse_seek_input};
 use crate::schedule::poll_metadata_loop;
 use crate::station::on_demand::OnDemandShow;
-use crate::station::{enrich, find_enrichment, is_duplicate, on_demand, search_stations, search_stations_by_tag, search_stations_by_country, DynamicStation, Station};
+use crate::station::{enrich, fetch_trending, find_enrichment, is_duplicate, on_demand, search_stations, search_stations_by_tag, search_stations_by_country, DynamicStation, Station};
 
 pub enum SearchMode {
     Name,
     Genre,
     Country,
+    Trending,
     Settings,
 }
 
@@ -55,7 +58,13 @@ pub struct App {
     pub country_filter:      String,
     pub renaming_favorite:   Option<usize>,
     pub rename_input:        String,
-    pub overlay_mode_tx:     Option<tokio::sync::watch::Sender<crate::config::OverlayMode>>,
+    pub trending_results:    Vec<DynamicStation>,
+    pub trending_loading:    bool,
+    pub trending_selected:   usize,
+    pub click_flash:         Option<(usize, Instant)>,
+    pub windows_tx:          Option<tokio::sync::watch::Sender<crate::config::Config>>,
+    trending_task:           Option<tokio::task::JoinHandle<()>>,
+    trending_rx:             Option<std::sync::mpsc::Receiver<Vec<DynamicStation>>>,
     pub config:              Config,
     metadata_task:           Option<tokio::task::JoinHandle<()>>,
     search_task:             Option<tokio::task::JoinHandle<()>>,
@@ -102,7 +111,13 @@ impl App {
             country_filter:     String::new(),
             renaming_favorite:  None,
             rename_input:       String::new(),
-            overlay_mode_tx:    None,
+            trending_results:   Vec::new(),
+            trending_loading:   false,
+            trending_selected:  0,
+            click_flash:        None,
+            windows_tx:         None,
+            trending_task:      None,
+            trending_rx:        None,
             config,
             metadata_task:      None,
             search_task:        None,
@@ -254,17 +269,45 @@ impl App {
         });
         self.config.save();
         self.stop_metadata_polling();
-        if self.player.send(PlayerCommand::Play(station.clone())).await {
-            self.saved_tracks = library::load_saved_tracks(&station.key);
-            if let Some(api_url) = station.metadata_api_url {
-                self.start_metadata_polling(api_url, station.history_api_url, station.schedule_url);
-            }
-            if station.show_countdown {
-                self.start_on_demand_fetch();
-            } else {
-                self.on_demand_shows.clear();
-                self.on_demand_loading = false;
-            }
+
+        let fade = self.config.crossfade_secs;
+        let is_active = matches!(
+            self.player.state().status,
+            PlayerStatus::Playing | PlayerStatus::Buffering(_) | PlayerStatus::Reconnecting(_)
+        );
+
+        if fade > 0 && is_active {
+            let target_vol = self.player.state().volume;
+            let sender     = self.player.clone_sender();
+            let s          = station.clone();
+            let secs       = fade as f32;
+            tokio::spawn(async move {
+                const STEPS: u32 = 20;
+                let step = Duration::from_millis((secs * 1000.0 / STEPS as f32) as u64);
+                for i in (0..STEPS).rev() {
+                    let _ = sender.send(PlayerCommand::SetVolume((i as f32 / STEPS as f32) * target_vol)).await;
+                    tokio::time::sleep(step).await;
+                }
+                let _ = sender.send(PlayerCommand::Play(s)).await;
+                tokio::time::sleep(Duration::from_millis(300)).await;
+                for i in 1..=STEPS {
+                    let _ = sender.send(PlayerCommand::SetVolume((i as f32 / STEPS as f32) * target_vol)).await;
+                    tokio::time::sleep(step).await;
+                }
+            });
+        } else {
+            self.player.send(PlayerCommand::Play(station.clone())).await;
+        }
+
+        self.saved_tracks = library::load_saved_tracks(&station.key);
+        if let Some(api_url) = station.metadata_api_url {
+            self.start_metadata_polling(api_url, station.history_api_url, station.schedule_url);
+        }
+        if station.show_countdown {
+            self.start_on_demand_fetch();
+        } else {
+            self.on_demand_shows.clear();
+            self.on_demand_loading = false;
         }
     }
 
@@ -354,7 +397,7 @@ impl App {
                     }
                     self.country_selected = 0;
                 }
-                SearchMode::Settings => {}
+                SearchMode::Settings | SearchMode::Trending => {}
             }
         }
     }
@@ -474,7 +517,8 @@ impl App {
             self.modal_mode = match self.modal_mode {
                 SearchMode::Name     => SearchMode::Genre,
                 SearchMode::Genre    => SearchMode::Country,
-                SearchMode::Country  => SearchMode::Settings,
+                SearchMode::Country  => SearchMode::Trending,
+                SearchMode::Trending => SearchMode::Settings,
                 SearchMode::Settings => SearchMode::Name,
             };
             self.modal_selected = 0;
@@ -485,8 +529,15 @@ impl App {
             self.genre_selected = 0;
             self.country_filter.clear();
             self.country_selected = 0;
+            self.trending_selected = 0;
             if let Some(t) = self.search_task.take() { t.abort(); }
             self.search_loading = false;
+            if matches!(self.modal_mode, SearchMode::Trending)
+                && self.trending_results.is_empty()
+                && !self.trending_loading
+            {
+                self.fetch_trending();
+            }
             return;
         }
 
@@ -494,6 +545,7 @@ impl App {
             SearchMode::Name     => self.on_key_modal_name(key).await,
             SearchMode::Genre    => self.on_key_modal_genre(key).await,
             SearchMode::Country  => self.on_key_modal_country(key).await,
+            SearchMode::Trending => self.on_key_modal_trending(key).await,
             SearchMode::Settings => self.on_key_modal_settings(key),
         }
     }
@@ -719,8 +771,99 @@ impl App {
         }
     }
 
+    async fn on_key_modal_trending(&mut self, key: KeyCode) {
+        if self.trending_loading {
+            if matches!(key, KeyCode::Esc) {
+                self.show_search_modal = false;
+            }
+            return;
+        }
+        match key {
+            KeyCode::Esc => { self.show_search_modal = false; }
+            KeyCode::Up | KeyCode::Char('k') => {
+                if self.trending_selected > 0 { self.trending_selected -= 1; }
+            }
+            KeyCode::Down | KeyCode::Char('j') => {
+                if self.trending_selected + 1 < self.trending_results.len() {
+                    self.trending_selected += 1;
+                }
+            }
+            KeyCode::Enter => {
+                let idx = self.trending_selected.min(self.trending_results.len().saturating_sub(1));
+                if !self.trending_results.is_empty() {
+                    self.show_search_modal = false;
+                    self.play_dynamic_station_from(&self.trending_results.clone(), idx).await;
+                }
+            }
+            KeyCode::Char('R') => {
+                if !self.trending_results.is_empty() {
+                    let ms = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map(|d| d.as_millis()).unwrap_or(0);
+                    let idx = (ms as usize) % self.trending_results.len();
+                    self.show_search_modal = false;
+                    self.play_dynamic_station_from(&self.trending_results.clone(), idx).await;
+                }
+            }
+            KeyCode::Char('r') => {
+                self.trending_results.clear();
+                self.trending_selected = 0;
+                self.fetch_trending();
+            }
+            _ => {}
+        }
+    }
+
+    async fn play_dynamic_station_from(&mut self, list: &[DynamicStation], index: usize) {
+        if index >= list.len() { return; }
+        let ds = list[index].clone();
+        let mut station = Station {
+            key:              ds.key,
+            name:             ds.name.clone(),
+            url:              ds.url,
+            metadata_api_url: None,
+            history_api_url:  None,
+            schedule_url:     None,
+            show_countdown:   false,
+            bitrate_kbps:     ds.bitrate_kbps,
+        };
+        if let Some(enrichment) = find_enrichment(&ds.name) {
+            enrich(&mut station, enrichment);
+        }
+        self.play_station(station).await;
+    }
+
+    fn fetch_trending(&mut self) {
+        if let Some(t) = self.trending_task.take() { t.abort(); }
+        self.trending_loading = true;
+        self.trending_rx = None;
+        let (tx, rx) = std::sync::mpsc::channel();
+        self.trending_rx = Some(rx);
+        self.trending_task = Some(tokio::spawn(async move {
+            let results = fetch_trending(30).await.unwrap_or_default();
+            let _ = tx.send(results);
+        }));
+    }
+
+    pub fn poll_trending_results(&mut self) {
+        if let Some(rx) = self.trending_rx.take() {
+            match rx.try_recv() {
+                Ok(results) => {
+                    self.trending_results  = results;
+                    self.trending_loading  = false;
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => {
+                    self.trending_rx = Some(rx);
+                }
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    self.trending_loading = false;
+                }
+            }
+        }
+    }
+
     fn on_key_modal_settings(&mut self, key: KeyCode) {
-        const SETTINGS_COUNT: usize = 2;
+        const SETTINGS_COUNT: usize = 6;
         match key {
             KeyCode::Esc => {
                 self.show_search_modal = false;
@@ -1005,6 +1148,8 @@ impl App {
                 (Self::filter_genres(&self.genre_filter).len(), &mut self.genre_selected)
             } else if self.search_results.is_empty() && matches!(self.modal_mode, SearchMode::Country) {
                 (Self::filter_countries(&self.country_filter).len(), &mut self.country_selected)
+            } else if matches!(self.modal_mode, SearchMode::Trending) {
+                (self.trending_results.len(), &mut self.trending_selected)
             } else {
                 (self.search_results.len(), &mut self.modal_selected)
             };
@@ -1054,6 +1199,7 @@ impl App {
     pub async fn on_double_click(&mut self) {
         match self.focus {
             AppFocus::Stations | AppFocus::StationSearch => {
+                self.click_flash = Some((self.selected, Instant::now()));
                 if let Some(idx) = self.favorite_index() {
                     self.play_favorite_station(idx).await;
                 } else if let Some(idx) = self.search_result_index() {
@@ -1167,18 +1313,17 @@ impl App {
 
     fn apply_settings_toggle(&mut self, idx: usize) {
         match idx {
-            0 => {
-                self.config.autoplay_last = !self.config.autoplay_last;
-                self.config.save();
-            }
-            1 => {
-                self.config.overlay_mode = self.config.overlay_mode.next();
-                self.config.save();
-                if let Some(ref tx) = self.overlay_mode_tx {
-                    let _ = tx.send(self.config.overlay_mode);
-                }
-            }
+            0 => { self.config.autoplay_last  = !self.config.autoplay_last; }
+            1 => { self.config.overlay_mode   = self.config.overlay_mode.next(); }
+            2 => { self.config.crossfade_secs = { self.config.crossfade_next(); self.config.crossfade_secs }; }
+            3 => { self.config.media_keys     = !self.config.media_keys; }
+            4 => { self.config.tray_icon      = !self.config.tray_icon; }
+            5 => { self.config.notifications  = !self.config.notifications; }
             _ => {}
+        }
+        self.config.save();
+        if let Some(ref tx) = self.windows_tx {
+            let _ = tx.send(self.config.clone());
         }
     }
 

@@ -194,6 +194,35 @@ pub async fn search_stations_by_country(country: &str, limit: u32) -> Option<Vec
     fetch("country", country, limit).await
 }
 
+pub async fn fetch_trending(limit: u32) -> Option<Vec<DynamicStation>> {
+    let client = reqwest::Client::builder()
+        .user_agent("reverbic/0.1")
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .ok()?;
+
+    let limit_str = limit.to_string();
+    for server in RADIO_BROWSER_SERVERS {
+        let url = format!("{server}/json/stations/topclick/{limit_str}");
+        match client.get(&url).query(&[("hidebroken", "true")]).send().await {
+            Ok(resp) if resp.status().is_success() => {
+                if let Ok(body) = resp.text().await {
+                    if let Ok(stations) = serde_json::from_str::<Vec<RadioBrowserStation>>(&body) {
+                        return Some(
+                            stations.into_iter()
+                                .map(DynamicStation::from)
+                                .filter(|s| !s.url.is_empty())
+                                .collect(),
+                        );
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
 async fn fetch(param: &str, value: &str, limit: u32) -> Option<Vec<DynamicStation>> {
     let value = value.trim();
     if value.is_empty() {
