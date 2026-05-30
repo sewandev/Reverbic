@@ -161,8 +161,6 @@ pub struct RadioBrowserStation {
     pub url_resolved: String,
     pub url: String,
     pub bitrate: u32,
-    #[serde(default)]
-    pub votes: u32,
 }
 
 #[derive(Debug, Clone)]
@@ -171,7 +169,6 @@ pub struct DynamicStation {
     pub name: String,
     pub url: String,
     pub bitrate_kbps: Option<u16>,
-    pub votes: u32,
 }
 
 impl From<RadioBrowserStation> for DynamicStation {
@@ -181,7 +178,6 @@ impl From<RadioBrowserStation> for DynamicStation {
             name: rb.name,
             url: if rb.url_resolved.is_empty() { rb.url } else { rb.url_resolved },
             bitrate_kbps: if rb.bitrate > 0 { Some(rb.bitrate as u16) } else { None },
-            votes: rb.votes,
         }
     }
 }
@@ -196,35 +192,6 @@ pub async fn search_stations_by_tag(tag: &str, limit: u32) -> Option<Vec<Dynamic
 
 pub async fn search_stations_by_country(country: &str, limit: u32) -> Option<Vec<DynamicStation>> {
     fetch("country", country, limit).await
-}
-
-pub async fn fetch_trending(limit: u32) -> Option<Vec<DynamicStation>> {
-    let client = reqwest::Client::builder()
-        .user_agent("reverbic/0.1")
-        .timeout(std::time::Duration::from_secs(10))
-        .build()
-        .ok()?;
-
-    let limit_str = limit.to_string();
-    for server in RADIO_BROWSER_SERVERS {
-        let url = format!("{server}/json/stations/topclick/{limit_str}");
-        match client.get(&url).query(&[("hidebroken", "true")]).send().await {
-            Ok(resp) if resp.status().is_success() => {
-                if let Ok(body) = resp.text().await {
-                    if let Ok(stations) = serde_json::from_str::<Vec<RadioBrowserStation>>(&body) {
-                        return Some(
-                            stations.into_iter()
-                                .map(DynamicStation::from)
-                                .filter(|s| !s.url.is_empty())
-                                .collect(),
-                        );
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
-    None
 }
 
 async fn fetch(param: &str, value: &str, limit: u32) -> Option<Vec<DynamicStation>> {
@@ -283,22 +250,3 @@ pub fn is_duplicate(url: &str, existing_urls: &[&str]) -> bool {
     existing_urls.iter().any(|u| u.to_lowercase() == normalized)
 }
 
-pub async fn vote_station(uuid: &str) -> bool {
-    let client = match reqwest::Client::builder()
-        .user_agent("reverbic/0.1")
-        .timeout(std::time::Duration::from_secs(10))
-        .build()
-    {
-        Ok(c) => c,
-        Err(_) => return false,
-    };
-    for server in RADIO_BROWSER_SERVERS {
-        let url = format!("{server}/json/vote/{uuid}");
-        if let Ok(resp) = client.get(&url).send().await {
-            if resp.status().is_success() {
-                return true;
-            }
-        }
-    }
-    false
-}

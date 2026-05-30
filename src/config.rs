@@ -65,7 +65,11 @@ pub struct Config {
     pub notifications:  bool,
     #[serde(default)]
     pub language:       Language,
+    #[serde(default = "default_true")]
+    pub restore_volume: bool,
 }
+
+fn default_true() -> bool { true }
 
 impl Default for Config {
     fn default() -> Self {
@@ -81,6 +85,7 @@ impl Default for Config {
             tray_icon: false,
             notifications: false,
             language: Language::default(),
+            restore_volume: true,
         }
     }
 }

@@ -199,9 +199,7 @@ pub fn render(frame: &mut Frame, app: &App) {
                 media_keys:         app.config.media_keys,
                 tray_icon:          app.config.tray_icon,
                 notifications:      app.config.notifications,
-                trending_results:   &app.trending_results,
-                trending_loading:   app.trending_loading,
-                trending_selected:  app.trending_selected,
+                restore_volume:     app.config.restore_volume,
             },
             full_area,
         );

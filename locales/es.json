@@ -39,6 +39,7 @@
   "config.setting.tray": "Icono en bandeja",
   "config.setting.notifications": "Notificaciones",
   "config.setting.language": "Idioma",
+  "config.setting.restore_volume": "Restaurar volumen",
 
   "config.value.on": "ON",
   "config.value.off": "OFF",

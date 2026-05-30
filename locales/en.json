@@ -39,6 +39,7 @@
   "config.setting.tray": "Tray icon",
   "config.setting.notifications": "Notifications",
   "config.setting.language": "Language",
+  "config.setting.restore_volume": "Restore volume",
 
   "config.value.on": "ON",
   "config.value.off": "OFF",

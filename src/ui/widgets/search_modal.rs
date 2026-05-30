@@ -62,9 +62,7 @@ pub struct SearchModalWidget<'a> {
     pub media_keys:         bool,
     pub tray_icon:          bool,
     pub notifications:      bool,
-    pub trending_results:   &'a [DynamicStation],
-    pub trending_loading:   bool,
-    pub trending_selected:  usize,
+    pub restore_volume:     bool,
 }
 
 impl Widget for SearchModalWidget<'_> {
@@ -120,7 +118,6 @@ impl Widget for SearchModalWidget<'_> {
             SearchMode::Name     => self.render_name_body(body_area, content_x, content_w, buf),
             SearchMode::Genre    => self.render_genre_body(body_area, content_x, content_w, buf),
             SearchMode::Country  => self.render_country_body(body_area, content_x, content_w, buf),
-            SearchMode::Trending => self.render_trending_body(body_area, content_x, content_w, buf),
             SearchMode::Settings => self.render_settings_body(body_area, content_x, content_w, buf),
         }
     }
@@ -133,7 +130,6 @@ impl SearchModalWidget<'_> {
             return vec![
                 Span::raw(" "),
                 key("[↵]"),    sep_s(format!(" {}  ", t("hint.play"))),
-                key("[v]"),    sep_s(format!(" {}  ", t("hint.vote"))),
                 key("[R]"),    sep_s(format!(" {}  ", t("hint.random"))),
                 key("[↑↓]"),  sep_s(format!(" {}  ", t("hint.nav"))),
                 key("[Esc]"),  sep_s(format!(" {} ",  t("hint.back"))),
@@ -154,15 +150,6 @@ impl SearchModalWidget<'_> {
                 key("[Tab]"),  sep_s(format!(" {}  ", t("hint.next_tab"))),
                 key("[Esc]"),  sep_s(format!(" {} ",  t("hint.close"))),
             ],
-            SearchMode::Trending => vec![
-                Span::raw(" "),
-                key("[↵]"),    sep(" Play  "),
-                key("[v]"),    sep_s(format!(" {}  ", t("hint.vote"))),
-                key("[R]"),    sep_s(format!(" {}  ", t("hint.random"))),
-                key("[r]"),    sep_s(format!(" {}  ", t("hint.reload"))),
-                key("[↑↓]"),  sep_s(format!(" {}  ", t("hint.nav"))),
-                key("[Esc]"),  sep_s(format!(" {} ",  t("hint.close"))),
-            ],
             SearchMode::Settings => vec![
                 Span::raw(" "),
                 key("[Space]"), sep_s(format!(" {}  ", t("hint.change"))),
@@ -177,23 +164,20 @@ impl SearchModalWidget<'_> {
         let tab_area = Rect::new(content_x, area.y, content_w, 1);
         let active   = Style::default().fg(theme::ACCENT).add_modifier(Modifier::BOLD);
         let inactive = Style::default().fg(theme::MUTED);
-        let (ns, gs, cs, ts, ss) = match self.mode {
-            SearchMode::Name     => (active, inactive, inactive, inactive, inactive),
-            SearchMode::Genre    => (inactive, active, inactive, inactive, inactive),
-            SearchMode::Country  => (inactive, inactive, active, inactive, inactive),
-            SearchMode::Trending => (inactive, inactive, inactive, active, inactive),
-            SearchMode::Settings => (inactive, inactive, inactive, inactive, active),
+        let (ns, gs, cs, ss) = match self.mode {
+            SearchMode::Name     => (active, inactive, inactive, inactive),
+            SearchMode::Genre    => (inactive, active, inactive, inactive),
+            SearchMode::Country  => (inactive, inactive, active, inactive),
+            SearchMode::Settings => (inactive, inactive, inactive, active),
         };
         let line = Line::from(vec![
-            Span::styled(t("modal.tab.name"),     ns),
-            Span::styled("  ",                    Style::default()),
-            Span::styled(t("modal.tab.genre"),    gs),
-            Span::styled("  ",                    Style::default()),
-            Span::styled(t("modal.tab.country"),  cs),
-            Span::styled("  ",                    Style::default()),
-            Span::styled(t("modal.tab.trending"), ts),
-            Span::styled("  ",                    Style::default()),
-            Span::styled(t("modal.tab.config"),   ss),
+            Span::styled(t("modal.tab.name"),    ns),
+            Span::styled("  ",                   Style::default()),
+            Span::styled(t("modal.tab.genre"),   gs),
+            Span::styled("  ",                   Style::default()),
+            Span::styled(t("modal.tab.country"), cs),
+            Span::styled("  ",                   Style::default()),
+            Span::styled(t("modal.tab.config"),  ss),
         ]);
         Paragraph::new(line).render(tab_area, buf);
     }
@@ -349,7 +333,7 @@ impl SearchModalWidget<'_> {
         let list_x  = content_x + 2;
         let visible_n = area.height.saturating_sub(1) as usize;
         let needs_scroll = self.results.len() > visible_n;
-        let name_w  = content_w.saturating_sub(if needs_scroll { 14 } else { 13 }) as usize;
+        let name_w  = content_w.saturating_sub(if needs_scroll { 9 } else { 8 }) as usize;
         let items_w = content_w.saturating_sub(if needs_scroll { 3 } else { 2 });
         let items_area = Rect::new(list_x, area.y, items_w, area.height);
 
@@ -389,7 +373,6 @@ impl SearchModalWidget<'_> {
                 let bitrate = s.bitrate_kbps
                     .map(|b| format!("{b:>4}k"))
                     .unwrap_or_else(|| "    ".to_string());
-                let votes = format_votes(s.votes);
                 let (name_st, meta_st) = if active {
                     (
                         Style::default().fg(theme::PLAYING).add_modifier(Modifier::BOLD),
@@ -405,7 +388,6 @@ impl SearchModalWidget<'_> {
                     Span::styled(prefix,  name_st),
                     Span::styled(name,    name_st),
                     Span::styled(bitrate, meta_st),
-                    Span::styled(votes,   meta_st),
                 ]))
             })
             .collect();
@@ -440,78 +422,6 @@ impl SearchModalWidget<'_> {
         }
     }
 
-    fn render_trending_body(&self, area: Rect, content_x: u16, content_w: u16, buf: &mut Buffer) {
-        let list_x    = content_x + 2;
-        let list_w    = content_w.saturating_sub(2);
-
-        if self.trending_loading {
-            Paragraph::new(Span::styled(
-                format!("{}  {}", spin_frame(), t("modal.loading.trending")),
-                Style::default().fg(theme::MUTED),
-            ))
-            .render(Rect::new(list_x, area.y, list_w, 1), buf);
-            return;
-        }
-
-        if self.trending_results.is_empty() {
-            Paragraph::new(Span::styled(
-                t("modal.trending.empty"),
-                Style::default().fg(theme::MUTED),
-            ))
-            .render(Rect::new(list_x, area.y, list_w, 1), buf);
-            return;
-        }
-
-        let visible_n    = area.height.saturating_sub(1) as usize;
-        let needs_scroll = self.trending_results.len() > visible_n;
-        let name_w       = content_w.saturating_sub(if needs_scroll { 17 } else { 16 }) as usize;
-        let items_w      = content_w.saturating_sub(if needs_scroll { 3 } else { 2 });
-        let items_area   = Rect::new(list_x, area.y, items_w, area.height);
-        let offset       = if self.trending_selected >= visible_n {
-            self.trending_selected - visible_n + 1
-        } else { 0 };
-
-        let items: Vec<ListItem> = self.trending_results
-            .iter()
-            .enumerate()
-            .skip(offset)
-            .take(visible_n)
-            .map(|(i, s)| {
-                let active  = i == self.trending_selected;
-                let prefix  = if active { "▶  " } else { "   " };
-                let rank    = format!("{:>2}. ", offset + i + 1);
-                let max_n   = name_w.saturating_sub(4);
-                let name: String = if s.name.chars().count() > max_n {
-                    s.name.chars().take(max_n.saturating_sub(1)).collect::<String>() + "…"
-                } else {
-                    format!("{:<width$}", s.name, width = max_n)
-                };
-                let bitrate = s.bitrate_kbps
-                    .map(|b| format!("{b:>4}k"))
-                    .unwrap_or_else(|| "    ".to_string());
-                let votes = format_votes(s.votes);
-                let (name_st, meta_st) = if active {
-                    (Style::default().fg(theme::PLAYING).add_modifier(Modifier::BOLD), Style::default().fg(theme::ACCENT))
-                } else {
-                    (Style::default().fg(theme::HIGHLIGHT), Style::default().fg(theme::MUTED))
-                };
-                ListItem::new(Line::from(vec![
-                    Span::styled(prefix,  name_st),
-                    Span::styled(rank,    meta_st),
-                    Span::styled(name,    name_st),
-                    Span::styled(bitrate, meta_st),
-                    Span::styled(votes,   meta_st),
-                ]))
-            })
-            .collect();
-
-        List::new(items).render(items_area, buf);
-
-        if needs_scroll {
-            self.render_scrollbar(items_area, self.trending_results.len(), self.trending_selected, buf);
-        }
-    }
-
     fn render_settings_body(&self, area: Rect, content_x: u16, content_w: u16, buf: &mut Buffer) {
         let on  = t("config.value.on");
         let off = t("config.value.off");
@@ -528,6 +438,7 @@ impl SearchModalWidget<'_> {
             (t("config.setting.tray"),           if self.tray_icon       { on.clone()  } else { off.clone() }),
             (t("config.setting.notifications"),  if self.notifications   { on.clone()  } else { off.clone() }),
             (t("config.setting.language"),       lang_value),
+            (t("config.setting.restore_volume"), if self.restore_volume { on.clone() } else { off.clone() }),
         ];
 
         let list_x    = content_x + 2;
@@ -695,11 +606,3 @@ fn sep_s(s: String) -> Span<'static> {
     Span::styled(s, Style::default().fg(theme::MUTED))
 }
 
-fn format_votes(v: u32) -> String {
-    match v {
-        0           => "     ".to_string(),
-        1..=999     => format!("{:>4}v", v),
-        1000..=9999 => format!("{:.1}kv", v as f32 / 1000.0),
-        _           => format!("{:>3}kv", v / 1000),
-    }
-}
