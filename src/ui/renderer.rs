@@ -483,7 +483,7 @@ fn render_rename_overlay(frame: &mut Frame, input: &str) {
 }
 
 fn render_modal_np_strip(frame: &mut Frame, strip: Rect, state: &PlayerState) {
-    use ratatui::{layout::Alignment, style::Color, widgets::{Block, BorderType, Borders, Clear}};
+    use ratatui::{layout::Alignment, style::Color, widgets::{Block, BorderType, Borders}};
     const STRIP_BG: Color = Color::Rgb(13, 13, 13);
     const H_PAD:    u16   = 2;
 
@@ -491,11 +491,9 @@ fn render_modal_np_strip(frame: &mut Frame, strip: Rect, state: &PlayerState) {
         return;
     }
 
-    // Inner content width (border + padding each side)
     let content_w = strip.width.saturating_sub(2 + H_PAD * 2) as usize;
     if content_w == 0 { return; }
 
-    // Title wrapped into at most 2 lines
     let raw_title = match &state.status {
         PlayerStatus::Playing | PlayerStatus::Paused | PlayerStatus::Buffering(_) => {
             state.title.clone().unwrap_or_default()
@@ -511,8 +509,6 @@ fn render_modal_np_strip(frame: &mut Frame, strip: Rect, state: &PlayerState) {
 
     let vol_pct   = (state.volume.clamp(0.0, 1.0) * 100.0).round() as u32;
     let vol_color = if state.volume > 0.85 { theme::WARNING } else { theme::ACCENT };
-
-    frame.render_widget(Clear, panel);
 
     let block = Block::default()
         .title_top(
