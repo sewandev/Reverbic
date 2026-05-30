@@ -1,5 +1,4 @@
 pub mod countdown;
-pub mod local_time;
 pub mod now_playing;
 pub mod now_playing_overlay;
 pub mod on_demand_panel;

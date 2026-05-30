@@ -3,7 +3,7 @@ use ratatui::{
     layout::Rect,
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, List, ListItem, Widget},
+    widgets::{Block, Borders, List, ListItem, Paragraph, Widget},
 };
 
 use crate::station::on_demand::OnDemandShow;
@@ -29,7 +29,6 @@ const PLAYING_STYLE: Style = Style::new()
 
 const NORMAL_STYLE: Style = Style::new().fg(theme::MUTED);
 
-
 impl<'a> Widget for OnDemandPanelWidget<'a> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let border_style = if self.focused {
@@ -38,51 +37,64 @@ impl<'a> Widget for OnDemandPanelWidget<'a> {
             theme::BORDER_STYLE
         };
 
-        let title_str: String;
-        let title = if self.loading {
-            title_str = format!(" {}  {} ", self.program_name, super::spinner_frame());
-            title_str.as_str()
-        } else if self.focused {
-            title_str = format!(" {}  [↑↓] Nav  [p] Show  [Enter] Play  [Esc] Volver ", self.program_name);
-            title_str.as_str()
-        } else {
-            title_str = format!(" {}  [Tab] ", self.program_name);
-            title_str.as_str()
-        };
-
+        // Solo borde izquierdo como separador de columna
         let block = Block::default()
-            .title(title)
-            .borders(Borders::ALL)
+            .borders(Borders::LEFT)
             .border_style(border_style);
-
         let inner = block.inner(area);
         block.render(area, buf);
 
-        if self.shows.is_empty() {
+        if inner.height == 0 {
             return;
         }
 
-        let total = self.shows.len();
-        let selected = self.selected.min(total.saturating_sub(1));
-        // Cada item ocupa 2 líneas (título + fecha)
-        let height = (inner.height as usize).saturating_div(2).max(1);
-
-        let offset = if selected >= height {
-            selected + 1 - height
+        // Título del programa en primera línea
+        let title_hint = if self.focused { "  [p] cambiar" } else { "  [Tab]" };
+        let prog_style = if self.focused {
+            Style::new().fg(theme::ACCENT).add_modifier(Modifier::BOLD)
         } else {
-            0
+            Style::new().fg(theme::DIM)
         };
-        let slice_end = (offset + height).min(total);
+        let title_line = if self.loading {
+            Line::from(vec![
+                Span::styled(self.program_name, prog_style),
+                Span::styled(
+                    format!("  {}", super::spinner_frame()),
+                    Style::default().fg(theme::ACCENT),
+                ),
+            ])
+        } else {
+            Line::from(vec![
+                Span::styled(self.program_name, prog_style),
+                Span::styled(title_hint, Style::default().fg(theme::MUTED)),
+            ])
+        };
+        Paragraph::new(title_line).render(
+            Rect::new(inner.x, inner.y, inner.width, 1),
+            buf,
+        );
 
-        let items: Vec<ListItem> = self.shows[offset..slice_end]
+        if inner.height < 2 || self.shows.is_empty() {
+            return;
+        }
+
+        let list_area = Rect::new(inner.x, inner.y + 1, inner.width, inner.height - 1);
+        let total    = self.shows.len();
+        let selected = self.selected.min(total.saturating_sub(1));
+        // Cada show ocupa 2 líneas (título + fecha)
+        let height  = (list_area.height as usize).saturating_div(2).max(1);
+        let offset  = if selected >= height { selected + 1 - height } else { 0 };
+        let end     = (offset + height).min(total);
+
+        let items: Vec<ListItem> = self.shows[offset..end]
             .iter()
             .enumerate()
-            .map(|(local_i, show)| {
-                let abs_i = offset + local_i;
-                let is_selected = abs_i == selected && self.focused;
+            .map(|(li, show)| {
+                let abs_i      = offset + li;
+                let is_sel     = abs_i == selected && self.focused;
                 let is_playing = self.playing_id == Some(show.id.as_str());
 
-                let (prefix, style) = if is_selected {
+                let (prefix, style) = if is_sel {
                     (if is_playing { ">> " } else { "   " }, CURSOR_STYLE)
                 } else if is_playing {
                     (">> ", PLAYING_STYLE)
@@ -90,11 +102,7 @@ impl<'a> Widget for OnDemandPanelWidget<'a> {
                     ("   ", NORMAL_STYLE)
                 };
 
-                let date_style = if is_selected {
-                    style
-                } else {
-                    Style::new().fg(crate::ui::theme::MUTED)
-                };
+                let date_style = if is_sel { style } else { Style::new().fg(theme::MUTED) };
                 ListItem::new(vec![
                     Line::from(vec![
                         Span::styled(prefix, style),
@@ -108,6 +116,6 @@ impl<'a> Widget for OnDemandPanelWidget<'a> {
             })
             .collect();
 
-        List::new(items).render(inner, buf);
+        List::new(items).render(list_area, buf);
     }
 }
