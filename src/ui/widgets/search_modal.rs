@@ -158,7 +158,8 @@ impl SearchModalWidget<'_> {
     }
 
     fn render_name_body(&self, area: Rect, content_x: u16, content_w: u16, buf: &mut Buffer) {
-        let [input_row, cap_row, list_area] = Layout::vertical([
+        let [_gap, input_row, cap_row, list_area] = Layout::vertical([
+            Constraint::Length(1),
             Constraint::Length(1),
             Constraint::Length(1),
             Constraint::Fill(1),
@@ -218,7 +219,8 @@ impl SearchModalWidget<'_> {
             return;
         }
 
-        let [input_row, cap_row, list_body] = Layout::vertical([
+        let [_gap, input_row, cap_row, list_body] = Layout::vertical([
+            Constraint::Length(1),
             Constraint::Length(1),
             Constraint::Length(1),
             Constraint::Fill(1),
