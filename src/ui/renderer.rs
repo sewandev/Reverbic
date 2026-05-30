@@ -191,7 +191,6 @@ pub fn render(frame: &mut Frame, app: &App) {
                 genre_query:       &app.genre_query,
                 country_selected:  app.country_selected,
                 country_filter:    &app.country_filter,
-                history:           &app.config.search_history,
                 settings_selected:  app.settings_selected,
                 autoplay_last:      app.config.autoplay_last,
                 overlay_mode:       app.config.overlay_mode.display(),

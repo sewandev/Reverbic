@@ -55,7 +55,6 @@ pub struct SearchModalWidget<'a> {
     pub genre_query:       &'a str,
     pub country_selected:  usize,
     pub country_filter:    &'a str,
-    pub history:           &'a [String],
     pub settings_selected:  usize,
     pub autoplay_last:      bool,
     pub overlay_mode:       String,
@@ -238,26 +237,7 @@ impl SearchModalWidget<'_> {
         buf[(content_x, cap_row.y)]
             .set_symbol("╹").set_fg(theme::ACCENT).set_bg(BG);
 
-        if self.query.is_empty() && self.results.is_empty() && !self.history.is_empty() {
-            self.render_history(list_area, content_x, content_w, buf);
-        } else {
-            self.render_results(list_area, content_x, content_w, buf);
-        }
-    }
-
-    fn render_history(&self, area: Rect, content_x: u16, content_w: u16, buf: &mut Buffer) {
-        let list_x    = content_x + 2;
-        let list_w    = content_w.saturating_sub(2);
-        let list_area = Rect::new(list_x, area.y, list_w, area.height);
-        let items: Vec<ListItem> = self.history
-            .iter()
-            .take(list_area.height as usize)
-            .map(|q| ListItem::new(Line::from(vec![
-                Span::styled("   ", Style::default()),
-                Span::styled(q.as_str(), Style::default().fg(theme::MUTED)),
-            ])))
-            .collect();
-        List::new(items).render(list_area, buf);
+        self.render_results(list_area, content_x, content_w, buf);
     }
 
     fn render_genre_body(&self, area: Rect, content_x: u16, content_w: u16, buf: &mut Buffer) {
@@ -326,7 +306,7 @@ impl SearchModalWidget<'_> {
         let list_x    = content_x + 2;
         let list_w    = content_w.saturating_sub(2);
         let list_area = Rect::new(list_x, list_body.y, list_w, list_body.height);
-        let visible_n = list_area.height as usize;
+        let visible_n = list_area.height.saturating_sub(1) as usize;
         let offset    = if self.genre_selected >= visible_n {
             self.genre_selected - visible_n + 1
         } else {
@@ -367,7 +347,7 @@ impl SearchModalWidget<'_> {
 
     fn render_results(&self, area: Rect, content_x: u16, content_w: u16, buf: &mut Buffer) {
         let list_x  = content_x + 2;
-        let visible_n = area.height as usize;
+        let visible_n = area.height.saturating_sub(1) as usize;
         let needs_scroll = self.results.len() > visible_n;
         let name_w  = content_w.saturating_sub(if needs_scroll { 14 } else { 13 }) as usize;
         let items_w = content_w.saturating_sub(if needs_scroll { 3 } else { 2 });
@@ -485,7 +465,7 @@ impl SearchModalWidget<'_> {
             return;
         }
 
-        let visible_n    = area.height as usize;
+        let visible_n    = area.height.saturating_sub(1) as usize;
         let needs_scroll = self.trending_results.len() > visible_n;
         let name_w       = content_w.saturating_sub(if needs_scroll { 17 } else { 16 }) as usize;
         let items_w      = content_w.saturating_sub(if needs_scroll { 3 } else { 2 });
@@ -648,7 +628,7 @@ impl SearchModalWidget<'_> {
         let list_x    = content_x + 2;
         let list_w    = content_w.saturating_sub(2);
         let list_area = Rect::new(list_x, list_body.y, list_w, list_body.height);
-        let visible_n = list_area.height as usize;
+        let visible_n = list_area.height.saturating_sub(1) as usize;
         let offset    = if self.country_selected >= visible_n { self.country_selected - visible_n + 1 } else { 0 };
 
         if filtered.is_empty() {
