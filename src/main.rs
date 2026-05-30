@@ -12,13 +12,19 @@ mod app;
 mod audio;
 mod config;
 mod error;
+mod favorites;
 mod library;
 mod metadata;
+#[cfg(target_os = "windows")]
+mod overlay;
+mod preview;
+mod schedule;
 mod station;
 mod terminal;
 mod ui;
 
 use app::App;
+use audio::PlayerCommand;
 use error::Result;
 
 #[tokio::main]
@@ -74,6 +80,16 @@ fn init_logging() -> Option<tracing_appender::non_blocking::WorkerGuard> {
 
 async fn run(tui: &mut terminal::Tui) -> Result<()> {
     let mut app = App::new().await;
+
+    #[cfg(target_os = "windows")]
+    overlay::spawn(app.player.subscribe());
+
+    // Auto-play de la última radio si está habilitado
+    if app.config.autoplay_last && !app.stations.is_empty() {
+        let idx = app.config.last_selected.min(app.stations.len() - 1);
+        let station = app.stations[idx].clone();
+        app.player.send(PlayerCommand::Play(station)).await;
+    }
     let mut ticker = tokio::time::interval(Duration::from_millis(50));
     let mut events = EventStream::new();
     let mut last_click: Option<Instant> = None;
@@ -81,6 +97,7 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
 
     loop {
         app.poll_search_results();
+        app.poll_on_demand_results();
         let mut last_area = app.terminal_area;
         tui.draw(|frame| {
             last_area = frame.area();
@@ -91,6 +108,8 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
         tokio::select! {
             _ = ticker.tick() => {
                 app.poll_search_results();
+                app.poll_on_demand_results();
+                app.tick_overlay();
             }
             maybe_event = events.next() => {
                 let now = Instant::now();
@@ -139,7 +158,7 @@ async fn handle_event(app: &mut App, maybe_event: Option<std::io::Result<Event>>
                     app.on_double_click().await;
                 }
                 MouseEventKind::Down(_) => {
-                    app.on_click(mouse.column, mouse.row);
+                    app.on_click(mouse.column, mouse.row).await;
                 }
                 _ => {}
             }

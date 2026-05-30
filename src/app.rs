@@ -1,315 +1,60 @@
 
-use chrono::{DateTime, Datelike, FixedOffset, Local, NaiveDate, NaiveDateTime, NaiveTime, TimeZone, Timelike, Utc};
+use std::time::{Duration, Instant};
+
 use crossterm::event::KeyCode;
 use ratatui::layout::Rect;
-use tokio::sync::mpsc;
 
 use crate::audio::{AudioPlayer, PlayerCommand, PlayerState, PlayerStatus};
+
+pub struct NowPlayingOverlay {
+    show_until:             Instant,
+    last_title:             Option<String>,
+    last_triggered_station: Option<String>,
+}
+
+impl NowPlayingOverlay {
+    const VISIBLE_DURATION: Duration = Duration::from_secs(5);
+
+    pub fn new() -> Self {
+        Self {
+            show_until:             Instant::now(),
+            last_title:             None,
+            last_triggered_station: None,
+        }
+    }
+
+    pub fn is_visible(&self) -> bool {
+        Instant::now() < self.show_until
+    }
+
+    pub fn update(&mut self, state: &PlayerState) {
+        let current_url   = state.station.as_ref().map(|s| s.url.as_str());
+        let current_title = state.title.as_deref();
+        let is_playing    = matches!(state.status, PlayerStatus::Playing);
+
+        let title_changed = current_title != self.last_title.as_deref() && current_title.is_some();
+        let new_station   = is_playing
+            && current_url.is_some()
+            && current_url != self.last_triggered_station.as_deref();
+
+        self.last_title = state.title.clone();
+
+        if title_changed || new_station {
+            self.show_until = Instant::now() + Self::VISIBLE_DURATION;
+            if new_station {
+                self.last_triggered_station = current_url.map(str::to_string);
+            }
+        }
+    }
+}
+use crate::preview::{deezer_preview, parse_seek_input};
+use crate::schedule::poll_metadata_loop;
+
 use crate::config::Config;
+use crate::favorites::{self, FavoriteStation};
 use crate::library::{self, SaveResult};
-use crate::station::{enrich, find_enrichment, is_duplicate, search_stations, DynamicStation, Station};
-fn brussels_offset_secs() -> i32 {
-    let now = Local::now();
-    let (y, m, d, h) = (now.year(), now.month(), now.day(), now.hour());
-    if m < 3 || m > 10 { return 3600; }
-    if m > 3 && m < 10 { return 7200; }
-    let last_sun = last_sunday_of_month(y, m);
-    if m == 3 {
-        if d > last_sun || (d == last_sun && h >= 2) { 7200 } else { 3600 }
-    } else {
-        if d > last_sun || (d == last_sun && h >= 3) { 3600 } else { 7200 }
-    }
-}
-fn last_sunday_of_month(year: i32, month: u32) -> u32 {
-    use chrono::Datelike;
-    let (nm, ny) = if month == 12 { (1, year + 1) } else { (month + 1, year) };
-    let last = NaiveDate::from_ymd_opt(ny, nm, 1)
-        .and_then(|d| d.pred_opt())
-        .expect("fecha válida");
-    last.day().saturating_sub(last.weekday().num_days_from_sunday())
-}
-fn brussels_hhmm_to_local(hhmm: &str) -> String {
-    let offset = match FixedOffset::east_opt(brussels_offset_secs()) {
-        Some(o) => o,
-        None    => return hhmm.to_string(),
-    };
-    let time = match NaiveTime::parse_from_str(hhmm, "%H:%M") {
-        Ok(t)  => t,
-        Err(_) => return hhmm.to_string(),
-    };
-    let naive_dt = Local::now().date_naive().and_time(time);
-    match offset.from_local_datetime(&naive_dt).single() {
-        Some(dt) => dt.with_timezone(&Local).format("%H:%M").to_string(),
-        None     => hhmm.to_string(),
-    }
-}
-fn utc_to_local_hhmm(utc_str: &str) -> String {
-    DateTime::parse_from_rfc3339(utc_str)
-        .map(|dt| dt.with_timezone(&Local).format("%H:%M").to_string())
-        .unwrap_or_else(|_| "??:??".to_string())
-}
-async fn fetch_schedule(client: &reqwest::Client, url: &str) -> Option<serde_json::Value> {
-    let resp = client.get(url).send().await.ok()?;
-    if !resp.status().is_success() { return None; }
-    serde_json::from_str(&resp.text().await.ok()?).ok()
-}
-fn current_show_time(schedule: &serde_json::Value) -> Option<String> {
-    let offset = FixedOffset::east_opt(brussels_offset_secs())?;
-    let now_brussels = Local::now().with_timezone(&offset).format("%H:%M").to_string();
-    let day = Local::now().format("%A").to_string().to_lowercase();
-    let shows = schedule[&day].as_array()?;
-    let pos = shows.iter().rposition(|e| {
-        e["startTime"].as_str().map(|t| t <= now_brussels.as_str()).unwrap_or(false)
-    })?;
-
-    let start = shows[pos]["startTime"].as_str()?;
-    let end   = shows.get(pos + 1).and_then(|e| e["startTime"].as_str());
-
-    let start_local = brussels_hhmm_to_local(start);
-    let end_local   = end.map(brussels_hhmm_to_local).unwrap_or_else(|| "…".to_string());
-
-    Some(format!("{start_local} - {end_local}"))
-}
-fn parse_history(body: &str) -> Vec<String> {
-    let arr: serde_json::Value = match serde_json::from_str(body) {
-        Ok(v)  => v,
-        Err(_) => return Vec::new(),
-    };
-    arr.as_array()
-        .map(|entries| {
-            entries.iter().take(10).filter_map(|e| {
-                let artist = e["artist"].as_str().unwrap_or("");
-                let title  = e["title"].as_str()?;
-                let ts     = e["timestamp"].as_str().unwrap_or("");
-                let time   = NaiveDateTime::parse_from_str(ts, "%Y-%m-%d %H:%M:%S")
-                    .map(|ndt| {
-                        Utc.from_utc_datetime(&ndt)
-                            .with_timezone(&Local)
-                            .format("%H:%M")
-                            .to_string()
-                    })
-                    .unwrap_or_else(|_| "??:??".to_string());
-                Some(if artist.is_empty() {
-                    format!("{time}  {title}")
-                } else {
-                    format!("{time}  {artist} - {title}")
-                })
-            }).collect()
-        })
-        .unwrap_or_default()
-}
-fn parse_api_response(
-    body: &str,
-    history_body: Option<&str>,
-    schedule: Option<&serde_json::Value>,
-) -> Option<PlayerCommand> {
-    let v: serde_json::Value = serde_json::from_str(body).ok()?;
-    let title  = v["title"].as_str()?.to_string();
-    let artist = v["artist"].as_str().unwrap_or("").to_string();
-    let show_name = if v["show"].is_object() {
-        v["show"]["name"].as_str().unwrap_or("").to_string()
-    } else {
-        v["show"].as_str().unwrap_or("").to_string()
-    };
-    let show = match schedule.and_then(current_show_time) {
-        Some(time) => format!("{show_name}  {time}"),
-        None       => show_name,
-    };
-
-    let recent = if let Some(hist) = history_body {
-        parse_history(hist)
-    } else {
-        v["tracklog"]
-            .as_array()
-            .map(|entries| {
-                entries.iter().take(10).filter_map(|e| {
-                    let t     = e["title"].as_str()?;
-                    let a     = e["artist"].as_str().unwrap_or("");
-                    let start = e["startTime"].as_str().unwrap_or("");
-                    let time  = utc_to_local_hhmm(start);
-                    Some(if a.is_empty() {
-                        format!("{time}  {t}")
-                    } else {
-                        format!("{time}  {a} - {t}")
-                    })
-                }).collect()
-            })
-            .unwrap_or_default()
-    };
-
-    Some(PlayerCommand::ApiMetadata { title, artist, show, recent })
-}
-async fn poll_metadata_loop(
-    url: String,
-    history_url: Option<String>,
-    schedule_url: Option<String>,
-    cmd_tx: mpsc::Sender<PlayerCommand>,
-) {
-    let client = match reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(10))
-        .build()
-    {
-        Ok(c)  => c,
-        Err(e) => {
-            tracing::error!("No se pudo crear cliente HTTP para metadata: {e}");
-            return;
-        }
-    };
-    let schedule = if let Some(ref s_url) = schedule_url {
-        let s = fetch_schedule(&client, s_url).await;
-        if s.is_none() {
-            tracing::warn!("No se pudo obtener el schedule; se mostrará solo el nombre del show");
-        }
-        s
-    } else {
-        None
-    };
-
-    loop {
-        let history_body: Option<String> = if let Some(ref h_url) = history_url {
-            match client.get(h_url).send().await {
-                Ok(resp) if resp.status().is_success() => resp.text().await.ok(),
-                Ok(resp) => {
-                    tracing::warn!("History API HTTP {}", resp.status());
-                    None
-                }
-                Err(e) => {
-                    tracing::warn!("History API no disponible: {e}");
-                    None
-                }
-            }
-        } else {
-            None
-        };
-
-        match client.get(&url).send().await {
-            Ok(resp) if resp.status().is_success() => {
-                match resp.text().await {
-                    Ok(body) => {
-                        if let Some(cmd) = parse_api_response(&body, history_body.as_deref(), schedule.as_ref()) {
-                            if cmd_tx.send(cmd).await.is_err() {
-                                break; // canal cerrado — audio thread muerto
-                            }
-                        }
-                    }
-                    Err(e) => tracing::warn!("Error leyendo body de metadata API: {e}"),
-                }
-            }
-            Ok(resp) => tracing::warn!("Metadata API HTTP {}: usando ICY como fallback", resp.status()),
-            Err(e)   => tracing::warn!("Metadata API no disponible ({e}): usando ICY como fallback"),
-        }
-        tokio::time::sleep(std::time::Duration::from_secs(30)).await;
-    }
-}
-fn strip_version_info(title: &str) -> String {
-    const VERSION_KEYWORDS: &[&str] = &[
-        "remix", "edit", "mix", "version", "remaster", "live", "extended",
-        "radio", "original", "club", "vip", "instrumental", "acoustic",
-        "bootleg", "rework", "flip", "dub", "remi",
-    ];
-    let mut result = title.to_string();
-    loop {
-        let before = result.clone();
-        for (open, close) in [('(', ')'), ('[', ']')] {
-            if let Some(start) = result.find(open) {
-                if let Some(rel_end) = result[start..].find(close) {
-                    let end = start + rel_end;
-                    let inner = result[start + 1..end].to_lowercase();
-                    if VERSION_KEYWORDS.iter().any(|kw| inner.contains(kw)) {
-                        let prefix = result[..start].trim_end();
-                        let suffix = result[end + 1..].trim_start();
-                        result = if suffix.is_empty() {
-                            prefix.to_string()
-                        } else {
-                            format!("{prefix} {suffix}")
-                        };
-                    }
-                }
-            }
-        }
-        if result == before { break; }
-    }
-    result.trim().to_string()
-}
-fn log_deezer_not_found(raw: &str, query: &str) {
-    use std::io::Write;
-    let home = std::env::var("USERPROFILE")
-        .or_else(|_| std::env::var("HOME"))
-        .unwrap_or_else(|_| ".".to_string());
-    let path = std::path::PathBuf::from(home)
-        .join(".reverbic")
-        .join("deezer_not_found.log");
-
-    if let Some(dir) = path.parent() {
-        let _ = std::fs::create_dir_all(dir);
-    }
-
-    let ts = Local::now().format("%Y-%m-%dT%H:%M:%S");
-    let line = format!("{ts}  original: \"{raw}\"  query: {query}\n");
-
-    if let Ok(mut f) = std::fs::OpenOptions::new().append(true).create(true).open(&path) {
-        let _ = f.write_all(line.as_bytes());
-    }
-}
-async fn deezer_preview(raw: &str) -> Option<(String, String)> {
-    let clean = raw.splitn(2, "  ").nth(1).unwrap_or(raw).trim();
-    let q = if let Some(sep) = clean.find(" - ") {
-        let raw_artist = clean[..sep].trim();
-        let raw_title  = clean[sep + 3..].trim();
-        let primary_artist = raw_artist
-            .split([',', '&'])
-            .next()
-            .unwrap_or(raw_artist)
-            .trim();
-        let clean_title = strip_version_info(raw_title);
-
-        tracing::debug!("Deezer query: artist='{primary_artist}' track='{clean_title}' (original: '{clean}')");
-        format!(r#"artist:"{primary_artist}" track:"{clean_title}""#)
-    } else {
-        strip_version_info(clean)
-    };
-
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(10))
-        .user_agent("reverbic/0.1")
-        .build()
-        .ok()?;
-
-    let search_resp = client
-        .get("https://api.deezer.com/search")
-        .query(&[("q", q.as_str()), ("limit", "1")])
-        .send()
-        .await
-        .ok()?;
-
-    if !search_resp.status().is_success() {
-        tracing::warn!("Deezer search HTTP {}", search_resp.status());
-        return None;
-    }
-
-    let body = search_resp.text().await.ok()?;
-    let json: serde_json::Value = serde_json::from_str(&body).ok()?;
-
-    let data = json["data"].as_array()?;
-    if data.is_empty() {
-        tracing::warn!("Deezer: sin resultado para query '{q}'");
-        log_deezer_not_found(raw, &q);
-        return None;
-    }
-    let track = data.first()?;
-    let preview_url = track["preview"].as_str()?;
-    if preview_url.is_empty() {
-        tracing::warn!("Deezer: track encontrado pero sin preview URL");
-        return None;
-    }
-
-    let artist        = track["artist"]["name"].as_str().unwrap_or("");
-    let title         = track["title"].as_str().unwrap_or("");
-    let display_title = if artist.is_empty() { title.to_string() } else { format!("{artist} - {title}") };
-
-    tracing::info!("Deezer: preview encontrado para '{}' — {preview_url}", display_title);
-    Some((preview_url.to_string(), display_title))
-}
+use crate::station::on_demand::OnDemandShow;
+use crate::station::{enrich, find_enrichment, is_duplicate, on_demand, search_stations, DynamicStation, Station};
 
 pub enum AppScreen {
     StationList,
@@ -319,26 +64,38 @@ pub enum AppFocus {
     Stations,
     RecentTracks,
     StationSearch,
+    OnDemandList,
 }
 
 pub struct App {
-    pub screen:          AppScreen,
-    pub stations:        Vec<Station>,
-    pub selected:        usize,
-    pub player:          AudioPlayer,
-    pub should_quit:     bool,
-    pub focus:           AppFocus,
-    pub recent_selected: usize,
-    pub saved_tracks:    Vec<String>,
-    pub save_notice:     Option<String>,
-    pub search_query:    String,
-    pub search_results:  Vec<DynamicStation>,
-    pub search_loading:  bool,
-    pub terminal_area:   Rect,
-    config:              Config,
-    metadata_task:       Option<tokio::task::JoinHandle<()>>,
-    search_task:         Option<tokio::task::JoinHandle<()>>,
-    search_result_rx:    Option<std::sync::mpsc::Receiver<Vec<DynamicStation>>>,
+    pub screen:              AppScreen,
+    pub stations:            Vec<Station>,
+    pub favorites:           Vec<FavoriteStation>,
+    pub selected:            usize,
+    pub player:              AudioPlayer,
+    pub should_quit:         bool,
+    pub focus:               AppFocus,
+    pub recent_selected:     usize,
+    pub saved_tracks:        Vec<String>,
+    pub save_notice:         Option<String>,
+    pub search_query:        String,
+    pub search_results:      Vec<DynamicStation>,
+    pub search_loading:      bool,
+    pub terminal_area:       Rect,
+    pub on_demand_shows:     Vec<OnDemandShow>,
+    pub on_demand_selected:  usize,
+    pub on_demand_loading:   bool,
+    pub selected_program:    usize,
+    pub seek_input:          String,
+    pub show_settings:       bool,
+    pub settings_selected:   usize,
+    pub config:              Config,
+    pub overlay:             NowPlayingOverlay,
+    metadata_task:           Option<tokio::task::JoinHandle<()>>,
+    search_task:             Option<tokio::task::JoinHandle<()>>,
+    search_result_rx:        Option<std::sync::mpsc::Receiver<Vec<DynamicStation>>>,
+    on_demand_task:          Option<tokio::task::JoinHandle<()>>,
+    on_demand_rx:            Option<std::sync::mpsc::Receiver<Vec<OnDemandShow>>>,
 }
 
 impl App {
@@ -347,40 +104,104 @@ impl App {
         let player = AudioPlayer::spawn();
         player.send(PlayerCommand::SetVolume(config.volume)).await;
 
+        let favorites = favorites::load();
         Self {
-            screen:          AppScreen::StationList,
-            stations:        Vec::new(),
-            selected:        0,
+            screen:             AppScreen::StationList,
+            stations:           Vec::new(),
+            favorites,
+            selected:           0,
             player,
-            should_quit:     false,
-            focus:           AppFocus::Stations,
-            recent_selected: 0,
-            saved_tracks:    Vec::new(),
-            save_notice:     None,
-            search_query:    String::new(),
-            search_results:  Vec::new(),
-            search_loading:  false,
-            terminal_area:   Rect::default(),
+            should_quit:        false,
+            focus:              AppFocus::Stations,
+            recent_selected:    0,
+            saved_tracks:       Vec::new(),
+            save_notice:        None,
+            search_query:       String::new(),
+            search_results:     Vec::new(),
+            search_loading:     false,
+            terminal_area:      Rect::default(),
+            on_demand_shows:    Vec::new(),
+            on_demand_selected: 0,
+            on_demand_loading:  false,
+            selected_program:   0,
+            seek_input:         String::new(),
+            show_settings:      false,
+            settings_selected:  0,
             config,
-            metadata_task:   None,
-            search_task:     None,
-            search_result_rx: None,
+            overlay:            NowPlayingOverlay::new(),
+            metadata_task:      None,
+            search_task:        None,
+            search_result_rx:   None,
+            on_demand_task:     None,
+            on_demand_rx:       None,
         }
     }
 
     fn total_stations(&self) -> usize {
-        self.stations.len() + self.search_results.len()
+        self.favorites.len() + self.stations.len() + self.search_results.len()
+    }
+
+    fn is_favorite_selected(&self) -> bool {
+        self.selected < self.favorites.len()
+    }
+
+    fn favorite_index(&self) -> Option<usize> {
+        if self.is_favorite_selected() { Some(self.selected) } else { None }
+    }
+
+    fn is_hardcoded_selected(&self) -> bool {
+        let f = self.favorites.len();
+        self.selected >= f && self.selected < f + self.stations.len()
+    }
+
+    fn hardcoded_index(&self) -> Option<usize> {
+        if self.is_hardcoded_selected() {
+            Some(self.selected - self.favorites.len())
+        } else {
+            None
+        }
     }
 
     fn is_search_result_selected(&self) -> bool {
-        self.selected >= self.stations.len()
+        self.selected >= self.favorites.len() + self.stations.len()
     }
 
     fn search_result_index(&self) -> Option<usize> {
         if self.is_search_result_selected() {
-            Some(self.selected - self.stations.len())
+            Some(self.selected - self.favorites.len() - self.stations.len())
         } else {
             None
+        }
+    }
+
+    /// Construye un `FavoriteStation` desde el ítem actualmente seleccionado.
+    fn build_favorite_from_selected(&self) -> Option<FavoriteStation> {
+        if let Some(i) = self.favorite_index() {
+            let f = &self.favorites[i];
+            Some(FavoriteStation { key: f.key.clone(), name: f.name.clone(), url: f.url.clone(), bitrate_kbps: f.bitrate_kbps })
+        } else if let Some(i) = self.hardcoded_index() {
+            let s = &self.stations[i];
+            Some(FavoriteStation { key: s.key.clone(), name: s.name.clone(), url: s.url.clone(), bitrate_kbps: s.bitrate_kbps })
+        } else if let Some(i) = self.search_result_index() {
+            let ds = &self.search_results[i];
+            Some(FavoriteStation { key: ds.key.clone(), name: ds.name.clone(), url: ds.url.clone(), bitrate_kbps: ds.bitrate_kbps })
+        } else {
+            None
+        }
+    }
+
+    fn toggle_selected_favorite(&mut self) {
+        if let Some(fav) = self.build_favorite_from_selected() {
+            let added = favorites::toggle(&mut self.favorites, fav);
+            favorites::save(&self.favorites);
+            // Asegurar que selected no quede fuera de rango si quitamos una favorita
+            let max = self.total_stations().saturating_sub(1);
+            self.selected = self.selected.min(max);
+            self.save_notice = Some(if added {
+                "★ Añadida a favoritas".to_string()
+            } else {
+                "☆ Quitada de favoritas".to_string()
+            });
         }
     }
 
@@ -405,7 +226,107 @@ impl App {
             handle.abort();
         }
     }
+
+    fn start_on_demand_fetch(&mut self) {
+        if let Some(t) = self.on_demand_task.take() {
+            t.abort();
+        }
+        self.on_demand_rx = None;
+        self.on_demand_loading = true;
+        self.on_demand_shows.clear();
+
+        let playlist_id = crate::station::on_demand::PROGRAMS
+            .get(self.selected_program)
+            .map(|p| p.playlist_id)
+            .unwrap_or(crate::station::on_demand::PROGRAMS[0].playlist_id);
+
+        let (tx, rx) = std::sync::mpsc::channel();
+        self.on_demand_rx = Some(rx);
+
+        let handle = tokio::spawn(async move {
+            let shows = on_demand::fetch_shows_for_playlist(playlist_id)
+                .await
+                .unwrap_or_default();
+            let _ = tx.send(shows);
+        });
+        self.on_demand_task = Some(handle);
+    }
+
+    pub fn poll_on_demand_results(&mut self) {
+        if let Some(rx) = self.on_demand_rx.take() {
+            match rx.try_recv() {
+                Ok(shows) => {
+                    self.on_demand_shows = shows;
+                    self.on_demand_loading = false;
+                    self.on_demand_selected = 0;
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => {
+                    self.on_demand_rx = Some(rx);
+                }
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    self.on_demand_loading = false;
+                }
+            }
+        }
+    }
+
+    /// Método unificado para reproducir una estación. Detiene el polling actual,
+    /// envía el comando Play, actualiza el estado de la app y arranca los servicios
+    /// necesarios (metadata polling, on-demand fetch).
+    async fn play_station(&mut self, station: Station) {
+        self.stop_metadata_polling();
+        if self.player.send(PlayerCommand::Play(station.clone())).await {
+            self.screen = AppScreen::Playing;
+            self.saved_tracks = library::load_saved_tracks(&station.key);
+            if let Some(api_url) = station.metadata_api_url {
+                self.start_metadata_polling(api_url, station.history_api_url, station.schedule_url);
+            }
+            if station.show_countdown {
+                self.start_on_demand_fetch();
+            } else {
+                self.on_demand_shows.clear();
+                self.on_demand_loading = false;
+            }
+        }
+    }
+
+    async fn play_favorite_station(&mut self, index: usize) {
+        if index >= self.favorites.len() { return; }
+        let station = self.favorites[index].to_station();
+        self.play_station(station).await;
+    }
+
+    async fn play_dynamic_station(&mut self, index: usize) {
+        if index >= self.search_results.len() { return; }
+        let ds = self.search_results[index].clone();
+
+        let mut station = Station {
+            key:              ds.key,
+            name:             ds.name.clone(),
+            url:              ds.url,
+            metadata_api_url: None,
+            history_api_url:  None,
+            schedule_url:     None,
+            show_countdown:   false,
+            bitrate_kbps:     ds.bitrate_kbps,
+        };
+
+        // Detectar si esta estación tiene metadatos especiales (Tomorrowland, OnlyHit, etc.)
+        if let Some(enrichment) = find_enrichment(&ds.name) {
+            enrich(&mut station, enrichment);
+            tracing::info!("Enriquecimiento activado para '{}'", station.name);
+        }
+
+        self.play_station(station).await;
+    }
+
     pub async fn on_key(&mut self, key: KeyCode) {
+        // El panel de configuración intercepta todas las teclas cuando está abierto
+        if self.show_settings {
+            self.on_key_settings(key);
+            return;
+        }
+
         self.save_notice = None;
         match key {
             KeyCode::Char(' ') => {
@@ -436,25 +357,48 @@ impl App {
                 self.should_quit = true;
                 return;
             }
+            // Abrir configuración desde cualquier foco excepto búsqueda de texto
+            KeyCode::Char('o') if !matches!(self.focus, AppFocus::StationSearch) => {
+                self.show_settings = true;
+                self.settings_selected = 0;
+                return;
+            }
             KeyCode::Tab => {
-                let has_recent = !self.player.state().recent_titles.is_empty();
-                if has_recent {
-                    self.focus = match self.focus {
-                        AppFocus::Stations    => AppFocus::RecentTracks,
-                        AppFocus::RecentTracks => AppFocus::Stations,
-                        AppFocus::StationSearch => AppFocus::Stations,
-                    };
-                    self.recent_selected = 0;
-                }
+                let has_recent    = !self.player.state().recent_titles.is_empty();
+                let has_on_demand = !self.on_demand_shows.is_empty() || self.on_demand_loading;
+
+                self.focus = match self.focus {
+                    AppFocus::Stations | AppFocus::StationSearch => {
+                        if has_on_demand {
+                            self.on_demand_selected = 0;
+                            AppFocus::OnDemandList
+                        } else if has_recent {
+                            self.recent_selected = 0;
+                            AppFocus::RecentTracks
+                        } else {
+                            AppFocus::Stations
+                        }
+                    }
+                    AppFocus::OnDemandList => {
+                        if has_recent {
+                            self.recent_selected = 0;
+                            AppFocus::RecentTracks
+                        } else {
+                            AppFocus::Stations
+                        }
+                    }
+                    AppFocus::RecentTracks => AppFocus::Stations,
+                };
                 return;
             }
             _ => {}
         }
 
         match self.focus {
-            AppFocus::Stations => self.on_key_stations(key).await,
-            AppFocus::RecentTracks => self.on_key_recent(key).await,
+            AppFocus::Stations      => self.on_key_stations(key).await,
+            AppFocus::RecentTracks  => self.on_key_recent(key).await,
             AppFocus::StationSearch => self.on_key_station_search(key).await,
+            AppFocus::OnDemandList  => self.on_key_on_demand(key).await,
         }
     }
 
@@ -471,20 +415,22 @@ impl App {
                 }
             }
             KeyCode::Enter => {
-                if self.is_search_result_selected() {
-                    if let Some(idx) = self.search_result_index() {
-                        self.play_dynamic_station(idx).await;
-                    }
-                } else {
-                    let station = self.stations[self.selected].clone();
-                    self.stop_metadata_polling();
-                    if self.player.send(PlayerCommand::Play(station.clone())).await {
-                        self.screen = AppScreen::Playing;
-                        self.saved_tracks = library::load_saved_tracks(&station.key);
-                        if let Some(api_url) = station.metadata_api_url {
-                            self.start_metadata_polling(api_url, station.history_api_url, station.schedule_url);
-                        }
-                    }
+                if let Some(idx) = self.favorite_index() {
+                    self.play_favorite_station(idx).await;
+                } else if let Some(idx) = self.search_result_index() {
+                    self.play_dynamic_station(idx).await;
+                } else if let Some(idx) = self.hardcoded_index() {
+                    let station = self.stations[idx].clone();
+                    self.play_station(station).await;
+                }
+            }
+            KeyCode::Char('f') => {
+                self.toggle_selected_favorite();
+            }
+            KeyCode::Right => {
+                if !self.on_demand_shows.is_empty() || self.on_demand_loading {
+                    self.on_demand_selected = 0;
+                    self.focus = AppFocus::OnDemandList;
                 }
             }
             KeyCode::Char('s') => {
@@ -514,7 +460,7 @@ impl App {
                         self.focus = AppFocus::StationSearch;
                         self.search_query.push(c);
                         // Posicionar el cursor al inicio de los resultados de búsqueda
-                        self.selected = self.stations.len();
+                        self.selected = self.favorites.len() + self.stations.len();
                         self.perform_search().await;
                     }
                 }
@@ -547,18 +493,19 @@ impl App {
                         .min(self.stations.len().saturating_sub(1));
                     self.focus = AppFocus::Stations;
                 } else {
-                    self.selected = self.stations.len();
+                    self.selected = self.favorites.len() + self.stations.len();
                     self.perform_search().await;
                 }
             }
             KeyCode::Char(c) if c.is_alphanumeric() || c == ' ' || c == '-' => {
                 self.search_query.push(c);
-                self.selected = self.stations.len();
+                self.selected = self.favorites.len() + self.stations.len();
                 self.perform_search().await;
             }
             KeyCode::Up | KeyCode::Char('k') => {
                 // No bajar de la primera posición de resultados de búsqueda
-                if self.selected > self.stations.len() {
+                let min = self.favorites.len() + self.stations.len();
+                if self.selected > min {
                     self.selected -= 1;
                 }
             }
@@ -586,7 +533,6 @@ impl App {
 
         self.search_loading = true;
         let query = self.search_query.clone();
-        // Capturar las URLs existentes antes de mover al spawn
         let existing_urls: Vec<String> = self.stations.iter().map(|s| s.url.clone()).collect();
         let (tx, rx) = std::sync::mpsc::channel();
         self.search_result_rx = Some(rx);
@@ -627,46 +573,58 @@ impl App {
         }
     }
 
-    async fn play_dynamic_station(&mut self, index: usize) {
-        if index >= self.search_results.len() {
-            return;
-        }
-        let ds = self.search_results[index].clone();
-
-        let mut station = Station {
-            key:             ds.key,
-            name:            ds.name.clone(),
-            url:             ds.url,
-            metadata_api_url: None,
-            history_api_url:  None,
-            schedule_url:     None,
-            show_countdown:  false,
-            bitrate_kbps:    ds.bitrate_kbps,
-        };
-
-        // Detectar si esta estación tiene metadatos especiales (Tomorrowland, OnlyHit, etc.)
-        if let Some(enrichment) = find_enrichment(&ds.name) {
-            enrich(&mut station, enrichment);
-            tracing::info!("Enriquecimiento activado para '{}'", station.name);
-        }
-
-        self.stop_metadata_polling();
-        if self.player.send(PlayerCommand::Play(station.clone())).await {
-            self.screen = AppScreen::Playing;
-            self.saved_tracks = library::load_saved_tracks(&station.key);
-            // Activar polling de metadatos si la estación lo soporta
-            if let Some(api_url) = station.metadata_api_url {
-                self.start_metadata_polling(api_url, station.history_api_url, station.schedule_url);
-            }
-        }
+    pub fn tick_overlay(&mut self) {
+        let state = self.player.state();
+        self.overlay.update(&state);
     }
 
     pub fn player_state(&self) -> PlayerState {
         self.player.state()
     }
 
-    /// Mapea un click de mouse a una acción de selección.
-    pub fn on_click(&mut self, _col: u16, row: u16) {
+    /// Mapea un click de mouse a una acción de selección o seek en la barra de progreso.
+    pub async fn on_click(&mut self, col: u16, row: u16) {
+        // Seek on-demand: click sobre la barra de progreso en el widget NOW PLAYING
+        let player_state = self.player.state();
+        if let Some(duration) = player_state.playback_duration_secs {
+            let has_recent    = !player_state.recent_titles.is_empty();
+            let has_saved     = !self.saved_tracks.is_empty();
+            let has_on_demand = !self.on_demand_shows.is_empty() || self.on_demand_loading;
+            let show_countdown = player_state.station.as_ref().map(|s| s.show_countdown).unwrap_or(false);
+
+            if let Some(np_area) = crate::ui::renderer::now_playing_rect(
+                self.terminal_area,
+                has_recent,
+                has_saved,
+                show_countdown,
+                has_on_demand,
+            ) {
+                // border(1) + station_line(1) = fila 2 del área (índice desde np_area.y)
+                let progress_row = np_area.y + 2;
+                if row == progress_row {
+                    let inner_x     = np_area.x + 1;
+                    let inner_width = np_area.width.saturating_sub(2);
+                    let pos = player_state.playback_pos_secs.unwrap_or(0.0);
+                    // Longitud del texto de tiempo: " mm:ss / mm:ss " (con espacios)
+                    let time_str_len = format!(
+                        " {} / {} ",
+                        crate::ui::widgets::now_playing::fmt_duration(pos),
+                        crate::ui::widgets::now_playing::fmt_duration(duration),
+                    ).len();
+                    // bar_width = ancho disponible para los bloques ██░░ (sin [ ] ni texto)
+                    let bar_width = (inner_width as usize).saturating_sub(time_str_len + 2);
+                    if bar_width > 0 && col >= inner_x {
+                        // col == inner_x es el '[', desplazarse uno más para entrar al fill
+                        let fill_col = col.saturating_sub(inner_x + 1) as usize;
+                        let ratio = (fill_col as f32 / bar_width as f32).clamp(0.0, 1.0);
+                        self.player.send(PlayerCommand::Seek(ratio * duration)).await;
+                    }
+                    return;
+                }
+            }
+        }
+
+        // Selección de estación por click en la lista
         let h = self.terminal_area.height;
         if h == 0 {
             return;
@@ -681,17 +639,17 @@ impl App {
 
         match &self.focus {
             AppFocus::StationSearch => {
-                let abs_idx = self.stations.len() + item_idx;
+                let abs_idx = self.favorites.len() + self.stations.len() + item_idx;
                 if abs_idx < self.total_stations() {
                     self.selected = abs_idx;
                 }
             }
             AppFocus::Stations => {
-                if item_idx < self.stations.len() {
+                if item_idx < self.total_stations() {
                     self.selected = item_idx;
                 }
             }
-            AppFocus::RecentTracks => {}
+            AppFocus::RecentTracks | AppFocus::OnDemandList => {}
         }
     }
 
@@ -709,6 +667,17 @@ impl App {
                     self.recent_selected = self.recent_selected.saturating_sub((-delta) as usize);
                 }
             }
+            AppFocus::OnDemandList => {
+                let len = self.on_demand_shows.len();
+                if len == 0 {
+                    return;
+                }
+                if delta > 0 {
+                    self.on_demand_selected = (self.on_demand_selected + delta as usize).min(len - 1);
+                } else {
+                    self.on_demand_selected = self.on_demand_selected.saturating_sub((-delta) as usize);
+                }
+            }
             AppFocus::Stations | AppFocus::StationSearch => {
                 if delta > 0 {
                     self.selected = (self.selected + delta as usize).min(self.total_stations().saturating_sub(1));
@@ -722,21 +691,128 @@ impl App {
     pub async fn on_double_click(&mut self) {
         match self.focus {
             AppFocus::Stations | AppFocus::StationSearch => {
-                if self.is_search_result_selected() {
-                    if let Some(idx) = self.search_result_index() {
-                        self.play_dynamic_station(idx).await;
-                    }
-                } else {
-                    let station = self.stations[self.selected].clone();
-                    self.stop_metadata_polling();
-                    if self.player.send(PlayerCommand::Play(station.clone())).await {
-                        self.screen = AppScreen::Playing;
-                        self.saved_tracks = library::load_saved_tracks(&station.key);
-                        if let Some(api_url) = station.metadata_api_url {
-                            self.start_metadata_polling(api_url, station.history_api_url, station.schedule_url);
-                        }
-                    }
+                if let Some(idx) = self.favorite_index() {
+                    self.play_favorite_station(idx).await;
+                } else if let Some(idx) = self.search_result_index() {
+                    self.play_dynamic_station(idx).await;
+                } else if let Some(idx) = self.hardcoded_index() {
+                    let station = self.stations[idx].clone();
+                    self.play_station(station).await;
                 }
+            }
+            _ => {}
+        }
+    }
+
+    async fn on_key_on_demand(&mut self, key: KeyCode) {
+        let len = self.on_demand_shows.len();
+        if len == 0 && !self.on_demand_loading {
+            self.focus = AppFocus::Stations;
+            return;
+        }
+
+        match key {
+            KeyCode::Char('p') => {
+                let total_programs = crate::station::on_demand::PROGRAMS.len();
+                self.selected_program = (self.selected_program + 1) % total_programs;
+                self.on_demand_selected = 0;
+                self.start_on_demand_fetch();
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                self.seek_input.clear();
+                if self.on_demand_selected > 0 {
+                    self.on_demand_selected -= 1;
+                }
+            }
+            KeyCode::Down | KeyCode::Char('j') => {
+                self.seek_input.clear();
+                if len > 0 && self.on_demand_selected + 1 < len {
+                    self.on_demand_selected += 1;
+                }
+            }
+            KeyCode::Enter => {
+                if !self.seek_input.is_empty() {
+                    // Parsear minutos digitados y hacer seek
+                    if let Some(target) = parse_seek_input(&self.seek_input) {
+                        self.player.send(PlayerCommand::Seek(target)).await;
+                    }
+                    self.seek_input.clear();
+                } else if let Some(show) = self.on_demand_shows.get(self.on_demand_selected) {
+                    let station = Station {
+                        key:              format!("ondemand_{}", show.id),
+                        name:             show.title.clone(),
+                        url:              show.audio_url.clone(),
+                        metadata_api_url: None,
+                        history_api_url:  None,
+                        schedule_url:     None,
+                        show_countdown:   false,
+                        bitrate_kbps:     None,
+                    };
+                    self.play_station(station).await;
+                }
+            }
+            KeyCode::Backspace => {
+                self.seek_input.pop();
+            }
+            // [  → retroceder 1 minuto
+            KeyCode::Char('[') => {
+                let pos = self.player.state().playback_pos_secs.unwrap_or(0.0);
+                let target = (pos - 60.0).max(0.0);
+                self.player.send(PlayerCommand::Seek(target)).await;
+            }
+            // ]  → avanzar 1 minuto
+            KeyCode::Char(']') => {
+                let state = self.player.state();
+                let pos      = state.playback_pos_secs.unwrap_or(0.0);
+                let duration = state.playback_duration_secs.unwrap_or(f32::MAX);
+                let target   = (pos + 60.0).min(duration);
+                self.player.send(PlayerCommand::Seek(target)).await;
+            }
+            // Dígitos: construir el minuto de destino
+            KeyCode::Char(c) if c.is_ascii_digit() || c == ':' => {
+                if self.seek_input.len() < 7 {
+                    self.seek_input.push(c);
+                }
+            }
+            KeyCode::Left | KeyCode::Esc => {
+                if !self.seek_input.is_empty() {
+                    self.seek_input.clear();
+                } else {
+                    self.focus = AppFocus::Stations;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn on_key_settings(&mut self, key: KeyCode) {
+        const SETTINGS_COUNT: usize = 1;
+        match key {
+            KeyCode::Esc | KeyCode::Char('o') => {
+                self.show_settings = false;
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                if self.settings_selected > 0 {
+                    self.settings_selected -= 1;
+                }
+            }
+            KeyCode::Down | KeyCode::Char('j') => {
+                if self.settings_selected + 1 < SETTINGS_COUNT {
+                    self.settings_selected += 1;
+                }
+            }
+            KeyCode::Enter | KeyCode::Char(' ') => {
+                self.apply_settings_toggle(self.settings_selected);
+            }
+            _ => {}
+        }
+    }
+
+    fn apply_settings_toggle(&mut self, idx: usize) {
+        match idx {
+            0 => {
+                self.config.autoplay_last = !self.config.autoplay_last;
+                self.config.save();
             }
             _ => {}
         }

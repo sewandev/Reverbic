@@ -16,12 +16,19 @@ const DB_CLIP: f32 = -1.0;
 pub struct VuMeterWidget {
     pub level_db: f32,
     pub volume: f32,
+    /// Some(pct) durante buffering (0.0-1.0); reemplaza la barra LVL
+    pub buffer_fill_pct: Option<f32>,
 }
 
 impl Widget for VuMeterWidget {
     fn render(self, area: Rect, buf: &mut Buffer) {
+        let title = if self.buffer_fill_pct.is_some() {
+            " BUFFER  aguarda unos segundos... "
+        } else {
+            " AUDIO "
+        };
         let block = Block::default()
-            .title(" AUDIO ")
+            .title(title)
             .borders(Borders::ALL)
             .border_style(theme::BORDER_STYLE);
 
@@ -34,12 +41,38 @@ impl Widget for VuMeterWidget {
 
         let rows = Layout::vertical([Constraint::Length(1), Constraint::Length(1)]).split(inner);
 
-        render_level_bar(self.level_db, rows[0], buf);
+        if let Some(pct) = self.buffer_fill_pct {
+            render_buffer_bar(pct, rows[0], buf);
+        } else {
+            render_level_bar(self.level_db, rows[0], buf);
+        }
 
         if inner.height >= 2 {
             render_volume_bar(self.volume, rows[1], buf);
         }
     }
+}
+
+fn render_buffer_bar(pct: f32, area: Rect, buf: &mut Buffer) {
+    let spinner = super::spinner_frame();
+    let label = format!(" {:>3.0}%", (pct * 100.0).min(100.0));
+    // "BUF ⠹ " — spinner es 1 col, total prefijo: 6 cols
+    let prefix = format!("BUF {} ", spinner);
+    let prefix_display_len = 6; // "BUF " (4) + spinner (1) + " " (1)
+    let bar_width = (area.width as usize)
+        .saturating_sub(label.len() + prefix_display_len)
+        .max(1);
+
+    let filled = ((pct * bar_width as f32).round() as usize).min(bar_width);
+    let empty = bar_width - filled;
+
+    let line = Line::from(vec![
+        Span::styled(prefix, Style::default().fg(theme::ACCENT)),
+        Span::styled("█".repeat(filled), Style::default().fg(theme::ACCENT)),
+        Span::styled("░".repeat(empty), Style::default().fg(theme::MUTED)),
+        Span::styled(label, Style::default().fg(theme::ACCENT)),
+    ]);
+    Paragraph::new(line).render(area, buf);
 }
 
 fn render_level_bar(level_db: f32, area: Rect, buf: &mut Buffer) {

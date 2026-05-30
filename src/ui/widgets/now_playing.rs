@@ -9,6 +9,18 @@ use ratatui::{
 use crate::audio::{PlayerState, PlayerStatus};
 use crate::ui::theme;
 
+pub fn fmt_duration(secs: f32) -> String {
+    let total = secs.max(0.0) as u64;
+    let h = total / 3600;
+    let m = (total % 3600) / 60;
+    let s = total % 60;
+    if h > 0 {
+        format!("{h}:{m:02}:{s:02}")
+    } else {
+        format!("{m}:{s:02}")
+    }
+}
+
 pub struct NowPlayingWidget<'a> {
     pub state: &'a PlayerState,
 }
@@ -52,6 +64,7 @@ impl<'a> NowPlayingWidget<'a> {
                 PlayerStatus::Connecting => "Conectando a ".len() + name.len(),
                 PlayerStatus::Playing => name.len(),
                 PlayerStatus::Paused => "⏸ ".len() + name.len(),
+                PlayerStatus::Buffering(_) => name.len(),
                 PlayerStatus::Error(_) => 0,
                 PlayerStatus::Reconnecting(n) => {
                     "Reconectando (".len() + n.to_string().len() + ")… ".len() + name.len()
@@ -82,6 +95,13 @@ impl<'a> NowPlayingWidget<'a> {
                 Span::styled(right_pad, Style::default()),
                 Span::styled(bitrate_tag.to_owned(), Style::default().fg(theme::MUTED)),
             ]),
+            PlayerStatus::Buffering(_) => Line::from(vec![
+                Span::styled(
+                    format!("{} ", crate::ui::widgets::spinner_frame()),
+                    Style::default().fg(theme::ACCENT),
+                ),
+                Span::styled(name.to_owned(), theme::SELECTED_STYLE),
+            ]),
             PlayerStatus::Error(msg) => Line::from(vec![
                 Span::styled("Error: ", Style::default().fg(theme::ERROR)),
                 Span::styled(msg.clone(), Style::default().fg(theme::ERROR)),
@@ -96,6 +116,17 @@ impl<'a> NowPlayingWidget<'a> {
     }
 
     fn build_middle_line(&self, width: u16) -> Line<'a> {
+        // Si hay duración on-demand, muestra la barra de progreso
+        if let Some(duration) = self.state.playback_duration_secs {
+            let pos = self.state.playback_pos_secs.unwrap_or(0.0);
+            let ratio = (pos / duration).clamp(0.0, 1.0);
+            let time_str = format!(" {} / {} ", fmt_duration(pos), fmt_duration(duration));
+            let bar_width = (width as usize).saturating_sub(time_str.len() + 2);
+            let filled = (ratio * bar_width as f32) as usize;
+            let empty  = bar_width.saturating_sub(filled);
+            let bar = format!("[{}{}]{time_str}", "█".repeat(filled), "░".repeat(empty));
+            return Line::from(Span::styled(bar, Style::default().fg(theme::ACCENT)));
+        }
         if let Some(show) = &self.state.api_show {
             Line::from(vec![
                 Span::styled("Show: ", Style::default().fg(theme::ACCENT)),
@@ -110,6 +141,16 @@ impl<'a> NowPlayingWidget<'a> {
     }
 
     fn build_title_line(&self) -> Line<'a> {
+        // Para on-demand (tiene duración pero no track API), muestra el tiempo solo
+        if self.state.playback_duration_secs.is_some() {
+            let pos      = self.state.playback_pos_secs.unwrap_or(0.0);
+            let duration = self.state.playback_duration_secs.unwrap_or(1.0);
+            let pct      = (pos / duration * 100.0).clamp(0.0, 100.0);
+            return Line::from(Span::styled(
+                format!("[0-9+Enter] Saltar a min  [[] -1min  []] +1min   {pct:.0}%"),
+                Style::default().fg(theme::MUTED),
+            ));
+        }
         if let Some(title) = &self.state.title {
             Line::from(vec![
                 Span::styled("Track: ", Style::default().fg(theme::ACCENT)),
