@@ -12,6 +12,7 @@ use windows::{
         System::{
             Console::GetConsoleWindow,
             LibraryLoader::GetModuleHandleW,
+            Threading::AttachThreadInput,
         },
         UI::{
             Shell::{Shell_NotifyIconW, NOTIFYICONDATAW, NIF_ICON, NIF_MESSAGE, NIF_TIP, NIF_INFO, NIM_ADD, NIM_DELETE, NIM_MODIFY, NIIF_NOSOUND, NIIF_INFO},
@@ -328,12 +329,23 @@ unsafe extern "system" fn wnd_proc(
             if event == WM_LBUTTONDBLCLK {
                 let console = GetConsoleWindow();
                 if !console.0.is_null() {
+                    // AttachThreadInput: adjuntamos nuestro thread al foreground thread
+                    // para que Windows permita el cambio de foco
+                    let fg     = GetForegroundWindow();
+                    let fg_tid = GetWindowThreadProcessId(fg, None);
+                    let my_tid = GetWindowThreadProcessId(hwnd, None);
+                    if fg_tid != 0 && fg_tid != my_tid {
+                        let _ = AttachThreadInput(fg_tid, my_tid, TRUE);
+                    }
                     if IsIconic(console).as_bool() {
                         let _ = ShowWindow(console, SW_RESTORE);
-                    } else {
-                        let _ = ShowWindow(console, SW_SHOW);
                     }
+                    let _ = BringWindowToTop(console);
                     let _ = SetForegroundWindow(console);
+                    let _ = ShowWindow(console, SW_SHOW);
+                    if fg_tid != 0 && fg_tid != my_tid {
+                        let _ = AttachThreadInput(fg_tid, my_tid, FALSE);
+                    }
                 }
             }
             LRESULT(0)
