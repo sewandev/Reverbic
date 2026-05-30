@@ -14,6 +14,27 @@ use crate::ui::theme;
 const BG: Color = Color::Rgb(13, 13, 13);
 const OVERLAY_BG: Color = Color::Rgb(5, 5, 5);
 
+const EXAMPLES: &[&str] = &[
+    "The Jazz Radio",
+    "BBC World Service",
+    "Classic FM",
+    "Radio Nacional",
+    "Indie Rock",
+    "Tomorrowland Radio",
+    "Salsa y Bachata",
+    "Lofi Hip Hop",
+    "NPR News",
+    "Deep House",
+];
+
+fn placeholder_example() -> &'static str {
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    EXAMPLES[(secs / 3) as usize % EXAMPLES.len()]
+}
+
 fn spin_frame() -> &'static str {
     let ms = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -194,8 +215,11 @@ impl SearchModalWidget<'_> {
         let text_area = Rect::new(text_x, input_row.y, text_w, 1);
 
         if self.query.is_empty() {
-            Paragraph::new(Span::styled("_", Style::default().fg(theme::ACCENT).add_modifier(Modifier::BOLD)))
-                .render(text_area, buf);
+            Paragraph::new(Span::styled(
+                placeholder_example(),
+                Style::default().fg(theme::MUTED),
+            ))
+            .render(text_area, buf);
         } else {
             let max_q   = text_w.saturating_sub(2) as usize;
             let visible: String = if self.query.chars().count() > max_q {
