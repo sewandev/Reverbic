@@ -363,13 +363,10 @@ impl SearchModalWidget<'_> {
         }
 
         if self.results.is_empty() {
-            let msg = if self.query.is_empty() && !matches!(self.mode, SearchMode::Genre) {
-                t("modal.empty.type_to_search")
-            } else {
-                t("modal.empty.no_results")
-            };
-            Paragraph::new(Span::styled(msg, Style::default().fg(theme::MUTED)))
-                .render(items_area, buf);
+            if !self.query.is_empty() {
+                Paragraph::new(Span::styled(t("modal.empty.no_results"), Style::default().fg(theme::MUTED)))
+                    .render(items_area, buf);
+            }
             return;
         }
 
