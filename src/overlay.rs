@@ -9,7 +9,10 @@ use windows::{
     Win32::{
         Foundation::*,
         Graphics::Gdi::*,
-        System::LibraryLoader::GetModuleHandleW,
+        System::{
+            Console::GetConsoleWindow,
+            LibraryLoader::GetModuleHandleW,
+        },
         UI::{
             Shell::{Shell_NotifyIconW, NOTIFYICONDATAW, NIF_ICON, NIF_MESSAGE, NIF_TIP, NIF_INFO, NIM_ADD, NIM_DELETE, NIM_MODIFY, NIIF_NOSOUND, NIIF_INFO},
             WindowsAndMessaging::*,
@@ -308,6 +311,22 @@ unsafe extern "system" fn wnd_proc(
                 SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
             }
             PostQuitMessage(0);
+            LRESULT(0)
+        }
+        // Mensaje de callback del tray icon
+        x if x == WM_APP + 1 => {
+            let event = (lparam.0 as u16) as u32;
+            if event == WM_LBUTTONDBLCLK {
+                let console = GetConsoleWindow();
+                if !console.0.is_null() {
+                    if IsIconic(console).as_bool() {
+                        let _ = ShowWindow(console, SW_RESTORE);
+                    } else {
+                        let _ = ShowWindow(console, SW_SHOW);
+                    }
+                    let _ = SetForegroundWindow(console);
+                }
+            }
             LRESULT(0)
         }
         _ => DefWindowProcW(hwnd, msg, wparam, lparam),
