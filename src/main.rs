@@ -109,7 +109,6 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
             if let Some(enrichment) = find_enrichment(&saved.name) {
                 enrich(&mut station, enrichment);
             }
-            app.show_search_modal = false;
             app.player.send(PlayerCommand::Play(station)).await;
         }
     }
