@@ -657,6 +657,17 @@ impl App {
     }
 
     pub async fn on_mouse_scroll(&mut self, delta: i32) {
+        if self.show_search_modal {
+            let len = self.search_results.len();
+            if len == 0 { return; }
+            if delta > 0 {
+                self.modal_selected = (self.modal_selected + delta as usize).min(len - 1);
+            } else {
+                self.modal_selected = self.modal_selected.saturating_sub((-delta) as usize);
+            }
+            return;
+        }
+
         match self.focus {
             AppFocus::RecentTracks => {
                 let titles = self.player.state().recent_titles;
