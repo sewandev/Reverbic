@@ -22,7 +22,6 @@ use crate::ui::{
     },
 };
 
-/// Rect del widget NOW PLAYING — usado por `App::on_click` para seek.
 pub fn now_playing_rect(
     area: Rect,
     has_recent: bool,
@@ -64,7 +63,6 @@ pub fn render(frame: &mut Frame, app: &App) {
 
     let layout = compute_layout(frame.area(), has_recent, has_saved, show_countdown, has_on_demand);
 
-    // ── Header ────────────────────────────────────────────────────
     if let Some(h) = layout.header {
         render_header(frame, h);
     }
@@ -72,7 +70,6 @@ pub fn render(frame: &mut Frame, app: &App) {
         render_sep(frame, s);
     }
 
-    // ── Columnas de contenido ─────────────────────────────────────
     frame.render_widget(
         StationListWidget {
             stations:               &app.stations,
@@ -132,7 +129,6 @@ pub fn render(frame: &mut Frame, app: &App) {
         );
     }
 
-    // ── Footer ────────────────────────────────────────────────────
     if let Some(s) = layout.sep_body {
         render_sep(frame, s);
     }
@@ -176,7 +172,6 @@ pub fn render(frame: &mut Frame, app: &App) {
         &app.seek_input,
     );
 
-    // Modal de búsqueda — ocupa toda la pantalla, centra su contenido internamente
     if app.show_search_modal {
         use crate::ui::widgets::search_modal::SearchModalWidget;
         frame.render_widget(
@@ -190,7 +185,6 @@ pub fn render(frame: &mut Frame, app: &App) {
         );
     }
 
-    // Panel de configuración — modal encima de todo
     if app.show_settings {
         use crate::ui::widgets::settings_panel::{SettingsItem, SettingsPanelWidget};
         let items = [SettingsItem {
@@ -204,9 +198,6 @@ pub fn render(frame: &mut Frame, app: &App) {
     }
 }
 
-// ── Layout ────────────────────────────────────────────────────────────────────
-
-// Normal: header(1)+sep(1)+content(fill)+sep(1)+np(1)+vu(1)+sep(1)+[cd(1)]+help(1)
 const HEIGHT_NORMAL:  u16 = 11;
 const HEIGHT_COMPACT: u16 = 5;
 
@@ -351,12 +342,10 @@ fn split_saved_recent(
     }
 }
 
-// ── Helpers de render ─────────────────────────────────────────────────────────
-
 fn render_header(frame: &mut Frame, area: Rect) {
     let now      = Local::now();
     let time_str = format!("{}  {:02} {}", now.format("%H:%M"), now.day(), month_es(now.month()));
-    let brand    = " ♫ REVERBIC";
+    let brand    = " REVERBIC";
     let brand_w  = brand.chars().count();
     let time_w   = time_str.chars().count();
     let pad      = (area.width as usize).saturating_sub(brand_w + time_w + 1);
@@ -389,7 +378,7 @@ fn render_help(
     seek_input:        &str,
 ) {
     let (text, color) = if let Some(title) = preview_title {
-        (format!(" ♪ PREVIEW: {title}   [p] Parar"), theme::PLAYING)
+        (format!(" PREVIEW: {title}   [p] Parar"), theme::PLAYING)
     } else if preview_searching {
         (" Buscando en Deezer…   [p] Cancelar".to_string(), theme::ACCENT)
     } else if let Some(msg) = save_notice {

@@ -45,7 +45,6 @@ impl<'a> Widget for RecentTracksWidget<'a> {
             return;
         }
 
-        // Título en primera línea
         let preview_hint = if self.preview_active { "  [p] Parar" } else { "  [p] Preview" };
         let title_text = if self.focused {
             format!("RECENT{preview_hint}  [↵] Guardar  [Esc] Volver")
@@ -100,7 +99,7 @@ impl<'a> Widget for RecentTracksWidget<'a> {
                     spans.push(Span::styled(format!("  {spinner}"), s));
                 } else if is_previewing {
                     let s = if is_sel { Style::new().fg(Color::Black).bg(theme::ACCENT).add_modifier(Modifier::BOLD) } else { PREVIEW_PLAY_STYLE };
-                    spans.push(Span::styled("  ♪ preview", s));
+                    spans.push(Span::styled("  >> preview", s));
                 } else if is_unavail {
                     let s = if is_sel { Style::new().fg(Color::Black).bg(theme::ACCENT) } else { UNAVAILABLE_STYLE };
                     spans.push(Span::styled("  no disponible", s));

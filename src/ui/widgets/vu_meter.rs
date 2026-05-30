@@ -34,7 +34,6 @@ impl Widget for VuMeterWidget {
 
 fn build_lvl_vol_line(level_db: f32, volume: f32, width: u16) -> Line<'static> {
     let w = width as usize;
-    // Partes fijas: " LVL "(5) + " -60dB"(6) + "   VOL "(7) + "  80%"(5) = 23
     const FIXED: usize = 23;
     let bars = w.saturating_sub(FIXED);
     let bar_lvl_w = bars * 3 / 5;
@@ -74,7 +73,6 @@ fn build_lvl_vol_line(level_db: f32, volume: f32, width: u16) -> Line<'static> {
 fn build_buffer_line(pct: f32, volume: f32, width: u16) -> Line<'static> {
     let spinner = super::spinner_frame();
     let w = width as usize;
-    // Partes fijas: " BUF ⠹ "(8) + "  42%"(5) + "   VOL "(7) + "  80%"(5) = 25
     const FIXED: usize = 25;
     let bars      = w.saturating_sub(FIXED);
     let bar_buf_w = bars * 3 / 5;
