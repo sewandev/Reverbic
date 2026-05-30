@@ -246,6 +246,13 @@ impl App {
     }
 
     async fn play_station(&mut self, station: Station) {
+        self.config.last_station = Some(crate::config::LastStation {
+            key:          station.key.clone(),
+            name:         station.name.clone(),
+            url:          station.url.clone(),
+            bitrate_kbps: station.bitrate_kbps,
+        });
+        self.config.save();
         self.stop_metadata_polling();
         if self.player.send(PlayerCommand::Play(station.clone())).await {
             self.saved_tracks = library::load_saved_tracks(&station.key);
