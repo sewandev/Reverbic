@@ -1,7 +1,7 @@
 pub mod countdown;
 pub mod now_playing;
-pub mod now_playing_overlay;
 pub mod on_demand_panel;
+pub mod search_modal;
 pub mod recent_tracks;
 pub mod saved_tracks;
 pub mod settings_panel;
