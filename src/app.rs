@@ -594,10 +594,10 @@ impl App {
                 self.save_notice_is_dup = false;
                 self.save_notice = Some(t("notice.vote"));
             }
-            KeyCode::Up | KeyCode::Char('k') => {
+            KeyCode::Up => {
                 if self.modal_selected > 0 { self.modal_selected -= 1; }
             }
-            KeyCode::Down | KeyCode::Char('j') => {
+            KeyCode::Down => {
                 if self.modal_selected + 1 < self.search_results.len() {
                     self.modal_selected += 1;
                 }
@@ -676,10 +676,10 @@ impl App {
                     self.genre_selected = 0;
                 }
             }
-            KeyCode::Up | KeyCode::Char('k') => {
+            KeyCode::Up => {
                 if self.genre_selected > 0 { self.genre_selected -= 1; }
             }
-            KeyCode::Down | KeyCode::Char('j') => {
+            KeyCode::Down => {
                 if self.genre_selected + 1 < filtered.len() {
                     self.genre_selected += 1;
                 }
@@ -783,10 +783,10 @@ impl App {
                     self.country_selected = 0;
                 }
             }
-            KeyCode::Up | KeyCode::Char('k') => {
+            KeyCode::Up => {
                 if self.country_selected > 0 { self.country_selected -= 1; }
             }
-            KeyCode::Down | KeyCode::Char('j') => {
+            KeyCode::Down => {
                 if self.country_selected + 1 < filtered.len() {
                     self.country_selected += 1;
                 }
