@@ -1,5 +1,27 @@
-
 use serde::Deserialize;
+
+pub const GENRES: &[(&str, &str)] = &[
+    ("pop",        "Pop"),
+    ("rock",       "Rock"),
+    ("jazz",       "Jazz"),
+    ("classical",  "Classical"),
+    ("electronic", "Electronic"),
+    ("dance",      "Dance"),
+    ("hip-hop",    "Hip Hop"),
+    ("country",    "Country"),
+    ("latin",      "Latin"),
+    ("reggae",     "Reggae"),
+    ("blues",      "Blues"),
+    ("soul",       "Soul"),
+    ("metal",      "Metal"),
+    ("ambient",    "Ambient"),
+    ("folk",       "Folk"),
+    ("news",       "News"),
+    ("talk",       "Talk"),
+    ("oldies",     "Oldies"),
+    ("hits",       "Hits"),
+    ("lofi",       "Lo-Fi"),
+];
 
 const RADIO_BROWSER_SERVERS: &[&str] = &[
     "https://de1.api.radio-browser.info",
@@ -35,9 +57,17 @@ impl From<RadioBrowserStation> for DynamicStation {
     }
 }
 
-pub async fn search_stations(query: &str, limit: u32) -> Option<Vec<DynamicStation>> {
-    let query = query.trim();
-    if query.is_empty() {
+pub async fn search_stations(name: &str, limit: u32) -> Option<Vec<DynamicStation>> {
+    fetch("name", name, limit).await
+}
+
+pub async fn search_stations_by_tag(tag: &str, limit: u32) -> Option<Vec<DynamicStation>> {
+    fetch("tag", tag, limit).await
+}
+
+async fn fetch(param: &str, value: &str, limit: u32) -> Option<Vec<DynamicStation>> {
+    let value = value.trim();
+    if value.is_empty() {
         return Some(Vec::new());
     }
 
@@ -48,61 +78,38 @@ pub async fn search_stations(query: &str, limit: u32) -> Option<Vec<DynamicStati
         .ok()?;
 
     let limit_str = limit.to_string();
+    let params = [
+        (param, value),
+        ("order", "votes"),
+        ("reverse", "true"),
+        ("limit", limit_str.as_str()),
+        ("hidebroken", "true"),
+    ];
 
     for server in RADIO_BROWSER_SERVERS {
         let url = format!("{server}/json/stations/search");
-        tracing::debug!("Searching Radio Browser: {url}?name={query}");
-
-        let result = client
-            .get(&url)
-            .query(&[
-                ("name", query),
-                ("order", "votes"),
-                ("reverse", "true"),
-                ("limit", limit_str.as_str()),
-                ("hidebroken", "true"),
-            ])
-            .send()
-            .await;
+        let result = client.get(&url).query(&params).send().await;
 
         match result {
             Ok(resp) if resp.status().is_success() => {
                 match resp.text().await {
-                    Ok(body) => {
-                        match serde_json::from_str::<Vec<RadioBrowserStation>>(&body) {
-                            Ok(stations) => {
-                                let dynamic: Vec<DynamicStation> = stations
-                                    .into_iter()
-                                    .map(DynamicStation::from)
-                                    .filter(|s| !s.url.is_empty())
-                                    .collect();
-                                tracing::info!(
-                                    "Radio Browser: {} stations for '{}'",
-                                    dynamic.len(),
-                                    query
-                                );
-                                return Some(dynamic);
-                            }
-                            Err(e) => {
-                                tracing::warn!("Radio Browser parse error from {server}: {e}");
-                                continue;
-                            }
+                    Ok(body) => match serde_json::from_str::<Vec<RadioBrowserStation>>(&body) {
+                        Ok(stations) => {
+                            let dynamic: Vec<DynamicStation> = stations
+                                .into_iter()
+                                .map(DynamicStation::from)
+                                .filter(|s| !s.url.is_empty())
+                                .collect();
+                            tracing::info!("Radio Browser [{param}={value}]: {} stations", dynamic.len());
+                            return Some(dynamic);
                         }
-                    }
-                    Err(e) => {
-                        tracing::warn!("Radio Browser body error from {server}: {e}");
-                        continue;
-                    }
+                        Err(e) => { tracing::warn!("Radio Browser parse error from {server}: {e}"); }
+                    },
+                    Err(e) => { tracing::warn!("Radio Browser body error from {server}: {e}"); }
                 }
             }
-            Ok(resp) => {
-                tracing::warn!("Radio Browser HTTP {} from {server}", resp.status());
-                continue;
-            }
-            Err(e) => {
-                tracing::warn!("Radio Browser request failed from {server}: {e}");
-                continue;
-            }
+            Ok(resp) => { tracing::warn!("Radio Browser HTTP {} from {server}", resp.status()); }
+            Err(e)   => { tracing::warn!("Radio Browser request failed from {server}: {e}"); }
         }
     }
 

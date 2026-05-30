@@ -6,7 +6,8 @@ use ratatui::{
     widgets::{Block, BorderType, Borders, Clear, List, ListItem, Paragraph, Widget},
 };
 
-use crate::station::DynamicStation;
+use crate::app::SearchMode;
+use crate::station::{DynamicStation, GENRES};
 use crate::ui::theme;
 
 const BG: Color = Color::Rgb(13, 13, 13);
@@ -33,24 +34,33 @@ fn placeholder_example() -> &'static str {
     EXAMPLES[(secs / 3) as usize % EXAMPLES.len()]
 }
 
+fn spin_frame() -> &'static str {
+    let ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    const SPIN: &[&str] = &["⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏"];
+    SPIN[(ms / 80) as usize % SPIN.len()]
+}
+
 pub struct SearchModalWidget<'a> {
-    pub query:    &'a str,
-    pub results:  &'a [DynamicStation],
-    pub loading:  bool,
-    pub selected: usize,
+    pub query:          &'a str,
+    pub results:        &'a [DynamicStation],
+    pub loading:        bool,
+    pub selected:       usize,
+    pub mode:           &'a SearchMode,
+    pub genre_selected: usize,
+    pub genre_query:    &'a str,
 }
 
 impl Widget for SearchModalWidget<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        // Limpiar toda la pantalla y aplicar fondo oscuro
-        Clear.render(area, buf);
         for y in area.top()..area.bottom() {
             for x in area.left()..area.right() {
                 buf[(x, y)].set_bg(OVERLAY_BG);
             }
         }
 
-        // Panel rectangular: mas ancho que alto
         let w = area.width.min(66).max(44);
         let h = area.height.min(14).max(10);
         let x = area.x + area.width.saturating_sub(w) / 2;
@@ -59,26 +69,17 @@ impl Widget for SearchModalWidget<'_> {
 
         Clear.render(panel, buf);
 
+        let bottom_hint = self.bottom_hint();
         let block = Block::default()
             .title_top(
-                Line::from(vec![
-                    Span::styled(
-                        " BUSCAR RADIO ",
-                        Style::default()
-                            .fg(theme::HIGHLIGHT)
-                            .add_modifier(Modifier::BOLD),
-                    ),
-                ])
+                Line::from(Span::styled(
+                    " BUSCAR RADIO ",
+                    Style::default().fg(theme::HIGHLIGHT).add_modifier(Modifier::BOLD),
+                ))
                 .alignment(Alignment::Center),
             )
             .title_bottom(
-                Line::from(vec![
-                    Span::raw(" "),
-                    key("[↵]"), sep(" Play  "),
-                    key("[↑↓]"), sep(" Navegar  "),
-                    key("[Esc]"), sep(" Cerrar "),
-                ])
-                .alignment(Alignment::Center),
+                Line::from(bottom_hint).alignment(Alignment::Center),
             )
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
@@ -88,23 +89,82 @@ impl Widget for SearchModalWidget<'_> {
         let inner = block.inner(panel);
         block.render(panel, buf);
 
-        let h_pad: u16    = 2;
-        let content_x     = inner.x + h_pad;
-        let content_w     = inner.width.saturating_sub(h_pad * 2);
+        let h_pad: u16 = 2;
+        let content_x = inner.x + h_pad;
+        let content_w = inner.width.saturating_sub(h_pad * 2);
 
-        // Layout interno compacto: input + cap + resultados
-        let [input_row, cap_row, list_area] = Layout::vertical([
-            Constraint::Length(1),  // ┃ input
-            Constraint::Length(1),  // ╹
-            Constraint::Fill(1),    // resultados
+        let [tabs_row, body_area] = Layout::vertical([
+            Constraint::Length(1),
+            Constraint::Fill(1),
         ])
         .areas(inner);
 
-        // ── Input ─────────────────────────────────────────────────────
+        self.render_tabs(tabs_row, content_x, content_w, buf);
+
+        match self.mode {
+            SearchMode::Name  => self.render_name_body(body_area, content_x, content_w, buf),
+            SearchMode::Genre => self.render_genre_body(body_area, content_x, content_w, buf),
+        }
+    }
+}
+
+impl SearchModalWidget<'_> {
+    fn bottom_hint(&self) -> Vec<Span<'static>> {
+        let showing_results = !self.results.is_empty();
+        match self.mode {
+            SearchMode::Name => vec![
+                Span::raw(" "),
+                key("[↵]"), sep(" Play  "),
+                key("[↑↓]"), sep(" Nav  "),
+                key("[Tab]"), sep(" Genero  "),
+                key("[Esc]"), sep(" Cerrar "),
+            ],
+            SearchMode::Genre if showing_results => vec![
+                Span::raw(" "),
+                key("[↵]"), sep(" Play  "),
+                key("[↑↓]"), sep(" Nav  "),
+                key("[Esc]"), sep(" Volver "),
+            ],
+            SearchMode::Genre => vec![
+                Span::raw(" "),
+                key("[↵]"), sep(" Buscar  "),
+                key("[↑↓]"), sep(" Nav  "),
+                key("[Tab]"), sep(" Nombre  "),
+                key("[Esc]"), sep(" Cerrar "),
+            ],
+        }
+    }
+
+    fn render_tabs(&self, area: Rect, content_x: u16, content_w: u16, buf: &mut Buffer) {
+        let tab_area = Rect::new(content_x, area.y, content_w, 1);
+        let (name_style, genre_style) = match self.mode {
+            SearchMode::Name => (
+                Style::default().fg(theme::ACCENT).add_modifier(Modifier::BOLD),
+                Style::default().fg(theme::MUTED),
+            ),
+            SearchMode::Genre => (
+                Style::default().fg(theme::MUTED),
+                Style::default().fg(theme::ACCENT).add_modifier(Modifier::BOLD),
+            ),
+        };
+        let line = Line::from(vec![
+            Span::styled("[ Nombre ]", name_style),
+            Span::styled("    ", Style::default()),
+            Span::styled("[ Genero ]", genre_style),
+        ]);
+        Paragraph::new(line).render(tab_area, buf);
+    }
+
+    fn render_name_body(&self, area: Rect, content_x: u16, content_w: u16, buf: &mut Buffer) {
+        let [input_row, cap_row, list_area] = Layout::vertical([
+            Constraint::Length(1),
+            Constraint::Length(1),
+            Constraint::Fill(1),
+        ])
+        .areas(area);
+
         buf[(content_x, input_row.y)]
-            .set_symbol("┃")
-            .set_fg(theme::ACCENT)
-            .set_bg(BG);
+            .set_symbol("┃").set_fg(theme::ACCENT).set_bg(BG);
 
         let text_x    = content_x + 2;
         let text_w    = content_w.saturating_sub(2);
@@ -130,31 +190,89 @@ impl Widget for SearchModalWidget<'_> {
             .render(text_area, buf);
         }
 
-        // ── Cap ──────────────────────────────────────────────────────
         buf[(content_x, cap_row.y)]
-            .set_symbol("╹")
-            .set_fg(theme::ACCENT)
-            .set_bg(BG);
+            .set_symbol("╹").set_fg(theme::ACCENT).set_bg(BG);
 
-        // ── Resultados + scrollbar ────────────────────────────────────
-        let list_x      = content_x + 2;
-        let visible_n   = list_area.height as usize;
-        // reservar 1 col para scrollbar cuando haya resultados
-        let needs_scroll = self.results.len() > visible_n;
-        let name_col_w  = content_w.saturating_sub(if needs_scroll { 9 } else { 8 }) as usize;
-        let items_x     = list_x;
-        let items_w     = content_w.saturating_sub(if needs_scroll { 3 } else { 2 });
-        let items_area  = Rect::new(items_x, list_area.y, items_w, list_area.height);
+        self.render_results(list_area, content_x, content_w, buf);
+    }
+
+    fn render_genre_body(&self, area: Rect, content_x: u16, content_w: u16, buf: &mut Buffer) {
+        if !self.results.is_empty() {
+            let [header_row, list_area] = Layout::vertical([
+                Constraint::Length(1),
+                Constraint::Fill(1),
+            ])
+            .areas(area);
+
+            let header = Rect::new(content_x, header_row.y, content_w, 1);
+            Paragraph::new(Line::from(vec![
+                Span::styled("< ", Style::default().fg(theme::MUTED)),
+                Span::styled(self.genre_query, Style::default().fg(theme::ACCENT).add_modifier(Modifier::BOLD)),
+                Span::styled("  >", Style::default().fg(theme::MUTED)),
+            ]))
+            .render(header, buf);
+
+            self.render_results(list_area, content_x, content_w, buf);
+            return;
+        }
 
         if self.loading {
-            let ms = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|d| d.as_millis())
-                .unwrap_or(0);
-            const SPIN: &[&str] = &["⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏"];
-            let frame = SPIN[(ms / 80) as usize % SPIN.len()];
+            let area = Rect::new(content_x + 2, area.y + 1, content_w.saturating_sub(2), 1);
             Paragraph::new(Span::styled(
-                format!("{frame}  Buscando…"),
+                format!("{}  Buscando genero…", spin_frame()),
+                Style::default().fg(theme::MUTED),
+            ))
+            .render(area, buf);
+            return;
+        }
+
+        let list_x = content_x + 2;
+        let list_w = content_w.saturating_sub(2);
+        let list_area = Rect::new(list_x, area.y, list_w, area.height);
+        let visible_n = list_area.height as usize;
+        let offset = if self.genre_selected >= visible_n {
+            self.genre_selected - visible_n + 1
+        } else {
+            0
+        };
+
+        let items: Vec<ListItem> = GENRES
+            .iter()
+            .enumerate()
+            .skip(offset)
+            .take(visible_n)
+            .map(|(i, &(_, label))| {
+                let active = i == self.genre_selected;
+                let (prefix, style) = if active {
+                    ("▶  ", Style::default().fg(theme::PLAYING).add_modifier(Modifier::BOLD))
+                } else {
+                    ("   ", Style::default().fg(theme::HIGHLIGHT))
+                };
+                ListItem::new(Line::from(vec![
+                    Span::styled(prefix, style),
+                    Span::styled(label, style),
+                ]))
+            })
+            .collect();
+
+        List::new(items).render(list_area, buf);
+
+        if GENRES.len() > visible_n {
+            self.render_scrollbar(list_area, GENRES.len(), self.genre_selected, buf);
+        }
+    }
+
+    fn render_results(&self, area: Rect, content_x: u16, content_w: u16, buf: &mut Buffer) {
+        let list_x  = content_x + 2;
+        let visible_n = area.height as usize;
+        let needs_scroll = self.results.len() > visible_n;
+        let name_w  = content_w.saturating_sub(if needs_scroll { 9 } else { 8 }) as usize;
+        let items_w = content_w.saturating_sub(if needs_scroll { 3 } else { 2 });
+        let items_area = Rect::new(list_x, area.y, items_w, area.height);
+
+        if self.loading {
+            Paragraph::new(Span::styled(
+                format!("{}  Buscando…", spin_frame()),
                 Style::default().fg(theme::MUTED),
             ))
             .render(items_area, buf);
@@ -162,7 +280,7 @@ impl Widget for SearchModalWidget<'_> {
         }
 
         if self.results.is_empty() {
-            let msg = if self.query.is_empty() {
+            let msg = if self.query.is_empty() && !matches!(self.mode, SearchMode::Genre) {
                 "Escribi para buscar radios de todo el mundo"
             } else {
                 "Sin resultados"
@@ -183,16 +301,14 @@ impl Widget for SearchModalWidget<'_> {
             .map(|(i, s)| {
                 let active  = i == self.selected;
                 let prefix  = if active { "▶  " } else { "   " };
-                let name: String = if s.name.chars().count() > name_col_w {
-                    s.name.chars().take(name_col_w.saturating_sub(1)).collect::<String>() + "…"
+                let name: String = if s.name.chars().count() > name_w {
+                    s.name.chars().take(name_w.saturating_sub(1)).collect::<String>() + "…"
                 } else {
-                    format!("{:<width$}", s.name, width = name_col_w)
+                    format!("{:<width$}", s.name, width = name_w)
                 };
-                let bitrate = s
-                    .bitrate_kbps
+                let bitrate = s.bitrate_kbps
                     .map(|b| format!("{b:>4}k"))
                     .unwrap_or_else(|| "    ".to_string());
-
                 let (name_st, br_st) = if active {
                     (
                         Style::default().fg(theme::PLAYING).add_modifier(Modifier::BOLD),
@@ -204,7 +320,6 @@ impl Widget for SearchModalWidget<'_> {
                         Style::default().fg(theme::MUTED),
                     )
                 };
-
                 ListItem::new(Line::from(vec![
                     Span::styled(prefix,  name_st),
                     Span::styled(name,    name_st),
@@ -215,43 +330,37 @@ impl Widget for SearchModalWidget<'_> {
 
         List::new(items).render(items_area, buf);
 
-        // ── Scrollbar vertical ────────────────────────────────────────
         if needs_scroll {
-            let sb_x    = inner.x + inner.width.saturating_sub(2); // última col antes del borde
-            let total   = self.results.len();
-            let track_h = visible_n;
+            self.render_scrollbar(items_area, self.results.len(), self.selected, buf);
+        }
+    }
 
-            // posición del thumb
-            let thumb_pos = if total <= 1 {
-                0
+    fn render_scrollbar(&self, list_area: Rect, total: usize, selected: usize, buf: &mut Buffer) {
+        let sb_x    = list_area.x + list_area.width + 1;
+        let track_h = list_area.height as usize;
+        let offset  = if selected >= track_h { selected - track_h + 1 } else { 0 };
+        let thumb   = if total <= 1 { 0 } else {
+            (selected * (track_h.saturating_sub(1))) / (total - 1)
+        };
+
+        for row in 0..track_h {
+            let sy = list_area.y + row as u16;
+            let (sym, fg) = if row == 0 && offset > 0 {
+                ("▲", theme::DIM)
+            } else if row == track_h - 1 && offset + track_h < total {
+                ("▼", theme::DIM)
+            } else if row == thumb {
+                ("┃", theme::ACCENT)
             } else {
-                (self.selected * (track_h.saturating_sub(1))) / (total - 1)
+                ("│", theme::MUTED)
             };
-
-            for row in 0..track_h {
-                let sy = list_area.y + row as u16;
-                let (sym, fg) = if row == 0 && offset > 0 {
-                    ("▲", theme::DIM)
-                } else if row == track_h - 1 && offset + visible_n < total {
-                    ("▼", theme::DIM)
-                } else if row == thumb_pos {
-                    ("┃", theme::ACCENT)
-                } else {
-                    ("│", theme::MUTED)
-                };
-                buf[(sb_x, sy)].set_symbol(sym).set_fg(fg).set_bg(BG);
-            }
+            buf[(sb_x, sy)].set_symbol(sym).set_fg(fg).set_bg(BG);
         }
     }
 }
 
 fn key(s: &'static str) -> Span<'static> {
-    Span::styled(
-        s,
-        Style::default()
-            .fg(theme::HIGHLIGHT)
-            .add_modifier(Modifier::BOLD),
-    )
+    Span::styled(s, Style::default().fg(theme::HIGHLIGHT).add_modifier(Modifier::BOLD))
 }
 
 fn sep(s: &'static str) -> Span<'static> {
