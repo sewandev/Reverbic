@@ -148,10 +148,10 @@ async fn handle_event(app: &mut App, maybe_event: Option<std::io::Result<Event>>
         Some(Ok(Event::Mouse(mouse))) => {
             match mouse.kind {
                 MouseEventKind::ScrollUp => {
-                    app.on_mouse_scroll(-3).await;
+                    app.on_mouse_scroll(if app.show_search_modal { -1 } else { -3 }).await;
                 }
                 MouseEventKind::ScrollDown => {
-                    app.on_mouse_scroll(3).await;
+                    app.on_mouse_scroll(if app.show_search_modal { 1 } else { 3 }).await;
                 }
                 MouseEventKind::Down(_) if click_count >= 2 => {
                     app.on_double_click().await;
