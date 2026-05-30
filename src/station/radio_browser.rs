@@ -8,21 +8,12 @@ const RADIO_BROWSER_SERVERS: &[&str] = &[
 ];
 
 #[derive(Debug, Clone, Deserialize)]
-#[allow(dead_code)]
 pub struct RadioBrowserStation {
     pub stationuuid: String,
     pub name: String,
     pub url_resolved: String,
     pub url: String,
-    pub homepage: Option<String>,
-    pub favicon: Option<String>,
-    pub tags: Option<String>,
-    pub country: Option<String>,
-    pub countrycode: Option<String>,
-    pub language: Option<String>,
-    pub codec: Option<String>,
     pub bitrate: u32,
-    pub votes: u32,
 }
 
 #[derive(Debug, Clone)]
@@ -30,8 +21,6 @@ pub struct DynamicStation {
     pub key: String,
     pub name: String,
     pub url: String,
-    #[allow(dead_code)]
-    pub source: String,
     pub bitrate_kbps: Option<u16>,
 }
 
@@ -41,43 +30,22 @@ impl From<RadioBrowserStation> for DynamicStation {
             key: rb.stationuuid,
             name: rb.name,
             url: if rb.url_resolved.is_empty() { rb.url } else { rb.url_resolved },
-            source: "radio-browser".to_string(),
             bitrate_kbps: if rb.bitrate > 0 { Some(rb.bitrate as u16) } else { None },
         }
     }
 }
 
-#[derive(Debug)]
-#[allow(dead_code)]
-pub enum RadioBrowserError {
-    Network(reqwest::Error),
-    Parse(serde_json::Error),
-    NoServers,
-}
-
-impl std::fmt::Display for RadioBrowserError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            RadioBrowserError::Network(e) => write!(f, "Network error: {e}"),
-            RadioBrowserError::Parse(e) => write!(f, "Parse error: {e}"),
-            RadioBrowserError::NoServers => write!(f, "No Radio Browser servers available"),
-        }
-    }
-}
-
-impl std::error::Error for RadioBrowserError {}
-
-pub async fn search_stations(query: &str, limit: u32) -> Result<Vec<DynamicStation>, RadioBrowserError> {
+pub async fn search_stations(query: &str, limit: u32) -> Option<Vec<DynamicStation>> {
     let query = query.trim();
     if query.is_empty() {
-        return Ok(Vec::new());
+        return Some(Vec::new());
     }
 
     let client = reqwest::Client::builder()
         .user_agent("reverbic/0.1")
         .timeout(std::time::Duration::from_secs(10))
         .build()
-        .map_err(RadioBrowserError::Network)?;
+        .ok()?;
 
     let limit_str = limit.to_string();
 
@@ -113,7 +81,7 @@ pub async fn search_stations(query: &str, limit: u32) -> Result<Vec<DynamicStati
                                     dynamic.len(),
                                     query
                                 );
-                                return Ok(dynamic);
+                                return Some(dynamic);
                             }
                             Err(e) => {
                                 tracing::warn!("Radio Browser parse error from {server}: {e}");
@@ -138,7 +106,7 @@ pub async fn search_stations(query: &str, limit: u32) -> Result<Vec<DynamicStati
         }
     }
 
-    Err(RadioBrowserError::NoServers)
+    None
 }
 
 pub fn is_duplicate(url: &str, existing_urls: &[&str]) -> bool {

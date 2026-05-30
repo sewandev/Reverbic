@@ -3,37 +3,75 @@ use bytes::Bytes;
 use std::collections::VecDeque;
 use std::io::{self, Read, Seek, SeekFrom};
 use std::sync::{mpsc, Mutex};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 use crate::metadata::parse_icy_title;
+
 pub struct StreamReader {
-    rx:  Mutex<mpsc::Receiver<Bytes>>,
-    buf: VecDeque<u8>,
+    rx:            Mutex<mpsc::Receiver<Bytes>>,
+    chunks:        VecDeque<Bytes>,
+    offset:        usize,
+    buffered:      usize,
+    last_chunk_at:   Arc<AtomicU64>,
+    download_done:   Arc<AtomicBool>,
 }
 
 impl StreamReader {
+    fn push_chunk(&mut self, chunk: Bytes) {
+        if chunk.is_empty() {
+            return;
+        }
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0);
+        self.last_chunk_at.store(now, Ordering::Release);
+        self.buffered += chunk.len();
+        self.chunks.push_back(chunk);
+    }
+
+    /// Retorna un handle al timestamp del último chunk recibido (unix millis, 0=nunca).
+    /// El audio_loop lo retiene para detectar stalls sin necesidad de acceder al StreamReader.
+    pub fn last_chunk_arc(&self) -> Arc<AtomicU64> {
+        Arc::clone(&self.last_chunk_at)
+    }
+
     pub fn connect(
         url: String,
+        start_byte: u64,
+        channel_size: usize,
         handle: tokio::runtime::Handle,
     ) -> (Self, mpsc::Receiver<String>) {
-        let (audio_tx, audio_rx) = mpsc::sync_channel::<Bytes>(64);
+        let (audio_tx, audio_rx) = mpsc::sync_channel::<Bytes>(channel_size);
         let (title_tx, title_rx) = mpsc::sync_channel::<String>(8);
 
+        let download_done  = Arc::new(AtomicBool::new(false));
+        let done_for_task  = Arc::clone(&download_done);
+
         handle.spawn(async move {
-            if let Err(e) = download_stream(url, audio_tx, title_tx).await {
+            if let Err(e) = download_stream(url, start_byte, audio_tx, title_tx, done_for_task).await {
                 tracing::error!("Stream download failed: {e}");
             }
         });
 
+        let last_chunk_at = Arc::new(AtomicU64::new(0));
         let reader = Self {
-            rx:  Mutex::new(audio_rx),
-            buf: VecDeque::new(),
+            rx: Mutex::new(audio_rx),
+            chunks: VecDeque::new(),
+            offset: 0,
+            buffered: 0,
+            last_chunk_at,
+            download_done,
         };
         (reader, title_rx)
     }
-    pub fn connect_preview(
-        url: String,
-        handle: tokio::runtime::Handle,
-    ) -> Self {
+
+    pub fn download_done_arc(&self) -> Arc<AtomicBool> {
+        Arc::clone(&self.download_done)
+    }
+
+    pub fn connect_preview(url: String, handle: tokio::runtime::Handle) -> Self {
         let (audio_tx, audio_rx) = mpsc::sync_channel::<Bytes>(64);
 
         handle.spawn(async move {
@@ -42,19 +80,115 @@ impl StreamReader {
             }
         });
 
+        let last_chunk_at = Arc::new(AtomicU64::new(0));
         Self {
-            rx:  Mutex::new(audio_rx),
-            buf: VecDeque::new(),
+            rx: Mutex::new(audio_rx),
+            chunks: VecDeque::new(),
+            offset: 0,
+            buffered: 0,
+            last_chunk_at,
+            download_done: Arc::new(AtomicBool::new(false)),
         }
+    }
+
+    /// Llena el buffer interno hasta `target_bytes` antes de entregar el reader al decoder.
+    /// Llama a `progress(pct)` tras cada chunk recibido (0.0-1.0).
+    /// Usa recv_timeout de 100 ms para liberar el mutex entre iteraciones y permitir
+    /// que el callback actualice el estado en el watch channel sin bloquear la UI.
+    pub fn pre_buffer(&mut self, target_bytes: usize, mut progress: impl FnMut(f32)) {
+        while self.buffered < target_bytes {
+            let rx = self.rx.lock().expect("StreamReader mutex poisoned");
+            let result = rx.recv_timeout(std::time::Duration::from_millis(100));
+            drop(rx);
+            match result {
+                Ok(chunk) => {
+                    self.push_chunk(chunk);
+                    progress((self.buffered as f32 / target_bytes as f32).clamp(0.0, 1.0));
+                }
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                    progress((self.buffered as f32 / target_bytes as f32).clamp(0.0, 1.0));
+                }
+                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
+            }
+        }
+    }
+}
+
+impl Read for StreamReader {
+    fn read(&mut self, out: &mut [u8]) -> io::Result<usize> {
+        if out.is_empty() {
+            return Ok(0);
+        }
+
+        // Bloquear solo si el buffer está completamente vacío
+        if self.buffered == 0 {
+            let rx = self.rx.lock().expect("StreamReader mutex poisoned");
+            match rx.recv() {
+                Ok(chunk) => {
+                    drop(rx);
+                    self.push_chunk(chunk);
+                }
+                Err(_) => return Ok(0), // canal cerrado = EOF
+            }
+        }
+
+        // Drenar sin bloquear para mantener el buffer lleno
+        {
+            let mut pending: Vec<Bytes> = Vec::new();
+            {
+                let rx = self.rx.lock().expect("StreamReader mutex poisoned");
+                loop {
+                    match rx.try_recv() {
+                        Ok(chunk) => pending.push(chunk),
+                        Err(_) => break,
+                    }
+                }
+            }
+            for chunk in pending {
+                self.push_chunk(chunk);
+            }
+        }
+
+        // Copiar desde chunks al output — una sola pasada, sin byte-a-byte
+        let mut written = 0;
+        while written < out.len() {
+            let front = match self.chunks.front() {
+                Some(c) => c,
+                None => break,
+            };
+            let available = front.len() - self.offset;
+            let take = available.min(out.len() - written);
+            out[written..written + take]
+                .copy_from_slice(&front[self.offset..self.offset + take]);
+            written += take;
+            self.offset += take;
+            self.buffered -= take;
+            if self.offset >= front.len() {
+                self.chunks.pop_front();
+                self.offset = 0;
+            }
+        }
+        Ok(written)
+    }
+}
+
+impl Seek for StreamReader {
+    fn seek(&mut self, _pos: SeekFrom) -> io::Result<u64> {
+        Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "stream is not seekable",
+        ))
     }
 }
 
 async fn download_stream(
     url: String,
+    start_byte: u64,
     audio_tx: mpsc::SyncSender<Bytes>,
     title_tx: mpsc::SyncSender<String>,
+    download_done: Arc<AtomicBool>,
 ) -> Result<(), reqwest::Error> {
-    tracing::info!("Conectando a stream: {url}");
+    tracing::info!("Conectando a stream: {url} (start_byte={start_byte})");
 
     let mut req_headers = reqwest::header::HeaderMap::new();
     req_headers.insert("Icy-MetaData", reqwest::header::HeaderValue::from_static("1"));
@@ -62,9 +196,17 @@ async fn download_stream(
         reqwest::header::USER_AGENT,
         reqwest::header::HeaderValue::from_static("reverbic/0.1"),
     );
+    if start_byte > 0 {
+        let range_val = format!("bytes={start_byte}-");
+        if let Ok(v) = reqwest::header::HeaderValue::from_str(&range_val) {
+            req_headers.insert(reqwest::header::RANGE, v);
+        }
+    }
 
     let client = reqwest::Client::builder()
         .default_headers(req_headers)
+        .connect_timeout(std::time::Duration::from_secs(15))
+        .tcp_keepalive(std::time::Duration::from_secs(30))
         .build()?;
 
     let resp = client.get(&url).send().await?;
@@ -109,15 +251,20 @@ async fn download_stream(
                 }
             }
             Err(e) => {
-                tracing::error!("Error leyendo chunk ({total_audio_bytes} bytes): {e}");
-                break;
+                tracing::warn!("Error en chunk ({total_audio_bytes} bytes recibidos): {e}");
+                // El stream puede recuperarse si la conexión TCP sigue activa.
+                // Si no, el próximo stream.next().await retornará None y saldremos.
             }
         }
     }
 
     tracing::info!("Stream terminado: {total_audio_bytes} bytes de audio totales");
+    // Señalizar descarga completa ANTES de que title_tx se droppee al retornar,
+    // para que process_icy_titles vea done=true cuando detecte el Disconnected.
+    download_done.store(true, Ordering::Release);
     Ok(())
 }
+
 async fn download_preview(
     url: String,
     audio_tx: mpsc::SyncSender<Bytes>,
@@ -131,16 +278,19 @@ async fn download_preview(
 
     let resp = client.get(&url).send().await?;
     let status = resp.status();
-    let content_length = resp.headers()
+    let content_length = resp
+        .headers()
         .get(reqwest::header::CONTENT_LENGTH)
         .and_then(|v| v.to_str().ok())
         .and_then(|s| s.parse::<usize>().ok());
-    let content_type = resp.headers()
+    let content_type = resp
+        .headers()
         .get(reqwest::header::CONTENT_TYPE)
         .and_then(|v| v.to_str().ok())
         .unwrap_or("desconocido")
         .to_string();
-    let transfer_encoding = resp.headers()
+    let transfer_encoding = resp
+        .headers()
         .get("transfer-encoding")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("none")
@@ -161,8 +311,8 @@ async fn download_preview(
     let mut skip_remaining: usize = 0;
     let mut header_buf: Vec<u8> = Vec::new();
     let mut header_analyzed = false;
-    let mut total_raw: usize = 0;   // bytes totales recibidos del servidor
-    let mut total_audio: usize = 0; // bytes de audio enviados al decoder (sin ID3v2)
+    let mut total_raw: usize = 0;
+    let mut total_audio: usize = 0;
     let mut chunk_count: usize = 0;
 
     while let Some(chunk_result) = stream.next().await {
@@ -193,8 +343,8 @@ async fn download_preview(
             if header_buf[..3] == *b"ID3" {
                 let id3_body = ((header_buf[6] as usize) << 21)
                     | ((header_buf[7] as usize) << 14)
-                    | ((header_buf[8] as usize) <<  7)
-                    |  (header_buf[9] as usize);
+                    | ((header_buf[8] as usize) << 7)
+                    | (header_buf[9] as usize);
                 skip_remaining = 10 + id3_body;
                 tracing::info!(
                     "Preview: ID3v2 detectado — tag={skip_remaining}B \
@@ -241,6 +391,7 @@ async fn download_preview(
             return Ok(());
         }
     }
+
     match content_length {
         Some(expected) if total_raw < expected => {
             tracing::warn!(
@@ -330,45 +481,47 @@ impl IcyStripper {
             meta_buf: Vec::new(),
         }
     }
-    fn process(&mut self, input: &[u8], output: &mut Vec<u8>) {
-        for &byte in input {
-            let mut emit = false;
-            self.state = match self.state {
+
+    fn process(&mut self, mut input: &[u8], output: &mut Vec<u8>) {
+        while !input.is_empty() {
+            match self.state {
                 IcyState::Audio(remaining) => {
-                    output.push(byte);
-                    let next = remaining - 1;
-                    if next == 0 && self.metaint > 0 {
+                    if self.metaint == 0 {
+                        // Sin ICY — pasar todo directamente, sin copia extra
+                        output.extend_from_slice(input);
+                        return;
+                    }
+                    let take = remaining.min(input.len());
+                    output.extend_from_slice(&input[..take]);
+                    input = &input[take..];
+                    self.state = if remaining == take {
                         IcyState::MetaLen
                     } else {
-                        IcyState::Audio(next)
-                    }
+                        IcyState::Audio(remaining - take)
+                    };
                 }
-
                 IcyState::MetaLen => {
-                    let meta_bytes = byte as usize * 16;
-                    if meta_bytes == 0 {
+                    let meta_bytes = input[0] as usize * 16;
+                    input = &input[1..];
+                    self.state = if meta_bytes == 0 {
                         IcyState::Audio(self.metaint)
                     } else {
                         self.meta_buf.clear();
                         self.meta_buf.reserve(meta_bytes);
                         IcyState::MetaData(meta_bytes)
-                    }
+                    };
                 }
-
                 IcyState::MetaData(remaining) => {
-                    self.meta_buf.push(byte);
-                    let next = remaining - 1;
-                    if next == 0 {
-                        emit = true;
+                    let take = remaining.min(input.len());
+                    self.meta_buf.extend_from_slice(&input[..take]);
+                    input = &input[take..];
+                    self.state = if remaining == take {
+                        self.emit_title();
                         IcyState::Audio(self.metaint)
                     } else {
-                        IcyState::MetaData(next)
-                    }
+                        IcyState::MetaData(remaining - take)
+                    };
                 }
-            };
-
-            if emit {
-                self.emit_title();
             }
         }
     }
@@ -392,6 +545,7 @@ mod tests {
         let (tx, rx) = mpsc::sync_channel(8);
         (IcyStripper::new(metaint, tx), rx)
     }
+
     #[test]
     fn passthrough_when_no_metaint() {
         let (mut s, rx) = make_stripper(0);
@@ -401,6 +555,7 @@ mod tests {
         assert_eq!(out, input);
         assert!(rx.try_recv().is_err(), "no title expected");
     }
+
     #[test]
     fn strips_metadata_block() {
         let metaint = 8usize;
@@ -423,6 +578,7 @@ mod tests {
         let title = rx.try_recv().expect("debería haber un título");
         assert_eq!(title, "Test Artist - Test Track");
     }
+
     #[test]
     fn empty_metadata_block() {
         let metaint = 4usize;
@@ -434,6 +590,7 @@ mod tests {
         assert_eq!(out, [1, 2, 3, 4, 5, 6, 7, 8]);
         assert!(rx.try_recv().is_err(), "no title expected con meta_len=0");
     }
+
     #[test]
     fn state_survives_split_chunks() {
         let metaint = 4usize;
@@ -460,30 +617,5 @@ mod tests {
 
         let title = rx.try_recv().expect("título emitido tras completar el bloque");
         assert_eq!(title, "Chunked");
-    }
-}
-
-impl Read for StreamReader {
-    fn read(&mut self, out: &mut [u8]) -> io::Result<usize> {
-        let rx = self.rx.lock().expect("StreamReader mutex poisoned");
-        while self.buf.len() < out.len() {
-            match rx.recv() {
-                Ok(bytes) => self.buf.extend(bytes.iter()),
-                Err(_) => break,
-            }
-        }
-        drop(rx);
-
-        let n = out.len().min(self.buf.len());
-        for byte in out.iter_mut().take(n) {
-            *byte = self.buf.pop_front().unwrap_or(0);
-        }
-        Ok(n)
-    }
-}
-
-impl Seek for StreamReader {
-    fn seek(&mut self, _pos: SeekFrom) -> io::Result<u64> {
-        Err(io::Error::new(io::ErrorKind::Unsupported, "stream is not seekable"))
     }
 }

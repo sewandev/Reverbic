@@ -6,11 +6,14 @@ use std::path::PathBuf;
 pub struct Config {
     pub volume:        f32,
     pub last_selected: usize,
+    /// Reproducir automáticamente la última radio al iniciar.
+    #[serde(default)]
+    pub autoplay_last: bool,
 }
 
 impl Default for Config {
     fn default() -> Self {
-        Self { volume: 1.0, last_selected: 0 }
+        Self { volume: 1.0, last_selected: 0, autoplay_last: false }
     }
 }
 
@@ -56,9 +59,13 @@ impl Config {
     }
 
     fn path() -> PathBuf {
-        let home = std::env::var("USERPROFILE")
-            .or_else(|_| std::env::var("HOME"))
-            .unwrap_or_else(|_| ".".to_string());
-        PathBuf::from(home).join(".reverbic").join("config.json")
+        reverbic_dir().join("config.json")
     }
+}
+
+pub(crate) fn reverbic_dir() -> PathBuf {
+    let home = std::env::var("USERPROFILE")
+        .or_else(|_| std::env::var("HOME"))
+        .unwrap_or_else(|_| ".".to_string());
+    PathBuf::from(home).join(".reverbic")
 }

@@ -7,41 +7,35 @@ use ratatui::{
 };
 
 use crate::audio::PlayerStatus;
+use crate::favorites::FavoriteStation;
 use crate::station::{DynamicStation, Station};
 use crate::ui::theme;
 
-const SPINNER_FRAMES: &[&str] = &["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
-const FRAME_MS: u128 = 120;
-
-fn spinner_frame() -> &'static str {
-    let ms = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis())
-        .unwrap_or(0);
-    let idx = ((ms / FRAME_MS) as usize) % SPINNER_FRAMES.len();
-    SPINNER_FRAMES[idx]
-}
-
 pub struct StationListWidget<'a> {
-    pub stations: &'a [Station],
-    pub dynamic_stations: &'a [DynamicStation],
-    pub selected: usize,
-    pub playing_index: Option<usize>,
+    pub stations:              &'a [Station],
+    pub dynamic_stations:      &'a [DynamicStation],
+    pub favorites:             &'a [FavoriteStation],
+    pub selected:              usize,
+    pub playing_index:         Option<usize>,
     pub playing_dynamic_index: Option<usize>,
-    pub player_status: &'a PlayerStatus,
-    pub search_query: &'a str,
-    pub search_loading: bool,
-    pub is_searching: bool,
+    pub playing_favorite_index: Option<usize>,
+    pub player_status:         &'a PlayerStatus,
+    pub search_query:          &'a str,
+    pub search_loading:        bool,
+    pub is_searching:          bool,
 }
 
 impl<'a> StationListWidget<'a> {
+    fn fav_len(&self) -> usize { self.favorites.len() }
+    fn sta_len(&self) -> usize { self.stations.len() }
+
     fn is_dynamic_selected(&self) -> bool {
-        self.selected >= self.stations.len()
+        self.selected >= self.fav_len() + self.sta_len()
     }
 
     fn dynamic_index(&self) -> Option<usize> {
         if self.is_dynamic_selected() {
-            Some(self.selected - self.stations.len())
+            Some(self.selected - self.fav_len() - self.sta_len())
         } else {
             None
         }
@@ -76,132 +70,139 @@ impl<'a> Widget for StationListWidget<'a> {
 
         self.render_search_input(search_area, buf);
 
-        let items: Vec<ListItem> = self
-            .stations
-            .iter()
-            .enumerate()
-            .map(|(i, station)| {
-                let is_selected = !self.is_dynamic_selected() && i == self.selected;
-                let is_playing = self.playing_index == Some(i);
+        let fav_len = self.fav_len();
+        let sta_len = self.sta_len();
 
-                let prefix = if is_selected { "▶ " } else { "  " };
+        // ── Favoritas ────────────────────────────────────────────────────────
+        let fav_items = self.favorites.iter().enumerate().map(|(i, fav)| {
+            let abs_i    = i;
+            let is_sel   = abs_i == self.selected;
+            let is_playing = self.playing_favorite_index == Some(i);
 
-                let style = if is_playing {
-                    theme::PLAYING_STYLE
-                } else if is_selected {
-                    theme::SELECTED_STYLE
-                } else {
-                    Style::default()
-                };
+            let star   = if is_sel { "▶" } else { "★" };
+            let prefix = format!("{star} ");
 
-                let status_tag = if is_playing {
-                    match self.player_status {
-                        PlayerStatus::Playing => {
-                            Span::styled(" >>", Style::default().fg(theme::PLAYING))
-                        }
-                        PlayerStatus::Paused => {
-                            Span::styled(" ⏸", Style::default().fg(theme::ACCENT))
-                        }
-                        PlayerStatus::Connecting => {
-                            Span::styled(" …", Style::default().fg(theme::ACCENT))
-                        }
-                        PlayerStatus::Error(_) => {
-                            Span::styled(" !", Style::default().fg(theme::ERROR))
-                        }
-                        PlayerStatus::Reconnecting(n) => {
-                            Span::styled(format!(" {} ", n), Style::default().fg(theme::ACCENT))
-                        }
-                        PlayerStatus::Idle => Span::raw(""),
-                    }
-                } else {
-                    Span::raw("")
-                };
+            let style = if is_sel {
+                theme::SELECTED_STYLE
+            } else if is_playing {
+                theme::PLAYING_STYLE
+            } else {
+                Style::new().fg(theme::ACCENT)
+            };
 
-                let line = Line::from(vec![
-                    Span::styled(format!("{}{}", prefix, station.name), style),
-                    status_tag,
-                ]);
-                ListItem::new(line)
-            })
-            .chain(
-                self.dynamic_stations
-                    .iter()
-                    .enumerate()
-                    .map(|(i, station)| {
-                        let is_selected =
-                            self.is_dynamic_selected() && Some(i) == self.dynamic_index();
-                        let is_playing = self.playing_dynamic_index == Some(i);
+            let status_tag = if is_playing {
+                status_span(self.player_status)
+            } else {
+                Span::raw("")
+            };
 
-                        let prefix = if is_selected { "▶ " } else { "  " };
+            let line = Line::from(vec![
+                Span::styled(format!("{}{}", prefix, fav.name), style),
+                status_tag,
+            ]);
+            ListItem::new(line)
+        });
 
-                        let style = if is_playing {
-                            theme::PLAYING_STYLE
-                        } else if is_selected {
-                            theme::SELECTED_STYLE
-                        } else {
-                            Style::default().fg(theme::MUTED)
-                        };
+        // ── Estaciones hardcoded ─────────────────────────────────────────────
+        let station_items = self.stations.iter().enumerate().map(|(i, station)| {
+            let abs_i    = fav_len + i;
+            let is_sel   = !self.is_dynamic_selected() && abs_i == self.selected;
+            let is_playing = self.playing_index == Some(i);
 
-                        let bitrate_tag = station
-                            .bitrate_kbps
-                            .map(|br| {
-                                Span::styled(
-                                    format!(" [{}k]", br),
-                                    Style::default().fg(theme::MUTED),
-                                )
-                            })
-                            .unwrap_or(Span::raw(""));
+            let prefix = if is_sel { "▶ " } else { "  " };
 
-                        let status_tag = if is_playing {
-                            match self.player_status {
-                                PlayerStatus::Playing => {
-                                    Span::styled(" >>", Style::default().fg(theme::PLAYING))
-                                }
-                                PlayerStatus::Paused => {
-                                    Span::styled(" ⏸", Style::default().fg(theme::ACCENT))
-                                }
-                                PlayerStatus::Connecting => {
-                                    Span::styled(" …", Style::default().fg(theme::ACCENT))
-                                }
-                                PlayerStatus::Error(_) => {
-                                    Span::styled(" !", Style::default().fg(theme::ERROR))
-                                }
-                                PlayerStatus::Reconnecting(n) => Span::styled(
-                                    format!(" {} ", n),
-                                    Style::default().fg(theme::ACCENT),
-                                ),
-                                PlayerStatus::Idle => Span::raw(""),
-                            }
-                        } else {
-                            Span::raw("")
-                        };
+            let style = if is_playing {
+                theme::PLAYING_STYLE
+            } else if is_sel {
+                theme::SELECTED_STYLE
+            } else {
+                Style::default()
+            };
 
-                        let line = Line::from(vec![
-                            Span::styled(format!("{}{}", prefix, station.name), style),
-                            bitrate_tag,
-                            status_tag,
-                        ]);
-                        ListItem::new(line)
-                    }),
-            )
+            let status_tag = if is_playing {
+                status_span(self.player_status)
+            } else {
+                Span::raw("")
+            };
+
+            let line = Line::from(vec![
+                Span::styled(format!("{}{}", prefix, station.name), style),
+                status_tag,
+            ]);
+            ListItem::new(line)
+        });
+
+        // ── Resultados de búsqueda dinámicos ─────────────────────────────────
+        let dynamic_items = self.dynamic_stations.iter().enumerate().map(|(i, station)| {
+            let abs_i    = fav_len + sta_len + i;
+            let is_sel   = self.is_dynamic_selected() && Some(i) == self.dynamic_index();
+            let is_playing = self.playing_dynamic_index == Some(i);
+
+            let prefix = if is_sel { "▶ " } else { "  " };
+
+            let style = if is_playing {
+                theme::PLAYING_STYLE
+            } else if is_sel {
+                theme::SELECTED_STYLE
+            } else {
+                Style::default().fg(theme::MUTED)
+            };
+
+            let bitrate_tag = station
+                .bitrate_kbps
+                .map(|br| Span::styled(
+                    format!(" [{}k]", br),
+                    Style::default().fg(theme::MUTED),
+                ))
+                .unwrap_or(Span::raw(""));
+
+            let status_tag = if is_playing {
+                status_span(self.player_status)
+            } else {
+                Span::raw("")
+            };
+
+            let _ = abs_i; // suprime warning de variable no usada directamente
+            let line = Line::from(vec![
+                Span::styled(format!("{}{}", prefix, station.name), style),
+                bitrate_tag,
+                status_tag,
+            ]);
+            ListItem::new(line)
+        });
+
+        let items: Vec<ListItem> = fav_items
+            .chain(station_items)
+            .chain(dynamic_items)
             .collect();
 
         List::new(items).render(list_area, buf);
     }
 }
 
+fn status_span(status: &PlayerStatus) -> Span<'static> {
+    match status {
+        PlayerStatus::Playing => Span::styled(" >>", Style::default().fg(theme::PLAYING)),
+        PlayerStatus::Paused  => Span::styled(" ⏸", Style::default().fg(theme::ACCENT)),
+        PlayerStatus::Connecting | PlayerStatus::Buffering(_) => {
+            Span::styled(format!(" {}", super::spinner_frame()), Style::default().fg(theme::ACCENT))
+        }
+        PlayerStatus::Error(_) => Span::styled(" !", Style::default().fg(theme::ERROR)),
+        PlayerStatus::Reconnecting(n) => {
+            Span::styled(format!(" {} ", n), Style::default().fg(theme::ACCENT))
+        }
+        PlayerStatus::Idle => Span::raw(""),
+    }
+}
+
 impl<'a> StationListWidget<'a> {
     fn render_search_input(&self, area: Rect, buf: &mut Buffer) {
-        let spinner = spinner_frame();
+        let spinner = super::spinner_frame();
 
         let line = if self.is_searching {
-            // Modo activo: muestra la query con cursor
             let mut spans = vec![
                 Span::styled(" / ", Style::default().fg(theme::ACCENT)),
-                Span::styled(
-                    self.search_query,
-                    Style::default().fg(theme::HIGHLIGHT),
-                ),
+                Span::styled(self.search_query, Style::default().fg(theme::HIGHLIGHT)),
             ];
             if self.search_loading {
                 spans.push(Span::styled(
@@ -213,7 +214,6 @@ impl<'a> StationListWidget<'a> {
             }
             Line::from(spans)
         } else {
-            // Modo inactivo: muestra el hint
             Line::from(vec![
                 Span::styled(" / ", Style::default().fg(theme::MUTED)),
                 Span::styled("buscar estaciones", Style::default().fg(theme::MUTED)),
@@ -224,7 +224,6 @@ impl<'a> StationListWidget<'a> {
             .alignment(Alignment::Left)
             .render(area, buf);
 
-        // Separador
         let sep_color = if self.is_searching { theme::ACCENT } else { theme::MUTED };
         let sep = Line::from(Span::styled(
             "─".repeat(area.width as usize),

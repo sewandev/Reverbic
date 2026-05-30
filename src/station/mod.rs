@@ -1,4 +1,5 @@
 pub mod enrichment;
+pub mod on_demand;
 pub mod radio_browser;
 pub mod registry;
 
