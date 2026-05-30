@@ -146,6 +146,15 @@ unsafe fn run(
     let tray_id: u32 = 1001;
     let wm_tray      = WM_APP + 1;
 
+    // Aplicar el estado inicial de la config — has_changed() no dispara al arrancar
+    if cfg.media_keys {
+        hook = SetWindowsHookExW(WH_KEYBOARD_LL, Some(keyboard_hook), None, 0)
+            .unwrap_or_default();
+    }
+    if cfg.tray_icon {
+        tray_added = add_tray_icon(hwnd, tray_id, wm_tray).is_ok();
+    }
+
     loop {
         while PeekMessageW(&mut msg, None, 0, 0, PM_REMOVE).as_bool() {
             if msg.message == WM_QUIT {
