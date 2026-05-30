@@ -13,6 +13,7 @@ mod audio;
 mod config;
 mod error;
 mod favorites;
+mod i18n;
 mod library;
 mod metadata;
 #[cfg(target_os = "windows")]
@@ -35,6 +36,9 @@ async fn main() -> Result<()> {
         original_hook(info);
     }));
     let _log_guard = init_logging();
+
+    // i18n debe inicializarse antes de cualquier render
+    i18n::init(config::Config::load().language);
 
     tracing::info!("reverbic iniciando");
 

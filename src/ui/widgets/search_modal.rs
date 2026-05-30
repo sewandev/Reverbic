@@ -7,6 +7,7 @@ use ratatui::{
 };
 
 use crate::app::SearchMode;
+use crate::i18n::{t, current_language, Language};
 use crate::station::{DynamicStation, GENRES, COUNTRIES};
 use crate::ui::theme;
 
@@ -57,8 +58,8 @@ pub struct SearchModalWidget<'a> {
     pub history:           &'a [String],
     pub settings_selected:  usize,
     pub autoplay_last:      bool,
-    pub overlay_mode:       &'a str,
-    pub crossfade:          &'a str,
+    pub overlay_mode:       String,
+    pub crossfade:          String,
     pub media_keys:         bool,
     pub tray_icon:          bool,
     pub notifications:      bool,
@@ -88,7 +89,7 @@ impl Widget for SearchModalWidget<'_> {
         let block = Block::default()
             .title_top(
                 Line::from(Span::styled(
-                    " BUSCAR RADIO ",
+                    format!(" {} ", t("modal.title")),
                     Style::default().fg(theme::HIGHLIGHT).add_modifier(Modifier::BOLD),
                 ))
                 .alignment(Alignment::Center),
@@ -132,43 +133,43 @@ impl SearchModalWidget<'_> {
         if showing {
             return vec![
                 Span::raw(" "),
-                key("[↵]"), sep(" Play  "),
-                key("[v]"), sep(" Votar  "),
-                key("[R]"), sep(" Random  "),
-                key("[↑↓]"), sep(" Nav  "),
-                key("[Esc]"), sep(" Volver "),
+                key("[↵]"),    sep_s(format!(" {}  ", t("hint.play"))),
+                key("[v]"),    sep_s(format!(" {}  ", t("hint.vote"))),
+                key("[R]"),    sep_s(format!(" {}  ", t("hint.random"))),
+                key("[↑↓]"),  sep_s(format!(" {}  ", t("hint.nav"))),
+                key("[Esc]"),  sep_s(format!(" {} ",  t("hint.back"))),
             ];
         }
         match self.mode {
             SearchMode::Name => vec![
                 Span::raw(" "),
-                key("[↵]"), sep(" Play  "),
-                key("[↑↓]"), sep(" Nav  "),
-                key("[Tab]"), sep(" Siguiente  "),
-                key("[Esc]"), sep(" Cerrar "),
+                key("[↵]"),    sep(" Play  "),
+                key("[↑↓]"),  sep_s(format!(" {}  ", t("hint.nav"))),
+                key("[Tab]"),  sep_s(format!(" {}  ", t("hint.next_tab"))),
+                key("[Esc]"),  sep_s(format!(" {} ",  t("hint.close"))),
             ],
             SearchMode::Genre | SearchMode::Country => vec![
                 Span::raw(" "),
-                key("[↵]"), sep(" Buscar  "),
-                key("[↑↓]"), sep(" Nav  "),
-                key("[Tab]"), sep(" Siguiente  "),
-                key("[Esc]"), sep(" Cerrar "),
+                key("[↵]"),    sep_s(format!(" {}  ", t("hint.search"))),
+                key("[↑↓]"),  sep_s(format!(" {}  ", t("hint.nav"))),
+                key("[Tab]"),  sep_s(format!(" {}  ", t("hint.next_tab"))),
+                key("[Esc]"),  sep_s(format!(" {} ",  t("hint.close"))),
             ],
             SearchMode::Trending => vec![
                 Span::raw(" "),
-                key("[↵]"), sep(" Play  "),
-                key("[v]"), sep(" Votar  "),
-                key("[R]"), sep(" Random  "),
-                key("[r]"), sep(" Recargar  "),
-                key("[↑↓]"), sep(" Nav  "),
-                key("[Esc]"), sep(" Cerrar "),
+                key("[↵]"),    sep(" Play  "),
+                key("[v]"),    sep_s(format!(" {}  ", t("hint.vote"))),
+                key("[R]"),    sep_s(format!(" {}  ", t("hint.random"))),
+                key("[r]"),    sep_s(format!(" {}  ", t("hint.reload"))),
+                key("[↑↓]"),  sep_s(format!(" {}  ", t("hint.nav"))),
+                key("[Esc]"),  sep_s(format!(" {} ",  t("hint.close"))),
             ],
             SearchMode::Settings => vec![
                 Span::raw(" "),
-                key("[Space]"), sep(" Cambiar  "),
-                key("[↑↓]"), sep(" Nav  "),
-                key("[Tab]"), sep(" Siguiente  "),
-                key("[Esc]"), sep(" Cerrar "),
+                key("[Space]"), sep_s(format!(" {}  ", t("hint.change"))),
+                key("[↑↓]"),  sep_s(format!(" {}  ", t("hint.nav"))),
+                key("[Tab]"),  sep_s(format!(" {}  ", t("hint.next_tab"))),
+                key("[Esc]"),  sep_s(format!(" {} ",  t("hint.close"))),
             ],
         }
     }
@@ -185,15 +186,15 @@ impl SearchModalWidget<'_> {
             SearchMode::Settings => (inactive, inactive, inactive, inactive, active),
         };
         let line = Line::from(vec![
-            Span::styled("[ Nombre ]", ns),
-            Span::styled("  ", Style::default()),
-            Span::styled("[ Género ]", gs),
-            Span::styled("  ", Style::default()),
-            Span::styled("[ País ]", cs),
-            Span::styled("  ", Style::default()),
-            Span::styled("[ Trending ]", ts),
-            Span::styled("  ", Style::default()),
-            Span::styled("[ Config ]", ss),
+            Span::styled(t("modal.tab.name"),     ns),
+            Span::styled("  ",                    Style::default()),
+            Span::styled(t("modal.tab.genre"),    gs),
+            Span::styled("  ",                    Style::default()),
+            Span::styled(t("modal.tab.country"),  cs),
+            Span::styled("  ",                    Style::default()),
+            Span::styled(t("modal.tab.trending"), ts),
+            Span::styled("  ",                    Style::default()),
+            Span::styled(t("modal.tab.config"),   ss),
         ]);
         Paragraph::new(line).render(tab_area, buf);
     }
@@ -216,7 +217,7 @@ impl SearchModalWidget<'_> {
 
         if self.query.is_empty() {
             Paragraph::new(Span::styled(
-                format!("Buscar radio... \"{}\"", placeholder_example()),
+                format!("{} \"{}\"", t("modal.search.placeholder"), placeholder_example()),
                 Style::default().fg(theme::MUTED),
             ))
             .render(text_area, buf);
@@ -296,7 +297,7 @@ impl SearchModalWidget<'_> {
 
         if self.genre_filter.is_empty() {
             Paragraph::new(Span::styled(
-                "Filtrar género…",
+                t("modal.genre.placeholder"),
                 Style::default().fg(theme::MUTED),
             ))
             .render(text_area, buf);
@@ -314,7 +315,7 @@ impl SearchModalWidget<'_> {
         if self.loading {
             let area = Rect::new(text_x, list_body.y, text_w, 1);
             Paragraph::new(Span::styled(
-                format!("{}  Buscando género…", spin_frame()),
+                format!("{}  {}", spin_frame(), t("modal.loading.genre")),
                 Style::default().fg(theme::MUTED),
             ))
             .render(area, buf);
@@ -333,7 +334,7 @@ impl SearchModalWidget<'_> {
         };
 
         if filtered.is_empty() {
-            Paragraph::new(Span::styled("Sin coincidencias", Style::default().fg(theme::MUTED)))
+            Paragraph::new(Span::styled(t("modal.empty.no_match"), Style::default().fg(theme::MUTED)))
                 .render(list_area, buf);
             return;
         }
@@ -374,7 +375,7 @@ impl SearchModalWidget<'_> {
 
         if self.loading {
             Paragraph::new(Span::styled(
-                format!("{}  Buscando…", spin_frame()),
+                format!("{}  {}", spin_frame(), t("modal.loading")),
                 Style::default().fg(theme::MUTED),
             ))
             .render(items_area, buf);
@@ -383,9 +384,9 @@ impl SearchModalWidget<'_> {
 
         if self.results.is_empty() {
             let msg = if self.query.is_empty() && !matches!(self.mode, SearchMode::Genre) {
-                "Escribe el nombre para buscar radios de todo el mundo"
+                t("modal.empty.type_to_search")
             } else {
-                "Sin resultados"
+                t("modal.empty.no_results")
             };
             Paragraph::new(Span::styled(msg, Style::default().fg(theme::MUTED)))
                 .render(items_area, buf);
@@ -468,7 +469,7 @@ impl SearchModalWidget<'_> {
 
         if self.trending_loading {
             Paragraph::new(Span::styled(
-                format!("{}  Cargando trending…", spin_frame()),
+                format!("{}  {}", spin_frame(), t("modal.loading.trending")),
                 Style::default().fg(theme::MUTED),
             ))
             .render(Rect::new(list_x, area.y, list_w, 1), buf);
@@ -477,7 +478,7 @@ impl SearchModalWidget<'_> {
 
         if self.trending_results.is_empty() {
             Paragraph::new(Span::styled(
-                "Sin resultados. Presiona [r] para recargar.",
+                t("modal.trending.empty"),
                 Style::default().fg(theme::MUTED),
             ))
             .render(Rect::new(list_x, area.y, list_w, 1), buf);
@@ -535,13 +536,21 @@ impl SearchModalWidget<'_> {
     }
 
     fn render_settings_body(&self, area: Rect, content_x: u16, content_w: u16, buf: &mut Buffer) {
-        let items: &[(&str, &str)] = &[
-            ("Auto-play última radio al iniciar", if self.autoplay_last { "ON" } else { "OFF" }),
-            ("Overlay Windows",                   self.overlay_mode),
-            ("Crossfade",                         self.crossfade),
-            ("Teclas multimedia",                 if self.media_keys    { "ON" } else { "OFF" }),
-            ("Icono en bandeja",                  if self.tray_icon     { "ON" } else { "OFF" }),
-            ("Notificaciones",                    if self.notifications  { "ON" } else { "OFF" }),
+        let on  = t("config.value.on");
+        let off = t("config.value.off");
+        let lang_value = match current_language() {
+            Language::Es => t("lang.display.es"),
+            Language::En => t("lang.display.en"),
+        };
+
+        let items: Vec<(String, String)> = vec![
+            (t("config.setting.autoplay"),       if self.autoplay_last   { on.clone()  } else { off.clone() }),
+            (t("config.setting.overlay"),        self.overlay_mode.clone()),
+            (t("config.setting.crossfade"),      self.crossfade.clone()),
+            (t("config.setting.media_keys"),     if self.media_keys      { on.clone()  } else { off.clone() }),
+            (t("config.setting.tray"),           if self.tray_icon       { on.clone()  } else { off.clone() }),
+            (t("config.setting.notifications"),  if self.notifications   { on.clone()  } else { off.clone() }),
+            (t("config.setting.language"),       lang_value),
         ];
 
         let list_x    = content_x + 2;
@@ -569,11 +578,11 @@ impl SearchModalWidget<'_> {
             let prefix = if active { "▶  " } else { "   " };
             let row = Rect::new(list_x, y, list_w, 1);
             Paragraph::new(Line::from(vec![
-                Span::styled(prefix, label_st),
-                Span::styled(*label, label_st),
-                Span::styled("  [", Style::default().fg(theme::MUTED)),
-                Span::styled(*value, val_st),
-                Span::styled("]", Style::default().fg(theme::MUTED)),
+                Span::styled(prefix,        label_st),
+                Span::styled(label.clone(), label_st),
+                Span::styled("  [",         Style::default().fg(theme::MUTED)),
+                Span::styled(value.clone(), val_st),
+                Span::styled("]",           Style::default().fg(theme::MUTED)),
             ]))
             .render(row, buf);
         }
@@ -613,7 +622,7 @@ impl SearchModalWidget<'_> {
         let text_area = Rect::new(text_x, input_row.y, text_w, 1);
 
         if self.country_filter.is_empty() {
-            Paragraph::new(Span::styled("Filtrar país…", Style::default().fg(theme::MUTED)))
+            Paragraph::new(Span::styled(t("modal.country.placeholder"), Style::default().fg(theme::MUTED)))
                 .render(text_area, buf);
         } else {
             Paragraph::new(Line::from(vec![
@@ -628,7 +637,7 @@ impl SearchModalWidget<'_> {
 
         if self.loading {
             Paragraph::new(Span::styled(
-                format!("{}  Buscando país…", spin_frame()),
+                format!("{}  {}", spin_frame(), t("modal.loading.country")),
                 Style::default().fg(theme::MUTED),
             ))
             .render(Rect::new(text_x, list_body.y, text_w, 1), buf);
@@ -643,7 +652,7 @@ impl SearchModalWidget<'_> {
         let offset    = if self.country_selected >= visible_n { self.country_selected - visible_n + 1 } else { 0 };
 
         if filtered.is_empty() {
-            Paragraph::new(Span::styled("Sin coincidencias", Style::default().fg(theme::MUTED)))
+            Paragraph::new(Span::styled(t("modal.empty.no_match"), Style::default().fg(theme::MUTED)))
                 .render(list_area, buf);
             return;
         }
@@ -702,6 +711,10 @@ fn key(s: &'static str) -> Span<'static> {
 }
 
 fn sep(s: &'static str) -> Span<'static> {
+    Span::styled(s, Style::default().fg(theme::MUTED))
+}
+
+fn sep_s(s: String) -> Span<'static> {
     Span::styled(s, Style::default().fg(theme::MUTED))
 }
 

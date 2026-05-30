@@ -2,6 +2,8 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+pub use crate::i18n::Language;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LastStation {
     pub key:          String,
@@ -21,12 +23,13 @@ pub enum OverlayMode {
 }
 
 impl OverlayMode {
-    pub fn display(self) -> &'static str {
+    pub fn display(self) -> String {
+        use crate::i18n::t;
         match self {
-            Self::WhenPlaying => "Al reproducir",
-            Self::Always      => "Siempre",
-            Self::Hidden      => "Oculto",
-            Self::Games       => "Con juegos",
+            Self::WhenPlaying => t("overlay.when_playing"),
+            Self::Always      => t("overlay.always"),
+            Self::Hidden      => t("overlay.hidden"),
+            Self::Games       => t("overlay.games"),
         }
     }
 
@@ -60,6 +63,8 @@ pub struct Config {
     pub tray_icon:      bool,
     #[serde(default)]
     pub notifications:  bool,
+    #[serde(default)]
+    pub language:       Language,
 }
 
 impl Default for Config {
@@ -75,17 +80,19 @@ impl Default for Config {
             media_keys: false,
             tray_icon: false,
             notifications: false,
+            language: Language::default(),
         }
     }
 }
 
 impl Config {
-    pub fn crossfade_display(&self) -> &'static str {
+    pub fn crossfade_display(&self) -> String {
+        use crate::i18n::t;
         match self.crossfade_secs {
-            0 => "Desactivado",
-            1 => "1 seg",
-            2 => "2 seg",
-            _ => "3 seg",
+            0 => t("crossfade.off"),
+            1 => t("crossfade.1s"),
+            2 => t("crossfade.2s"),
+            _ => t("crossfade.3s"),
         }
     }
 

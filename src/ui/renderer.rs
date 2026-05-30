@@ -9,6 +9,7 @@ use ratatui::{
 
 use crate::app::{App, AppFocus};
 use crate::audio::PlayerStatus;
+use crate::i18n::t;
 use crate::ui::{
     theme,
     widgets::{
@@ -170,6 +171,7 @@ pub fn render(frame: &mut Frame, app: &App) {
         &player_state.status,
         &app.focus,
         app.save_notice.as_deref(),
+        app.save_notice_is_dup,
         player_state.preview_title.as_deref(),
         player_state.preview_searching,
         &app.seek_input,
@@ -193,7 +195,7 @@ pub fn render(frame: &mut Frame, app: &App) {
                 settings_selected:  app.settings_selected,
                 autoplay_last:      app.config.autoplay_last,
                 overlay_mode:       app.config.overlay_mode.display(),
-                crossfade:          app.config.crossfade_display(),
+                crossfade:          app.config.crossfade_display(),   // String
                 media_keys:         app.config.media_keys,
                 tray_icon:          app.config.tray_icon,
                 notifications:      app.config.notifications,
@@ -381,42 +383,44 @@ fn render_sep(frame: &mut Frame, area: Rect) {
 }
 
 fn render_help(
-    frame:             &mut Frame,
-    area:              Rect,
-    status:            &PlayerStatus,
-    focus:             &AppFocus,
-    save_notice:       Option<&str>,
-    preview_title:     Option<&str>,
-    preview_searching: bool,
-    seek_input:        &str,
+    frame:              &mut Frame,
+    area:               Rect,
+    status:             &PlayerStatus,
+    focus:              &AppFocus,
+    save_notice:        Option<&str>,
+    save_notice_is_dup: bool,
+    preview_title:      Option<&str>,
+    preview_searching:  bool,
+    seek_input:         &str,
 ) {
     let (text, color) = if let Some(title) = preview_title {
-        (format!(" PREVIEW: {title}  [p] Detener"), theme::PLAYING)
+        (format!(" PREVIEW: {title}  {}", t("help.stop_preview")), theme::PLAYING)
     } else if preview_searching {
-        (" Buscando en Deezer…  [p] Cancelar".to_string(), theme::ACCENT)
+        (format!(" {}", t("help.searching_deezer")), theme::ACCENT)
     } else if let Some(msg) = save_notice {
-        let color = if msg.starts_with("Ya guardada") { theme::ACCENT } else { theme::PLAYING };
+        let color = if save_notice_is_dup { theme::ACCENT } else { theme::PLAYING };
         (format!(" {msg}"), color)
     } else {
         let hint = match focus {
-            AppFocus::RecentTracks  =>
-                "[↵] Guardar  [p] Preview  [Esc] Volver".to_string(),
-            AppFocus::StationSearch =>
-                "[↵] Play  [Backspace] Borrar  [Esc] Cancelar".to_string(),
+            AppFocus::RecentTracks  => t("help.recent"),
+            AppFocus::StationSearch => t("help.station_search"),
             AppFocus::OnDemandList  => {
                 if !seek_input.is_empty() {
-                    format!(" Saltar a: {seek_input}_  [↵] Ir  [Esc] Cancelar")
+                    format!(" {}  {seek_input}_  {}", t("help.seek_prefix"), t("help.seek_suffix"))
                 } else {
-                    "[↵] Play  [[] -1min  []] +1min  [p] Programa  [Esc] Volver".to_string()
+                    t("help.demand.hint")
                 }
             }
             AppFocus::Stations => {
                 let active = matches!(status, PlayerStatus::Playing | PlayerStatus::Paused);
                 if active {
-                    let pause = if matches!(status, PlayerStatus::Paused) { "[Space] Reanudar" } else { "[Space] ⏸" };
-                    format!("[↵] Play  {pause}  [F] ★  [+/-] Vol  [/] Buscar  [Esc] Salir")
+                    if matches!(status, PlayerStatus::Paused) {
+                        t("help.stations_paused")
+                    } else {
+                        t("help.stations_playing")
+                    }
                 } else {
-                    "[↵] Play  [F] ★  [+/-] Vol  [/] Buscar  [o] Config  [Esc] Salir".to_string()
+                    t("help.stations_idle")
                 }
             }
         };
@@ -442,11 +446,11 @@ fn render_rename_overlay(frame: &mut Frame, input: &str) {
 
     let block = Block::default()
         .title_top(Line::from(Span::styled(
-            " Renombrar favorita ",
+            t("modal.rename.title"),
             Style::default().fg(theme::HIGHLIGHT).add_modifier(Modifier::BOLD),
         )).alignment(ratatui::layout::Alignment::Center))
         .title_bottom(Line::from(Span::styled(
-            " [↵] Guardar  [Esc] Cancelar ",
+            t("modal.rename.hint"),
             Style::default().fg(theme::MUTED),
         )).alignment(ratatui::layout::Alignment::Center))
         .borders(Borders::ALL)

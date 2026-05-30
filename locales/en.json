@@ -1,0 +1,78 @@
+{
+  "modal.title": "SEARCH RADIO",
+  "modal.tab.name": "[ Name ]",
+  "modal.tab.genre": "[ Genre ]",
+  "modal.tab.country": "[ Country ]",
+  "modal.tab.trending": "[ Trending ]",
+  "modal.tab.config": "[ Config ]",
+
+  "hint.play": "Play",
+  "hint.vote": "Vote",
+  "hint.random": "Random",
+  "hint.nav": "Nav",
+  "hint.back": "Back",
+  "hint.close": "Close",
+  "hint.search": "Search",
+  "hint.reload": "Reload",
+  "hint.change": "Change",
+  "hint.next_tab": "Next",
+
+  "modal.search.placeholder": "Search radio...",
+  "modal.genre.placeholder": "Filter genre…",
+  "modal.country.placeholder": "Filter country…",
+  "modal.loading": "Searching…",
+  "modal.loading.genre": "Searching genre…",
+  "modal.loading.country": "Searching country…",
+  "modal.loading.trending": "Loading trending…",
+  "modal.empty.type_to_search": "Type the name to search radios worldwide",
+  "modal.empty.no_results": "No results",
+  "modal.empty.no_match": "No matches",
+  "modal.trending.empty": "No results. Press [r] to reload.",
+
+  "modal.rename.title": " Rename favorite ",
+  "modal.rename.hint": " [↵] Save  [Esc] Cancel ",
+
+  "config.setting.autoplay": "Auto-play last radio on start",
+  "config.setting.overlay": "Windows Overlay",
+  "config.setting.crossfade": "Crossfade",
+  "config.setting.media_keys": "Media keys",
+  "config.setting.tray": "Tray icon",
+  "config.setting.notifications": "Notifications",
+  "config.setting.language": "Language",
+
+  "config.value.on": "ON",
+  "config.value.off": "OFF",
+
+  "overlay.when_playing": "When playing",
+  "overlay.always": "Always",
+  "overlay.hidden": "Hidden",
+  "overlay.games": "With games",
+
+  "crossfade.off": "Off",
+  "crossfade.1s": "1 sec",
+  "crossfade.2s": "2 sec",
+  "crossfade.3s": "3 sec",
+
+  "lang.display.es": "Spanish",
+  "lang.display.en": "English",
+
+  "help.recent": "[↵] Save  [p] Preview  [Esc] Back",
+  "help.station_search": "[↵] Play  [Backspace] Delete  [Esc] Cancel",
+  "help.demand.hint": "[↵] Play  [[] -1min  []] +1min  [p] Show  [Esc] Back",
+  "help.seek_prefix": "Jump to:",
+  "help.seek_suffix": "[↵] Go  [Esc] Cancel",
+  "help.stations_idle": "[↵] Play  [F] ★  [+/-] Vol  [/] Search  [o] Config  [Esc] Quit",
+  "help.stations_playing": "[↵] Play  [Space] ⏸  [F] ★  [+/-] Vol  [/] Search  [Esc] Quit",
+  "help.stations_paused": "[↵] Play  [Space] Resume  [F] ★  [+/-] Vol  [/] Search  [Esc] Quit",
+  "help.stop_preview": "[p] Stop",
+  "help.searching_deezer": "Searching Deezer…  [p] Cancel",
+
+  "status.connecting": "Connecting…",
+  "status.search_placeholder": "search stations",
+
+  "notice.vote": "Vote sent",
+  "notice.saved": "Saved:",
+  "notice.already_saved": "Already saved:",
+  "notice.fav_added": "★ Added to favorites",
+  "notice.fav_removed": "☆ Removed from favorites"
+}
