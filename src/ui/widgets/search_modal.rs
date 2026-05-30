@@ -63,6 +63,8 @@ pub struct SearchModalWidget<'a> {
     pub tray_icon:          bool,
     pub notifications:      bool,
     pub restore_volume:     bool,
+    pub duck_enabled:       bool,
+    pub duck_volume:        u8,
 }
 
 impl Widget for SearchModalWidget<'_> {
@@ -84,13 +86,6 @@ impl Widget for SearchModalWidget<'_> {
 
         let bottom_hint = self.bottom_hint();
         let block = Block::default()
-            .title_top(
-                Line::from(Span::styled(
-                    format!(" {} ", t("modal.title")),
-                    Style::default().fg(theme::HIGHLIGHT).add_modifier(Modifier::BOLD),
-                ))
-                .alignment(Alignment::Center),
-            )
             .title_bottom(
                 Line::from(bottom_hint).alignment(Alignment::Center),
             )
@@ -439,6 +434,8 @@ impl SearchModalWidget<'_> {
             (t("config.setting.notifications"),  if self.notifications   { on.clone()  } else { off.clone() }),
             (t("config.setting.language"),       lang_value),
             (t("config.setting.restore_volume"), if self.restore_volume { on.clone() } else { off.clone() }),
+            (t("config.setting.duck"),           if self.duck_enabled  { on.clone() } else { off.clone() }),
+            (t("config.setting.duck_volume"),    format!("{}%", self.duck_volume)),
         ];
 
         let list_x    = content_x + 2;
@@ -448,9 +445,13 @@ impl SearchModalWidget<'_> {
             Constraint::Fill(1),
         ]).areas(area);
 
-        for (i, (label, value)) in items.iter().enumerate() {
-            let y = list_area.y + i as u16;
-            if y >= list_area.y + list_area.height { break; }
+        let visible_n = list_area.height as usize;
+        let offset    = if self.settings_selected >= visible_n {
+            self.settings_selected + 1 - visible_n
+        } else { 0 };
+
+        for (i, (label, value)) in items.iter().enumerate().skip(offset).take(visible_n) {
+            let y = list_area.y + (i - offset) as u16;
             let active = i == self.settings_selected;
             let (label_st, val_st) = if active {
                 (

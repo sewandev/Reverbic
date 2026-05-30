@@ -200,6 +200,8 @@ pub fn render(frame: &mut Frame, app: &App) {
                 tray_icon:          app.config.tray_icon,
                 notifications:      app.config.notifications,
                 restore_volume:     app.config.restore_volume,
+                duck_enabled:       app.config.duck_enabled,
+                duck_volume:        app.config.duck_volume,
             },
             full_area,
         );
