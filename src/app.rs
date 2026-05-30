@@ -47,6 +47,7 @@ pub struct App {
     pub modal_mode:          SearchMode,
     pub modal_selected:      usize,
     pub genre_selected:      usize,
+    pub genre_filter:        String,
     pub genre_query:         String,
     pub config:              Config,
     metadata_task:           Option<tokio::task::JoinHandle<()>>,
@@ -88,6 +89,7 @@ impl App {
             modal_mode:         SearchMode::Name,
             modal_selected:     0,
             genre_selected:     0,
+            genre_filter:       String::new(),
             genre_query:        String::new(),
             config,
             metadata_task:      None,
@@ -370,7 +372,9 @@ impl App {
             self.modal_selected = 0;
             self.search_results.clear();
             self.search_query.clear();
+            self.genre_filter.clear();
             self.genre_query.clear();
+            self.genre_selected = 0;
             if let Some(t) = self.search_task.take() { t.abort(); }
             self.search_loading = false;
             return;
@@ -420,7 +424,6 @@ impl App {
     }
 
     async fn on_key_modal_genre(&mut self, key: KeyCode) {
-        use crate::station::GENRES;
         if !self.search_results.is_empty() {
             match key {
                 KeyCode::Esc => {
@@ -446,29 +449,55 @@ impl App {
             return;
         }
 
+        let filtered = Self::filter_genres(&self.genre_filter);
         match key {
             KeyCode::Esc => {
-                self.show_search_modal = false;
-                self.modal_mode = SearchMode::Name;
-                self.genre_selected = 0;
+                if !self.genre_filter.is_empty() {
+                    self.genre_filter.clear();
+                    self.genre_selected = 0;
+                } else {
+                    self.show_search_modal = false;
+                    self.modal_mode = SearchMode::Name;
+                    self.genre_selected = 0;
+                }
             }
             KeyCode::Up | KeyCode::Char('k') => {
                 if self.genre_selected > 0 { self.genre_selected -= 1; }
             }
             KeyCode::Down | KeyCode::Char('j') => {
-                if self.genre_selected + 1 < GENRES.len() {
+                if self.genre_selected + 1 < filtered.len() {
                     self.genre_selected += 1;
                 }
             }
             KeyCode::Enter => {
-                if let Some(&(tag, label)) = GENRES.get(self.genre_selected) {
+                if let Some(&(tag, label)) = filtered.get(self.genre_selected) {
                     self.genre_query = label.to_string();
                     self.modal_selected = 0;
                     self.perform_genre_search(tag);
                 }
             }
+            KeyCode::Backspace => {
+                self.genre_filter.pop();
+                self.genre_selected = 0;
+            }
+            KeyCode::Char(c) if !c.is_control() => {
+                self.genre_filter.push(c);
+                self.genre_selected = 0;
+            }
             _ => {}
         }
+    }
+
+    fn filter_genres(filter: &str) -> Vec<(&'static str, &'static str)> {
+        use crate::station::GENRES;
+        if filter.is_empty() {
+            return GENRES.iter().map(|&(t, l)| (t, l)).collect();
+        }
+        let f = filter.to_lowercase();
+        GENRES.iter()
+            .filter(|(_, label)| label.to_lowercase().contains(&f))
+            .map(|&(t, l)| (t, l))
+            .collect()
     }
 
     async fn on_key_stations(&mut self, key: KeyCode) {
@@ -714,7 +743,7 @@ impl App {
     pub async fn on_mouse_scroll(&mut self, delta: i32) {
         if self.show_search_modal {
             let (len, sel) = if self.search_results.is_empty() && matches!(self.modal_mode, SearchMode::Genre) {
-                (crate::station::GENRES.len(), &mut self.genre_selected)
+                (Self::filter_genres(&self.genre_filter).len(), &mut self.genre_selected)
             } else {
                 (self.search_results.len(), &mut self.modal_selected)
             };
