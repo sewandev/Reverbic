@@ -771,7 +771,7 @@ impl App {
     }
 
     fn on_key_modal_settings(&mut self, key: KeyCode) {
-        const SETTINGS_COUNT: usize = 8;
+        const SETTINGS_COUNT: usize = 10;
         match key {
             KeyCode::Esc => {
                 self.show_search_modal = false;
@@ -1230,6 +1230,19 @@ impl App {
                 i18n::set_language(self.config.language);
             }
             7 => { self.config.restore_volume = !self.config.restore_volume; }
+            8 => { self.config.duck_enabled = !self.config.duck_enabled; }
+            9 => {
+                self.config.duck_volume = match self.config.duck_volume {
+                    v if v < 20 => 20,
+                    v if v < 30 => 30,
+                    v if v < 40 => 40,
+                    v if v < 50 => 50,
+                    v if v < 60 => 60,
+                    v if v < 70 => 70,
+                    v if v < 80 => 80,
+                    _           => 10,
+                };
+            }
             _ => {}
         }
         self.config.save();

@@ -1,5 +1,5 @@
 {
-  "modal.title": "BUSCAR RADIO",
+  "modal.title": "",
   "modal.tab.name": "[ Nombre ]",
   "modal.tab.genre": "[ Género ]",
   "modal.tab.country": "[ País ]",
@@ -40,6 +40,8 @@
   "config.setting.notifications": "Notificaciones",
   "config.setting.language": "Idioma",
   "config.setting.restore_volume": "Restaurar volumen",
+  "config.setting.duck": "Auto-duck al jugar",
+  "config.setting.duck_volume": "Volumen duck",
 
   "config.value.on": "ON",
   "config.value.off": "OFF",

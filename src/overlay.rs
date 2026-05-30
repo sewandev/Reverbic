@@ -9,7 +9,13 @@ use windows::{
     Win32::{
         Foundation::*,
         Graphics::Gdi::*,
+        Media::Audio::{
+            IAudioSessionControl2, IAudioSessionEnumerator, IAudioSessionManager2,
+            IMMDeviceEnumerator, MMDeviceEnumerator, eConsole, eRender,
+            Endpoints::IAudioMeterInformation,
+        },
         System::{
+            Com::{CoCreateInstance, CoInitializeEx, CLSCTX_ALL, COINIT_MULTITHREADED},
             Console::GetConsoleWindow,
             LibraryLoader::GetModuleHandleW,
             Threading::AttachThreadInput,
@@ -32,6 +38,8 @@ const PAD_R:    i32 = 8;
 
 const PEAK_HOLD_MS:     u128 = 1500;
 const PEAK_DECAY_TICK:  f32  = 0.020; // por tick de 50ms → full-scale en ~2.5s
+const DUCK_THRESHOLD:   f32  = 0.02;  // 2% de pico = audio activo en otro proceso
+const UNDUCK_DELAY_MS:  u128 = 2000;  // silencio sostenido antes de restaurar
 
 // ── Palette (COLORREF: little-endian BGR = (B<<16)|(G<<8)|R) ─────────────────
 const fn rgb(r: u8, g: u8, b: u8) -> COLORREF {
@@ -97,6 +105,9 @@ unsafe fn run(
     mut config_rx: watch::Receiver<Config>,
     cmd_tx:        mpsc::Sender<PlayerCommand>,
 ) -> windows::core::Result<()> {
+    let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
+    let own_pid = std::process::id();
+
     let hinstance = HINSTANCE(GetModuleHandleW(None)?.0);
     let class     = w!("ReverbicOverlay");
 
@@ -142,10 +153,15 @@ unsafe fn run(
     let (media_tx, media_rx) = std::sync::mpsc::sync_channel::<u32>(4);
     let _ = MEDIA_VK_TX.set(media_tx);
 
-    let mut hook:       HHOOK = HHOOK::default();
-    let mut tray_added: bool  = false;
+    let mut hook:           HHOOK         = HHOOK::default();
+    let mut tray_added:     bool          = false;
     let tray_id: u32 = 1001;
     let wm_tray      = WM_APP + 1;
+
+    let mut is_ducked:      bool          = false;
+    let mut pre_duck_vol:   f32           = 1.0;
+    let mut quiet_since:    Option<Instant> = None;
+    let mut next_duck_check: Instant      = Instant::now();
 
     // Aplicar el estado inicial de la config — has_changed() no dispara al arrancar
     if cfg.media_keys {
@@ -269,6 +285,42 @@ unsafe fn run(
         }
         if visible {
             need_repaint = true;
+        }
+
+        // ── Auto-duck ─────────────────────────────────────────────
+        if cfg.duck_enabled && playing {
+            if Instant::now() >= next_duck_check {
+                next_duck_check = Instant::now() + Duration::from_millis(500);
+                let peak        = other_audio_peak(own_pid);
+                let duck_target = cfg.duck_volume as f32 / 100.0;
+
+                if peak > DUCK_THRESHOLD {
+                    quiet_since = None;
+                    if !is_ducked {
+                        let current_vol = rx.borrow().volume;
+                        if current_vol > duck_target + 0.01 {
+                            pre_duck_vol = current_vol;
+                            let _ = cmd_tx.blocking_send(PlayerCommand::SetVolume(duck_target));
+                            is_ducked = true;
+                        }
+                    }
+                } else if is_ducked {
+                    match quiet_since {
+                        None => quiet_since = Some(Instant::now()),
+                        Some(t) if t.elapsed().as_millis() >= UNDUCK_DELAY_MS => {
+                            let _ = cmd_tx.blocking_send(PlayerCommand::SetVolume(pre_duck_vol));
+                            is_ducked    = false;
+                            quiet_since  = None;
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        } else if is_ducked {
+            // duck desactivado o Reverbic detenido — restaurar inmediatamente
+            let _ = cmd_tx.blocking_send(PlayerCommand::SetVolume(pre_duck_vol));
+            is_ducked   = false;
+            quiet_since = None;
         }
 
         // ── Peak decay (corre siempre, independiente de rx) ───────
@@ -560,6 +612,49 @@ unsafe fn is_fullscreen_foreground(overlay_hwnd: HWND) -> bool {
     let w  = r.right - r.left;
     let h  = r.bottom - r.top;
     w >= sw && h >= sh
+}
+
+fn other_audio_peak(own_pid: u32) -> f32 {
+    unsafe {
+        let enumerator: IMMDeviceEnumerator = match CoCreateInstance(
+            &MMDeviceEnumerator, None, CLSCTX_ALL,
+        ) {
+            Ok(e) => e,
+            Err(_) => return 0.0,
+        };
+        let device = match enumerator.GetDefaultAudioEndpoint(eRender, eConsole) {
+            Ok(d) => d,
+            Err(_) => return 0.0,
+        };
+        let mgr: IAudioSessionManager2 = match device.Activate(CLSCTX_ALL, None) {
+            Ok(m) => m,
+            Err(_) => return 0.0,
+        };
+        let ses_enum: IAudioSessionEnumerator = match mgr.GetSessionEnumerator() {
+            Ok(e) => e,
+            Err(_) => return 0.0,
+        };
+        let count: i32 = ses_enum.GetCount().unwrap_or(0);
+        let mut max_peak = 0.0f32;
+        for i in 0..count {
+            let ctrl = match ses_enum.GetSession(i) {
+                Ok(c) => c,
+                Err(_) => continue,
+            };
+            let ctrl2: IAudioSessionControl2 = match ctrl.cast() {
+                Ok(c) => c,
+                Err(_) => continue,
+            };
+            if ctrl2.GetProcessId().unwrap_or(own_pid) == own_pid { continue }
+            let meter: IAudioMeterInformation = match ctrl.cast() {
+                Ok(m) => m,
+                Err(_) => continue,
+            };
+            let peak: f32 = meter.GetPeakValue().unwrap_or(0.0);
+            max_peak = max_peak.max(peak);
+        }
+        max_peak
+    }
 }
 
 fn wide_truncated(s: &str, max: usize) -> Vec<u16> {
