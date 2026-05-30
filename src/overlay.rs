@@ -18,10 +18,7 @@ use windows::{
             Com::{CoCreateInstance, CoInitializeEx, CLSCTX_ALL, COINIT_MULTITHREADED},
             Console::GetConsoleWindow,
             LibraryLoader::GetModuleHandleW,
-            Threading::{
-                AttachThreadInput, OpenProcess, QueryFullProcessImageNameW,
-                PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION,
-            },
+            Threading::AttachThreadInput,
         },
         UI::{
             Shell::{Shell_NotifyIconW, NOTIFYICONDATAW, NIF_ICON, NIF_MESSAGE, NIF_TIP, NIF_INFO, NIM_ADD, NIM_DELETE, NIM_MODIFY, NIIF_NOSOUND},
@@ -34,7 +31,7 @@ use crate::audio::{PlayerCommand, PlayerState, PlayerStatus};
 use crate::config::{Config, OverlayMode};
 
 const OW: i32 = 320;
-const OH: i32 = 105;
+const OH: i32 = 90;
 const ACCENT_W: i32 = 3;
 const PAD_L:    i32 = ACCENT_W + 10;
 const PAD_R:    i32 = 8;
@@ -80,7 +77,6 @@ struct State {
     level_db:   f32,
     ostatus:    OStatus,
     peak_ratio: f32,
-    game:       String,
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
@@ -109,28 +105,8 @@ unsafe fn run(
     mut config_rx: watch::Receiver<Config>,
     cmd_tx:        mpsc::Sender<PlayerCommand>,
 ) -> windows::core::Result<()> {
-    // WASAPI corre en su propio hilo para no bloquear el message loop Win32.
-    // COM y COINIT_MULTITHREADED solo se inicializan en ese hilo dedicado.
+    let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
     let own_pid = std::process::id();
-    let audio_activity: Arc<Mutex<(f32, Option<String>)>> = Arc::new(Mutex::new((0.0, None)));
-    {
-        let activity = Arc::clone(&audio_activity);
-        std::thread::Builder::new()
-            .name("wasapi-monitor".into())
-            .spawn(move || {
-                unsafe {
-                    let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
-                    loop {
-                        let result = detect_audio_activity(own_pid);
-                        if let Ok(mut g) = activity.lock() {
-                            *g = result;
-                        }
-                        std::thread::sleep(Duration::from_millis(500));
-                    }
-                }
-            })
-            .expect("wasapi-monitor thread");
-    }
 
     let hinstance = HINSTANCE(GetModuleHandleW(None)?.0);
     let class     = w!("ReverbicOverlay");
@@ -142,7 +118,6 @@ unsafe fn run(
         level_db:   -60.0,
         ostatus:    OStatus::Playing,
         peak_ratio: 0.0,
-        game:       String::new(),
     }));
     let raw = Arc::into_raw(Arc::clone(&shared));
 
@@ -183,11 +158,10 @@ unsafe fn run(
     let tray_id: u32 = 1001;
     let wm_tray      = WM_APP + 1;
 
-    let mut is_ducked:       bool            = false;
-    let mut pre_duck_vol:    f32             = 1.0;
-    let mut quiet_since:     Option<Instant> = None;
-    let mut next_duck_check: Instant         = Instant::now();
-    let mut current_game:    Option<String>  = None;
+    let mut is_ducked:      bool          = false;
+    let mut pre_duck_vol:   f32           = 1.0;
+    let mut quiet_since:    Option<Instant> = None;
+    let mut next_duck_check: Instant      = Instant::now();
 
     // Aplicar el estado inicial de la config — has_changed() no dispara al arrancar
     if cfg.media_keys {
@@ -313,27 +287,13 @@ unsafe fn run(
             need_repaint = true;
         }
 
-        // ── Detección de juego activo + auto-duck ─────────────────
-        if Instant::now() >= next_duck_check {
-            next_duck_check = Instant::now() + Duration::from_millis(500);
-
-            let (peak, detected_game) = audio_activity.lock()
-                .map(|g| g.clone())
-                .unwrap_or((0.0, None));
-
-            // Actualiza el juego activo y notifica al player si cambió
-            if detected_game != current_game {
-                current_game = detected_game.clone();
-                let _ = cmd_tx.blocking_send(PlayerCommand::SetActiveGame(current_game.clone()));
-                if let Ok(mut s) = shared.lock() {
-                    s.game = current_game.clone().unwrap_or_default();
-                }
-                need_repaint = true;
-            }
-
-            // Duck solo si está habilitado y Reverbic está reproduciendo
-            if cfg.duck_enabled && playing {
+        // ── Auto-duck ─────────────────────────────────────────────
+        if cfg.duck_enabled && playing {
+            if Instant::now() >= next_duck_check {
+                next_duck_check = Instant::now() + Duration::from_millis(500);
+                let peak        = other_audio_peak(own_pid);
                 let duck_target = cfg.duck_volume as f32 / 100.0;
+
                 if peak > DUCK_THRESHOLD {
                     quiet_since = None;
                     if !is_ducked {
@@ -349,17 +309,18 @@ unsafe fn run(
                         None => quiet_since = Some(Instant::now()),
                         Some(t) if t.elapsed().as_millis() >= UNDUCK_DELAY_MS => {
                             let _ = cmd_tx.blocking_send(PlayerCommand::SetVolume(pre_duck_vol));
-                            is_ducked   = false;
-                            quiet_since = None;
+                            is_ducked    = false;
+                            quiet_since  = None;
                         }
                         _ => {}
                     }
                 }
-            } else if is_ducked {
-                let _ = cmd_tx.blocking_send(PlayerCommand::SetVolume(pre_duck_vol));
-                is_ducked   = false;
-                quiet_since = None;
             }
+        } else if is_ducked {
+            // duck desactivado o Reverbic detenido — restaurar inmediatamente
+            let _ = cmd_tx.blocking_send(PlayerCommand::SetVolume(pre_duck_vol));
+            is_ducked   = false;
+            quiet_since = None;
         }
 
         // ── Peak decay (corre siempre, independiente de rx) ───────
@@ -491,36 +452,21 @@ unsafe fn paint(hdc: HDC, s: &State) {
     let title = if s.title.is_empty() { "—" } else { s.title.as_str() };
     let _ = TextOutW(hdc, PAD_L, y_title, &wide_truncated(title, 38));
 
-    // ── Jugando ───────────────────────────────────────────────────
-    if !s.game.is_empty() {
-        fill(hdc, RECT { left: PAD_L, top: 77, right: OW - PAD_R, bottom: 78 }, C_SEPARATOR);
-        let f_game = font(11, false);
-        SelectObject(hdc, HGDIOBJ(f_game.0));
-        let label: Vec<u16> = "Jugando: ".encode_utf16().collect();
-        SetTextColor(hdc, C_TITLE);
-        let _ = TextOutW(hdc, PAD_L, 80, &label);
-        let label_w = 52i32; // ancho aprox de "Jugando: " en píxeles a 11pt
-        SetTextColor(hdc, C_ACCENT);
-        let _ = TextOutW(hdc, PAD_L + label_w, 80, &wide_truncated(&s.game, 28));
-        let _ = DeleteObject(HGDIOBJ(f_game.0));
-    }
-
     // ── VU meter + peak hold ──────────────────────────────────────
     let vu_x1 = PAD_L;
     let vu_x2 = OW - PAD_R;
-    let vu_y  = if s.game.is_empty() { 79 } else { 94 };
-    fill(hdc, RECT { left: vu_x1, top: vu_y, right: vu_x2, bottom: vu_y + 4 }, C_VU_BG);
+    fill(hdc, RECT { left: vu_x1, top: 79, right: vu_x2, bottom: 83 }, C_VU_BG);
 
     let ratio = ((s.level_db + 60.0) / 60.0).clamp(0.0, 1.0);
     let bar_w = ((vu_x2 - vu_x1) as f32 * ratio) as i32;
     if bar_w > 0 {
-        fill(hdc, RECT { left: vu_x1, top: vu_y, right: vu_x1 + bar_w, bottom: vu_y + 4 }, vu_color(ratio));
+        fill(hdc, RECT { left: vu_x1, top: 79, right: vu_x1 + bar_w, bottom: 83 }, vu_color(ratio));
     }
 
     // Peak hold: marca vertical de 2px del color del nivel pico
     if s.peak_ratio > 0.02 {
         let px = (vu_x1 + ((vu_x2 - vu_x1) as f32 * s.peak_ratio) as i32).min(vu_x2 - 2);
-        fill(hdc, RECT { left: px, top: vu_y, right: px + 2, bottom: vu_y + 4 }, vu_color(s.peak_ratio));
+        fill(hdc, RECT { left: px, top: 79, right: px + 2, bottom: 83 }, vu_color(s.peak_ratio));
     }
 
     // ── Cleanup ───────────────────────────────────────────────────
@@ -668,59 +614,47 @@ unsafe fn is_fullscreen_foreground(overlay_hwnd: HWND) -> bool {
     w >= sw && h >= sh
 }
 
-fn detect_audio_activity(own_pid: u32) -> (f32, Option<String>) {
+fn other_audio_peak(own_pid: u32) -> f32 {
     unsafe {
-        let enumerator: IMMDeviceEnumerator = match CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL) {
+        let enumerator: IMMDeviceEnumerator = match CoCreateInstance(
+            &MMDeviceEnumerator, None, CLSCTX_ALL,
+        ) {
             Ok(e) => e,
-            Err(_) => return (0.0, None),
+            Err(_) => return 0.0,
         };
         let device = match enumerator.GetDefaultAudioEndpoint(eRender, eConsole) {
             Ok(d) => d,
-            Err(_) => return (0.0, None),
+            Err(_) => return 0.0,
         };
         let mgr: IAudioSessionManager2 = match device.Activate(CLSCTX_ALL, None) {
             Ok(m) => m,
-            Err(_) => return (0.0, None),
+            Err(_) => return 0.0,
         };
         let ses_enum: IAudioSessionEnumerator = match mgr.GetSessionEnumerator() {
             Ok(e) => e,
-            Err(_) => return (0.0, None),
+            Err(_) => return 0.0,
         };
         let count: i32 = ses_enum.GetCount().unwrap_or(0);
-        let mut max_peak  = 0.0f32;
-        let mut top_pid: Option<u32> = None;
+        let mut max_peak = 0.0f32;
         for i in 0..count {
-            let ctrl = match ses_enum.GetSession(i) { Ok(c) => c, Err(_) => continue };
-            let ctrl2: IAudioSessionControl2 = match ctrl.cast() { Ok(c) => c, Err(_) => continue };
-            let pid = ctrl2.GetProcessId().unwrap_or(own_pid);
-            if pid == own_pid { continue }
-            let meter: IAudioMeterInformation = match ctrl.cast() { Ok(m) => m, Err(_) => continue };
+            let ctrl = match ses_enum.GetSession(i) {
+                Ok(c) => c,
+                Err(_) => continue,
+            };
+            let ctrl2: IAudioSessionControl2 = match ctrl.cast() {
+                Ok(c) => c,
+                Err(_) => continue,
+            };
+            if ctrl2.GetProcessId().unwrap_or(own_pid) == own_pid { continue }
+            let meter: IAudioMeterInformation = match ctrl.cast() {
+                Ok(m) => m,
+                Err(_) => continue,
+            };
             let peak: f32 = meter.GetPeakValue().unwrap_or(0.0);
-            if peak > max_peak {
-                max_peak = peak;
-                top_pid  = Some(pid);
-            }
+            max_peak = max_peak.max(peak);
         }
-        let game = if max_peak > DUCK_THRESHOLD {
-            top_pid.and_then(|pid| process_name(pid))
-        } else {
-            None
-        };
-        (max_peak, game)
+        max_peak
     }
-}
-
-unsafe fn process_name(pid: u32) -> Option<String> {
-    let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid).ok()?;
-    let mut buf  = [0u16; 260];
-    let mut size = 260u32;
-    let ok = QueryFullProcessImageNameW(handle, PROCESS_NAME_WIN32, windows::core::PWSTR(buf.as_mut_ptr()), &mut size);
-    let _ = windows::Win32::Foundation::CloseHandle(handle);
-    ok.ok()?;
-    let path = String::from_utf16_lossy(&buf[..size as usize]);
-    std::path::Path::new(&path)
-        .file_stem()
-        .map(|s| s.to_string_lossy().into_owned())
 }
 
 fn wide_truncated(s: &str, max: usize) -> Vec<u16> {
