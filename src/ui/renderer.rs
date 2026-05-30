@@ -83,9 +83,9 @@ pub fn render(frame: &mut Frame, app: &App) {
             playing_dynamic_index,
             playing_favorite_index,
             player_status:          &player_state.status,
-            search_query:           &app.search_query,
-            search_loading:         app.search_loading,
-            is_searching:           matches!(app.focus, AppFocus::StationSearch),
+            search_query:           if app.show_search_modal { "" } else { &app.search_query },
+            search_loading:         !app.show_search_modal && app.search_loading,
+            is_searching:           !app.show_search_modal && matches!(app.focus, AppFocus::StationSearch),
         },
         layout.stations,
     );
