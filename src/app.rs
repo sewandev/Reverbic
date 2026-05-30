@@ -1,52 +1,10 @@
 
-use std::time::{Duration, Instant};
-
 use crossterm::event::KeyCode;
 use ratatui::layout::Rect;
 
 use crate::audio::{AudioPlayer, PlayerCommand, PlayerState, PlayerStatus};
 
-pub struct NowPlayingOverlay {
-    show_until:             Instant,
-    last_title:             Option<String>,
-    last_triggered_station: Option<String>,
-}
 
-impl NowPlayingOverlay {
-    const VISIBLE_DURATION: Duration = Duration::from_secs(5);
-
-    pub fn new() -> Self {
-        Self {
-            show_until:             Instant::now(),
-            last_title:             None,
-            last_triggered_station: None,
-        }
-    }
-
-    pub fn is_visible(&self) -> bool {
-        Instant::now() < self.show_until
-    }
-
-    pub fn update(&mut self, state: &PlayerState) {
-        let current_url   = state.station.as_ref().map(|s| s.url.as_str());
-        let current_title = state.title.as_deref();
-        let is_playing    = matches!(state.status, PlayerStatus::Playing);
-
-        let title_changed = current_title != self.last_title.as_deref() && current_title.is_some();
-        let new_station   = is_playing
-            && current_url.is_some()
-            && current_url != self.last_triggered_station.as_deref();
-
-        self.last_title = state.title.clone();
-
-        if title_changed || new_station {
-            self.show_until = Instant::now() + Self::VISIBLE_DURATION;
-            if new_station {
-                self.last_triggered_station = current_url.map(str::to_string);
-            }
-        }
-    }
-}
 use crate::preview::{deezer_preview, parse_seek_input};
 use crate::schedule::poll_metadata_loop;
 
@@ -89,8 +47,9 @@ pub struct App {
     pub seek_input:          String,
     pub show_settings:       bool,
     pub settings_selected:   usize,
+    pub show_search_modal:   bool,
+    pub modal_selected:      usize,
     pub config:              Config,
-    pub overlay:             NowPlayingOverlay,
     metadata_task:           Option<tokio::task::JoinHandle<()>>,
     search_task:             Option<tokio::task::JoinHandle<()>>,
     search_result_rx:        Option<std::sync::mpsc::Receiver<Vec<DynamicStation>>>,
@@ -127,8 +86,9 @@ impl App {
             seek_input:         String::new(),
             show_settings:      false,
             settings_selected:  0,
+            show_search_modal:  true,
+            modal_selected:     0,
             config,
-            overlay:            NowPlayingOverlay::new(),
             metadata_task:      None,
             search_task:        None,
             search_result_rx:   None,
@@ -323,6 +283,11 @@ impl App {
     }
 
     pub async fn on_key(&mut self, key: KeyCode) {
+        if self.show_search_modal {
+            self.on_key_search_modal(key).await;
+            return;
+        }
+
         // El panel de configuración intercepta todas las teclas cuando está abierto
         if self.show_settings {
             self.on_key_settings(key);
@@ -401,6 +366,45 @@ impl App {
             AppFocus::RecentTracks  => self.on_key_recent(key).await,
             AppFocus::StationSearch => self.on_key_station_search(key).await,
             AppFocus::OnDemandList  => self.on_key_on_demand(key).await,
+        }
+    }
+
+    async fn on_key_search_modal(&mut self, key: KeyCode) {
+        match key {
+            KeyCode::Esc => {
+                self.show_search_modal = false;
+                self.search_query.clear();
+                self.search_results.clear();
+                self.modal_selected = 0;
+            }
+            KeyCode::Enter => {
+                if !self.search_results.is_empty() {
+                    let idx = self.modal_selected.min(self.search_results.len() - 1);
+                    self.show_search_modal = false;
+                    self.play_dynamic_station(idx).await;
+                }
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                if self.modal_selected > 0 {
+                    self.modal_selected -= 1;
+                }
+            }
+            KeyCode::Down | KeyCode::Char('j') => {
+                if self.modal_selected + 1 < self.search_results.len() {
+                    self.modal_selected += 1;
+                }
+            }
+            KeyCode::Backspace => {
+                self.search_query.pop();
+                self.modal_selected = 0;
+                self.perform_search().await;
+            }
+            KeyCode::Char(c) if !c.is_control() => {
+                self.search_query.push(c);
+                self.modal_selected = 0;
+                self.perform_search().await;
+            }
+            _ => {}
         }
     }
 
@@ -573,11 +577,6 @@ impl App {
                 }
             }
         }
-    }
-
-    pub fn tick_overlay(&mut self) {
-        let state = self.player.state();
-        self.overlay.update(&state);
     }
 
     pub fn player_state(&self) -> PlayerState {

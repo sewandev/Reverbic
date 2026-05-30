@@ -9,13 +9,11 @@ use ratatui::{
 
 use crate::app::{App, AppFocus};
 use crate::audio::PlayerStatus;
-use crate::audio::PlayerState;
 use crate::ui::{
     theme,
     widgets::{
         countdown::CountdownWidget,
         now_playing::NowPlayingWidget,
-        now_playing_overlay::NowPlayingOverlayWidget,
         on_demand_panel::OnDemandPanelWidget,
         recent_tracks::RecentTracksWidget,
         saved_tracks::SavedTracksWidget,
@@ -178,9 +176,24 @@ pub fn render(frame: &mut Frame, app: &App) {
         &app.seek_input,
     );
 
-    // Overlay TUI (cambio de canción)
-    let footer_lines: u16 = if layout.countdown.is_some() { 3 } else { 2 };
-    render_now_playing_overlay(frame, app, &player_state, footer_lines);
+    // Modal de búsqueda — encima de la UI base
+    if app.show_search_modal {
+        use crate::ui::widgets::search_modal::SearchModalWidget;
+        let area = frame.area();
+        let w = area.width.min(64).max(40);
+        let h = area.height.min(20).max(10);
+        let x = area.width.saturating_sub(w) / 2;
+        let y = area.height.saturating_sub(h) / 2;
+        frame.render_widget(
+            SearchModalWidget {
+                query:    &app.search_query,
+                results:  &app.search_results,
+                loading:  app.search_loading,
+                selected: app.modal_selected,
+            },
+            Rect::new(x, y, w, h),
+        );
+    }
 
     // Panel de configuración — modal encima de todo
     if app.show_settings {
@@ -367,35 +380,6 @@ fn render_sep(frame: &mut Frame, area: Rect) {
     frame.render_widget(
         Paragraph::new(Span::styled(line, Style::default().fg(theme::MUTED))),
         area,
-    );
-}
-
-fn render_now_playing_overlay(
-    frame:        &mut Frame,
-    app:          &App,
-    state:        &PlayerState,
-    footer_lines: u16,
-) {
-    if !app.overlay.is_visible() {
-        return;
-    }
-    let Some(station) = &state.station else { return };
-
-    const W: u16 = 36;
-    const H: u16 = 4;
-
-    let area = frame.area();
-    if area.width < W || area.height < H + footer_lines {
-        return;
-    }
-
-    let overlay_area = Rect::new(area.width - W, area.height - H - footer_lines, W, H);
-    frame.render_widget(
-        NowPlayingOverlayWidget {
-            station_name: &station.name,
-            track_title:  state.title.as_deref(),
-        },
-        overlay_area,
     );
 }
 
