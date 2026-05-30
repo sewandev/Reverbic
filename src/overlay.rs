@@ -433,7 +433,10 @@ unsafe extern "system" fn keyboard_hook(code: i32, wparam: WPARAM, lparam: LPARA
 }
 
 unsafe fn add_tray_icon(hwnd: HWND, id: u32, callback_msg: u32) -> windows::core::Result<()> {
-    let icon = LoadIconW(None, IDI_APPLICATION)?;
+    let hmodule  = GetModuleHandleW(None)?;
+    let icon = LoadIconW(hmodule, PCWSTR(1 as *const u16))
+        .unwrap_or_else(|_| LoadIconW(HINSTANCE::default(), IDI_APPLICATION)
+            .expect("IDI_APPLICATION siempre disponible"));
     let mut tip = [0u16; 128];
     let text: Vec<u16> = "Reverbic".encode_utf16().collect();
     tip[..text.len().min(127)].copy_from_slice(&text[..text.len().min(127)]);
