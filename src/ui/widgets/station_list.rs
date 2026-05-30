@@ -1,7 +1,7 @@
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
-    style::Style,
+    style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{List, ListItem, Paragraph, Widget},
 };
@@ -23,6 +23,7 @@ pub struct StationListWidget<'a> {
     pub search_query:           &'a str,
     pub search_loading:         bool,
     pub is_searching:           bool,
+    pub flash_index:            Option<usize>,
 }
 
 impl<'a> StationListWidget<'a> {
@@ -60,11 +61,19 @@ impl<'a> Widget for StationListWidget<'a> {
 
         let fav_len = self.fav_len();
 
+        const FLASH_STYLE: Style = Style::new()
+            .fg(Color::Black)
+            .bg(theme::ACCENT)
+            .add_modifier(Modifier::BOLD);
+
         let fav_items = self.favorites.iter().enumerate().map(|(i, fav)| {
             let is_sel     = i == self.selected;
             let is_playing = self.playing_favorite_index == Some(i);
-            let star       = if is_sel { "▶" } else { "★" };
-            let style      = if is_sel {
+            let is_flash   = self.flash_index == Some(i);
+            let star       = if is_sel || is_flash { "▶" } else { "★" };
+            let style      = if is_flash {
+                FLASH_STYLE
+            } else if is_sel {
                 theme::SELECTED_STYLE
             } else if is_playing {
                 theme::PLAYING_STYLE
@@ -82,8 +91,11 @@ impl<'a> Widget for StationListWidget<'a> {
             let abs_i      = fav_len + i;
             let is_sel     = !self.is_dynamic_selected() && abs_i == self.selected;
             let is_playing = self.playing_index == Some(i);
-            let prefix     = if is_sel { "▶ " } else { "  " };
-            let style      = if is_playing {
+            let is_flash   = self.flash_index == Some(abs_i);
+            let prefix     = if is_sel || is_flash { "▶ " } else { "  " };
+            let style      = if is_flash {
+                FLASH_STYLE
+            } else if is_playing {
                 theme::PLAYING_STYLE
             } else if is_sel {
                 theme::SELECTED_STYLE

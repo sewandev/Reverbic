@@ -3,19 +3,22 @@
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use tokio::sync::watch;
+use tokio::sync::{mpsc, watch};
 use windows::{
     core::*,
     Win32::{
         Foundation::*,
         Graphics::Gdi::*,
         System::LibraryLoader::GetModuleHandleW,
-        UI::WindowsAndMessaging::*,
+        UI::{
+            Shell::{Shell_NotifyIconW, NOTIFYICONDATAW, NIF_ICON, NIF_MESSAGE, NIF_TIP, NIF_INFO, NIM_ADD, NIM_DELETE, NIM_MODIFY, NIIF_NOSOUND, NIIF_INFO},
+            WindowsAndMessaging::*,
+        },
     },
 };
 
-use crate::audio::{PlayerState, PlayerStatus};
-use crate::config::OverlayMode;
+use crate::audio::{PlayerCommand, PlayerState, PlayerStatus};
+use crate::config::{Config, OverlayMode};
 
 const OW: i32 = 320;
 const OH: i32 = 90;
@@ -66,11 +69,17 @@ struct State {
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
-pub fn spawn(state_rx: watch::Receiver<PlayerState>, mode_rx: watch::Receiver<OverlayMode>) {
+static MEDIA_VK_TX: std::sync::OnceLock<std::sync::mpsc::SyncSender<u32>> = std::sync::OnceLock::new();
+
+pub fn spawn(
+    state_rx:  watch::Receiver<PlayerState>,
+    config_rx: watch::Receiver<Config>,
+    cmd_tx:    mpsc::Sender<PlayerCommand>,
+) {
     std::thread::Builder::new()
         .name("overlay".into())
         .spawn(move || unsafe {
-            if let Err(e) = run(state_rx, mode_rx) {
+            if let Err(e) = run(state_rx, config_rx, cmd_tx) {
                 tracing::error!("overlay: {e}");
             }
         })
@@ -79,7 +88,11 @@ pub fn spawn(state_rx: watch::Receiver<PlayerState>, mode_rx: watch::Receiver<Ov
 
 // ── Win32 thread ──────────────────────────────────────────────────────────────
 
-unsafe fn run(mut rx: watch::Receiver<PlayerState>, mut mode_rx: watch::Receiver<OverlayMode>) -> windows::core::Result<()> {
+unsafe fn run(
+    mut rx:        watch::Receiver<PlayerState>,
+    mut config_rx: watch::Receiver<Config>,
+    cmd_tx:        mpsc::Sender<PlayerCommand>,
+) -> windows::core::Result<()> {
     let hinstance = HINSTANCE(GetModuleHandleW(None)?.0);
     let class     = w!("ReverbicOverlay");
 
@@ -114,29 +127,75 @@ unsafe fn run(mut rx: watch::Receiver<PlayerState>, mut mode_rx: watch::Receiver
 
     SetLayeredWindowAttributes(hwnd, COLORREF(0), 230, LWA_ALPHA)?;
 
-    let mut msg          = MSG::default();
-    let mut visible      = false;
-    let mut peak_ratio   = 0_f32;
-    let mut peak_held_at = Instant::now();
-    let mut mode         = *mode_rx.borrow();
-    let mut playing      = false;
+    let mut msg           = MSG::default();
+    let mut visible       = false;
+    let mut peak_ratio    = 0_f32;
+    let mut peak_held_at  = Instant::now();
+    let mut cfg           = config_rx.borrow().clone();
+    let mut playing       = false;
+    let mut last_title    = String::new();
+
+    let (media_tx, media_rx) = std::sync::mpsc::sync_channel::<u32>(4);
+    let _ = MEDIA_VK_TX.set(media_tx);
+
+    let mut hook:       HHOOK = HHOOK::default();
+    let mut tray_added: bool  = false;
+    let tray_id: u32 = 1001;
+    let wm_tray      = WM_APP + 1;
 
     loop {
         while PeekMessageW(&mut msg, None, 0, 0, PM_REMOVE).as_bool() {
             if msg.message == WM_QUIT {
+                if !hook.0.is_null() { let _ = UnhookWindowsHookEx(hook); }
+                if tray_added { remove_tray_icon(hwnd, tray_id); }
                 return Ok(());
             }
             let _ = TranslateMessage(&msg);
             DispatchMessageW(&msg);
         }
 
-        let mut need_repaint = false;
-
-        if mode_rx.has_changed().unwrap_or(false) {
-            mode = *mode_rx.borrow_and_update();
+        // ── Media key events from hook ────────────────────────────
+        while let Ok(vk) = media_rx.try_recv() {
+            let ps = rx.borrow().clone();
+            let cmd = match vk {
+                0xB3 => match ps.status {
+                    PlayerStatus::Playing => Some(PlayerCommand::Pause),
+                    PlayerStatus::Paused  => Some(PlayerCommand::Resume),
+                    _                     => None,
+                },
+                0xB2 => Some(PlayerCommand::Stop),
+                _ => None,
+            };
+            if let Some(c) = cmd {
+                let _ = cmd_tx.blocking_send(c);
+            }
         }
 
-        // ── New player state ──────────────────────────────────────
+        // ── Config update ─────────────────────────────────────────
+        if config_rx.has_changed().unwrap_or(false) {
+            cfg = config_rx.borrow_and_update().clone();
+
+            // Media keys hook
+            if cfg.media_keys && hook.0.is_null() {
+                hook = SetWindowsHookExW(WH_KEYBOARD_LL, Some(keyboard_hook), None, 0)
+                    .unwrap_or_default();
+            } else if !cfg.media_keys && !hook.0.is_null() {
+                let _ = UnhookWindowsHookEx(hook);
+                hook = HHOOK::default();
+            }
+
+            // Tray icon
+            if cfg.tray_icon && !tray_added {
+                tray_added = add_tray_icon(hwnd, tray_id, wm_tray).is_ok();
+            } else if !cfg.tray_icon && tray_added {
+                remove_tray_icon(hwnd, tray_id);
+                tray_added = false;
+            }
+        }
+
+        let mut need_repaint = false;
+
+        // ── Player state ──────────────────────────────────────────
         if rx.has_changed().unwrap_or(false) {
             let ps = rx.borrow_and_update().clone();
             playing = matches!(
@@ -144,17 +203,19 @@ unsafe fn run(mut rx: watch::Receiver<PlayerState>, mut mode_rx: watch::Receiver
                 PlayerStatus::Playing | PlayerStatus::Buffering(_) | PlayerStatus::Reconnecting(_)
             );
 
+            let new_title = ps.title.clone().unwrap_or_default();
+            let title_changed = new_title != last_title && !new_title.is_empty() && playing;
+
             if let Ok(mut s) = shared.lock() {
-                s.station  = ps.station.map(|st| st.name).unwrap_or_default();
-                s.show     = ps.api_show.unwrap_or_default();
-                s.title    = ps.title.unwrap_or_default();
+                s.station  = ps.station.as_ref().map(|st| st.name.clone()).unwrap_or_default();
+                s.show     = ps.api_show.clone().unwrap_or_default();
+                s.title    = new_title.clone();
                 s.level_db = ps.level_db;
                 s.ostatus  = match ps.status {
                     PlayerStatus::Buffering(f)    => OStatus::Buffering(f),
                     PlayerStatus::Reconnecting(n) => OStatus::Reconnecting(n),
                     _                             => OStatus::Playing,
                 };
-
                 let cur = ((ps.level_db + 60.0) / 60.0).clamp(0.0, 1.0);
                 if cur >= peak_ratio {
                     peak_ratio   = cur;
@@ -162,10 +223,27 @@ unsafe fn run(mut rx: watch::Receiver<PlayerState>, mut mode_rx: watch::Receiver
                 }
                 s.peak_ratio = peak_ratio;
             }
+
+            // Notification on track change
+            if title_changed && cfg.notifications && tray_added {
+                last_title = new_title.clone();
+                let station = ps.station.as_ref().map(|s| s.name.as_str()).unwrap_or("Reverbic");
+                let _ = show_balloon(hwnd, tray_id, station, &new_title);
+            }
+
+            // Update tray tooltip with current track
+            if tray_added {
+                let tip = if !new_title.is_empty() {
+                    format!("Reverbic — {new_title}")
+                } else {
+                    "Reverbic".to_string()
+                };
+                let _ = update_tray_tip(hwnd, tray_id, &tip);
+            }
         }
 
-        // ── Visibility decision ───────────────────────────────────
-        let should_show = match mode {
+        // ── Visibility ────────────────────────────────────────────
+        let should_show = match cfg.overlay_mode {
             OverlayMode::Hidden      => false,
             OverlayMode::Always      => playing,
             OverlayMode::WhenPlaying => playing,
@@ -340,6 +418,84 @@ unsafe fn font(size: i32, bold: bool) -> HFONT {
 
 fn wide(s: &str) -> Vec<u16> {
     s.encode_utf16().collect()
+}
+
+unsafe extern "system" fn keyboard_hook(code: i32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+    if code >= 0 && wparam.0 == WM_KEYDOWN as usize {
+        let kb = *(lparam.0 as *const KBDLLHOOKSTRUCT);
+        if kb.vkCode == 0xB3 || kb.vkCode == 0xB2 {
+            if let Some(tx) = MEDIA_VK_TX.get() {
+                let _ = tx.try_send(kb.vkCode);
+            }
+        }
+    }
+    CallNextHookEx(None, code, wparam, lparam)
+}
+
+unsafe fn add_tray_icon(hwnd: HWND, id: u32, callback_msg: u32) -> windows::core::Result<()> {
+    let icon = LoadIconW(None, IDI_APPLICATION)?;
+    let mut tip = [0u16; 128];
+    let text: Vec<u16> = "Reverbic".encode_utf16().collect();
+    tip[..text.len().min(127)].copy_from_slice(&text[..text.len().min(127)]);
+
+    let mut nid = NOTIFYICONDATAW {
+        cbSize:           std::mem::size_of::<NOTIFYICONDATAW>() as u32,
+        hWnd:             hwnd,
+        uID:              id,
+        uFlags:           NIF_ICON | NIF_MESSAGE | NIF_TIP,
+        uCallbackMessage: callback_msg,
+        hIcon:            icon,
+        szTip:            tip,
+        ..Default::default()
+    };
+    Shell_NotifyIconW(NIM_ADD, &mut nid).ok()
+}
+
+unsafe fn remove_tray_icon(hwnd: HWND, id: u32) {
+    let mut nid = NOTIFYICONDATAW {
+        cbSize: std::mem::size_of::<NOTIFYICONDATAW>() as u32,
+        hWnd:   hwnd,
+        uID:    id,
+        ..Default::default()
+    };
+    let _ = Shell_NotifyIconW(NIM_DELETE, &mut nid);
+}
+
+unsafe fn update_tray_tip(hwnd: HWND, id: u32, tip: &str) -> windows::core::Result<()> {
+    let mut tip_buf = [0u16; 128];
+    let text: Vec<u16> = tip.encode_utf16().collect();
+    tip_buf[..text.len().min(127)].copy_from_slice(&text[..text.len().min(127)]);
+    let mut nid = NOTIFYICONDATAW {
+        cbSize: std::mem::size_of::<NOTIFYICONDATAW>() as u32,
+        hWnd:   hwnd,
+        uID:    id,
+        uFlags: NIF_TIP,
+        szTip:  tip_buf,
+        ..Default::default()
+    };
+    Shell_NotifyIconW(NIM_MODIFY, &mut nid).ok()
+}
+
+unsafe fn show_balloon(hwnd: HWND, id: u32, title: &str, body: &str) -> windows::core::Result<()> {
+    let mut info_title = [0u16; 64];
+    let t: Vec<u16> = title.encode_utf16().collect();
+    info_title[..t.len().min(63)].copy_from_slice(&t[..t.len().min(63)]);
+
+    let mut info = [0u16; 256];
+    let b: Vec<u16> = body.encode_utf16().collect();
+    info[..b.len().min(255)].copy_from_slice(&b[..b.len().min(255)]);
+
+    let mut nid = NOTIFYICONDATAW {
+        cbSize:       std::mem::size_of::<NOTIFYICONDATAW>() as u32,
+        hWnd:         hwnd,
+        uID:          id,
+        uFlags:       NIF_INFO,
+        szInfoTitle:  info_title,
+        szInfo:       info,
+        dwInfoFlags:  NIIF_INFO | NIIF_NOSOUND,
+        ..Default::default()
+    };
+    Shell_NotifyIconW(NIM_MODIFY, &mut nid).ok()
 }
 
 unsafe fn is_fullscreen_foreground(overlay_hwnd: HWND) -> bool {

@@ -83,6 +83,9 @@ pub fn render(frame: &mut Frame, app: &App) {
             search_query:           if app.show_search_modal { "" } else { &app.search_query },
             search_loading:         !app.show_search_modal && app.search_loading,
             is_searching:           !app.show_search_modal && matches!(app.focus, AppFocus::StationSearch),
+            flash_index:            app.click_flash.and_then(|(i, t)| {
+                if t.elapsed().as_millis() < 300 { Some(i) } else { None }
+            }),
         },
         layout.stations,
     );
@@ -187,9 +190,16 @@ pub fn render(frame: &mut Frame, app: &App) {
                 country_selected:  app.country_selected,
                 country_filter:    &app.country_filter,
                 history:           &app.config.search_history,
-                settings_selected: app.settings_selected,
-                autoplay_last:     app.config.autoplay_last,
-                overlay_mode:      app.config.overlay_mode.display(),
+                settings_selected:  app.settings_selected,
+                autoplay_last:      app.config.autoplay_last,
+                overlay_mode:       app.config.overlay_mode.display(),
+                crossfade:          app.config.crossfade_display(),
+                media_keys:         app.config.media_keys,
+                tray_icon:          app.config.tray_icon,
+                notifications:      app.config.notifications,
+                trending_results:   &app.trending_results,
+                trending_loading:   app.trending_loading,
+                trending_selected:  app.trending_selected,
             },
             frame.area(),
         );
