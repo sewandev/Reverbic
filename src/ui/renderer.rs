@@ -176,10 +176,13 @@ pub fn render(frame: &mut Frame, app: &App) {
         use crate::ui::widgets::search_modal::SearchModalWidget;
         frame.render_widget(
             SearchModalWidget {
-                query:    &app.search_query,
-                results:  &app.search_results,
-                loading:  app.search_loading,
-                selected: app.modal_selected,
+                query:          &app.search_query,
+                results:        &app.search_results,
+                loading:        app.search_loading,
+                selected:       app.modal_selected,
+                mode:           &app.modal_mode,
+                genre_selected: app.genre_selected,
+                genre_query:    &app.genre_query,
             },
             frame.area(),
         );

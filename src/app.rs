@@ -8,7 +8,12 @@ use crate::library::{self, SaveResult};
 use crate::preview::{deezer_preview, parse_seek_input};
 use crate::schedule::poll_metadata_loop;
 use crate::station::on_demand::OnDemandShow;
-use crate::station::{enrich, find_enrichment, is_duplicate, on_demand, search_stations, DynamicStation, Station};
+use crate::station::{enrich, find_enrichment, is_duplicate, on_demand, search_stations, search_stations_by_tag, DynamicStation, Station};
+
+pub enum SearchMode {
+    Name,
+    Genre,
+}
 
 pub enum AppFocus {
     Stations,
@@ -39,7 +44,10 @@ pub struct App {
     pub show_settings:       bool,
     pub settings_selected:   usize,
     pub show_search_modal:   bool,
+    pub modal_mode:          SearchMode,
     pub modal_selected:      usize,
+    pub genre_selected:      usize,
+    pub genre_query:         String,
     pub config:              Config,
     metadata_task:           Option<tokio::task::JoinHandle<()>>,
     search_task:             Option<tokio::task::JoinHandle<()>>,
@@ -77,7 +85,10 @@ impl App {
             show_settings:      false,
             settings_selected:  0,
             show_search_modal:  true,
+            modal_mode:         SearchMode::Name,
             modal_selected:     0,
+            genre_selected:     0,
+            genre_query:        String::new(),
             config,
             metadata_task:      None,
             search_task:        None,
@@ -351,6 +362,27 @@ impl App {
     }
 
     async fn on_key_search_modal(&mut self, key: KeyCode) {
+        if key == KeyCode::Tab {
+            self.modal_mode = match self.modal_mode {
+                SearchMode::Name  => SearchMode::Genre,
+                SearchMode::Genre => SearchMode::Name,
+            };
+            self.modal_selected = 0;
+            self.search_results.clear();
+            self.search_query.clear();
+            self.genre_query.clear();
+            if let Some(t) = self.search_task.take() { t.abort(); }
+            self.search_loading = false;
+            return;
+        }
+
+        match self.modal_mode {
+            SearchMode::Name  => self.on_key_modal_name(key).await,
+            SearchMode::Genre => self.on_key_modal_genre(key).await,
+        }
+    }
+
+    async fn on_key_modal_name(&mut self, key: KeyCode) {
         match key {
             KeyCode::Esc => {
                 self.show_search_modal = false;
@@ -366,9 +398,7 @@ impl App {
                 }
             }
             KeyCode::Up | KeyCode::Char('k') => {
-                if self.modal_selected > 0 {
-                    self.modal_selected -= 1;
-                }
+                if self.modal_selected > 0 { self.modal_selected -= 1; }
             }
             KeyCode::Down | KeyCode::Char('j') => {
                 if self.modal_selected + 1 < self.search_results.len() {
@@ -378,12 +408,64 @@ impl App {
             KeyCode::Backspace => {
                 self.search_query.pop();
                 self.modal_selected = 0;
-                self.perform_search().await;
+                self.perform_search();
             }
             KeyCode::Char(c) if !c.is_control() => {
                 self.search_query.push(c);
                 self.modal_selected = 0;
-                self.perform_search().await;
+                self.perform_search();
+            }
+            _ => {}
+        }
+    }
+
+    async fn on_key_modal_genre(&mut self, key: KeyCode) {
+        use crate::station::GENRES;
+        if !self.search_results.is_empty() {
+            match key {
+                KeyCode::Esc => {
+                    self.search_results.clear();
+                    self.genre_query.clear();
+                    self.modal_selected = 0;
+                }
+                KeyCode::Enter => {
+                    let idx = self.modal_selected.min(self.search_results.len() - 1);
+                    self.show_search_modal = false;
+                    self.play_dynamic_station(idx).await;
+                }
+                KeyCode::Up | KeyCode::Char('k') => {
+                    if self.modal_selected > 0 { self.modal_selected -= 1; }
+                }
+                KeyCode::Down | KeyCode::Char('j') => {
+                    if self.modal_selected + 1 < self.search_results.len() {
+                        self.modal_selected += 1;
+                    }
+                }
+                _ => {}
+            }
+            return;
+        }
+
+        match key {
+            KeyCode::Esc => {
+                self.show_search_modal = false;
+                self.modal_mode = SearchMode::Name;
+                self.genre_selected = 0;
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                if self.genre_selected > 0 { self.genre_selected -= 1; }
+            }
+            KeyCode::Down | KeyCode::Char('j') => {
+                if self.genre_selected + 1 < GENRES.len() {
+                    self.genre_selected += 1;
+                }
+            }
+            KeyCode::Enter => {
+                if let Some(&(tag, label)) = GENRES.get(self.genre_selected) {
+                    self.genre_query = label.to_string();
+                    self.modal_selected = 0;
+                    self.perform_genre_search(tag);
+                }
             }
             _ => {}
         }
@@ -446,7 +528,7 @@ impl App {
                         self.focus = AppFocus::StationSearch;
                         self.search_query.push(c);
                         self.selected = self.favorites.len() + self.stations.len();
-                        self.perform_search().await;
+                        self.perform_search();
                     }
                 }
             }
@@ -478,13 +560,13 @@ impl App {
                     self.focus = AppFocus::Stations;
                 } else {
                     self.selected = self.favorites.len() + self.stations.len();
-                    self.perform_search().await;
+                    self.perform_search();
                 }
             }
             KeyCode::Char(c) if c.is_alphanumeric() || c == ' ' || c == '-' => {
                 self.search_query.push(c);
                 self.selected = self.favorites.len() + self.stations.len();
-                self.perform_search().await;
+                self.perform_search();
             }
             KeyCode::Up | KeyCode::Char('k') => {
                 let min = self.favorites.len() + self.stations.len();
@@ -501,35 +583,44 @@ impl App {
         }
     }
 
-    async fn perform_search(&mut self) {
-        if let Some(t) = self.search_task.take() {
-            t.abort();
-        }
-        self.search_result_rx = None;
-
-        if self.search_query.trim().is_empty() {
+    fn perform_search(&mut self) {
+        let query = self.search_query.clone();
+        if query.trim().is_empty() {
             self.search_results.clear();
             self.search_loading = false;
+            if let Some(t) = self.search_task.take() { t.abort(); }
             return;
         }
+        self.spawn_search(move || async move { search_stations(&query, 20).await });
+    }
 
+    fn perform_genre_search(&mut self, tag: &str) {
+        let tag = tag.to_string();
+        self.spawn_search(move || async move { search_stations_by_tag(&tag, 20).await });
+    }
+
+    fn spawn_search<F, Fut>(&mut self, build: F)
+    where
+        F: FnOnce() -> Fut + Send + 'static,
+        Fut: std::future::Future<Output = Option<Vec<DynamicStation>>> + Send + 'static,
+    {
+        if let Some(t) = self.search_task.take() { t.abort(); }
+        self.search_result_rx = None;
         self.search_loading = true;
-        let query = self.search_query.clone();
+
         let existing_urls: Vec<String> = self.stations.iter().map(|s| s.url.clone()).collect();
         let (tx, rx) = std::sync::mpsc::channel();
         self.search_result_rx = Some(rx);
 
-        let handle = tokio::spawn(async move {
-            let results = search_stations(&query, 20).await.unwrap_or_default();
+        self.search_task = Some(tokio::spawn(async move {
+            let results = build().await.unwrap_or_default();
             let refs: Vec<&str> = existing_urls.iter().map(|s| s.as_str()).collect();
             let filtered: Vec<DynamicStation> = results
                 .into_iter()
                 .filter(|s| !is_duplicate(&s.url, &refs))
                 .collect();
-            tracing::info!("Search '{}': {} results", query, filtered.len());
             let _ = tx.send(filtered);
-        });
-        self.search_task = Some(handle);
+        }));
     }
 
     pub fn poll_search_results(&mut self) {
@@ -622,12 +713,16 @@ impl App {
 
     pub async fn on_mouse_scroll(&mut self, delta: i32) {
         if self.show_search_modal {
-            let len = self.search_results.len();
+            let (len, sel) = if self.search_results.is_empty() && matches!(self.modal_mode, SearchMode::Genre) {
+                (crate::station::GENRES.len(), &mut self.genre_selected)
+            } else {
+                (self.search_results.len(), &mut self.modal_selected)
+            };
             if len == 0 { return; }
             if delta > 0 {
-                self.modal_selected = (self.modal_selected + delta as usize).min(len - 1);
+                *sel = (*sel + delta as usize).min(len - 1);
             } else {
-                self.modal_selected = self.modal_selected.saturating_sub((-delta) as usize);
+                *sel = sel.saturating_sub((-delta) as usize);
             }
             return;
         }
