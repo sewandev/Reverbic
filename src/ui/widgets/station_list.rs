@@ -8,6 +8,7 @@ use ratatui::{
 
 use crate::audio::PlayerStatus;
 use crate::favorites::FavoriteStation;
+use crate::i18n::t;
 use crate::station::{DynamicStation, Station};
 use crate::ui::theme;
 
@@ -175,7 +176,7 @@ impl<'a> StationListWidget<'a> {
         } else {
             Line::from(vec![
                 Span::styled(" / ", Style::default().fg(theme::MUTED)),
-                Span::styled("buscar estaciones", Style::default().fg(theme::MUTED)),
+                Span::styled(t("status.search_placeholder"), Style::default().fg(theme::MUTED)),
             ])
         };
 

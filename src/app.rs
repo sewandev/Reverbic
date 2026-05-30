@@ -10,6 +10,7 @@ use crate::library::{self, SaveResult};
 use crate::preview::{deezer_preview, parse_seek_input};
 use crate::schedule::poll_metadata_loop;
 use crate::station::on_demand::OnDemandShow;
+use crate::i18n::{self, t};
 use crate::station::{enrich, fetch_trending, find_enrichment, is_duplicate, vote_station, on_demand, search_stations, search_stations_by_tag, search_stations_by_country, DynamicStation, Station};
 
 pub enum SearchMode {
@@ -37,6 +38,7 @@ pub struct App {
     pub recent_selected:     usize,
     pub saved_tracks:        Vec<String>,
     pub save_notice:         Option<String>,
+    pub save_notice_is_dup:  bool,
     pub search_query:        String,
     pub search_results:      Vec<DynamicStation>,
     pub search_loading:      bool,
@@ -90,6 +92,7 @@ impl App {
             recent_selected:    0,
             saved_tracks:       Vec::new(),
             save_notice:        None,
+            save_notice_is_dup: false,
             search_query:       String::new(),
             search_results:     Vec::new(),
             search_loading:     false,
@@ -187,10 +190,11 @@ impl App {
             favorites::save(&self.favorites);
             let max = self.total_stations().saturating_sub(1);
             self.selected = self.selected.min(max);
+            self.save_notice_is_dup = false;
             self.save_notice = Some(if added {
-                "★ Añadida a favoritas".to_string()
+                t("notice.fav_added")
             } else {
-                "☆ Quitada de favoritas".to_string()
+                t("notice.fav_removed")
             });
         }
     }
@@ -573,7 +577,8 @@ impl App {
                 let idx = self.modal_selected.min(self.search_results.len() - 1);
                 let uuid = self.search_results[idx].key.clone();
                 tokio::spawn(async move { vote_station(&uuid).await; });
-                self.save_notice = Some("Voto enviado".to_string());
+                self.save_notice_is_dup = false;
+                self.save_notice = Some(t("notice.vote"));
             }
             KeyCode::Up | KeyCode::Char('k') => {
                 if self.modal_selected > 0 { self.modal_selected -= 1; }
@@ -629,7 +634,8 @@ impl App {
                     let idx = self.modal_selected.min(self.search_results.len() - 1);
                     let uuid = self.search_results[idx].key.clone();
                     tokio::spawn(async move { vote_station(&uuid).await; });
-                    self.save_notice = Some("Voto enviado".to_string());
+                    self.save_notice_is_dup = false;
+                self.save_notice = Some(t("notice.vote"));
                 }
                 KeyCode::Up | KeyCode::Char('k') => {
                     if self.modal_selected > 0 { self.modal_selected -= 1; }
@@ -735,7 +741,8 @@ impl App {
                     let idx = self.modal_selected.min(self.search_results.len() - 1);
                     let uuid = self.search_results[idx].key.clone();
                     tokio::spawn(async move { vote_station(&uuid).await; });
-                    self.save_notice = Some("Voto enviado".to_string());
+                    self.save_notice_is_dup = false;
+                self.save_notice = Some(t("notice.vote"));
                 }
                 KeyCode::Up | KeyCode::Char('k') => {
                     if self.modal_selected > 0 { self.modal_selected -= 1; }
@@ -828,7 +835,8 @@ impl App {
                     let idx = self.trending_selected.min(self.trending_results.len() - 1);
                     let uuid = self.trending_results[idx].key.clone();
                     tokio::spawn(async move { vote_station(&uuid).await; });
-                    self.save_notice = Some("Voto enviado".to_string());
+                    self.save_notice_is_dup = false;
+                self.save_notice = Some(t("notice.vote"));
                 }
             }
             KeyCode::Char('r') => {
@@ -889,7 +897,7 @@ impl App {
     }
 
     fn on_key_modal_settings(&mut self, key: KeyCode) {
-        const SETTINGS_COUNT: usize = 6;
+        const SETTINGS_COUNT: usize = 7;
         match key {
             KeyCode::Esc => {
                 self.show_search_modal = false;
@@ -1345,6 +1353,10 @@ impl App {
             3 => { self.config.media_keys     = !self.config.media_keys; }
             4 => { self.config.tray_icon      = !self.config.tray_icon; }
             5 => { self.config.notifications  = !self.config.notifications; }
+            6 => {
+                self.config.language = self.config.language.next();
+                i18n::set_language(self.config.language);
+            }
             _ => {}
         }
         self.config.save();
@@ -1378,10 +1390,12 @@ impl App {
                 match library::save_track(&title, key_str) {
                     SaveResult::Saved => {
                         self.saved_tracks = library::load_saved_tracks(key_str);
-                        self.save_notice = Some(format!("Guardado: {title}"));
+                        self.save_notice_is_dup = false;
+                        self.save_notice = Some(format!("{} {title}", t("notice.saved")));
                     }
                     SaveResult::AlreadySaved => {
-                        self.save_notice = Some(format!("Ya guardada: {title}"));
+                        self.save_notice_is_dup = true;
+                        self.save_notice = Some(format!("{} {title}", t("notice.already_saved")));
                     }
                 }
             }

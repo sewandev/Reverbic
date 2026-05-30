@@ -7,6 +7,7 @@ use ratatui::{
 };
 
 use crate::audio::{PlayerState, PlayerStatus};
+use crate::i18n::t;
 use crate::ui::theme;
 
 pub fn fmt_duration(secs: f32) -> String {
@@ -57,7 +58,7 @@ fn build_line(state: &PlayerState, width: u16) -> Line<'static> {
         )),
 
         PlayerStatus::Connecting => Line::from(vec![
-            Span::styled("  Conectando… ", Style::default().fg(theme::ACCENT)),
+            Span::styled(format!("  {} ", t("status.connecting")), Style::default().fg(theme::ACCENT)),
             Span::styled(station, Style::default().fg(theme::MUTED)),
         ]),
 
