@@ -32,13 +32,11 @@ impl<'a> Widget for NowPlayingWidget<'a> {
 }
 
 fn build_line(state: &PlayerState, width: u16) -> Line<'static> {
-    // On-demand: barra de progreso clickeable ([ ] al inicio para on_click)
     if let Some(duration) = state.playback_duration_secs {
         let pos   = state.playback_pos_secs.unwrap_or(0.0);
         let ratio = (pos / duration).clamp(0.0, 1.0);
         let pct   = (ratio * 100.0) as u8;
         let time_str = format!(" {} / {} ", fmt_duration(pos), fmt_duration(duration));
-        // El bar empieza con un espacio + "[" → inner_x = area.x + 1 en on_click
         let bar_width = (width as usize).saturating_sub(time_str.len() + 2 + 4 + 1);
         let filled = (ratio * bar_width as f32) as usize;
         let empty  = bar_width.saturating_sub(filled);
@@ -54,12 +52,12 @@ fn build_line(state: &PlayerState, width: u16) -> Line<'static> {
 
     match &state.status {
         PlayerStatus::Idle => Line::from(Span::styled(
-            " ♪  —",
+            "  —",
             Style::default().fg(theme::MUTED),
         )),
 
         PlayerStatus::Connecting => Line::from(vec![
-            Span::styled(" ♪  Conectando… ", Style::default().fg(theme::ACCENT)),
+            Span::styled("  Conectando… ", Style::default().fg(theme::ACCENT)),
             Span::styled(station, Style::default().fg(theme::MUTED)),
         ]),
 
@@ -77,7 +75,7 @@ fn build_line(state: &PlayerState, width: u16) -> Line<'static> {
         ]),
 
         PlayerStatus::Playing | PlayerStatus::Paused => {
-            let icon = if matches!(state.status, PlayerStatus::Paused) { " ⏸  " } else { " ♪  " };
+            let icon = if matches!(state.status, PlayerStatus::Paused) { " ⏸  " } else { " >>  " };
             let show  = state.api_show.clone().unwrap_or_default();
             let title = state.title.clone().unwrap_or_else(|| "—".to_owned());
 

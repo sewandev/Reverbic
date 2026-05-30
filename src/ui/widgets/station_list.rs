@@ -47,7 +47,6 @@ impl<'a> Widget for StationListWidget<'a> {
         if area.height == 0 {
             return;
         }
-        // 2 líneas para búsqueda (campo + separador), resto para la lista
         const SEARCH_H: u16 = 2;
         let search_area = Rect::new(area.x, area.y, area.width, SEARCH_H.min(area.height));
         let list_area   = Rect::new(
@@ -60,9 +59,7 @@ impl<'a> Widget for StationListWidget<'a> {
         self.render_search(search_area, buf);
 
         let fav_len = self.fav_len();
-        let sta_len = self.sta_len();
 
-        // ── Favoritas ────────────────────────────────────────────────────────
         let fav_items = self.favorites.iter().enumerate().map(|(i, fav)| {
             let is_sel     = i == self.selected;
             let is_playing = self.playing_favorite_index == Some(i);
@@ -81,7 +78,6 @@ impl<'a> Widget for StationListWidget<'a> {
             ]))
         });
 
-        // ── Estaciones hardcoded ─────────────────────────────────────────────
         let station_items = self.stations.iter().enumerate().map(|(i, station)| {
             let abs_i      = fav_len + i;
             let is_sel     = !self.is_dynamic_selected() && abs_i == self.selected;
@@ -101,9 +97,7 @@ impl<'a> Widget for StationListWidget<'a> {
             ]))
         });
 
-        // ── Resultados dinámicos ─────────────────────────────────────────────
         let dynamic_items = self.dynamic_stations.iter().enumerate().map(|(i, s)| {
-            let abs_i      = fav_len + sta_len + i;
             let is_sel     = self.is_dynamic_selected() && Some(i) == self.dynamic_index();
             let is_playing = self.playing_dynamic_index == Some(i);
             let prefix     = if is_sel { "▶ " } else { "  " };
@@ -118,7 +112,6 @@ impl<'a> Widget for StationListWidget<'a> {
                 .map(|br| Span::styled(format!(" [{}k]", br), Style::default().fg(theme::MUTED)))
                 .unwrap_or(Span::raw(""));
             let status_tag = if is_playing { status_span(self.player_status) } else { Span::raw("") };
-            let _ = abs_i;
             ListItem::new(Line::from(vec![
                 Span::styled(format!("{prefix}{}", s.name), style),
                 bitrate_tag,

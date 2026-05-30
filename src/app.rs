@@ -1,23 +1,15 @@
-
 use crossterm::event::KeyCode;
 use ratatui::layout::Rect;
 
 use crate::audio::{AudioPlayer, PlayerCommand, PlayerState, PlayerStatus};
-
-
-use crate::preview::{deezer_preview, parse_seek_input};
-use crate::schedule::poll_metadata_loop;
-
 use crate::config::Config;
 use crate::favorites::{self, FavoriteStation};
 use crate::library::{self, SaveResult};
+use crate::preview::{deezer_preview, parse_seek_input};
+use crate::schedule::poll_metadata_loop;
 use crate::station::on_demand::OnDemandShow;
 use crate::station::{enrich, find_enrichment, is_duplicate, on_demand, search_stations, DynamicStation, Station};
 
-pub enum AppScreen {
-    StationList,
-    Playing,
-}
 pub enum AppFocus {
     Stations,
     RecentTracks,
@@ -26,7 +18,6 @@ pub enum AppFocus {
 }
 
 pub struct App {
-    pub screen:              AppScreen,
     pub stations:            Vec<Station>,
     pub favorites:           Vec<FavoriteStation>,
     pub selected:            usize,
@@ -65,7 +56,6 @@ impl App {
 
         let favorites = favorites::load();
         Self {
-            screen:             AppScreen::StationList,
             stations:           Vec::new(),
             favorites,
             selected:           0,
@@ -134,7 +124,6 @@ impl App {
         }
     }
 
-    /// Construye un `FavoriteStation` desde el ítem actualmente seleccionado.
     fn build_favorite_from_selected(&self) -> Option<FavoriteStation> {
         if let Some(i) = self.favorite_index() {
             let f = &self.favorites[i];
@@ -156,7 +145,6 @@ impl App {
         if let Some(fav) = self.build_favorite_from_selected() {
             let added = favorites::toggle(&mut self.favorites, fav);
             favorites::save(&self.favorites);
-            // Asegurar que selected no quede fuera de rango si quitamos una favorita
             let max = self.total_stations().saturating_sub(1);
             self.selected = self.selected.min(max);
             self.save_notice = Some(if added {
@@ -232,13 +220,9 @@ impl App {
         }
     }
 
-    /// Método unificado para reproducir una estación. Detiene el polling actual,
-    /// envía el comando Play, actualiza el estado de la app y arranca los servicios
-    /// necesarios (metadata polling, on-demand fetch).
     async fn play_station(&mut self, station: Station) {
         self.stop_metadata_polling();
         if self.player.send(PlayerCommand::Play(station.clone())).await {
-            self.screen = AppScreen::Playing;
             self.saved_tracks = library::load_saved_tracks(&station.key);
             if let Some(api_url) = station.metadata_api_url {
                 self.start_metadata_polling(api_url, station.history_api_url, station.schedule_url);
@@ -273,7 +257,6 @@ impl App {
             bitrate_kbps:     ds.bitrate_kbps,
         };
 
-        // Detectar si esta estación tiene metadatos especiales (Tomorrowland, OnlyHit, etc.)
         if let Some(enrichment) = find_enrichment(&ds.name) {
             enrich(&mut station, enrichment);
             tracing::info!("Enriquecimiento activado para '{}'", station.name);
@@ -288,7 +271,6 @@ impl App {
             return;
         }
 
-        // El panel de configuración intercepta todas las teclas cuando está abierto
         if self.show_settings {
             self.on_key_settings(key);
             return;
@@ -324,7 +306,6 @@ impl App {
                 self.should_quit = true;
                 return;
             }
-            // Abrir configuración desde cualquier foco excepto búsqueda de texto
             KeyCode::Char('o') if !matches!(self.focus, AppFocus::StationSearch) => {
                 self.show_settings = true;
                 self.settings_selected = 0;
@@ -443,7 +424,6 @@ impl App {
                 self.stop_metadata_polling();
                 self.player.send(PlayerCommand::Stop).await;
                 self.saved_tracks = Vec::new();
-                self.screen = AppScreen::StationList;
             }
             KeyCode::Esc => {
                 if !self.search_query.is_empty() {
@@ -465,7 +445,6 @@ impl App {
                     if c.is_alphanumeric() || c == ' ' || c == '-' {
                         self.focus = AppFocus::StationSearch;
                         self.search_query.push(c);
-                        // Posicionar el cursor al inicio de los resultados de búsqueda
                         self.selected = self.favorites.len() + self.stations.len();
                         self.perform_search().await;
                     }
@@ -484,7 +463,6 @@ impl App {
                 self.focus = AppFocus::Stations;
             }
             KeyCode::Enter => {
-                // Usar el índice real seleccionado, no siempre el primero
                 if let Some(idx) = self.search_result_index() {
                     if idx < self.search_results.len() {
                         self.play_dynamic_station(idx).await;
@@ -509,7 +487,6 @@ impl App {
                 self.perform_search().await;
             }
             KeyCode::Up | KeyCode::Char('k') => {
-                // No bajar de la primera posición de resultados de búsqueda
                 let min = self.favorites.len() + self.stations.len();
                 if self.selected > min {
                     self.selected -= 1;
@@ -525,7 +502,6 @@ impl App {
     }
 
     async fn perform_search(&mut self) {
-        // Cancelar búsqueda previa en vuelo
         if let Some(t) = self.search_task.take() {
             t.abort();
         }
@@ -568,11 +544,9 @@ impl App {
                     }
                 }
                 Err(std::sync::mpsc::TryRecvError::Empty) => {
-                    // todavía en vuelo — restaurar el receiver
                     self.search_result_rx = Some(rx);
                 }
                 Err(std::sync::mpsc::TryRecvError::Disconnected) => {
-                    // tarea abortada o fallida
                     self.search_loading = false;
                 }
             }
@@ -583,9 +557,7 @@ impl App {
         self.player.state()
     }
 
-    /// Mapea un click de mouse a una acción de selección o seek en la barra de progreso.
     pub async fn on_click(&mut self, col: u16, row: u16) {
-        // Seek on-demand: click sobre la barra de progreso en el widget NOW PLAYING
         let player_state = self.player.state();
         if let Some(duration) = player_state.playback_duration_secs {
             let has_recent    = !player_state.recent_titles.is_empty();
@@ -600,22 +572,17 @@ impl App {
                 show_countdown,
                 has_on_demand,
             ) {
-                // Widget compacto: 1 sola línea — la barra de progreso ES esa línea
-                let progress_row = np_area.y;
-                if row == progress_row {
-                    let inner_x     = np_area.x + 1; // +1 por el espacio inicial del widget
+                if row == np_area.y {
+                    let inner_x     = np_area.x + 1;
                     let inner_width = np_area.width.saturating_sub(1);
                     let pos = player_state.playback_pos_secs.unwrap_or(0.0);
-                    // Longitud del texto de tiempo: " mm:ss / mm:ss " (con espacios)
                     let time_str_len = format!(
                         " {} / {} ",
                         crate::ui::widgets::now_playing::fmt_duration(pos),
                         crate::ui::widgets::now_playing::fmt_duration(duration),
                     ).len();
-                    // bar_width = ancho disponible para los bloques ██░░ (sin [ ] ni texto)
                     let bar_width = (inner_width as usize).saturating_sub(time_str_len + 2);
                     if bar_width > 0 && col >= inner_x {
-                        // col == inner_x es el '[', desplazarse uno más para entrar al fill
                         let fill_col = col.saturating_sub(inner_x + 1) as usize;
                         let ratio = (fill_col as f32 / bar_width as f32).clamp(0.0, 1.0);
                         self.player.send(PlayerCommand::Seek(ratio * duration)).await;
@@ -625,13 +592,10 @@ impl App {
             }
         }
 
-        // Selección de estación por click en la lista
         let h = self.terminal_area.height;
         if h == 0 {
             return;
         }
-        // Nuevo layout: header(1)+sep(1)+search(2) = 4 filas antes de la lista
-        // Footer: sep+np+vu+sep+help = 5 filas. En compact solo np+help = 2.
         let content_start: u16 = if h >= 11 { 4 } else { 2 };
         let footer_rows:   u16 = if h >= 11 { 5 } else { 2 };
         let list_max_row = h.saturating_sub(footer_rows);
@@ -746,7 +710,6 @@ impl App {
             }
             KeyCode::Enter => {
                 if !self.seek_input.is_empty() {
-                    // Parsear minutos digitados y hacer seek
                     if let Some(target) = parse_seek_input(&self.seek_input) {
                         self.player.send(PlayerCommand::Seek(target)).await;
                     }
@@ -768,21 +731,16 @@ impl App {
             KeyCode::Backspace => {
                 self.seek_input.pop();
             }
-            // [  → retroceder 1 minuto
             KeyCode::Char('[') => {
                 let pos = self.player.state().playback_pos_secs.unwrap_or(0.0);
-                let target = (pos - 60.0).max(0.0);
-                self.player.send(PlayerCommand::Seek(target)).await;
+                self.player.send(PlayerCommand::Seek((pos - 60.0).max(0.0))).await;
             }
-            // ]  → avanzar 1 minuto
             KeyCode::Char(']') => {
-                let state = self.player.state();
+                let state    = self.player.state();
                 let pos      = state.playback_pos_secs.unwrap_or(0.0);
                 let duration = state.playback_duration_secs.unwrap_or(f32::MAX);
-                let target   = (pos + 60.0).min(duration);
-                self.player.send(PlayerCommand::Seek(target)).await;
+                self.player.send(PlayerCommand::Seek((pos + 60.0).min(duration))).await;
             }
-            // Dígitos: construir el minuto de destino
             KeyCode::Char(c) if c.is_ascii_digit() || c == ':' => {
                 if self.seek_input.len() < 7 {
                     self.seek_input.push(c);
@@ -823,12 +781,9 @@ impl App {
     }
 
     fn apply_settings_toggle(&mut self, idx: usize) {
-        match idx {
-            0 => {
-                self.config.autoplay_last = !self.config.autoplay_last;
-                self.config.save();
-            }
-            _ => {}
+        if idx == 0 {
+            self.config.autoplay_last = !self.config.autoplay_last;
+            self.config.save();
         }
     }
 
