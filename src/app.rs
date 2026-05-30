@@ -54,6 +54,7 @@ pub struct App {
     pub country_filter:      String,
     pub renaming_favorite:   Option<usize>,
     pub rename_input:        String,
+    pub overlay_mode_tx:     Option<tokio::sync::watch::Sender<crate::config::OverlayMode>>,
     pub config:              Config,
     metadata_task:           Option<tokio::task::JoinHandle<()>>,
     search_task:             Option<tokio::task::JoinHandle<()>>,
@@ -100,6 +101,7 @@ impl App {
             country_filter:     String::new(),
             renaming_favorite:  None,
             rename_input:       String::new(),
+            overlay_mode_tx:    None,
             config,
             metadata_task:      None,
             search_task:        None,
@@ -1108,7 +1110,7 @@ impl App {
     }
 
     fn on_key_settings(&mut self, key: KeyCode) {
-        const SETTINGS_COUNT: usize = 1;
+        const SETTINGS_COUNT: usize = 2;
         match key {
             KeyCode::Esc | KeyCode::Char('o') => {
                 self.show_settings = false;
@@ -1131,9 +1133,19 @@ impl App {
     }
 
     fn apply_settings_toggle(&mut self, idx: usize) {
-        if idx == 0 {
-            self.config.autoplay_last = !self.config.autoplay_last;
-            self.config.save();
+        match idx {
+            0 => {
+                self.config.autoplay_last = !self.config.autoplay_last;
+                self.config.save();
+            }
+            1 => {
+                self.config.overlay_mode = self.config.overlay_mode.next();
+                self.config.save();
+                if let Some(ref tx) = self.overlay_mode_tx {
+                    let _ = tx.send(self.config.overlay_mode);
+                }
+            }
+            _ => {}
         }
     }
 

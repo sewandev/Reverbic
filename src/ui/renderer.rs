@@ -197,11 +197,17 @@ pub fn render(frame: &mut Frame, app: &App) {
     }
 
     if app.show_settings {
-        use crate::ui::widgets::settings_panel::{SettingsItem, SettingsPanelWidget};
-        let items = [SettingsItem {
-            label: "Auto-play última radio al iniciar",
-            value: app.config.autoplay_last,
-        }];
+        use crate::ui::widgets::settings_panel::{SettingsItem, SettingsPanelWidget, SettingsValue};
+        let items = [
+            SettingsItem {
+                label: "Auto-play ultima radio al iniciar",
+                value: SettingsValue::Toggle(app.config.autoplay_last),
+            },
+            SettingsItem {
+                label: "Overlay Windows",
+                value: SettingsValue::Choice(app.config.overlay_mode.display()),
+            },
+        ];
         frame.render_widget(
             SettingsPanelWidget { items: &items, selected: app.settings_selected },
             frame.area(),
