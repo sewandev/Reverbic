@@ -42,7 +42,8 @@ pub struct SearchModalWidget<'a> {
 
 impl Widget for SearchModalWidget<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        // Oscurecer fondo
+        // Limpiar toda la pantalla y aplicar fondo oscuro
+        Clear.render(area, buf);
         for y in area.top()..area.bottom() {
             for x in area.left()..area.right() {
                 buf[(x, y)].set_bg(OVERLAY_BG);
