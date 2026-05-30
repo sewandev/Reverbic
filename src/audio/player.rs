@@ -230,6 +230,7 @@ fn process_icy_titles(
     od: &OnDemandTracker,
     current_station: &Option<Station>,
     reconnect_at: &mut Option<std::time::Instant>,
+    reconnect_count: &mut u32,
     download_done: bool,
 ) {
     let rx = match title_rx {
@@ -257,6 +258,7 @@ fn process_icy_titles(
             Err(std_mpsc::TryRecvError::Disconnected) => {
                 *title_rx = None;
                 if current_station.is_some() && reconnect_at.is_none() {
+                    let delay = backoff_duration(*reconnect_count, 1, 30);
                     if od.active {
                         if download_done {
                             // Descarga completada a máxima velocidad — el audio sigue
@@ -268,19 +270,21 @@ fn process_icy_titles(
                             if pos >= duration * 0.97 {
                                 info!("On-demand: fin de archivo — deteniendo");
                             } else {
-                                warn!("On-demand: stream cortado en {pos:.0}s \u{2014} reconectando en 1.5s");
-                                *reconnect_at = Some(
-                                    std::time::Instant::now()
-                                        + std::time::Duration::from_millis(1500),
+                                warn!(
+                                    "On-demand: stream cortado en {pos:.0}s \u{2014} reconectando en {:.1}s (intento {})",
+                                    delay.as_secs_f32(), *reconnect_count + 1
                                 );
+                                *reconnect_at = Some(std::time::Instant::now() + delay);
+                                *reconnect_count += 1;
                             }
                         }
                     } else {
-                        warn!("Stream terminado inesperadamente \u{2014} reconectando en 2s");
-                        *reconnect_at = Some(
-                            std::time::Instant::now()
-                                + std::time::Duration::from_secs(2),
+                        warn!(
+                            "Stream terminado inesperadamente \u{2014} reconectando en {:.1}s (intento {})",
+                            delay.as_secs_f32(), *reconnect_count + 1
                         );
+                        *reconnect_at = Some(std::time::Instant::now() + delay);
+                        *reconnect_count += 1;
                     }
                 }
                 break;
@@ -350,17 +354,19 @@ fn audio_loop(
     let mut api_has_recent: bool = false;
     let mut current_station: Option<Station> = None;
     let mut reconnect_at: Option<std::time::Instant> = None;
+    let mut reconnect_count: u32 = 0;
     let mut stream_retry_at: Option<(u32, std::time::Instant)> = None;
     // Tracking de posición para streams on-demand
     let mut od = OnDemandTracker::inactive();
     let mut stream_last_chunk:    Option<Arc<AtomicU64>>  = None;
     let mut stream_download_done: Option<Arc<AtomicBool>> = None;
     // Constantes de detección de stall
-    const STALL_SECS_LIVE: u64      = 30; // para radio en vivo
-    const STALL_SECS_ON_DEMAND: u64 = 60; // para on-demand (puede pausarse)
-    const MAX_STREAM_RETRIES: u32 = 6;
-    const BASE_RETRY_DELAY_SECS: u64 = 2;
-    const MAX_RETRY_DELAY_SECS: u64 = 30;
+    const STALL_SECS_LIVE: u64        = 30; // para radio en vivo
+    const STALL_SECS_ON_DEMAND: u64   = 60; // para on-demand (puede pausarse)
+    const MAX_STREAM_RETRIES: u32     = 6;
+    const BASE_RETRY_DELAY_SECS: u64  = 2;  // para decode failures
+    const BASE_RECONNECT_DELAY_SECS: u64 = 1; // para stream disconnects (1→2→4→8→…→30s)
+    const MAX_RETRY_DELAY_SECS: u64   = 30;
     // 128 kbps = 16 000 bytes/sec (bitrate fijo de los on-demand de OMNY)
     const ONDEMAND_BYTES_PER_SEC: f32 = 16_000.0;
     // 30 s = 480 KB @ 128 kbps — garantiza que el VecDeque nunca se vacíe
@@ -395,6 +401,7 @@ fn audio_loop(
             &od,
             &current_station,
             &mut reconnect_at,
+            &mut reconnect_count,
             download_done,
         );
         update_level_and_position(&state_tx, &level, &od);
@@ -410,26 +417,30 @@ fn audio_loop(
                         .map(|d| d.as_millis() as u64)
                         .unwrap_or(0);
                     if now_ms.saturating_sub(last_ms) > stall_threshold * 1000 {
+                        let delay = backoff_duration(reconnect_count, BASE_RECONNECT_DELAY_SECS, MAX_RETRY_DELAY_SECS);
                         warn!(
-                            "Stream sin datos por {}s — forzando reconexión inmediata",
-                            stall_threshold
+                            "Stream sin datos por {}s — reconectando en {:.1}s (intento {})",
+                            stall_threshold, delay.as_secs_f32(), reconnect_count + 1
                         );
                         stream_last_chunk = None;
-                        // Reconectar de inmediato (sin esperar al timer habitual)
-                        reconnect_at = Some(std::time::Instant::now());
+                        reconnect_at = Some(std::time::Instant::now() + delay);
+                        reconnect_count += 1;
                     }
                 }
             }
         }
 
+        let mut is_auto_reconnect = false;
         let cmd = if reconnect_at.map(|t| std::time::Instant::now() >= t).unwrap_or(false) {
             reconnect_at = None;
+            is_auto_reconnect = true;
             if od.active {
                 Some(PlayerCommand::Seek(od.current_pos()))
             } else {
                 current_station.clone().map(PlayerCommand::Play)
             }
         } else if stream_retry_at.map(|(_, t)| std::time::Instant::now() >= t).unwrap_or(false) {
+            is_auto_reconnect = true;
             if od.active {
                 Some(PlayerCommand::Seek(od.current_pos()))
             } else {
@@ -473,6 +484,9 @@ fn audio_loop(
             }
 
             PlayerCommand::Play(station) => {
+                if !is_auto_reconnect {
+                    reconnect_count = 0;
+                }
                 current_station    = Some(station.clone());
                 reconnect_at       = None;
                 stream_retry_at    = None;
@@ -762,6 +776,7 @@ fn audio_loop(
                 api_last_success     = None;
                 current_station      = None;
                 reconnect_at         = None;
+                reconnect_count      = 0;
                 stream_retry_at      = None;
                 stream_last_chunk    = None;
                 stream_download_done = None;

@@ -10,7 +10,7 @@ use crate::library::{self, SaveResult};
 use crate::preview::{deezer_preview, parse_seek_input};
 use crate::schedule::poll_metadata_loop;
 use crate::station::on_demand::OnDemandShow;
-use crate::station::{enrich, fetch_trending, find_enrichment, is_duplicate, on_demand, search_stations, search_stations_by_tag, search_stations_by_country, DynamicStation, Station};
+use crate::station::{enrich, fetch_trending, find_enrichment, is_duplicate, vote_station, on_demand, search_stations, search_stations_by_tag, search_stations_by_country, DynamicStation, Station};
 
 pub enum SearchMode {
     Name,
@@ -569,6 +569,12 @@ impl App {
                     self.play_dynamic_station(idx).await;
                 }
             }
+            KeyCode::Char('v') if !self.search_results.is_empty() => {
+                let idx = self.modal_selected.min(self.search_results.len() - 1);
+                let uuid = self.search_results[idx].key.clone();
+                tokio::spawn(async move { vote_station(&uuid).await; });
+                self.save_notice = Some("Voto enviado".to_string());
+            }
             KeyCode::Up | KeyCode::Char('k') => {
                 if self.modal_selected > 0 { self.modal_selected -= 1; }
             }
@@ -618,6 +624,12 @@ impl App {
                         self.show_search_modal = false;
                         self.play_dynamic_station(idx).await;
                     }
+                }
+                KeyCode::Char('v') => {
+                    let idx = self.modal_selected.min(self.search_results.len() - 1);
+                    let uuid = self.search_results[idx].key.clone();
+                    tokio::spawn(async move { vote_station(&uuid).await; });
+                    self.save_notice = Some("Voto enviado".to_string());
                 }
                 KeyCode::Up | KeyCode::Char('k') => {
                     if self.modal_selected > 0 { self.modal_selected -= 1; }
@@ -719,6 +731,12 @@ impl App {
                         self.play_dynamic_station(idx).await;
                     }
                 }
+                KeyCode::Char('v') => {
+                    let idx = self.modal_selected.min(self.search_results.len() - 1);
+                    let uuid = self.search_results[idx].key.clone();
+                    tokio::spawn(async move { vote_station(&uuid).await; });
+                    self.save_notice = Some("Voto enviado".to_string());
+                }
                 KeyCode::Up | KeyCode::Char('k') => {
                     if self.modal_selected > 0 { self.modal_selected -= 1; }
                 }
@@ -803,6 +821,14 @@ impl App {
                     let idx = (ms as usize) % self.trending_results.len();
                     self.show_search_modal = false;
                     self.play_dynamic_station_from(&self.trending_results.clone(), idx).await;
+                }
+            }
+            KeyCode::Char('v') => {
+                if !self.trending_results.is_empty() {
+                    let idx = self.trending_selected.min(self.trending_results.len() - 1);
+                    let uuid = self.trending_results[idx].key.clone();
+                    tokio::spawn(async move { vote_station(&uuid).await; });
+                    self.save_notice = Some("Voto enviado".to_string());
                 }
             }
             KeyCode::Char('r') => {
