@@ -46,6 +46,7 @@
   "config.value.on": "ON",
   "config.value.off": "OFF",
 
+  "overlay.playing_game": "Jugando",
   "overlay.when_playing": "Al reproducir",
   "overlay.always": "Siempre",
   "overlay.hidden": "Oculto",
