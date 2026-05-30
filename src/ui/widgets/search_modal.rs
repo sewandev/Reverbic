@@ -44,17 +44,20 @@ fn spin_frame() -> &'static str {
 }
 
 pub struct SearchModalWidget<'a> {
-    pub query:            &'a str,
-    pub results:          &'a [DynamicStation],
-    pub loading:          bool,
-    pub selected:         usize,
-    pub mode:             &'a SearchMode,
-    pub genre_selected:   usize,
-    pub genre_filter:     &'a str,
-    pub genre_query:      &'a str,
-    pub country_selected: usize,
-    pub country_filter:   &'a str,
-    pub history:          &'a [String],
+    pub query:             &'a str,
+    pub results:           &'a [DynamicStation],
+    pub loading:           bool,
+    pub selected:          usize,
+    pub mode:              &'a SearchMode,
+    pub genre_selected:    usize,
+    pub genre_filter:      &'a str,
+    pub genre_query:       &'a str,
+    pub country_selected:  usize,
+    pub country_filter:    &'a str,
+    pub history:           &'a [String],
+    pub settings_selected: usize,
+    pub autoplay_last:     bool,
+    pub overlay_mode:      &'a str,
 }
 
 impl Widget for SearchModalWidget<'_> {
@@ -107,9 +110,10 @@ impl Widget for SearchModalWidget<'_> {
         self.render_tabs(tabs_row, content_x, content_w, buf);
 
         match self.mode {
-            SearchMode::Name    => self.render_name_body(body_area, content_x, content_w, buf),
-            SearchMode::Genre   => self.render_genre_body(body_area, content_x, content_w, buf),
-            SearchMode::Country => self.render_country_body(body_area, content_x, content_w, buf),
+            SearchMode::Name     => self.render_name_body(body_area, content_x, content_w, buf),
+            SearchMode::Genre    => self.render_genre_body(body_area, content_x, content_w, buf),
+            SearchMode::Country  => self.render_country_body(body_area, content_x, content_w, buf),
+            SearchMode::Settings => self.render_settings_body(body_area, content_x, content_w, buf),
         }
     }
 }
@@ -131,14 +135,21 @@ impl SearchModalWidget<'_> {
                 Span::raw(" "),
                 key("[↵]"), sep(" Play  "),
                 key("[↑↓]"), sep(" Nav  "),
-                key("[Tab]"), sep(" Sig.tab  "),
+                key("[Tab]"), sep(" Siguiente  "),
                 key("[Esc]"), sep(" Cerrar "),
             ],
             SearchMode::Genre | SearchMode::Country => vec![
                 Span::raw(" "),
                 key("[↵]"), sep(" Buscar  "),
                 key("[↑↓]"), sep(" Nav  "),
-                key("[Tab]"), sep(" Sig.tab  "),
+                key("[Tab]"), sep(" Siguiente  "),
+                key("[Esc]"), sep(" Cerrar "),
+            ],
+            SearchMode::Settings => vec![
+                Span::raw(" "),
+                key("[Space]"), sep(" Cambiar  "),
+                key("[↑↓]"), sep(" Nav  "),
+                key("[Tab]"), sep(" Siguiente  "),
                 key("[Esc]"), sep(" Cerrar "),
             ],
         }
@@ -148,17 +159,20 @@ impl SearchModalWidget<'_> {
         let tab_area = Rect::new(content_x, area.y, content_w, 1);
         let active   = Style::default().fg(theme::ACCENT).add_modifier(Modifier::BOLD);
         let inactive = Style::default().fg(theme::MUTED);
-        let (ns, gs, cs) = match self.mode {
-            SearchMode::Name    => (active, inactive, inactive),
-            SearchMode::Genre   => (inactive, active, inactive),
-            SearchMode::Country => (inactive, inactive, active),
+        let (ns, gs, cs, ss) = match self.mode {
+            SearchMode::Name     => (active, inactive, inactive, inactive),
+            SearchMode::Genre    => (inactive, active, inactive, inactive),
+            SearchMode::Country  => (inactive, inactive, active, inactive),
+            SearchMode::Settings => (inactive, inactive, inactive, active),
         };
         let line = Line::from(vec![
             Span::styled("[ Nombre ]", ns),
-            Span::styled("   ", Style::default()),
-            Span::styled("[ Genero ]", gs),
-            Span::styled("   ", Style::default()),
-            Span::styled("[ Pais ]", cs),
+            Span::styled("  ", Style::default()),
+            Span::styled("[ Género ]", gs),
+            Span::styled("  ", Style::default()),
+            Span::styled("[ País ]", cs),
+            Span::styled("  ", Style::default()),
+            Span::styled("[ Config ]", ss),
         ]);
         Paragraph::new(line).render(tab_area, buf);
     }
@@ -181,7 +195,7 @@ impl SearchModalWidget<'_> {
 
         if self.query.is_empty() {
             Paragraph::new(Span::styled(
-                format!("Buscar radio… \"{}\"", placeholder_example()),
+                format!("Buscar radio... \"{}\"", placeholder_example()),
                 Style::default().fg(theme::MUTED),
             ))
             .render(text_area, buf);
@@ -261,7 +275,7 @@ impl SearchModalWidget<'_> {
 
         if self.genre_filter.is_empty() {
             Paragraph::new(Span::styled(
-                "Filtrar genero…",
+                "Filtrar género…",
                 Style::default().fg(theme::MUTED),
             ))
             .render(text_area, buf);
@@ -279,7 +293,7 @@ impl SearchModalWidget<'_> {
         if self.loading {
             let area = Rect::new(text_x, list_body.y, text_w, 1);
             Paragraph::new(Span::styled(
-                format!("{}  Buscando genero…", spin_frame()),
+                format!("{}  Buscando género…", spin_frame()),
                 Style::default().fg(theme::MUTED),
             ))
             .render(area, buf);
@@ -348,7 +362,7 @@ impl SearchModalWidget<'_> {
 
         if self.results.is_empty() {
             let msg = if self.query.is_empty() && !matches!(self.mode, SearchMode::Genre) {
-                "Escribi para buscar radios de todo el mundo"
+                "Escribe el nombre para buscar radios de todo el mundo"
             } else {
                 "Sin resultados"
             };
@@ -425,6 +439,47 @@ impl SearchModalWidget<'_> {
         }
     }
 
+    fn render_settings_body(&self, area: Rect, content_x: u16, content_w: u16, buf: &mut Buffer) {
+        let items: &[(&str, &str)] = &[
+            ("Auto-play última radio al iniciar", if self.autoplay_last { "ON" } else { "OFF" }),
+            ("Overlay Windows",                   self.overlay_mode),
+        ];
+
+        let list_x    = content_x + 2;
+        let list_w    = content_w.saturating_sub(2);
+        let [_gap, list_area] = Layout::vertical([
+            Constraint::Length(1),
+            Constraint::Fill(1),
+        ]).areas(area);
+
+        for (i, (label, value)) in items.iter().enumerate() {
+            let y = list_area.y + i as u16;
+            if y >= list_area.y + list_area.height { break; }
+            let active = i == self.settings_selected;
+            let (label_st, val_st) = if active {
+                (
+                    Style::default().fg(theme::ACCENT).add_modifier(Modifier::BOLD),
+                    Style::default().fg(theme::PLAYING).add_modifier(Modifier::BOLD),
+                )
+            } else {
+                (
+                    Style::default().fg(theme::HIGHLIGHT),
+                    Style::default().fg(theme::MUTED),
+                )
+            };
+            let prefix = if active { "▶  " } else { "   " };
+            let row = Rect::new(list_x, y, list_w, 1);
+            Paragraph::new(Line::from(vec![
+                Span::styled(prefix, label_st),
+                Span::styled(*label, label_st),
+                Span::styled("  [", Style::default().fg(theme::MUTED)),
+                Span::styled(*value, val_st),
+                Span::styled("]", Style::default().fg(theme::MUTED)),
+            ]))
+            .render(row, buf);
+        }
+    }
+
     fn render_country_body(&self, area: Rect, content_x: u16, content_w: u16, buf: &mut Buffer) {
         if !self.results.is_empty() {
             let [header_row, list_area] = Layout::vertical([
@@ -459,7 +514,7 @@ impl SearchModalWidget<'_> {
         let text_area = Rect::new(text_x, input_row.y, text_w, 1);
 
         if self.country_filter.is_empty() {
-            Paragraph::new(Span::styled("Filtrar pais…", Style::default().fg(theme::MUTED)))
+            Paragraph::new(Span::styled("Filtrar país…", Style::default().fg(theme::MUTED)))
                 .render(text_area, buf);
         } else {
             Paragraph::new(Line::from(vec![
@@ -474,7 +529,7 @@ impl SearchModalWidget<'_> {
 
         if self.loading {
             Paragraph::new(Span::styled(
-                format!("{}  Buscando pais…", spin_frame()),
+                format!("{}  Buscando país…", spin_frame()),
                 Style::default().fg(theme::MUTED),
             ))
             .render(Rect::new(text_x, list_body.y, text_w, 1), buf);
