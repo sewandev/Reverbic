@@ -7,7 +7,7 @@ use ratatui::{
 };
 
 use crate::app::SearchMode;
-use crate::station::{DynamicStation, GENRES};
+use crate::station::{DynamicStation, GENRES, COUNTRIES};
 use crate::ui::theme;
 
 const BG: Color = Color::Rgb(13, 13, 13);
@@ -44,14 +44,17 @@ fn spin_frame() -> &'static str {
 }
 
 pub struct SearchModalWidget<'a> {
-    pub query:          &'a str,
-    pub results:        &'a [DynamicStation],
-    pub loading:        bool,
-    pub selected:       usize,
-    pub mode:           &'a SearchMode,
-    pub genre_selected: usize,
-    pub genre_filter:   &'a str,
-    pub genre_query:    &'a str,
+    pub query:            &'a str,
+    pub results:          &'a [DynamicStation],
+    pub loading:          bool,
+    pub selected:         usize,
+    pub mode:             &'a SearchMode,
+    pub genre_selected:   usize,
+    pub genre_filter:     &'a str,
+    pub genre_query:      &'a str,
+    pub country_selected: usize,
+    pub country_filter:   &'a str,
+    pub history:          &'a [String],
 }
 
 impl Widget for SearchModalWidget<'_> {
@@ -104,34 +107,38 @@ impl Widget for SearchModalWidget<'_> {
         self.render_tabs(tabs_row, content_x, content_w, buf);
 
         match self.mode {
-            SearchMode::Name  => self.render_name_body(body_area, content_x, content_w, buf),
-            SearchMode::Genre => self.render_genre_body(body_area, content_x, content_w, buf),
+            SearchMode::Name    => self.render_name_body(body_area, content_x, content_w, buf),
+            SearchMode::Genre   => self.render_genre_body(body_area, content_x, content_w, buf),
+            SearchMode::Country => self.render_country_body(body_area, content_x, content_w, buf),
         }
     }
 }
 
 impl SearchModalWidget<'_> {
     fn bottom_hint(&self) -> Vec<Span<'static>> {
-        let showing_results = !self.results.is_empty();
+        let showing = !self.results.is_empty();
+        if showing {
+            return vec![
+                Span::raw(" "),
+                key("[↵]"), sep(" Play  "),
+                key("[R]"), sep(" Random  "),
+                key("[↑↓]"), sep(" Nav  "),
+                key("[Esc]"), sep(" Volver "),
+            ];
+        }
         match self.mode {
             SearchMode::Name => vec![
                 Span::raw(" "),
                 key("[↵]"), sep(" Play  "),
                 key("[↑↓]"), sep(" Nav  "),
-                key("[Tab]"), sep(" Genero  "),
+                key("[Tab]"), sep(" Sig.tab  "),
                 key("[Esc]"), sep(" Cerrar "),
             ],
-            SearchMode::Genre if showing_results => vec![
-                Span::raw(" "),
-                key("[↵]"), sep(" Play  "),
-                key("[↑↓]"), sep(" Nav  "),
-                key("[Esc]"), sep(" Volver "),
-            ],
-            SearchMode::Genre => vec![
+            SearchMode::Genre | SearchMode::Country => vec![
                 Span::raw(" "),
                 key("[↵]"), sep(" Buscar  "),
                 key("[↑↓]"), sep(" Nav  "),
-                key("[Tab]"), sep(" Nombre  "),
+                key("[Tab]"), sep(" Sig.tab  "),
                 key("[Esc]"), sep(" Cerrar "),
             ],
         }
@@ -139,20 +146,19 @@ impl SearchModalWidget<'_> {
 
     fn render_tabs(&self, area: Rect, content_x: u16, content_w: u16, buf: &mut Buffer) {
         let tab_area = Rect::new(content_x, area.y, content_w, 1);
-        let (name_style, genre_style) = match self.mode {
-            SearchMode::Name => (
-                Style::default().fg(theme::ACCENT).add_modifier(Modifier::BOLD),
-                Style::default().fg(theme::MUTED),
-            ),
-            SearchMode::Genre => (
-                Style::default().fg(theme::MUTED),
-                Style::default().fg(theme::ACCENT).add_modifier(Modifier::BOLD),
-            ),
+        let active   = Style::default().fg(theme::ACCENT).add_modifier(Modifier::BOLD);
+        let inactive = Style::default().fg(theme::MUTED);
+        let (ns, gs, cs) = match self.mode {
+            SearchMode::Name    => (active, inactive, inactive),
+            SearchMode::Genre   => (inactive, active, inactive),
+            SearchMode::Country => (inactive, inactive, active),
         };
         let line = Line::from(vec![
-            Span::styled("[ Nombre ]", name_style),
-            Span::styled("    ", Style::default()),
-            Span::styled("[ Genero ]", genre_style),
+            Span::styled("[ Nombre ]", ns),
+            Span::styled("   ", Style::default()),
+            Span::styled("[ Genero ]", gs),
+            Span::styled("   ", Style::default()),
+            Span::styled("[ Pais ]", cs),
         ]);
         Paragraph::new(line).render(tab_area, buf);
     }
@@ -196,7 +202,26 @@ impl SearchModalWidget<'_> {
         buf[(content_x, cap_row.y)]
             .set_symbol("╹").set_fg(theme::ACCENT).set_bg(BG);
 
-        self.render_results(list_area, content_x, content_w, buf);
+        if self.query.is_empty() && self.results.is_empty() && !self.history.is_empty() {
+            self.render_history(list_area, content_x, content_w, buf);
+        } else {
+            self.render_results(list_area, content_x, content_w, buf);
+        }
+    }
+
+    fn render_history(&self, area: Rect, content_x: u16, content_w: u16, buf: &mut Buffer) {
+        let list_x    = content_x + 2;
+        let list_w    = content_w.saturating_sub(2);
+        let list_area = Rect::new(list_x, area.y, list_w, area.height);
+        let items: Vec<ListItem> = self.history
+            .iter()
+            .take(list_area.height as usize)
+            .map(|q| ListItem::new(Line::from(vec![
+                Span::styled("   ", Style::default()),
+                Span::styled(q.as_str(), Style::default().fg(theme::MUTED)),
+            ])))
+            .collect();
+        List::new(items).render(list_area, buf);
     }
 
     fn render_genre_body(&self, area: Rect, content_x: u16, content_w: u16, buf: &mut Buffer) {
@@ -399,6 +424,101 @@ impl SearchModalWidget<'_> {
             buf[(sb_x, sy)].set_symbol(sym).set_fg(fg).set_bg(BG);
         }
     }
+
+    fn render_country_body(&self, area: Rect, content_x: u16, content_w: u16, buf: &mut Buffer) {
+        if !self.results.is_empty() {
+            let [header_row, list_area] = Layout::vertical([
+                Constraint::Length(1),
+                Constraint::Fill(1),
+            ])
+            .areas(area);
+            let header = Rect::new(content_x, header_row.y, content_w, 1);
+            Paragraph::new(Line::from(vec![
+                Span::styled("< ", Style::default().fg(theme::MUTED)),
+                Span::styled(self.genre_query, Style::default().fg(theme::ACCENT).add_modifier(Modifier::BOLD)),
+                Span::styled("  >", Style::default().fg(theme::MUTED)),
+            ]))
+            .render(header, buf);
+            self.render_results(list_area, content_x, content_w, buf);
+            return;
+        }
+
+        let [_gap, input_row, cap_row, list_body] = Layout::vertical([
+            Constraint::Length(1),
+            Constraint::Length(1),
+            Constraint::Length(1),
+            Constraint::Fill(1),
+        ])
+        .areas(area);
+
+        buf[(content_x, input_row.y)]
+            .set_symbol("┃").set_fg(theme::ACCENT).set_bg(BG);
+
+        let text_x    = content_x + 2;
+        let text_w    = content_w.saturating_sub(2);
+        let text_area = Rect::new(text_x, input_row.y, text_w, 1);
+
+        if self.country_filter.is_empty() {
+            Paragraph::new(Span::styled("Filtrar pais…", Style::default().fg(theme::MUTED)))
+                .render(text_area, buf);
+        } else {
+            Paragraph::new(Line::from(vec![
+                Span::styled(self.country_filter, Style::default().fg(theme::HIGHLIGHT)),
+                Span::styled("_", Style::default().fg(theme::ACCENT).add_modifier(Modifier::BOLD)),
+            ]))
+            .render(text_area, buf);
+        }
+
+        buf[(content_x, cap_row.y)]
+            .set_symbol("╹").set_fg(theme::ACCENT).set_bg(BG);
+
+        if self.loading {
+            Paragraph::new(Span::styled(
+                format!("{}  Buscando pais…", spin_frame()),
+                Style::default().fg(theme::MUTED),
+            ))
+            .render(Rect::new(text_x, list_body.y, text_w, 1), buf);
+            return;
+        }
+
+        let filtered  = filtered_countries(self.country_filter);
+        let list_x    = content_x + 2;
+        let list_w    = content_w.saturating_sub(2);
+        let list_area = Rect::new(list_x, list_body.y, list_w, list_body.height);
+        let visible_n = list_area.height as usize;
+        let offset    = if self.country_selected >= visible_n { self.country_selected - visible_n + 1 } else { 0 };
+
+        if filtered.is_empty() {
+            Paragraph::new(Span::styled("Sin coincidencias", Style::default().fg(theme::MUTED)))
+                .render(list_area, buf);
+            return;
+        }
+
+        let items: Vec<ListItem> = filtered
+            .iter()
+            .enumerate()
+            .skip(offset)
+            .take(visible_n)
+            .map(|(i, (_, label))| {
+                let active = i == self.country_selected;
+                let (prefix, style) = if active {
+                    ("▶  ", Style::default().fg(theme::PLAYING).add_modifier(Modifier::BOLD))
+                } else {
+                    ("   ", Style::default().fg(theme::HIGHLIGHT))
+                };
+                ListItem::new(Line::from(vec![
+                    Span::styled(prefix, style),
+                    Span::styled(*label, style),
+                ]))
+            })
+            .collect();
+
+        List::new(items).render(list_area, buf);
+
+        if filtered.len() > visible_n {
+            self.render_scrollbar(list_area, filtered.len(), self.country_selected, buf);
+        }
+    }
 }
 
 fn filtered_genres(filter: &str) -> Vec<(&'static str, &'static str)> {
@@ -407,6 +527,17 @@ fn filtered_genres(filter: &str) -> Vec<(&'static str, &'static str)> {
     }
     let f = filter.to_lowercase();
     GENRES.iter()
+        .filter(|(_, label)| label.to_lowercase().contains(&f))
+        .map(|&(t, l)| (t, l))
+        .collect()
+}
+
+fn filtered_countries(filter: &str) -> Vec<(&'static str, &'static str)> {
+    if filter.is_empty() {
+        return COUNTRIES.iter().map(|&(t, l)| (t, l)).collect();
+    }
+    let f = filter.to_lowercase();
+    COUNTRIES.iter()
         .filter(|(_, label)| label.to_lowercase().contains(&f))
         .map(|&(t, l)| (t, l))
         .collect()

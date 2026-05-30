@@ -4,16 +4,26 @@ use std::path::PathBuf;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
-    pub volume:        f32,
-    pub last_selected: usize,
-    /// Reproducir automáticamente la última radio al iniciar.
+    pub volume:         f32,
+    pub last_selected:  usize,
     #[serde(default)]
-    pub autoplay_last: bool,
+    pub autoplay_last:  bool,
+    #[serde(default)]
+    pub search_history: Vec<String>,
 }
 
 impl Default for Config {
     fn default() -> Self {
-        Self { volume: 1.0, last_selected: 0, autoplay_last: false }
+        Self { volume: 1.0, last_selected: 0, autoplay_last: false, search_history: Vec::new() }
+    }
+}
+
+impl Config {
+    pub fn add_to_history(&mut self, query: String) {
+        if query.trim().is_empty() { return; }
+        self.search_history.retain(|h| h != &query);
+        self.search_history.insert(0, query);
+        self.search_history.truncate(10);
     }
 }
 

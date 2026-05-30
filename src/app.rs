@@ -8,11 +8,12 @@ use crate::library::{self, SaveResult};
 use crate::preview::{deezer_preview, parse_seek_input};
 use crate::schedule::poll_metadata_loop;
 use crate::station::on_demand::OnDemandShow;
-use crate::station::{enrich, find_enrichment, is_duplicate, on_demand, search_stations, search_stations_by_tag, DynamicStation, Station};
+use crate::station::{enrich, find_enrichment, is_duplicate, on_demand, search_stations, search_stations_by_tag, search_stations_by_country, DynamicStation, Station};
 
 pub enum SearchMode {
     Name,
     Genre,
+    Country,
 }
 
 pub enum AppFocus {
@@ -49,6 +50,10 @@ pub struct App {
     pub genre_selected:      usize,
     pub genre_filter:        String,
     pub genre_query:         String,
+    pub country_selected:    usize,
+    pub country_filter:      String,
+    pub renaming_favorite:   Option<usize>,
+    pub rename_input:        String,
     pub config:              Config,
     metadata_task:           Option<tokio::task::JoinHandle<()>>,
     search_task:             Option<tokio::task::JoinHandle<()>>,
@@ -91,6 +96,10 @@ impl App {
             genre_selected:     0,
             genre_filter:       String::new(),
             genre_query:        String::new(),
+            country_selected:   0,
+            country_filter:     String::new(),
+            renaming_favorite:  None,
+            rename_input:       String::new(),
             config,
             metadata_task:      None,
             search_task:        None,
@@ -278,6 +287,91 @@ impl App {
         self.play_station(station).await;
     }
 
+    pub async fn on_key_event(&mut self, event: crossterm::event::KeyEvent) {
+        use crossterm::event::KeyModifiers;
+
+        if event.modifiers.contains(KeyModifiers::SHIFT)
+            && !self.show_search_modal
+            && !self.show_settings
+            && matches!(self.focus, AppFocus::Stations)
+        {
+            if let Some(idx) = self.favorite_index() {
+                match event.code {
+                    KeyCode::Up => {
+                        crate::favorites::move_up(&mut self.favorites, idx);
+                        crate::favorites::save(&self.favorites);
+                        if idx > 0 { self.selected -= 1; }
+                        return;
+                    }
+                    KeyCode::Down => {
+                        crate::favorites::move_down(&mut self.favorites, idx);
+                        crate::favorites::save(&self.favorites);
+                        if idx + 1 < self.favorites.len() { self.selected += 1; }
+                        return;
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        if self.renaming_favorite.is_some() {
+            self.on_key_rename(event.code);
+            return;
+        }
+
+        self.on_key(event.code).await;
+    }
+
+    pub fn on_paste(&mut self, text: String) {
+        if self.show_search_modal {
+            match self.modal_mode {
+                SearchMode::Name => {
+                    for c in text.chars().filter(|c| !c.is_control()) {
+                        self.search_query.push(c);
+                    }
+                    self.modal_selected = 0;
+                    self.perform_search();
+                }
+                SearchMode::Genre => {
+                    for c in text.chars().filter(|c| !c.is_control()) {
+                        self.genre_filter.push(c);
+                    }
+                    self.genre_selected = 0;
+                }
+                SearchMode::Country => {
+                    for c in text.chars().filter(|c| !c.is_control()) {
+                        self.country_filter.push(c);
+                    }
+                    self.country_selected = 0;
+                }
+            }
+        }
+    }
+
+    fn on_key_rename(&mut self, key: KeyCode) {
+        match key {
+            KeyCode::Esc => {
+                self.renaming_favorite = None;
+                self.rename_input.clear();
+            }
+            KeyCode::Enter => {
+                if let Some(idx) = self.renaming_favorite {
+                    if !self.rename_input.is_empty() {
+                        if let Some(fav) = self.favorites.get_mut(idx) {
+                            fav.name = self.rename_input.clone();
+                        }
+                        crate::favorites::save(&self.favorites);
+                    }
+                }
+                self.renaming_favorite = None;
+                self.rename_input.clear();
+            }
+            KeyCode::Backspace => { self.rename_input.pop(); }
+            KeyCode::Char(c) if !c.is_control() => { self.rename_input.push(c); }
+            _ => {}
+        }
+    }
+
     pub async fn on_key(&mut self, key: KeyCode) {
         if self.show_search_modal {
             self.on_key_search_modal(key).await;
@@ -366,8 +460,9 @@ impl App {
     async fn on_key_search_modal(&mut self, key: KeyCode) {
         if key == KeyCode::Tab {
             self.modal_mode = match self.modal_mode {
-                SearchMode::Name  => SearchMode::Genre,
-                SearchMode::Genre => SearchMode::Name,
+                SearchMode::Name    => SearchMode::Genre,
+                SearchMode::Genre   => SearchMode::Country,
+                SearchMode::Country => SearchMode::Name,
             };
             self.modal_selected = 0;
             self.search_results.clear();
@@ -375,14 +470,17 @@ impl App {
             self.genre_filter.clear();
             self.genre_query.clear();
             self.genre_selected = 0;
+            self.country_filter.clear();
+            self.country_selected = 0;
             if let Some(t) = self.search_task.take() { t.abort(); }
             self.search_loading = false;
             return;
         }
 
         match self.modal_mode {
-            SearchMode::Name  => self.on_key_modal_name(key).await,
-            SearchMode::Genre => self.on_key_modal_genre(key).await,
+            SearchMode::Name    => self.on_key_modal_name(key).await,
+            SearchMode::Genre   => self.on_key_modal_genre(key).await,
+            SearchMode::Country => self.on_key_modal_country(key).await,
         }
     }
 
@@ -398,6 +496,10 @@ impl App {
                 if !self.search_results.is_empty() {
                     let idx = self.modal_selected.min(self.search_results.len() - 1);
                     self.show_search_modal = false;
+                    if !self.search_query.is_empty() {
+                        self.config.add_to_history(self.search_query.clone());
+                        self.config.save();
+                    }
                     self.play_dynamic_station(idx).await;
                 }
             }
@@ -423,6 +525,15 @@ impl App {
         }
     }
 
+    fn play_random_result(&mut self) -> Option<usize> {
+        if self.search_results.is_empty() { return None; }
+        let ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis())
+            .unwrap_or(0);
+        Some((ms as usize) % self.search_results.len())
+    }
+
     async fn on_key_modal_genre(&mut self, key: KeyCode) {
         if !self.search_results.is_empty() {
             match key {
@@ -435,6 +546,12 @@ impl App {
                     let idx = self.modal_selected.min(self.search_results.len() - 1);
                     self.show_search_modal = false;
                     self.play_dynamic_station(idx).await;
+                }
+                KeyCode::Char('R') => {
+                    if let Some(idx) = self.play_random_result() {
+                        self.show_search_modal = false;
+                        self.play_dynamic_station(idx).await;
+                    }
                 }
                 KeyCode::Up | KeyCode::Char('k') => {
                     if self.modal_selected > 0 { self.modal_selected -= 1; }
@@ -500,6 +617,94 @@ impl App {
             .collect()
     }
 
+    fn filter_countries(filter: &str) -> Vec<(&'static str, &'static str)> {
+        use crate::station::COUNTRIES;
+        if filter.is_empty() {
+            return COUNTRIES.iter().map(|&(t, l)| (t, l)).collect();
+        }
+        let f = filter.to_lowercase();
+        COUNTRIES.iter()
+            .filter(|(_, label)| label.to_lowercase().contains(&f))
+            .map(|&(t, l)| (t, l))
+            .collect()
+    }
+
+    fn perform_country_search(&mut self, country: &str) {
+        let c = country.to_string();
+        self.spawn_search(move || async move { search_stations_by_country(&c, 30).await });
+    }
+
+    async fn on_key_modal_country(&mut self, key: KeyCode) {
+        if !self.search_results.is_empty() {
+            match key {
+                KeyCode::Esc => {
+                    self.search_results.clear();
+                    self.genre_query.clear();
+                    self.modal_selected = 0;
+                }
+                KeyCode::Enter => {
+                    let idx = self.modal_selected.min(self.search_results.len() - 1);
+                    self.show_search_modal = false;
+                    self.play_dynamic_station(idx).await;
+                }
+                KeyCode::Char('R') => {
+                    if let Some(idx) = self.play_random_result() {
+                        self.show_search_modal = false;
+                        self.play_dynamic_station(idx).await;
+                    }
+                }
+                KeyCode::Up | KeyCode::Char('k') => {
+                    if self.modal_selected > 0 { self.modal_selected -= 1; }
+                }
+                KeyCode::Down | KeyCode::Char('j') => {
+                    if self.modal_selected + 1 < self.search_results.len() {
+                        self.modal_selected += 1;
+                    }
+                }
+                _ => {}
+            }
+            return;
+        }
+
+        let filtered = Self::filter_countries(&self.country_filter);
+        match key {
+            KeyCode::Esc => {
+                if !self.country_filter.is_empty() {
+                    self.country_filter.clear();
+                    self.country_selected = 0;
+                } else {
+                    self.show_search_modal = false;
+                    self.modal_mode = SearchMode::Name;
+                    self.country_selected = 0;
+                }
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                if self.country_selected > 0 { self.country_selected -= 1; }
+            }
+            KeyCode::Down | KeyCode::Char('j') => {
+                if self.country_selected + 1 < filtered.len() {
+                    self.country_selected += 1;
+                }
+            }
+            KeyCode::Enter => {
+                if let Some(&(tag, label)) = filtered.get(self.country_selected) {
+                    self.genre_query = label.to_string();
+                    self.modal_selected = 0;
+                    self.perform_country_search(tag);
+                }
+            }
+            KeyCode::Backspace => {
+                self.country_filter.pop();
+                self.country_selected = 0;
+            }
+            KeyCode::Char(c) if !c.is_control() => {
+                self.country_filter.push(c);
+                self.country_selected = 0;
+            }
+            _ => {}
+        }
+    }
+
     async fn on_key_stations(&mut self, key: KeyCode) {
         match key {
             KeyCode::Up | KeyCode::Char('k') => {
@@ -524,6 +729,25 @@ impl App {
             }
             KeyCode::Char('F') => {
                 self.toggle_selected_favorite();
+            }
+            KeyCode::Char('e') => {
+                if let Some(idx) = self.favorite_index() {
+                    self.rename_input = self.favorites[idx].name.clone();
+                    self.renaming_favorite = Some(idx);
+                }
+            }
+            KeyCode::Char('r') => {
+                let state = self.player.state();
+                if let Some(station) = state.station {
+                    self.play_station(station).await;
+                }
+            }
+            KeyCode::Char('/') => {
+                self.show_search_modal = true;
+                self.modal_mode = SearchMode::Name;
+                self.search_query.clear();
+                self.search_results.clear();
+                self.modal_selected = 0;
             }
             KeyCode::Right => {
                 if !self.on_demand_shows.is_empty() || self.on_demand_loading {
@@ -744,6 +968,8 @@ impl App {
         if self.show_search_modal {
             let (len, sel) = if self.search_results.is_empty() && matches!(self.modal_mode, SearchMode::Genre) {
                 (Self::filter_genres(&self.genre_filter).len(), &mut self.genre_selected)
+            } else if self.search_results.is_empty() && matches!(self.modal_mode, SearchMode::Country) {
+                (Self::filter_countries(&self.country_filter).len(), &mut self.country_selected)
             } else {
                 (self.search_results.len(), &mut self.modal_selected)
             };

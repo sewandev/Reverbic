@@ -75,13 +75,18 @@ fn build_line(state: &PlayerState, width: u16) -> Line<'static> {
         ]),
 
         PlayerStatus::Playing | PlayerStatus::Paused => {
-            let icon = if matches!(state.status, PlayerStatus::Paused) { " ⏸  " } else { " >>  " };
-            let show  = state.api_show.clone().unwrap_or_default();
-            let title = state.title.clone().unwrap_or_else(|| "—".to_owned());
+            let icon    = if matches!(state.status, PlayerStatus::Paused) { " ⏸  " } else { " >>  " };
+            let show    = state.api_show.clone().unwrap_or_default();
+            let title   = state.title.clone().unwrap_or_else(|| "—".to_owned());
+            let bitrate = state.station.as_ref()
+                .and_then(|s| s.bitrate_kbps)
+                .map(|b| format!("  {b}k"))
+                .unwrap_or_default();
 
             let mut spans: Vec<Span<'static>> = vec![
                 Span::styled(icon, Style::default().fg(theme::ACCENT)),
                 Span::styled(station, theme::PLAYING_STYLE),
+                Span::styled(bitrate, Style::default().fg(theme::MUTED)),
             ];
             if !show.is_empty() {
                 spans.push(Span::styled("  ·  ", Style::default().fg(theme::MUTED)));
