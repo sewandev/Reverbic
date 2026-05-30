@@ -211,8 +211,9 @@ pub fn render(frame: &mut Frame, app: &App) {
         let modal_x = full_area.x + full_area.width.saturating_sub(modal_w) / 2;
         let modal_y = full_area.y + full_area.height.saturating_sub(modal_h) / 2;
         let strip_y = modal_y + modal_h;
-        if strip_y < full_area.bottom() {
-            let strip = Rect::new(modal_x, strip_y, modal_w, 1);
+        let remaining_h = full_area.bottom().saturating_sub(strip_y);
+        if remaining_h >= 3 {
+            let strip = Rect::new(modal_x, strip_y, modal_w, remaining_h);
             render_modal_np_strip(frame, strip, &player_state);
         }
     }
@@ -481,57 +482,109 @@ fn render_rename_overlay(frame: &mut Frame, input: &str) {
     );
 }
 
-fn render_modal_np_strip(frame: &mut Frame, area: Rect, state: &PlayerState) {
-    use ratatui::style::Color;
+fn render_modal_np_strip(frame: &mut Frame, strip: Rect, state: &PlayerState) {
+    use ratatui::{layout::Alignment, style::Color, widgets::{Block, BorderType, Borders, Clear}};
     const STRIP_BG: Color = Color::Rgb(13, 13, 13);
+    const H_PAD:    u16   = 2;
+
+    if matches!(state.status, PlayerStatus::Idle | PlayerStatus::Error(_)) {
+        return;
+    }
+
+    // Inner content width (border + padding each side)
+    let content_w = strip.width.saturating_sub(2 + H_PAD * 2) as usize;
+    if content_w == 0 { return; }
+
+    // Title wrapped into at most 2 lines
+    let raw_title = match &state.status {
+        PlayerStatus::Playing | PlayerStatus::Paused | PlayerStatus::Buffering(_) => {
+            state.title.clone().unwrap_or_default()
+        }
+        _ => String::new(),
+    };
+    let title_lines = wrap_into_lines(&raw_title, content_w, 2);
+
+    let panel_h = 2 + 1 + title_lines.len() as u16; // borders + station + title rows
+    if panel_h > strip.height { return; }
+
+    let panel = Rect::new(strip.x, strip.y, strip.width, panel_h);
 
     let vol_pct   = (state.volume.clamp(0.0, 1.0) * 100.0).round() as u32;
     let vol_color = if state.volume > 0.85 { theme::WARNING } else { theme::ACCENT };
-    let vol_str   = format!(" {vol_pct:>3}% ");
-    let vol_w     = vol_str.len() as u16;
-    let left_w    = area.width.saturating_sub(vol_w);
 
-    let left_rect = Rect::new(area.x, area.y, left_w, 1);
-    let vol_rect  = Rect::new(area.x + left_w, area.y, vol_w, 1);
+    frame.render_widget(Clear, panel);
 
+    let block = Block::default()
+        .title_top(
+            Line::from(Span::styled(
+                format!(" {vol_pct:>3}% "),
+                Style::default().fg(vol_color),
+            ))
+            .alignment(Alignment::Right),
+        )
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(theme::MUTED))
+        .style(Style::default().bg(STRIP_BG));
+
+    let inner = block.inner(panel);
+    frame.render_widget(block, panel);
+
+    let cx = inner.x + H_PAD;
+    let cw = inner.width.saturating_sub(H_PAD * 2);
+
+    // Station line
+    let station_line = build_modal_station_line(state);
     frame.render_widget(
-        Paragraph::new(build_modal_np_left(state)).style(Style::default().bg(STRIP_BG)),
-        left_rect,
+        Paragraph::new(station_line).style(Style::default().bg(STRIP_BG)),
+        Rect::new(cx, inner.y, cw, 1),
     );
-    frame.render_widget(
-        Paragraph::new(Line::from(Span::styled(vol_str, Style::default().fg(vol_color))))
-            .style(Style::default().bg(STRIP_BG)),
-        vol_rect,
-    );
+
+    // Title lines
+    for (i, tline) in title_lines.into_iter().enumerate() {
+        let row_y = inner.y + 1 + i as u16;
+        if row_y < inner.bottom() {
+            frame.render_widget(
+                Paragraph::new(tline).style(Style::default().bg(STRIP_BG)),
+                Rect::new(cx, row_y, cw, 1),
+            );
+        }
+    }
 }
 
-fn build_modal_np_left(state: &PlayerState) -> Line<'static> {
+fn build_modal_station_line(state: &PlayerState) -> Line<'static> {
     match &state.status {
-        PlayerStatus::Idle | PlayerStatus::Error(_) => Line::default(),
-
         PlayerStatus::Connecting | PlayerStatus::Reconnecting(_) => Line::from(vec![
-            Span::styled("  …  ", Style::default().fg(theme::ACCENT)),
+            Span::styled("…  ", Style::default().fg(theme::ACCENT)),
             Span::styled(
                 state.station.as_ref().map(|s| s.name.clone()).unwrap_or_default(),
                 Style::default().fg(theme::MUTED),
             ),
         ]),
-
         PlayerStatus::Buffering(_) | PlayerStatus::Playing | PlayerStatus::Paused => {
-            let icon  = if matches!(state.status, PlayerStatus::Paused) { " ⏸  " } else { " >>  " };
-            let name  = state.station.as_ref().map(|s| s.name.clone()).unwrap_or_default();
-            let title = state.title.clone().unwrap_or_default();
-            let mut spans: Vec<Span<'static>> = vec![
+            let icon = if matches!(state.status, PlayerStatus::Paused) { "⏸  " } else { ">>  " };
+            let name = state.station.as_ref().map(|s| s.name.clone()).unwrap_or_default();
+            Line::from(vec![
                 Span::styled(icon, Style::default().fg(theme::ACCENT)),
                 Span::styled(name, theme::PLAYING_STYLE),
-            ];
-            if !title.is_empty() {
-                spans.push(Span::styled("  ·  ", Style::default().fg(theme::MUTED)));
-                spans.push(Span::styled(title, Style::default().fg(theme::HIGHLIGHT)));
-            }
-            Line::from(spans)
+            ])
         }
+        _ => Line::default(),
     }
+}
+
+fn wrap_into_lines(text: &str, width: usize, max_lines: usize) -> Vec<Line<'static>> {
+    if text.is_empty() || width == 0 { return vec![]; }
+    let chars: Vec<char> = text.chars().collect();
+    let mut lines = Vec::new();
+    let mut offset = 0;
+    while offset < chars.len() && lines.len() < max_lines {
+        let end   = (offset + width).min(chars.len());
+        let slice: String = chars[offset..end].iter().collect();
+        lines.push(Line::from(Span::styled(slice, Style::default().fg(theme::HIGHLIGHT))));
+        offset = end;
+    }
+    lines
 }
 
 fn month_es(m: u32) -> &'static str {
