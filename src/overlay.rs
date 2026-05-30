@@ -15,6 +15,7 @@ use windows::{
 };
 
 use crate::audio::{PlayerState, PlayerStatus};
+use crate::config::OverlayMode;
 
 const OW: i32 = 320;
 const OH: i32 = 90;
@@ -65,11 +66,11 @@ struct State {
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
-pub fn spawn(state_rx: watch::Receiver<PlayerState>) {
+pub fn spawn(state_rx: watch::Receiver<PlayerState>, mode_rx: watch::Receiver<OverlayMode>) {
     std::thread::Builder::new()
         .name("overlay".into())
         .spawn(move || unsafe {
-            if let Err(e) = run(state_rx) {
+            if let Err(e) = run(state_rx, mode_rx) {
                 tracing::error!("overlay: {e}");
             }
         })
@@ -78,7 +79,7 @@ pub fn spawn(state_rx: watch::Receiver<PlayerState>) {
 
 // ── Win32 thread ──────────────────────────────────────────────────────────────
 
-unsafe fn run(mut rx: watch::Receiver<PlayerState>) -> windows::core::Result<()> {
+unsafe fn run(mut rx: watch::Receiver<PlayerState>, mut mode_rx: watch::Receiver<OverlayMode>) -> windows::core::Result<()> {
     let hinstance = HINSTANCE(GetModuleHandleW(None)?.0);
     let class     = w!("ReverbicOverlay");
 
@@ -117,6 +118,8 @@ unsafe fn run(mut rx: watch::Receiver<PlayerState>) -> windows::core::Result<()>
     let mut visible      = false;
     let mut peak_ratio   = 0_f32;
     let mut peak_held_at = Instant::now();
+    let mut mode         = *mode_rx.borrow();
+    let mut playing      = false;
 
     loop {
         while PeekMessageW(&mut msg, None, 0, 0, PM_REMOVE).as_bool() {
@@ -129,10 +132,14 @@ unsafe fn run(mut rx: watch::Receiver<PlayerState>) -> windows::core::Result<()>
 
         let mut need_repaint = false;
 
+        if mode_rx.has_changed().unwrap_or(false) {
+            mode = *mode_rx.borrow_and_update();
+        }
+
         // ── New player state ──────────────────────────────────────
         if rx.has_changed().unwrap_or(false) {
             let ps = rx.borrow_and_update().clone();
-            let playing = matches!(
+            playing = matches!(
                 ps.status,
                 PlayerStatus::Playing | PlayerStatus::Buffering(_) | PlayerStatus::Reconnecting(_)
             );
@@ -155,14 +162,22 @@ unsafe fn run(mut rx: watch::Receiver<PlayerState>) -> windows::core::Result<()>
                 }
                 s.peak_ratio = peak_ratio;
             }
+        }
 
-            if playing != visible {
-                visible = playing;
-                let _ = ShowWindow(hwnd, if playing { SW_SHOWNOACTIVATE } else { SW_HIDE });
-            }
-            if playing {
-                need_repaint = true;
-            }
+        // ── Visibility decision ───────────────────────────────────
+        let should_show = match mode {
+            OverlayMode::Hidden      => false,
+            OverlayMode::Always      => playing,
+            OverlayMode::WhenPlaying => playing,
+            OverlayMode::Games       => playing && is_fullscreen_foreground(hwnd),
+        };
+
+        if should_show != visible {
+            visible = should_show;
+            let _ = ShowWindow(hwnd, if should_show { SW_SHOWNOACTIVATE } else { SW_HIDE });
+        }
+        if visible {
+            need_repaint = true;
         }
 
         // ── Peak decay (corre siempre, independiente de rx) ───────
@@ -325,6 +340,27 @@ unsafe fn font(size: i32, bold: bool) -> HFONT {
 
 fn wide(s: &str) -> Vec<u16> {
     s.encode_utf16().collect()
+}
+
+unsafe fn is_fullscreen_foreground(overlay_hwnd: HWND) -> bool {
+    use windows::Win32::UI::WindowsAndMessaging::{
+        GetForegroundWindow, GetWindowRect, SM_CXSCREEN, SM_CYSCREEN,
+    };
+    use windows::Win32::UI::WindowsAndMessaging::GetSystemMetrics;
+
+    let fg = GetForegroundWindow();
+    if fg == overlay_hwnd || fg.0.is_null() {
+        return false;
+    }
+    let mut r = RECT::default();
+    if GetWindowRect(fg, &mut r).is_err() {
+        return false;
+    }
+    let sw = GetSystemMetrics(SM_CXSCREEN);
+    let sh = GetSystemMetrics(SM_CYSCREEN);
+    let w  = r.right - r.left;
+    let h  = r.bottom - r.top;
+    w >= sw && h >= sh
 }
 
 fn wide_truncated(s: &str, max: usize) -> Vec<u16> {

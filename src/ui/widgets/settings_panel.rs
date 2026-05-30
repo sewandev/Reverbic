@@ -8,9 +8,14 @@ use ratatui::{
 
 use crate::ui::theme;
 
+pub enum SettingsValue {
+    Toggle(bool),
+    Choice(&'static str),
+}
+
 pub struct SettingsItem {
     pub label: &'static str,
-    pub value: bool,
+    pub value: SettingsValue,
 }
 
 pub struct SettingsPanelWidget<'a> {
@@ -29,7 +34,7 @@ impl<'a> Widget for SettingsPanelWidget<'a> {
         Clear.render(modal, buf);
 
         let block = Block::default()
-            .title(" CONFIGURACIÓN  [↑↓] Nav  [Space] Toggle  [o] Cerrar ")
+            .title(" CONFIGURACION  [↑↓] Nav  [Space] Cambiar  [o] Cerrar ")
             .borders(Borders::ALL)
             .border_style(Style::new().fg(theme::ACCENT));
 
@@ -39,25 +44,35 @@ impl<'a> Widget for SettingsPanelWidget<'a> {
         let lines: Vec<Line> = std::iter::once(Line::from(""))
             .chain(self.items.iter().enumerate().map(|(i, item)| {
                 let is_sel = i == self.selected;
-                let (toggle_txt, toggle_fg) = if item.value {
-                    (" ON ", theme::PLAYING)
-                } else {
-                    ("OFF ", theme::MUTED)
-                };
-                let base = if is_sel {
+                let base   = if is_sel {
                     Style::new().fg(theme::ACCENT).add_modifier(Modifier::BOLD)
                 } else {
                     Style::new().fg(theme::MUTED)
                 };
                 let prefix = if is_sel { "▶ " } else { "  " };
 
-                Line::from(vec![
+                let value_span = match &item.value {
+                    SettingsValue::Toggle(on) => {
+                        let (txt, fg) = if *on { (" ON ", theme::PLAYING) } else { ("OFF", theme::MUTED) };
+                        vec![
+                            Span::styled("  [", Style::new().fg(theme::MUTED)),
+                            Span::styled(txt, Style::new().fg(fg).add_modifier(Modifier::BOLD)),
+                            Span::styled("]", Style::new().fg(theme::MUTED)),
+                        ]
+                    }
+                    SettingsValue::Choice(val) => vec![
+                        Span::styled("  [", Style::new().fg(theme::MUTED)),
+                        Span::styled(*val, Style::new().fg(theme::ACCENT).add_modifier(Modifier::BOLD)),
+                        Span::styled("]", Style::new().fg(theme::MUTED)),
+                    ],
+                };
+
+                let mut spans = vec![
                     Span::styled(prefix, base),
                     Span::styled(item.label, base),
-                    Span::styled("  [", Style::new().fg(theme::MUTED)),
-                    Span::styled(toggle_txt, Style::new().fg(toggle_fg).add_modifier(Modifier::BOLD)),
-                    Span::styled("]", Style::new().fg(theme::MUTED)),
-                ])
+                ];
+                spans.extend(value_span);
+                Line::from(spans)
             }))
             .collect();
 

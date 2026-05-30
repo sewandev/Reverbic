@@ -2,6 +2,36 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum OverlayMode {
+    #[default]
+    WhenPlaying,
+    Always,
+    Hidden,
+    Games,
+}
+
+impl OverlayMode {
+    pub fn display(self) -> &'static str {
+        match self {
+            Self::WhenPlaying => "Al reproducir",
+            Self::Always      => "Siempre",
+            Self::Hidden      => "Oculto",
+            Self::Games       => "Con juegos",
+        }
+    }
+
+    pub fn next(self) -> Self {
+        match self {
+            Self::WhenPlaying => Self::Always,
+            Self::Always      => Self::Hidden,
+            Self::Hidden      => Self::Games,
+            Self::Games       => Self::WhenPlaying,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     pub volume:         f32,
@@ -10,11 +40,19 @@ pub struct Config {
     pub autoplay_last:  bool,
     #[serde(default)]
     pub search_history: Vec<String>,
+    #[serde(default)]
+    pub overlay_mode:   OverlayMode,
 }
 
 impl Default for Config {
     fn default() -> Self {
-        Self { volume: 1.0, last_selected: 0, autoplay_last: false, search_history: Vec::new() }
+        Self {
+            volume: 1.0,
+            last_selected: 0,
+            autoplay_last: false,
+            search_history: Vec::new(),
+            overlay_mode: OverlayMode::WhenPlaying,
+        }
     }
 }
 

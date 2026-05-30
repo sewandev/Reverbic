@@ -82,7 +82,11 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
     let mut app = App::new().await;
 
     #[cfg(target_os = "windows")]
-    overlay::spawn(app.player.subscribe());
+    {
+        let (mode_tx, mode_rx) = tokio::sync::watch::channel(app.config.overlay_mode);
+        overlay::spawn(app.player.subscribe(), mode_rx);
+        app.overlay_mode_tx = Some(mode_tx);
+    }
 
     // Auto-play de la última radio si está habilitado
     if app.config.autoplay_last && !app.stations.is_empty() {
