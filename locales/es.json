@@ -37,6 +37,7 @@
   "config.setting.crossfade": "Crossfade",
   "config.setting.overlay": "Modo overlay",
   "config.setting.overlay_alpha": "Transparencia overlay",
+  "config.setting.screensaver": "Screensaver",
   "config.setting.duck": "Auto-duck al jugar",
   "config.setting.duck_volume": "Volumen duck",
   "config.setting.media_keys": "Teclas multimedia",

@@ -129,7 +129,10 @@ impl App {
     }
 
     pub fn screensaver_active(&self) -> bool {
-        self.show_search_modal && self.last_activity.elapsed().as_secs() >= 10
+        let secs = self.config.screensaver_secs;
+        secs > 0
+            && self.show_search_modal
+            && self.last_activity.elapsed().as_secs() >= secs as u64
     }
 
     fn total_stations(&self) -> usize {
@@ -810,7 +813,7 @@ impl App {
     }
 
     fn on_key_modal_settings(&mut self, key: KeyCode) {
-        let count = 10 + usize::from(self.config.duck_enabled);
+        let count = 11 + usize::from(self.config.duck_enabled);
         match key {
             KeyCode::Esc => {
                 self.show_search_modal = false;
@@ -1136,7 +1139,7 @@ impl App {
             } else if self.search_results.is_empty() && matches!(self.modal_mode, SearchMode::Country) {
                 (Self::filter_countries(&self.country_filter).len(), &mut self.country_selected)
             } else if matches!(self.modal_mode, SearchMode::Settings) {
-                let count = 10 + usize::from(self.config.duck_enabled);
+                let count = 11 + usize::from(self.config.duck_enabled);
                 (count, &mut self.settings_selected)
             } else {
                 (self.search_results.len(), &mut self.modal_selected)
@@ -1315,8 +1318,9 @@ impl App {
                     _           => 20,
                 };
             }
-            5 => { self.config.duck_enabled = !self.config.duck_enabled; }
-            6 if duck_on => {
+            5 => { self.config.screensaver_next(); }
+            6 => { self.config.duck_enabled = !self.config.duck_enabled; }
+            7 if duck_on => {
                 self.config.duck_volume = match self.config.duck_volume {
                     v if v < 20 => 20,
                     v if v < 30 => 30,
@@ -1331,10 +1335,10 @@ impl App {
             i => {
                 let j = if duck_on { i - 1 } else { i };
                 match j {
-                    6 => { self.config.media_keys    = !self.config.media_keys; }
-                    7 => { self.config.tray_icon     = !self.config.tray_icon; }
-                    8 => { self.config.notifications = !self.config.notifications; }
-                    9 => {
+                    7 => { self.config.media_keys    = !self.config.media_keys; }
+                    8 => { self.config.tray_icon     = !self.config.tray_icon; }
+                    9 => { self.config.notifications = !self.config.notifications; }
+                    10 => {
                         self.config.language = self.config.language.next();
                         i18n::set_language(self.config.language);
                     }

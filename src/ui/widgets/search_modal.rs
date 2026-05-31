@@ -66,6 +66,7 @@ pub struct SearchModalWidget<'a> {
     pub duck_enabled:       bool,
     pub duck_volume:        u8,
     pub overlay_alpha:      u8,
+    pub screensaver_secs:   u16,
 }
 
 impl Widget for SearchModalWidget<'_> {
@@ -433,6 +434,7 @@ impl SearchModalWidget<'_> {
             (t("config.group.overlay"),           None),
             (t("config.setting.overlay"),         Some(self.overlay_mode.clone())),
             (t("config.setting.overlay_alpha"),   Some(format!("{}%", self.overlay_alpha))),
+            (t("config.setting.screensaver"),     Some(screensaver_display(self.screensaver_secs))),
             (t("config.group.game"),              None),
             (t("config.setting.duck"),            Some(if self.duck_enabled { on.clone() } else { off.clone() })),
         ];
@@ -623,6 +625,14 @@ fn filtered_countries(filter: &str) -> Vec<(&'static str, &'static str)> {
         .filter(|(_, label)| label.to_lowercase().contains(&f))
         .map(|&(t, l)| (t, l))
         .collect()
+}
+
+fn screensaver_display(secs: u16) -> String {
+    match secs {
+        0          => "OFF".to_string(),
+        s if s < 60 => format!("{}s", s),
+        s           => format!("{}m", s / 60),
+    }
 }
 
 fn key(s: &'static str) -> Span<'static> {
