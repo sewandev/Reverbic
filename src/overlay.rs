@@ -330,7 +330,7 @@ unsafe fn run(
             // Actualiza nombre del juego si cambió
             if detected_game != current_game {
                 current_game = detected_game.clone();
-                let _ = cmd_tx.blocking_send(
+                let _ = cmd_tx.try_send(
                     PlayerCommand::SetActiveGame(current_game.clone()),
                 );
                 if let Ok(mut s) = shared.lock() {
