@@ -220,6 +220,7 @@ pub fn render(frame: &mut Frame, app: &App) {
                 screensaver_secs:          app.config.screensaver_secs,
                 game_integrations_enabled: app.config.game_integrations.enabled,
                 integration_dota2:         app.config.game_integrations.dota2,
+                dota2_needs_restart:       app.dota2_needs_restart,
             },
             full_area,
         );
