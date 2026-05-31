@@ -219,8 +219,6 @@ pub fn render(frame: &mut Frame, app: &App) {
         let modal_h = full_area.height.min(14).max(10);
         let modal_x = full_area.x + full_area.width.saturating_sub(modal_w) / 2;
         let modal_y = full_area.y + full_area.height.saturating_sub(modal_h) / 2;
-
-        // Panel "Jugando: X" encima del modal
         if let Some((ref name, ref genre)) = crate::game_detect::get() {
             let panel_h: u16 = 3;
             let game_y = modal_y.saturating_sub(panel_h);
@@ -498,8 +496,6 @@ fn render_rename_overlay(frame: &mut Frame, input: &str) {
         text_area,
     );
 }
-
-/// Versión inline (1 fila, sin bordes) para la vista principal.
 fn render_game_inline(frame: &mut Frame, area: Rect, name: &str, genre: &str) {
     let label = t("overlay.playing_game").to_uppercase();
     let mut spans = vec![
@@ -594,15 +590,11 @@ fn render_modal_np_strip(frame: &mut Frame, strip: Rect, state: &PlayerState) {
 
     let cx = inner.x + H_PAD;
     let cw = inner.width.saturating_sub(H_PAD * 2);
-
-    // Station line
     let station_line = build_modal_station_line(state);
     frame.render_widget(
         Paragraph::new(station_line).style(Style::default().bg(STRIP_BG)),
         Rect::new(cx, inner.y, cw, 1),
     );
-
-    // Title lines
     for (i, tline) in title_lines.into_iter().enumerate() {
         let row_y = inner.y + 1 + i as u16;
         if row_y < inner.bottom() {

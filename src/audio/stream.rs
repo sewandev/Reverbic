@@ -30,9 +30,6 @@ impl StreamReader {
         self.buffered += chunk.len();
         self.chunks.push_back(chunk);
     }
-
-    /// Retorna un handle al timestamp del último chunk recibido (unix millis, 0=nunca).
-    /// El audio_loop lo retiene para detectar stalls sin necesidad de acceder al StreamReader.
     pub fn last_chunk_arc(&self) -> Arc<AtomicU64> {
         Arc::clone(&self.last_chunk_at)
     }
@@ -90,11 +87,6 @@ impl StreamReader {
             download_done: Arc::new(AtomicBool::new(false)),
         }
     }
-
-    /// Llena el buffer interno hasta `target_bytes` antes de entregar el reader al decoder.
-    /// Llama a `progress(pct)` tras cada chunk recibido (0.0-1.0).
-    /// Usa recv_timeout de 100 ms para liberar el mutex entre iteraciones y permitir
-    /// que el callback actualice el estado en el watch channel sin bloquear la UI.
     pub fn pre_buffer(&mut self, target_bytes: usize, mut progress: impl FnMut(f32)) {
         while self.buffered < target_bytes {
             let rx = self.rx.lock().expect("StreamReader mutex poisoned");
@@ -119,8 +111,6 @@ impl Read for StreamReader {
         if out.is_empty() {
             return Ok(0);
         }
-
-        // Bloquear solo si el buffer está completamente vacío
         if self.buffered == 0 {
             let rx = self.rx.lock().expect("StreamReader mutex poisoned");
             match rx.recv() {
@@ -131,8 +121,6 @@ impl Read for StreamReader {
                 Err(_) => return Ok(0), // canal cerrado = EOF
             }
         }
-
-        // Drenar sin bloquear para mantener el buffer lleno
         {
             let mut pending: Vec<Bytes> = Vec::new();
             {
@@ -148,8 +136,6 @@ impl Read for StreamReader {
                 self.push_chunk(chunk);
             }
         }
-
-        // Copiar desde chunks al output — una sola pasada, sin byte-a-byte
         let mut written = 0;
         while written < out.len() {
             let front = match self.chunks.front() {
@@ -252,15 +238,11 @@ async fn download_stream(
             }
             Err(e) => {
                 tracing::warn!("Error en chunk ({total_audio_bytes} bytes recibidos): {e}");
-                // El stream puede recuperarse si la conexión TCP sigue activa.
-                // Si no, el próximo stream.next().await retornará None y saldremos.
             }
         }
     }
 
     tracing::info!("Stream terminado: {total_audio_bytes} bytes de audio totales");
-    // Señalizar descarga completa ANTES de que title_tx se droppee al retornar,
-    // para que process_icy_titles vea done=true cuando detecte el Disconnected.
     download_done.store(true, Ordering::Release);
     Ok(())
 }
@@ -487,7 +469,6 @@ impl IcyStripper {
             match self.state {
                 IcyState::Audio(remaining) => {
                     if self.metaint == 0 {
-                        // Sin ICY — pasar todo directamente, sin copia extra
                         output.extend_from_slice(input);
                         return;
                     }

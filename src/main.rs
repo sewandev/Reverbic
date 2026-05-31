@@ -37,8 +37,6 @@ async fn main() -> Result<()> {
         original_hook(info);
     }));
     let _log_guard = init_logging();
-
-    // i18n debe inicializarse antes de cualquier render
     i18n::init(config::Config::load().language);
     game_detect::init_game_db();
 
@@ -93,8 +91,6 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
         overlay::spawn(app.player.subscribe(), config_rx, app.player.clone_sender());
         app.windows_tx = Some(config_tx);
     }
-
-    // Auto-play de la última radio si está habilitado
     if app.config.autoplay_last {
         if let Some(saved) = app.config.last_station.clone() {
             use crate::station::{enrich, find_enrichment, Station};

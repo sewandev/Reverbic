@@ -425,8 +425,6 @@ impl SearchModalWidget<'_> {
             Language::Es => t("lang.display.es"),
             Language::En => t("lang.display.en"),
         };
-
-        // Filas: None = grupo (no seleccionable), Some = item seleccionable
         let mut rows: Vec<(String, Option<String>)> = vec![
             (t("config.group.playback"),          None),
             (t("config.setting.autoplay"),        Some(if self.autoplay_last  { on.clone() } else { off.clone() })),
@@ -449,8 +447,6 @@ impl SearchModalWidget<'_> {
             (t("config.group.appearance"),        None),
             (t("config.setting.language"),        Some(lang_value)),
         ]);
-
-        // Índice de fila del item seleccionado (para calcular scroll)
         let mut item_idx = 0usize;
         let mut selected_row = 0usize;
         for (ri, (_, val)) in rows.iter().enumerate() {
@@ -498,15 +494,12 @@ impl SearchModalWidget<'_> {
                 ])).render(Rect::new(list_x, y, list_w, 1), buf);
                 item_idx += 1;
             } else {
-                // Encabezado de grupo
                 Paragraph::new(Span::styled(
                     format!("── {} ", label),
                     Style::default().fg(theme::MUTED),
                 )).render(Rect::new(list_x, y, list_w, 1), buf);
             }
         }
-
-        // Scrollbar cuando el total de filas supera el espacio visible
         let total_rows = rows.len();
         if total_rows > visible_n {
             let scroll_area = Rect::new(list_x, list_area.y, list_w, list_area.height);

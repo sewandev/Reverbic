@@ -50,8 +50,6 @@ pub fn save(favorites: &[FavoriteStation]) {
         }
     }
 }
-
-/// Devuelve `true` si fue añadida, `false` si fue quitada.
 pub fn toggle(favorites: &mut Vec<FavoriteStation>, fav: FavoriteStation) -> bool {
     if let Some(i) = favorites.iter().position(|f| f.url == fav.url) {
         favorites.remove(i);
