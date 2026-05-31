@@ -16,6 +16,7 @@ use crate::station::Station;
 
 pub enum PlayerCommand {
     Play(Station),
+    CrossfadeTo { station: Station, secs: u8 },
     Pause,
     Resume,
     Stop,
@@ -320,6 +321,13 @@ fn backoff_duration(attempt: u32, base_secs: u64, max_secs: u64) -> std::time::D
     std::time::Duration::from_millis(exp * 1000 + jitter_ms)
 }
 
+struct CrossfadeOut {
+    player:       Player,
+    from_vol:     f32,
+    start:        std::time::Instant,
+    duration_secs: f32,
+}
+
 fn audio_loop(
     mut cmd_rx: mpsc::Receiver<PlayerCommand>,
     state_tx: watch::Sender<PlayerState>,
@@ -352,6 +360,7 @@ fn audio_loop(
     let mut od = OnDemandTracker::inactive();
     let mut stream_last_chunk:    Option<Arc<AtomicU64>>  = None;
     let mut stream_download_done: Option<Arc<AtomicBool>> = None;
+    let mut crossfade_out:        Option<CrossfadeOut>    = None;
     const STALL_SECS_LIVE: u64           = 30;
     const STALL_SECS_ON_DEMAND: u64      = 60;
     const MAX_STREAM_RETRIES: u32        = 6;
@@ -362,6 +371,20 @@ fn audio_loop(
     const PRE_BUFFER_SECS: f32 = 30.0;
 
     loop {
+        let cf_done = if let Some(ref cf) = crossfade_out {
+            let progress = (cf.start.elapsed().as_secs_f32() / cf.duration_secs).clamp(0.0, 1.0);
+            cf.player.set_volume(cf.from_vol * (1.0 - progress));
+            if let Some(ref p) = player {
+                p.set_volume(current_volume * progress);
+            }
+            progress >= 1.0
+        } else {
+            false
+        };
+        if cf_done {
+            if let Some(cf) = crossfade_out.take() { cf.player.stop(); }
+        }
+
         let api_fresh = api_last_success
             .map(|t| t.elapsed().as_secs() < 60)
             .unwrap_or(false);
@@ -476,9 +499,8 @@ fn audio_loop(
                 api_has_recent     = false;
                 volume_before_duck = None;
                 od.reset();
-                if let Some(p) = player.take() {
-                    p.stop();
-                }
+                if let Some(cf) = crossfade_out.take() { cf.player.stop(); }
+                if let Some(p) = player.take() { p.stop(); }
 
                 info!("Conectando a: {}", station.name);
                 let _ = state_tx.send(PlayerState {
@@ -571,6 +593,110 @@ fn audio_loop(
                             });
                         } else {
                             error!("Stream falló después de {} intentos: {e}", retry_count);
+                            let _ = state_tx.send(PlayerState {
+                                status:  PlayerStatus::Error(format!("Stream: {} intentos fallidos", retry_count)),
+                                station: Some(station),
+                                volume:  current_volume,
+                                ..Default::default()
+                            });
+                        }
+                    }
+                }
+            }
+
+            PlayerCommand::CrossfadeTo { station, secs } => {
+                reconnect_count = 0;
+                if let Some(cf) = crossfade_out.take() { cf.player.stop(); }
+                current_station    = Some(station.clone());
+                reconnect_at       = None;
+                stream_retry_at    = None;
+                api_last_success   = None;
+                api_has_recent     = false;
+                volume_before_duck = None;
+                od.reset();
+
+                let outgoing = player.take();
+
+                info!("Crossfade → {}", station.name);
+                let _ = state_tx.send(PlayerState {
+                    status:  PlayerStatus::Connecting,
+                    station: Some(station.clone()),
+                    volume:  current_volume,
+                    ..Default::default()
+                });
+
+                let is_on_demand = station.key.starts_with("ondemand_");
+                let url = station.url.to_string();
+                let ch_size = if is_on_demand { 4096 } else { 64 };
+                let (stream_reader, new_title_rx) = StreamReader::connect(url, 0, ch_size, handle.clone());
+                title_rx             = Some(new_title_rx);
+                stream_last_chunk    = Some(stream_reader.last_chunk_arc());
+                stream_download_done = Some(stream_reader.download_done_arc());
+
+                let buf_cap = if is_on_demand { 512 * 1024 } else { 8 * 1024 };
+                let reader = std::io::BufReader::with_capacity(buf_cap, stream_reader);
+
+                match Decoder::try_from(reader) {
+                    Ok(decoder) => {
+                        stream_retry_at = None;
+                        let duration_secs = decoder
+                            .total_duration()
+                            .map(|d| d.as_secs_f32())
+                            .filter(|&d| d > 0.0);
+                        let metered = MeterSource::new(decoder, Arc::clone(&level));
+                        let new_player = Player::connect_new(&device_sink.mixer());
+                        new_player.set_volume(0.0);
+                        new_player.append(metered);
+                        new_player.play();
+
+                        if let Some(out) = outgoing {
+                            crossfade_out = Some(CrossfadeOut {
+                                player:        out,
+                                from_vol:      current_volume,
+                                start:         std::time::Instant::now(),
+                                duration_secs: secs as f32,
+                            });
+                        }
+                        player = Some(new_player);
+                        od.start_playback(is_on_demand);
+
+                        info!(station = %station.name, "Crossfade: reproducción iniciada");
+                        let _ = state_tx.send(PlayerState {
+                            status:                 PlayerStatus::Playing,
+                            station:                Some(station.clone()),
+                            level_db:               -60.0,
+                            volume:                 current_volume,
+                            title:                  None,
+                            recent_titles:          Vec::new(),
+                            api_show:               None,
+                            preview_title:          None,
+                            preview_searching:      false,
+                            preview_loading_track:  None,
+                            preview_playing_track:  None,
+                            preview_unavailable:    HashSet::new(),
+                            playback_pos_secs:      if is_on_demand { Some(0.0) } else { None },
+                            playback_duration_secs: duration_secs,
+                        });
+                    }
+                    Err(e) => {
+                        if let Some(out) = outgoing { out.stop(); }
+                        title_rx = None;
+                        let retry_count = stream_retry_at.take().map(|(count, _)| count + 1).unwrap_or(1);
+                        if retry_count <= MAX_STREAM_RETRIES {
+                            let delay = backoff_duration(retry_count - 1, BASE_RETRY_DELAY_SECS, MAX_RETRY_DELAY_SECS);
+                            warn!(
+                                "Crossfade: error al decodificar stream (intento {}/{}): {e}. Reintentando en {:.1}s",
+                                retry_count, MAX_STREAM_RETRIES, delay.as_secs_f32()
+                            );
+                            stream_retry_at = Some((retry_count, std::time::Instant::now() + delay));
+                            let _ = state_tx.send(PlayerState {
+                                status:  PlayerStatus::Reconnecting(retry_count),
+                                station: Some(station),
+                                volume:  current_volume,
+                                ..Default::default()
+                            });
+                        } else {
+                            error!("Crossfade: stream falló después de {} intentos: {e}", retry_count);
                             let _ = state_tx.send(PlayerState {
                                 status:  PlayerStatus::Error(format!("Stream: {} intentos fallidos", retry_count)),
                                 station: Some(station),
@@ -740,9 +866,8 @@ fn audio_loop(
             }
 
             PlayerCommand::Stop => {
-                if let Some(p) = player.take() {
-                    p.stop();
-                }
+                if let Some(cf) = crossfade_out.take() { cf.player.stop(); }
+                if let Some(p) = player.take() { p.stop(); }
                 if let Some(p) = preview_player.take() { p.stop(); }
                 title_rx             = None;
                 api_last_success     = None;
