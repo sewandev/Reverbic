@@ -58,6 +58,11 @@
   "config.value.on": "ON",
   "config.value.off": "OFF",
   "config.value.restart_dota": "Restart Dota 2",
+  "dota.phase.loading": "Loading match",
+  "dota.phase.hero_selection": "Hero selection",
+  "dota.phase.strategy": "Strategy time",
+  "dota.phase.pregame": "Pre-game",
+  "dota.phase.finished": "Match finished",
 
   "overlay.playing_game": "🎮 Gaming Mode",
   "overlay.when_playing": "When playing",

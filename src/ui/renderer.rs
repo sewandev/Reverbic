@@ -619,18 +619,22 @@ fn render_screensaver(
     }
 
     if let Some((ref name, ref genre)) = crate::game_detect::get() {
-        let line = match crate::integrations::dota2::get().filter(|d| !d.hero.is_empty()) {
-            Some(ref d) => Line::from(vec![
-                Span::styled(format!("🎮 {name}  ·  "), Style::default().fg(theme::DIM)),
-                Span::styled(d.hero.clone(), Style::default().fg(theme::HIGHLIGHT)),
-                Span::styled("  ·  ", Style::default().fg(theme::DIM)),
-                Span::styled(d.kda(), Style::default().fg(theme::MUTED)),
-                Span::styled("  ·  ", Style::default().fg(theme::DIM)),
-                Span::styled(d.time_display(), Style::default().fg(theme::MUTED)),
-                Span::styled("  ·  ", Style::default().fg(theme::DIM)),
-                Span::styled(d.gold(), Style::default().fg(theme::MUTED)),
-            ]),
-            None => {
+        let line = match crate::integrations::dota2::get() {
+            Some(ref d) if !d.display_parts().is_empty() => {
+                let parts = d.display_parts();
+                let mut spans = vec![Span::styled(format!("🎮 {name}  ·  "), Style::default().fg(theme::DIM))];
+                for (i, part) in parts.iter().enumerate() {
+                    if i > 0 { spans.push(Span::styled("  ·  ", Style::default().fg(theme::DIM))); }
+                    let style = if i == 0 && !d.hero.is_empty() {
+                        Style::default().fg(theme::HIGHLIGHT)
+                    } else {
+                        Style::default().fg(theme::MUTED)
+                    };
+                    spans.push(Span::styled(part.clone(), style));
+                }
+                Line::from(spans)
+            }
+            _ => {
                 let text = if genre.is_empty() { format!("🎮 {name}") }
                            else { format!("🎮 {name}  ·  {genre}") };
                 Line::from(Span::styled(text, Style::default().fg(theme::DIM)))
@@ -716,10 +720,16 @@ fn render_game_inline(frame: &mut Frame, area: Rect, name: &str, genre: &str) {
         Span::styled(format!("  {label}  "), Style::default().fg(theme::MUTED)),
         Span::styled(name.to_owned(), theme::PLAYING_STYLE),
     ];
-    if let Some(ref d) = crate::integrations::dota2::get().filter(|d| !d.hero.is_empty()) {
-        spans.push(Span::styled("  ·  ", Style::default().fg(theme::MUTED)));
-        spans.push(Span::styled(d.hero.clone(), Style::default().fg(theme::HIGHLIGHT)));
-        spans.push(Span::styled(format!("  {}  {}  {}", d.kda(), d.time_display(), d.gold()), Style::default().fg(theme::DIM)));
+    if let Some(ref d) = crate::integrations::dota2::get() {
+        for (i, part) in d.display_parts().into_iter().enumerate() {
+            spans.push(Span::styled("  ·  ", Style::default().fg(theme::MUTED)));
+            let style = if i == 0 && !d.hero.is_empty() {
+                Style::default().fg(theme::HIGHLIGHT)
+            } else {
+                Style::default().fg(theme::DIM)
+            };
+            spans.push(Span::styled(part, style));
+        }
     } else if !genre.is_empty() {
         spans.push(Span::styled("  ·  ", Style::default().fg(theme::MUTED)));
         spans.push(Span::styled(genre.to_owned(), Style::default().fg(theme::DIM)));
@@ -752,15 +762,16 @@ fn render_game_strip(frame: &mut Frame, area: Rect, name: &str, genre: &str) {
     let mut spans: Vec<Span<'static>> = vec![
         Span::styled(name.to_owned(), theme::PLAYING_STYLE),
     ];
-    if let Some(ref d) = crate::integrations::dota2::get().filter(|d| !d.hero.is_empty()) {
-        spans.push(Span::styled("  ·  ", Style::default().fg(theme::MUTED)));
-        spans.push(Span::styled(d.hero.clone(), Style::default().fg(theme::HIGHLIGHT)));
-        spans.push(Span::styled("  ·  ", Style::default().fg(theme::MUTED)));
-        spans.push(Span::styled(d.kda(), Style::default().fg(theme::DIM)));
-        spans.push(Span::styled("  ·  ", Style::default().fg(theme::MUTED)));
-        spans.push(Span::styled(d.time_display(), Style::default().fg(theme::DIM)));
-        spans.push(Span::styled("  ·  ", Style::default().fg(theme::MUTED)));
-        spans.push(Span::styled(d.gold(), Style::default().fg(theme::DIM)));
+    if let Some(ref d) = crate::integrations::dota2::get() {
+        for (i, part) in d.display_parts().into_iter().enumerate() {
+            spans.push(Span::styled("  ·  ", Style::default().fg(theme::MUTED)));
+            let style = if i == 0 && !d.hero.is_empty() {
+                Style::default().fg(theme::HIGHLIGHT)
+            } else {
+                Style::default().fg(theme::DIM)
+            };
+            spans.push(Span::styled(part, style));
+        }
     } else if !genre.is_empty() {
         spans.push(Span::styled("  ·  ", Style::default().fg(theme::MUTED)));
         spans.push(Span::styled(genre.to_owned(), Style::default().fg(theme::DIM)));

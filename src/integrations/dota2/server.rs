@@ -1,7 +1,7 @@
 use std::sync::{Arc, Mutex};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
-use super::state::{Dota2State, hero_display};
+use super::state::{Dota2State, DotaPhase, hero_display};
 
 pub async fn run(port: u16, state: Arc<Mutex<Dota2State>>) {
     let listener = match TcpListener::bind(format!("127.0.0.1:{port}")).await {
@@ -69,15 +69,12 @@ fn apply(json: &serde_json::Value, state: &Arc<Mutex<Dota2State>>) {
 
     if let Some(map) = json.get("map") {
         let gs = map["game_state"].as_str().unwrap_or("");
-        s.in_game = matches!(
-            gs,
-            "DOTA_GAMERULES_STATE_GAME_IN_PROGRESS" | "DOTA_GAMERULES_STATE_PRE_GAME"
-        );
+        s.phase = DotaPhase::from_str(gs);
         if let Some(t) = map["clock_time"].as_i64() {
             s.game_time_secs = t as i32;
         }
     } else {
-        s.in_game = false;
+        s.phase = DotaPhase::None;
     }
 
     if let Some(p) = json.get("player") {
@@ -85,6 +82,9 @@ fn apply(json: &serde_json::Value, state: &Arc<Mutex<Dota2State>>) {
         s.deaths    = p["deaths"].as_u64().unwrap_or(0) as u32;
         s.assists   = p["assists"].as_u64().unwrap_or(0) as u32;
         s.net_worth = p["net_worth"].as_u64().unwrap_or(0) as u32;
+        if let Some(team) = p["team_name"].as_str().filter(|t| !t.is_empty()) {
+            s.team = team.to_string();
+        }
     }
 
     if let Some(hero) = json.get("hero") {
