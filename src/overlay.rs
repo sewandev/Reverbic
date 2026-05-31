@@ -11,6 +11,7 @@ use windows::{
         Foundation::*,
         Graphics::Gdi::*,
         Media::Audio::{
+            AudioSessionStateActive, AudioSessionStateExpired,
             IAudioSessionControl2, IAudioSessionEnumerator, IAudioSessionManager2,
             IMMDeviceEnumerator, MMDeviceEnumerator, eConsole, eRender,
             Endpoints::IAudioMeterInformation,
@@ -714,23 +715,39 @@ unsafe fn detect_audio_activity(
         Ok(e) => e, Err(_) => return (0.0, None),
     };
     let count: i32 = ses_enum.GetCount().unwrap_or(0);
-    let mut max_peak = 0.0f32;
-    let mut top_pid: Option<u32> = None;
+
+    let mut max_peak    = 0.0f32;
+    let mut active_pid:   Option<u32> = None; // sesión activa (sonando ahora)
+    let mut inactive_pid: Option<u32> = None; // sesión inactiva (alt+tab, pausada)
+
     for i in 0..count {
-        let ctrl = match ses_enum.GetSession(i) { Ok(c) => c, Err(_) => continue };
+        let ctrl  = match ses_enum.GetSession(i)         { Ok(c) => c, Err(_) => continue };
         let ctrl2: IAudioSessionControl2 = match ctrl.cast() { Ok(c) => c, Err(_) => continue };
-        let pid = ctrl2.GetProcessId().unwrap_or(own_pid);
-        if pid == own_pid { continue }
+        let pid   = ctrl2.GetProcessId().unwrap_or(own_pid);
+        if pid == own_pid || pid == 0 { continue }
+
+        // Sesiones Expired = proceso cerró su sesión de audio → ignorar
+        let state = ctrl.GetState().unwrap_or(AudioSessionStateExpired);
+        if state == AudioSessionStateExpired { continue }
+
         let meter: IAudioMeterInformation = match ctrl.cast() { Ok(m) => m, Err(_) => continue };
         let peak: f32 = meter.GetPeakValue().unwrap_or(0.0);
-        if peak > max_peak { max_peak = peak; top_pid = Some(pid); }
+
+        if state == AudioSessionStateActive {
+            // Activo: candidato principal para duck y para mostrar nombre
+            if peak >= max_peak { max_peak = peak; active_pid = Some(pid); }
+        } else if inactive_pid.is_none() {
+            // Inactivo (alt+tab): sesión existe pero silenciada → fallback para nombre
+            inactive_pid = Some(pid);
+        }
     }
-    let name = if max_peak > DUCK_THRESHOLD {
-        top_pid.and_then(|pid| proc_map.get(&pid).cloned())
-    } else {
-        None
-    };
-    (max_peak, name)
+
+    // Duck usa solo sesiones activas con peak real
+    // Nombre del juego: activo primero, si no hay → inactivo (alt+tab)
+    let game_pid  = active_pid.or(inactive_pid);
+    let game_name = game_pid.and_then(|pid| proc_map.get(&pid).cloned());
+
+    (max_peak, game_name)
 }
 
 fn wide_truncated(s: &str, max: usize) -> Vec<u16> {
