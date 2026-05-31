@@ -497,7 +497,7 @@ fn render_rename_overlay(frame: &mut Frame, input: &str) {
     );
 }
 fn render_game_inline(frame: &mut Frame, area: Rect, name: &str, genre: &str) {
-    let label = t("overlay.playing_game").to_uppercase();
+    let label = t("overlay.playing_game");
     let mut spans = vec![
         Span::styled(format!("  {label}  "), Style::default().fg(theme::MUTED)),
         Span::styled(name.to_owned(), theme::PLAYING_STYLE),
@@ -517,7 +517,7 @@ fn render_game_strip(frame: &mut Frame, area: Rect, name: &str, genre: &str) {
     let block = Block::default()
         .title_top(
             Line::from(Span::styled(
-                format!(" {} ", t("overlay.playing_game").to_uppercase()),
+                format!(" {} ", t("overlay.playing_game")),
                 Style::default().fg(theme::MUTED),
             ))
             .alignment(Alignment::Left),
