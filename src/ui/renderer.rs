@@ -606,12 +606,9 @@ fn render_screensaver(
             put!(Line::from(Span::styled(tag_str, Style::default().fg(theme::MUTED))));
         } else { row += 1; }
 
-        // Homepage — Ctrl+Click en Windows Terminal para abrir
+        // Homepage — Ctrl+Click en Windows Terminal detecta URLs con protocolo completo
         if !d.homepage.is_empty() {
-            let url = d.homepage.trim_start_matches("https://")
-                                 .trim_start_matches("http://")
-                                 .trim_end_matches('/')
-                                 .to_string();
+            let url = d.homepage.trim_end_matches('/').to_string();
             put!(Line::from(vec![
                 Span::styled("↗  ", Style::default().fg(theme::MUTED)),
                 Span::styled(url, Style::default().fg(theme::ACCENT).add_modifier(Modifier::UNDERLINED)),
