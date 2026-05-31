@@ -22,18 +22,22 @@ fn store() -> &'static Mutex<Option<(String, String)>> {
 pub fn init_game_db() {
     const EMBEDDED: &str = include_str!("../assets/games.json");
 
-    let mut db: HashMap<String, GameInfo> = serde_json::from_str(EMBEDDED)
-        .unwrap_or_default();
-
-    // Eliminar la clave de comentario si existe
-    db.remove("_note");
+    // Parseo leniente: saltar entradas que no sean {name, genre} (ej: _note)
+    let raw: HashMap<String, serde_json::Value> =
+        serde_json::from_str(EMBEDDED).unwrap_or_default();
+    let mut db: HashMap<String, GameInfo> = raw
+        .into_iter()
+        .filter_map(|(k, v)| serde_json::from_value::<GameInfo>(v).ok().map(|i| (k, i)))
+        .collect();
 
     // Override del usuario
     let user_path = crate::config::reverbic_dir().join("games.json");
     if let Ok(data) = std::fs::read_to_string(&user_path) {
-        if let Ok(user_db) = serde_json::from_str::<HashMap<String, GameInfo>>(&data) {
-            for (k, v) in user_db {
-                if k != "_note" { db.insert(k, v); }
+        if let Ok(raw_user) = serde_json::from_str::<HashMap<String, serde_json::Value>>(&data) {
+            for (k, v) in raw_user {
+                if let Ok(info) = serde_json::from_value::<GameInfo>(v) {
+                    db.insert(k, info);
+                }
             }
         }
     }
