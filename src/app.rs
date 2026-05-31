@@ -11,7 +11,7 @@ use crate::preview::{deezer_preview, parse_seek_input};
 use crate::schedule::poll_metadata_loop;
 use crate::station::on_demand::OnDemandShow;
 use crate::i18n::{self, t};
-use crate::station::{enrich, fetch_station_details, find_enrichment, is_duplicate, on_demand, search_stations, search_stations_by_tag, search_stations_by_country, DynamicStation, Station, StationDetails};
+use crate::station::{enrich, fetch_station_details, fetch_station_details_by_name, is_uuid, find_enrichment, is_duplicate, on_demand, search_stations, search_stations_by_tag, search_stations_by_country, DynamicStation, Station, StationDetails};
 
 pub enum SearchMode {
     Name,
@@ -1018,12 +1018,23 @@ impl App {
         self.last_details_uuid = current_uuid.clone();
         self.station_details   = None;
 
-        if let Some(uuid) = current_uuid {
-            if uuid.is_empty() || uuid.starts_with("ondemand_") { return; }
+        if let Some(key) = current_uuid {
+            if key.is_empty() || key.starts_with("ondemand_") { return; }
+
+            let station_name = self.player.state().station
+                .as_ref().map(|s| s.name.clone()).unwrap_or_default();
+
             let (tx, rx) = std::sync::mpsc::channel();
             self.station_details_rx = Some(rx);
             tokio::spawn(async move {
-                if let Some(d) = fetch_station_details(&uuid).await {
+                // Si la key es un UUID de RadioBrowser → byuuid (preciso)
+                // Si es una key interna (enriched) → búsqueda por nombre
+                let details = if is_uuid(&key) {
+                    fetch_station_details(&key).await
+                } else {
+                    fetch_station_details_by_name(&station_name).await
+                };
+                if let Some(d) = details {
                     let _ = tx.send(d);
                 }
             });
