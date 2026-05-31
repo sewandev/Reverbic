@@ -138,14 +138,12 @@ pub fn render(frame: &mut Frame, app: &App) {
     }
 
     if let Some(r) = layout.now_playing {
-        // Si hay juego activo, mostrar panel de juego encima de now_playing
-        if let Some(ref game) = crate::game_detect::get() {
-            let area = frame.area();
-            let panel_w = area.width.min(66).max(44);
-            let panel_x = area.x + area.width.saturating_sub(panel_w) / 2;
-            let panel_h: u16 = 1;
-            if r.y >= panel_h {
-                render_game_inline(frame, Rect::new(panel_x, r.y, panel_w, panel_h), game);
+        if let Some((ref name, ref genre)) = crate::game_detect::get() {
+            let area  = frame.area();
+            let pw    = area.width.min(66).max(44);
+            let px    = area.x + area.width.saturating_sub(pw) / 2;
+            if r.y >= 1 {
+                render_game_inline(frame, Rect::new(px, r.y, pw, 1), name, genre);
             }
         }
         frame.render_widget(NowPlayingWidget { state: &player_state }, r);
@@ -222,11 +220,11 @@ pub fn render(frame: &mut Frame, app: &App) {
         let modal_x = full_area.x + full_area.width.saturating_sub(modal_w) / 2;
         let modal_y = full_area.y + full_area.height.saturating_sub(modal_h) / 2;
 
-        // Panel "Jugando: X" encima del modal — se ancla al borde superior si no hay espacio
-        if let Some(ref game) = crate::game_detect::get() {
+        // Panel "Jugando: X" encima del modal
+        if let Some((ref name, ref genre)) = crate::game_detect::get() {
             let panel_h: u16 = 3;
             let game_y = modal_y.saturating_sub(panel_h);
-            render_game_strip(frame, Rect::new(modal_x, game_y, modal_w, panel_h), game);
+            render_game_strip(frame, Rect::new(modal_x, game_y, modal_w, panel_h), name, genre);
         }
 
         let strip_y     = modal_y + modal_h;
@@ -502,16 +500,20 @@ fn render_rename_overlay(frame: &mut Frame, input: &str) {
 }
 
 /// Versión inline (1 fila, sin bordes) para la vista principal.
-fn render_game_inline(frame: &mut Frame, area: Rect, game: &str) {
+fn render_game_inline(frame: &mut Frame, area: Rect, name: &str, genre: &str) {
     let label = t("overlay.playing_game").to_uppercase();
-    let line = Line::from(vec![
+    let mut spans = vec![
         Span::styled(format!("  {label}  "), Style::default().fg(theme::MUTED)),
-        Span::styled(game.to_owned(), theme::PLAYING_STYLE),
-    ]);
-    frame.render_widget(Paragraph::new(line), area);
+        Span::styled(name.to_owned(), theme::PLAYING_STYLE),
+    ];
+    if !genre.is_empty() {
+        spans.push(Span::styled("  ·  ", Style::default().fg(theme::MUTED)));
+        spans.push(Span::styled(genre.to_owned(), Style::default().fg(theme::DIM)));
+    }
+    frame.render_widget(Paragraph::new(Line::from(spans)), area);
 }
 
-fn render_game_strip(frame: &mut Frame, area: Rect, game: &str) {
+fn render_game_strip(frame: &mut Frame, area: Rect, name: &str, genre: &str) {
     use ratatui::{layout::Alignment, style::Color, widgets::{Block, BorderType, Borders}};
     const BG: Color = Color::Rgb(13, 13, 13);
     const H_PAD: u16 = 2;
@@ -531,10 +533,18 @@ fn render_game_strip(frame: &mut Frame, area: Rect, game: &str) {
     let inner = block.inner(area);
     frame.render_widget(block, area);
 
+    let cx = inner.x + H_PAD;
+    let cw = inner.width.saturating_sub(H_PAD * 2);
+    let mut spans: Vec<Span<'static>> = vec![
+        Span::styled(name.to_owned(), theme::PLAYING_STYLE),
+    ];
+    if !genre.is_empty() {
+        spans.push(Span::styled("  ·  ", Style::default().fg(theme::MUTED)));
+        spans.push(Span::styled(genre.to_owned(), Style::default().fg(theme::DIM)));
+    }
     frame.render_widget(
-        Paragraph::new(Span::styled(game.to_owned(), theme::PLAYING_STYLE))
-            .style(Style::default().bg(BG)),
-        Rect::new(inner.x + H_PAD, inner.y, inner.width.saturating_sub(H_PAD * 2), 1),
+        Paragraph::new(Line::from(spans)).style(Style::default().bg(BG)),
+        Rect::new(cx, inner.y, cw, 1),
     );
 }
 
