@@ -217,6 +217,11 @@ impl App {
         )));
     }
 
+    fn save_config(&mut self) {
+        self.config.volume = self.player.state().volume;
+        self.config.save();
+    }
+
     fn stop_metadata_polling(&mut self) {
         if let Some(handle) = self.metadata_task.take() {
             handle.abort();
@@ -273,7 +278,7 @@ impl App {
             url:          station.url.clone(),
             bitrate_kbps: station.bitrate_kbps,
         });
-        self.config.save();
+        self.save_config();
         self.stop_metadata_polling();
 
         let fade = self.config.crossfade_secs;
@@ -479,10 +484,8 @@ impl App {
                 return;
             }
             KeyCode::Char('q') => {
-                let state = self.player.state();
-                self.config.volume = state.volume;
                 self.config.last_selected = self.selected;
-                self.config.save();
+                self.save_config();
                 self.stop_metadata_polling();
                 self.player.send(PlayerCommand::Stop).await;
                 self.should_quit = true;
@@ -590,7 +593,7 @@ impl App {
                     self.show_search_modal = false;
                     if !self.search_query.is_empty() {
                         self.config.add_to_history(self.search_query.clone());
-                        self.config.save();
+                        self.save_config();
                     }
                     self.play_dynamic_station(idx).await;
                 }
@@ -879,10 +882,8 @@ impl App {
                     self.search_results.clear();
                     self.selected = self.selected.min(self.stations.len().saturating_sub(1));
                 } else {
-                    let state = self.player.state();
-                    self.config.volume = state.volume;
                     self.config.last_selected = self.selected.min(self.stations.len().saturating_sub(1));
-                    self.config.save();
+                    self.save_config();
                     self.stop_metadata_polling();
                     self.player.send(PlayerCommand::Stop).await;
                     self.should_quit = true;
@@ -1321,7 +1322,7 @@ impl App {
                 }
             }
         }
-        self.config.save();
+        self.save_config();
         if let Some(ref tx) = self.windows_tx {
             let _ = tx.send(self.config.clone());
         }
