@@ -215,9 +215,11 @@ pub fn render(frame: &mut Frame, app: &App) {
                 notifications:      app.config.notifications,
                 restore_volume:     app.config.restore_volume,
                 duck_enabled:       app.config.duck_enabled,
-                duck_volume:        app.config.duck_volume,
-                overlay_alpha:      app.config.overlay_alpha,
-                screensaver_secs:   app.config.screensaver_secs,
+                duck_volume:               app.config.duck_volume,
+                overlay_alpha:             app.config.overlay_alpha,
+                screensaver_secs:          app.config.screensaver_secs,
+                game_integrations_enabled: app.config.game_integrations.enabled,
+                integration_dota2:         app.config.game_integrations.dota2,
             },
             full_area,
         );
@@ -616,8 +618,12 @@ fn render_screensaver(
     }
 
     if let Some((ref name, ref genre)) = crate::game_detect::get() {
-        let game_line = if genre.is_empty() { format!("🎮 {name}") }
-                        else { format!("🎮 {name}  ·  {genre}") };
+        let gsi = crate::integrations::dota2::get();
+        let game_line = match gsi {
+            Some(ref d) if !d.hero.is_empty() =>
+                format!("🎮 {}  ·  {}  ·  {}  ·  {}", d.hero, d.kda(), d.time_display(), d.gold()),
+            _ => if genre.is_empty() { format!("🎮 {name}") } else { format!("🎮 {name}  ·  {genre}") },
+        };
         put!(Line::from(Span::styled(game_line, Style::default().fg(theme::DIM))));
     }
 

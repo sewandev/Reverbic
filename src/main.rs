@@ -12,6 +12,7 @@ mod app;
 mod audio;
 mod game_detect;
 mod config;
+mod integrations;
 mod error;
 mod favorites;
 mod i18n;
