@@ -149,9 +149,34 @@ impl Config {
     }
 }
 
+#[cfg(target_os = "windows")]
+fn detect_system_language() -> Language {
+    use windows::Win32::Globalization::GetUserDefaultLocaleName;
+    let mut buf = [0u16; 85];
+    let len = unsafe { GetUserDefaultLocaleName(&mut buf) };
+    if len > 1 {
+        let locale = String::from_utf16_lossy(&buf[..(len as usize - 1)]);
+        if locale.to_ascii_lowercase().starts_with("es") {
+            return Language::Es;
+        }
+    }
+    Language::En
+}
+
+#[cfg(not(target_os = "windows"))]
+fn detect_system_language() -> Language {
+    Language::En
+}
+
 impl Config {
     pub fn load() -> Self {
         let path = Self::path();
+        if !path.exists() {
+            // Primera vez: auto-detectar idioma del sistema operativo
+            let mut config = Self::default();
+            config.language = detect_system_language();
+            return config;
+        }
         let Ok(data) = std::fs::read_to_string(&path) else {
             return Self::default();
         };
