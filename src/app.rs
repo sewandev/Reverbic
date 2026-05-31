@@ -476,11 +476,15 @@ impl App {
             KeyCode::Char('+') | KeyCode::Char('=') => {
                 let new_vol = (self.player.state().volume + 0.05).min(1.0);
                 self.player.send(PlayerCommand::SetVolume(new_vol)).await;
+                self.config.volume = new_vol;
+                self.config.save();
                 return;
             }
             KeyCode::Char('-') => {
                 let new_vol = (self.player.state().volume - 0.05).max(0.0);
                 self.player.send(PlayerCommand::SetVolume(new_vol)).await;
+                self.config.volume = new_vol;
+                self.config.save();
                 return;
             }
             KeyCode::Char('q') => {
@@ -541,11 +545,15 @@ impl App {
             KeyCode::Char('+') | KeyCode::Char('=') => {
                 let new_vol = (self.player.state().volume + 0.05).min(1.0);
                 self.player.send(PlayerCommand::SetVolume(new_vol)).await;
+                self.config.volume = new_vol;
+                self.config.save();
                 return;
             }
             KeyCode::Char('-') => {
                 let new_vol = (self.player.state().volume - 0.05).max(0.0);
                 self.player.send(PlayerCommand::SetVolume(new_vol)).await;
+                self.config.volume = new_vol;
+                self.config.save();
                 return;
             }
             _ => {}
