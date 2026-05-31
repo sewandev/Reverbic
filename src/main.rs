@@ -86,6 +86,8 @@ fn init_logging() -> Option<tracing_appender::non_blocking::WorkerGuard> {
 async fn run(tui: &mut terminal::Tui) -> Result<()> {
     let mut app = App::new().await;
 
+    app.init_integrations();
+
     #[cfg(target_os = "windows")]
     {
         let (config_tx, config_rx) = tokio::sync::watch::channel(app.config.clone());
