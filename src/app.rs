@@ -509,6 +509,16 @@ impl App {
     pub async fn on_key(&mut self, key: KeyCode) {
         if self.screensaver_active() {
             self.last_activity = Instant::now();
+            if key == KeyCode::Char('o') || key == KeyCode::Char('O') {
+                if let Some(ref d) = self.station_details {
+                    if !d.homepage.is_empty() {
+                        #[cfg(target_os = "windows")]
+                        let _ = std::process::Command::new("cmd")
+                            .args(["/c", "start", "", &d.homepage])
+                            .spawn();
+                    }
+                }
+            }
             return;
         }
         self.last_activity = Instant::now();

@@ -603,7 +603,10 @@ fn render_screensaver(
 
         if !d.homepage.is_empty() {
             let url = d.homepage.trim_end_matches('/').to_string();
-            put!(Line::from(Span::styled(format!("  {url}  "), Style::default().fg(theme::MUTED))));
+            put!(Line::from(vec![
+                Span::styled("[o]  ", Style::default().fg(theme::ACCENT)),
+                Span::styled(url, Style::default().fg(theme::MUTED)),
+            ]));
         } else { row += 1; }
 
         if has_game { row += 1; }
