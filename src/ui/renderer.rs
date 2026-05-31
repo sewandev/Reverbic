@@ -605,7 +605,7 @@ fn render_screensaver(
             let url = d.homepage.trim_end_matches('/').to_string();
             put!(Line::from(vec![
                 Span::styled("[o]  ", Style::default().fg(theme::ACCENT)),
-                Span::styled(url, Style::default().fg(theme::MUTED)),
+                Span::styled(url, Style::default().fg(theme::MUTED).add_modifier(Modifier::UNDERLINED)),
             ]));
         } else { row += 1; }
 
