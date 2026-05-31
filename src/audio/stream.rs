@@ -118,7 +118,7 @@ impl Read for StreamReader {
                     drop(rx);
                     self.push_chunk(chunk);
                 }
-                Err(_) => return Ok(0), // canal cerrado = EOF
+                Err(_) => return Ok(0),
             }
         }
         {
@@ -547,7 +547,7 @@ mod tests {
         meta_block[..title_str.len()].copy_from_slice(title_str);
         let meta_len_byte = (padded_len / 16) as u8;
 
-        let audio = b"AUDIOBYT"; // exactamente 8 bytes
+        let audio = b"AUDIOBYT";
         let mut input = Vec::new();
         input.extend_from_slice(audio);
         input.push(meta_len_byte);

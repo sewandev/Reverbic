@@ -20,7 +20,7 @@ pub enum PlayerCommand {
     Resume,
     Stop,
     SetVolume(f32),
-    Seek(f32), // segundos desde el inicio del archivo on-demand
+    Seek(f32),
     ApiMetadata {
         title:  String,
         artist: String,
@@ -315,7 +315,7 @@ fn backoff_duration(attempt: u32, base_secs: u64, max_secs: u64) -> std::time::D
     let exp = (base_secs * (1u64 << attempt.min(6))).min(max_secs);
     let jitter_ms = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.subsec_nanos() as u64 % 500) // 0–499 ms
+        .map(|d| d.subsec_nanos() as u64 % 500)
         .unwrap_or(0);
     std::time::Duration::from_millis(exp * 1000 + jitter_ms)
 }
@@ -352,11 +352,11 @@ fn audio_loop(
     let mut od = OnDemandTracker::inactive();
     let mut stream_last_chunk:    Option<Arc<AtomicU64>>  = None;
     let mut stream_download_done: Option<Arc<AtomicBool>> = None;
-    const STALL_SECS_LIVE: u64        = 30; // para radio en vivo
-    const STALL_SECS_ON_DEMAND: u64   = 60; // para on-demand (puede pausarse)
-    const MAX_STREAM_RETRIES: u32     = 6;
-    const BASE_RETRY_DELAY_SECS: u64  = 2;  // para decode failures
-    const BASE_RECONNECT_DELAY_SECS: u64 = 1; // para stream disconnects (1→2→4→8→…→30s)
+    const STALL_SECS_LIVE: u64           = 30;
+    const STALL_SECS_ON_DEMAND: u64      = 60;
+    const MAX_STREAM_RETRIES: u32        = 6;
+    const BASE_RETRY_DELAY_SECS: u64     = 2;
+    const BASE_RECONNECT_DELAY_SECS: u64 = 1;
     const MAX_RETRY_DELAY_SECS: u64   = 30;
     const ONDEMAND_BYTES_PER_SEC: f32 = 16_000.0;
     const PRE_BUFFER_SECS: f32 = 30.0;

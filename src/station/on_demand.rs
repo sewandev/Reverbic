@@ -99,12 +99,12 @@ pub async fn fetch_shows_for_playlist(playlist_id: &str) -> Option<Vec<OnDemandS
                     d
                 }
             };
-            let audio_url = c["AudioUrl"]
+            let clip_audio_url = c["AudioUrl"]
                 .as_str()
                 .map(|s| s.to_string())
                 .unwrap_or_else(|| audio_url(&id));
 
-            Some(OnDemandShow { id, title, date, audio_url })
+            Some(OnDemandShow { id, title, date, audio_url: clip_audio_url })
         })
         .collect();
 

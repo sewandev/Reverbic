@@ -34,7 +34,7 @@ use windows::{
 };
 
 use crate::audio::{PlayerCommand, PlayerState, PlayerStatus};
-use crate::config::{Config, OverlayMode};
+use crate::config::{Config, OverlayMode, OverlayPosition};
 
 const OW: i32 = 320;
 const OH: i32 = 105;
@@ -52,7 +52,7 @@ const fn rgb(r: u8, g: u8, b: u8) -> COLORREF {
 
 const C_BG:        COLORREF = rgb(0x14, 0x14, 0x14);
 const C_ACCENT:    COLORREF = rgb(0x44, 0xCC, 0x33);
-const C_BRAND:     COLORREF = rgb(0xE8, 0xE8, 0xE8); // near-white, visible
+const C_BRAND:     COLORREF = rgb(0xE8, 0xE8, 0xE8);
 const C_SEPARATOR: COLORREF = rgb(0x2A, 0x2A, 0x2A);
 const C_STATION:   COLORREF = rgb(0x44, 0xCC, 0x44);
 const C_SHOW:      COLORREF = rgb(0xCC, 0xA0, 0x30);
@@ -148,12 +148,13 @@ unsafe fn run(
     };
     RegisterClassExW(&wc);
 
+    let (init_x, init_y) = overlay_coords(config_rx.borrow().overlay_position);
     let hwnd = CreateWindowExW(
         WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW,
         class,
         w!("Reverbic"),
         WS_POPUP,
-        16, 16, OW, OH,
+        init_x, init_y, OW, OH,
         None, None, hinstance,
         Some(raw as *const _),
     )?;
@@ -161,13 +162,14 @@ unsafe fn run(
     let init_alpha: u8 = (config_rx.borrow().overlay_alpha.min(100) as u32 * 255 / 100) as u8;
     SetLayeredWindowAttributes(hwnd, COLORREF(0), init_alpha, LWA_ALPHA)?;
 
-    let mut msg           = MSG::default();
-    let mut visible       = false;
-    let mut peak_ratio    = 0_f32;
-    let mut peak_held_at  = Instant::now();
-    let mut cfg           = config_rx.borrow().clone();
-    let mut playing       = false;
-    let mut last_title    = String::new();
+    let mut msg              = MSG::default();
+    let mut visible          = false;
+    let mut peak_ratio       = 0_f32;
+    let mut peak_held_at     = Instant::now();
+    let mut cfg              = config_rx.borrow().clone();
+    let mut playing          = false;
+    let mut last_title       = String::new();
+    let mut prev_position    = cfg.overlay_position;
 
     let (media_tx, media_rx) = std::sync::mpsc::sync_channel::<u32>(4);
     let _ = MEDIA_VK_TX.set(media_tx);
@@ -231,6 +233,11 @@ unsafe fn run(
             }
             let new_alpha: u8 = (cfg.overlay_alpha.min(100) as u32 * 255 / 100) as u8;
             let _ = SetLayeredWindowAttributes(hwnd, COLORREF(0), new_alpha, LWA_ALPHA);
+            if cfg.overlay_position != prev_position {
+                prev_position = cfg.overlay_position;
+                let (x, y) = overlay_coords(cfg.overlay_position);
+                let _ = SetWindowPos(hwnd, HWND_TOPMOST, x, y, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE);
+            }
         }
 
         let mut need_repaint = false;
@@ -589,14 +596,18 @@ unsafe fn show_balloon(hwnd: HWND, id: u32, title: &str, body: &str) -> windows:
 }
 
 unsafe fn is_fullscreen_foreground(overlay_hwnd: HWND) -> bool {
-    use windows::Win32::UI::WindowsAndMessaging::{
-        GetForegroundWindow, GetWindowRect, SM_CXSCREEN, SM_CYSCREEN,
-    };
-    use windows::Win32::UI::WindowsAndMessaging::GetSystemMetrics;
-
     let fg = GetForegroundWindow();
     if fg == overlay_hwnd || fg.0.is_null() {
         return false;
+    }
+    let mut class_buf = [0u16; 128];
+    let class_len = GetClassNameW(fg, &mut class_buf) as usize;
+    if class_len > 0 {
+        let class = String::from_utf16_lossy(&class_buf[..class_len]);
+        match class.as_str() {
+            "Progman" | "WorkerW" | "Shell_TrayWnd" | "Shell_SecondaryTrayWnd" => return false,
+            _ => {}
+        }
     }
     let mut r = RECT::default();
     if GetWindowRect(fg, &mut r).is_err() {
@@ -607,6 +618,18 @@ unsafe fn is_fullscreen_foreground(overlay_hwnd: HWND) -> bool {
     let w  = r.right - r.left;
     let h  = r.bottom - r.top;
     w >= sw && h >= sh
+}
+
+unsafe fn overlay_coords(pos: OverlayPosition) -> (i32, i32) {
+    let sw = GetSystemMetrics(SM_CXSCREEN);
+    let sh = GetSystemMetrics(SM_CYSCREEN);
+    const MARGIN: i32 = 16;
+    match pos {
+        OverlayPosition::TopLeft     => (MARGIN, MARGIN),
+        OverlayPosition::TopRight    => (sw - OW - MARGIN, MARGIN),
+        OverlayPosition::BottomLeft  => (MARGIN, sh - OH - MARGIN),
+        OverlayPosition::BottomRight => (sw - OW - MARGIN, sh - OH - MARGIN),
+    }
 }
 
 fn other_audio_peak(own_pid: u32) -> f32 {
@@ -659,8 +682,8 @@ unsafe fn detect_audio_activity(
     let count: i32 = ses_enum.GetCount().unwrap_or(0);
 
     let mut max_peak    = 0.0f32;
-    let mut active_pid:   Option<u32> = None; // sesión activa (sonando ahora)
-    let mut inactive_pid: Option<u32> = None; // sesión inactiva (alt+tab, pausada)
+    let mut active_pid:   Option<u32> = None;
+    let mut inactive_pid: Option<u32> = None;
 
     for i in 0..count {
         let ctrl  = match ses_enum.GetSession(i)         { Ok(c) => c, Err(_) => continue };

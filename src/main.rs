@@ -40,7 +40,7 @@ async fn main() -> Result<()> {
     i18n::init(config::Config::load().language);
     game_detect::init_game_db();
 
-    tracing::info!("reverbic iniciando");
+    tracing::info!("reverbic starting");
 
     let mut tui = terminal::init()?;
     let result = run(&mut tui).await;
@@ -50,7 +50,7 @@ async fn main() -> Result<()> {
         eprintln!("Error: {e}");
     }
 
-    tracing::info!("reverbic terminando");
+    tracing::info!("reverbic stopping");
     result
 }
 fn init_logging() -> Option<tracing_appender::non_blocking::WorkerGuard> {
@@ -188,7 +188,7 @@ async fn handle_event(app: &mut App, maybe_event: Option<std::io::Result<Event>>
             }
         }
         Some(Ok(Event::Resize(_, _))) => {
-            tracing::debug!("Terminal redimensionado");
+            tracing::debug!("terminal resized");
         }
         Some(Err(e)) => tracing::error!("Error leyendo evento: {e}"),
         _ => {}

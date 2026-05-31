@@ -225,6 +225,13 @@ impl App {
         self.config.save();
     }
 
+    async fn adjust_volume(&mut self, delta: f32) {
+        let new_vol = (self.player.state().volume + delta).clamp(0.0, 1.0);
+        self.player.send(PlayerCommand::SetVolume(new_vol)).await;
+        self.config.volume = new_vol;
+        self.config.save();
+    }
+
     fn stop_metadata_polling(&mut self) {
         if let Some(handle) = self.metadata_task.take() {
             handle.abort();
@@ -441,19 +448,8 @@ impl App {
     }
 
     pub async fn on_key(&mut self, key: KeyCode) {
-        // Verificar screensaver ANTES de resetear el timer
         if self.screensaver_active() {
             self.last_activity = Instant::now();
-            if key == KeyCode::Char('o') || key == KeyCode::Char('O') {
-                if let Some(ref d) = self.station_details {
-                    if !d.homepage.is_empty() {
-                        #[cfg(target_os = "windows")]
-                        let _ = std::process::Command::new("cmd")
-                            .args(["/c", "start", "", &d.homepage])
-                            .spawn();
-                    }
-                }
-            }
             return;
         }
         self.last_activity = Instant::now();
@@ -478,17 +474,11 @@ impl App {
                 return;
             }
             KeyCode::Char('+') | KeyCode::Char('=') => {
-                let new_vol = (self.player.state().volume + 0.05).min(1.0);
-                self.player.send(PlayerCommand::SetVolume(new_vol)).await;
-                self.config.volume = new_vol;
-                self.config.save();
+                self.adjust_volume(0.05).await;
                 return;
             }
             KeyCode::Char('-') => {
-                let new_vol = (self.player.state().volume - 0.05).max(0.0);
-                self.player.send(PlayerCommand::SetVolume(new_vol)).await;
-                self.config.volume = new_vol;
-                self.config.save();
+                self.adjust_volume(-0.05).await;
                 return;
             }
             KeyCode::Char('q') => {
@@ -547,17 +537,11 @@ impl App {
     async fn on_key_search_modal(&mut self, key: KeyCode) {
         match key {
             KeyCode::Char('+') | KeyCode::Char('=') => {
-                let new_vol = (self.player.state().volume + 0.05).min(1.0);
-                self.player.send(PlayerCommand::SetVolume(new_vol)).await;
-                self.config.volume = new_vol;
-                self.config.save();
+                self.adjust_volume(0.05).await;
                 return;
             }
             KeyCode::Char('-') => {
-                let new_vol = (self.player.state().volume - 0.05).max(0.0);
-                self.player.send(PlayerCommand::SetVolume(new_vol)).await;
-                self.config.volume = new_vol;
-                self.config.save();
+                self.adjust_volume(-0.05).await;
                 return;
             }
             _ => {}
@@ -813,7 +797,7 @@ impl App {
     }
 
     fn on_key_modal_settings(&mut self, key: KeyCode) {
-        let count = 11 + usize::from(self.config.duck_enabled);
+        let count = 12 + usize::from(self.config.duck_enabled);
         match key {
             KeyCode::Esc => {
                 self.show_search_modal = false;
@@ -1003,7 +987,6 @@ impl App {
     }
 
     pub fn poll_station_details(&mut self) {
-        // Recibir detalles si llegaron
         if let Some(rx) = self.station_details_rx.take() {
             match rx.try_recv() {
                 Ok(details) => { self.station_details = Some(details); }
@@ -1014,7 +997,6 @@ impl App {
             }
         }
 
-        // Disparar fetch si la estación cambió
         let current_uuid = self.player.state().station.as_ref().map(|s| s.key.clone());
         if current_uuid == self.last_details_uuid { return; }
 
@@ -1030,8 +1012,6 @@ impl App {
             let (tx, rx) = std::sync::mpsc::channel();
             self.station_details_rx = Some(rx);
             tokio::spawn(async move {
-                // Si la key es un UUID de RadioBrowser → byuuid (preciso)
-                // Si es una key interna (enriched) → búsqueda por nombre
                 let details = if is_uuid(&key) {
                     fetch_station_details(&key).await
                 } else {
@@ -1050,7 +1030,7 @@ impl App {
                 Ok(results) => {
                     self.search_results = results;
                     self.search_loading = false;
-                    let max = self.stations.len() + self.search_results.len();
+                    let max = self.total_stations();
                     if self.selected >= max && max > 0 {
                         self.selected = max - 1;
                     }
@@ -1139,7 +1119,7 @@ impl App {
             } else if self.search_results.is_empty() && matches!(self.modal_mode, SearchMode::Country) {
                 (Self::filter_countries(&self.country_filter).len(), &mut self.country_selected)
             } else if matches!(self.modal_mode, SearchMode::Settings) {
-                let count = 11 + usize::from(self.config.duck_enabled);
+                let count = 12 + usize::from(self.config.duck_enabled);
                 (count, &mut self.settings_selected)
             } else {
                 (self.search_results.len(), &mut self.modal_selected)
@@ -1258,10 +1238,11 @@ impl App {
                 self.player.send(PlayerCommand::Seek((pos - 60.0).max(0.0))).await;
             }
             KeyCode::Char(']') => {
-                let state    = self.player.state();
-                let pos      = state.playback_pos_secs.unwrap_or(0.0);
-                let duration = state.playback_duration_secs.unwrap_or(f32::MAX);
-                self.player.send(PlayerCommand::Seek((pos + 60.0).min(duration))).await;
+                let state  = self.player.state();
+                let pos    = state.playback_pos_secs.unwrap_or(0.0);
+                let target = pos + 60.0;
+                let target = state.playback_duration_secs.map(|d| target.min(d)).unwrap_or(target);
+                self.player.send(PlayerCommand::Seek(target)).await;
             }
             KeyCode::Char(c) if c.is_ascii_digit() || c == ':' => {
                 if self.seek_input.len() < 7 {
@@ -1318,9 +1299,10 @@ impl App {
                     _           => 20,
                 };
             }
-            5 => { self.config.screensaver_next(); }
-            6 => { self.config.duck_enabled = !self.config.duck_enabled; }
-            7 if duck_on => {
+            5 => { self.config.overlay_position = self.config.overlay_position.next(); }
+            6 => { self.config.screensaver_next(); }
+            7 => { self.config.duck_enabled = !self.config.duck_enabled; }
+            8 if duck_on => {
                 self.config.duck_volume = match self.config.duck_volume {
                     v if v < 20 => 20,
                     v if v < 30 => 30,
@@ -1335,10 +1317,10 @@ impl App {
             i => {
                 let j = if duck_on { i - 1 } else { i };
                 match j {
-                    7 => { self.config.media_keys    = !self.config.media_keys; }
-                    8 => { self.config.tray_icon     = !self.config.tray_icon; }
-                    9 => { self.config.notifications = !self.config.notifications; }
-                    10 => {
+                    8  => { self.config.media_keys    = !self.config.media_keys; }
+                    9  => { self.config.tray_icon     = !self.config.tray_icon; }
+                    10 => { self.config.notifications = !self.config.notifications; }
+                    11 => {
                         self.config.language = self.config.language.next();
                         i18n::set_language(self.config.language);
                     }

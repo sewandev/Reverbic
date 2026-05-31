@@ -208,6 +208,7 @@ pub fn render(frame: &mut Frame, app: &App) {
                 settings_selected:  app.settings_selected,
                 autoplay_last:      app.config.autoplay_last,
                 overlay_mode:       app.config.overlay_mode.display(),
+                overlay_position:   app.config.overlay_position.display(),
                 crossfade:          app.config.crossfade_display(),
                 media_keys:         app.config.media_keys,
                 tray_icon:          app.config.tray_icon,
@@ -274,15 +275,15 @@ fn compute_layout(
 
     if area.height >= HEIGHT_NORMAL + countdown_h {
         let rows = Layout::vertical([
-            Constraint::Length(1),              // header
-            Constraint::Length(1),              // sep_header
-            Constraint::Fill(1),                // content
-            Constraint::Length(1),              // sep_body
-            Constraint::Length(1),              // now_playing
-            Constraint::Length(1),              // vu
-            Constraint::Length(1),              // sep_footer
-            Constraint::Length(countdown_h),    // countdown (0 si no hay)
-            Constraint::Length(1),              // help
+            Constraint::Length(1),
+            Constraint::Length(1),
+            Constraint::Fill(1),
+            Constraint::Length(1),
+            Constraint::Length(1),
+            Constraint::Length(1),
+            Constraint::Length(1),
+            Constraint::Length(countdown_h),
+            Constraint::Length(1),
         ])
         .split(area);
 
@@ -520,7 +521,6 @@ fn render_screensaver(
         }
     }
 
-    // Altura dinámica según contenido disponible
     let has_details  = details.is_some();
     let has_game     = crate::game_detect::get().is_some();
     let ph = 2u16                                        // bordes
@@ -560,7 +560,6 @@ fn render_screensaver(
         };
     }
 
-    // Estación
     let station     = state.station.as_ref().map(|s| s.name.as_str()).unwrap_or("—");
     let status_icon = match state.status {
         PlayerStatus::Playing             => ">>",
@@ -574,19 +573,15 @@ fn render_screensaver(
         Span::styled(station.to_owned(), theme::PLAYING_STYLE),
     ]));
 
-    // Título
     let title = state.title.as_deref().unwrap_or("—");
     put!(Line::from(Span::styled(title.to_owned(), Style::default().fg(theme::HIGHLIGHT))));
 
-    // Vacío + visualizador
     row += 1;
     let (bars, bar_color) = visualizer_bars(state.level_db, cw as usize);
     put!(Line::from(Span::styled(bars, Style::default().fg(bar_color))));
     row += 1;
 
-    // Detalles RadioBrowser
     if let Some(d) = details {
-        // Línea: country · language · codec bitrate
         let mut meta: Vec<Span<'static>> = Vec::new();
         for (val, _) in [(&d.country, true), (&d.language, true)] {
             if !val.is_empty() {
@@ -601,13 +596,11 @@ fn render_screensaver(
         }
         if !meta.is_empty() { put!(Line::from(meta)); } else { row += 1; }
 
-        // Tags
         if !d.tags.is_empty() {
             let tag_str = d.tags.join("  ·  ");
             put!(Line::from(Span::styled(tag_str, Style::default().fg(theme::MUTED))));
         } else { row += 1; }
 
-        // Homepage — [o] abre en el navegador predeterminado
         if !d.homepage.is_empty() {
             let url = d.homepage.trim_end_matches('/').to_string();
             put!(Line::from(vec![
@@ -616,17 +609,15 @@ fn render_screensaver(
             ]));
         } else { row += 1; }
 
-        if has_game { row += 1; } // separador antes del juego
+        if has_game { row += 1; }
     }
 
-    // Juego activo
     if let Some((ref name, ref genre)) = crate::game_detect::get() {
         let game_line = if genre.is_empty() { format!("🎮 {name}") }
                         else { format!("🎮 {name}  ·  {genre}") };
         put!(Line::from(Span::styled(game_line, Style::default().fg(theme::DIM))));
     }
 
-    // Prompt + volumen
     row += 1;
     let spinner   = widgets::spinner_frame();
     let vol_pct   = (state.volume.clamp(0.0, 1.0) * 100.0).round() as u32;
