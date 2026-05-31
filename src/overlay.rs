@@ -79,7 +79,6 @@ struct State {
     ostatus:    OStatus,
     peak_ratio: f32,
     game:       String,
-    dota2:      Option<crate::integrations::dota2::Dota2State>,
 }
 static MEDIA_VK_TX: std::sync::OnceLock<std::sync::mpsc::SyncSender<u32>> = std::sync::OnceLock::new();
 static GAME_STATE:  std::sync::OnceLock<Arc<Mutex<String>>>               = std::sync::OnceLock::new();
@@ -137,7 +136,6 @@ unsafe fn run(
         ostatus:    OStatus::Playing,
         peak_ratio: 0.0,
         game:       String::new(),
-        dota2:      None,
     }));
     let raw = Arc::into_raw(Arc::clone(&shared));
 
@@ -308,18 +306,6 @@ unsafe fn run(
                 }
             }
         }
-        {
-            let gsi = crate::integrations::dota2::get();
-            if let Ok(mut s) = shared.try_lock() {
-                let changed = s.dota2.as_ref().map(|d| d.in_game) != gsi.as_ref().map(|d| d.in_game)
-                    || s.dota2.as_ref().map(|d| &d.hero) != gsi.as_ref().map(|d| &d.hero)
-                    || s.dota2.as_ref().map(|d| d.game_time_secs) != gsi.as_ref().map(|d| d.game_time_secs);
-                if changed {
-                    s.dota2 = gsi;
-                    need_repaint = true;
-                }
-            }
-        }
         if cfg.duck_enabled && playing {
             if Instant::now() >= next_duck_check {
                 next_duck_check = Instant::now() + Duration::from_millis(500);
@@ -469,20 +455,10 @@ unsafe fn paint(hdc: HDC, s: &State) {
         fill(hdc, RECT { left: PAD_L, top: 77, right: OW - PAD_R, bottom: 78 }, C_SEPARATOR);
         let f_game = font(11, false);
         SelectObject(hdc, HGDIOBJ(f_game.0));
+        SetTextColor(hdc, C_TITLE);
+        let _ = TextOutW(hdc, PAD_L, 80, &wide("Jugando: "));
         SetTextColor(hdc, C_ACCENT);
-        let game_line = match s.dota2.as_ref().filter(|d| !d.hero.is_empty()) {
-            Some(d) => wide_truncated(
-                &format!("{}  ·  {}  ·  {}  ·  {}", d.hero, d.kda(), d.time_display(), d.gold()),
-                38,
-            ),
-            None => {
-                SetTextColor(hdc, C_TITLE);
-                let _ = TextOutW(hdc, PAD_L, 80, &wide("Jugando: "));
-                SetTextColor(hdc, C_ACCENT);
-                wide_truncated(&s.game, 28)
-            }
-        };
-        let _ = TextOutW(hdc, PAD_L, 80, &game_line);
+        let _ = TextOutW(hdc, PAD_L + 52, 80, &wide_truncated(&s.game, 28));
         let _ = DeleteObject(HGDIOBJ(f_game.0));
         94
     } else { 79 };
