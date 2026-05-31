@@ -1,4 +1,4 @@
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use crossterm::event::KeyCode;
 use ratatui::layout::Rect;
@@ -298,24 +298,7 @@ impl App {
         );
 
         if fade > 0 && is_active {
-            let target_vol = self.player.state().volume;
-            let sender     = self.player.clone_sender();
-            let s          = station.clone();
-            let secs       = fade as f32;
-            tokio::spawn(async move {
-                const STEPS: u32 = 20;
-                let step = Duration::from_millis((secs * 1000.0 / STEPS as f32) as u64);
-                for i in (0..STEPS).rev() {
-                    let _ = sender.send(PlayerCommand::SetVolume((i as f32 / STEPS as f32) * target_vol)).await;
-                    tokio::time::sleep(step).await;
-                }
-                let _ = sender.send(PlayerCommand::Play(s)).await;
-                tokio::time::sleep(Duration::from_millis(300)).await;
-                for i in 1..=STEPS {
-                    let _ = sender.send(PlayerCommand::SetVolume((i as f32 / STEPS as f32) * target_vol)).await;
-                    tokio::time::sleep(step).await;
-                }
-            });
+            self.player.send(PlayerCommand::CrossfadeTo { station: station.clone(), secs: fade }).await;
         } else {
             self.player.send(PlayerCommand::Play(station.clone())).await;
         }
