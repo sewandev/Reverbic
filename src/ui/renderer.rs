@@ -521,20 +521,18 @@ fn render_screensaver(
 
     let has_game    = crate::game_detect::get().is_some();
     let has_details = details.is_some();
-    let has_geo     = details.as_ref()
-        .and_then(|d| d.geo_lat.zip(d.geo_lon))
-        .is_some();
+    let geo         = details.as_ref().and_then(|d| d.geo_lat.zip(d.geo_lon));
     const MAP_H: usize = 7;
 
-    let ph = 2u16                                              // bordes
-        + 2                                                    // station + title
-        + 1                                                    // empty
-        + if has_geo { MAP_H as u16 } else { 1 }              // mapa o visualizador
-        + 1                                                    // empty
-        + if has_details { 2 } else { 0 }                     // metadata + url
-        + if has_game    { 1 } else { 0 }                     // juego
-        + 1                                                    // empty
-        + 1;                                                   // prompt
+    let ph = 2u16                                  // bordes
+        + 2                                        // station + title
+        + 1                                        // empty
+        + MAP_H as u16                             // mapa siempre visible
+        + 1                                        // empty
+        + if has_details { 2 } else { 0 }          // metadata + url
+        + if has_game    { 1 } else { 0 }          // juego
+        + 1                                        // empty
+        + 1;                                       // prompt
 
     let pw    = area.width.min(62).max(44);
     let px    = area.x + area.width.saturating_sub(pw) / 2;
@@ -584,31 +582,23 @@ fn render_screensaver(
     // Vacío antes del mapa/visualizador
     row += 1;
 
-    if let Some(d) = details {
-        if let Some((lat, lon)) = d.geo_lat.zip(d.geo_lon) {
-            // Mapa Mercator con ubicación de la estación
-            let dot_col = ((lon + 180.0) / 360.0 * cw as f32) as usize;
-            let dot_col = dot_col.min(cw as usize - 1);
-            let dot_row = ((90.0 - lat) / 180.0 * MAP_H as f32) as usize;
-            let dot_row = dot_row.min(MAP_H - 1);
-            for mr in 0..MAP_H {
-                let line = map_line(cw as usize, mr, MAP_H, Some(dot_col), mr == dot_row);
-                frame.render_widget(
-                    Paragraph::new(line).style(Style::default().bg(BG)),
-                    Rect::new(cx, row, cw, 1),
-                );
-                row += 1;
-            }
-        } else {
-            let (bars, bar_color) = visualizer_bars(state.level_db, cw as usize);
-            put!(Line::from(Span::styled(bars, Style::default().fg(bar_color))));
-        }
-    } else {
-        let (bars, bar_color) = visualizer_bars(state.level_db, cw as usize);
-        put!(Line::from(Span::styled(bars, Style::default().fg(bar_color))));
+    // Mapa Mercator siempre visible; punto solo cuando hay coordenadas
+    let dot = geo.map(|(lat, lon)| {
+        let dc = ((lon + 180.0) / 360.0 * cw as f32) as usize;
+        let dr = ((90.0 - lat) / 180.0 * MAP_H as f32) as usize;
+        (dc.min(cw as usize - 1), dr.min(MAP_H - 1))
+    });
+    for mr in 0..MAP_H {
+        let is_dot_row   = dot.map(|(_, dr)| dr == mr).unwrap_or(false);
+        let dot_col      = dot.map(|(dc, _)| dc);
+        let line = map_line(cw as usize, mr, MAP_H, dot_col, is_dot_row);
+        frame.render_widget(
+            Paragraph::new(line).style(Style::default().bg(BG)),
+            Rect::new(cx, row, cw, 1),
+        );
+        row += 1;
     }
-
-    row += 1; // vacío post mapa/viz
+    row += 1; // vacío post mapa
 
     // Detalles RadioBrowser
     if let Some(d) = details {
@@ -754,36 +744,6 @@ fn map_line(
     Line::from(spans)
 }
 
-fn visualizer_bars(level_db: f32, width: usize) -> (String, ratatui::style::Color) {
-    const BLOCKS: &[char] = &['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
-
-    let base = ((level_db + 60.0) / 60.0).clamp(0.0, 1.0) as f64;
-    let ms   = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis())
-        .unwrap_or(0) as f64;
-
-    let n_bars = (width / 2).max(1);
-    let mut s  = String::with_capacity(width);
-    for i in 0..n_bars {
-        let freq  = 0.0025 + (i as f64) * 0.00025;
-        let phase = i as f64 * 1.1;
-        let wave  = (ms * freq + phase).sin() * 0.35 + 0.35;
-        let h     = (base * 0.65 + wave * 0.35).clamp(0.0, 1.0);
-        let idx   = ((h * 7.0) as usize).min(7);
-        s.push(BLOCKS[idx]);
-        if i + 1 < n_bars { s.push(' '); }
-    }
-
-    let color = if level_db > -10.0 {
-        ratatui::style::Color::Yellow
-    } else if level_db > -35.0 {
-        theme::ACCENT
-    } else {
-        theme::MUTED
-    };
-    (s, color)
-}
 
 fn render_game_inline(frame: &mut Frame, area: Rect, name: &str, genre: &str) {
     let label = t("overlay.playing_game");
