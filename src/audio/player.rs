@@ -20,7 +20,6 @@ pub enum PlayerCommand {
     Resume,
     Stop,
     SetVolume(f32),
-    SetActiveGame(Option<String>),
     Seek(f32), // segundos desde el inicio del archivo on-demand
     ApiMetadata {
         title:  String,
@@ -64,7 +63,6 @@ pub struct PlayerState {
     pub preview_unavailable:    HashSet<String>,
     pub playback_pos_secs:      Option<f32>,
     pub playback_duration_secs: Option<f32>,
-    pub active_game:            Option<String>,
 }
 
 impl Default for PlayerState {
@@ -84,7 +82,6 @@ impl Default for PlayerState {
             preview_unavailable:    HashSet::new(),
             playback_pos_secs:      None,
             playback_duration_secs: None,
-            active_game:            None,
         }
     }
 }
@@ -575,7 +572,6 @@ fn audio_loop(
                             preview_unavailable:    HashSet::new(),
                             playback_pos_secs:      if is_on_demand { Some(0.0) } else { None },
                             playback_duration_secs: duration_secs,
-                            active_game:            state_tx.borrow().active_game.clone(),
                         });
                     }
                     Err(e) => {
@@ -628,12 +624,6 @@ fn audio_loop(
                     state.status = PlayerStatus::Playing;
                     let _ = state_tx.send(state);
                 }
-            }
-
-            PlayerCommand::SetActiveGame(name) => {
-                let mut state = state_tx.borrow().clone();
-                state.active_game = name;
-                let _ = state_tx.send(state);
             }
 
             PlayerCommand::SetVolume(v) => {

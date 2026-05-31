@@ -1,11 +1,10 @@
 #![cfg(target_os = "windows")]
 
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use tokio::sync::{mpsc, watch};
-use std::collections::HashMap;
-
 use windows::{
     core::*,
     Win32::{
@@ -89,6 +88,7 @@ struct State {
 // ── Public API ────────────────────────────────────────────────────────────────
 
 static MEDIA_VK_TX: std::sync::OnceLock<std::sync::mpsc::SyncSender<u32>> = std::sync::OnceLock::new();
+static GAME_STATE:  std::sync::OnceLock<Arc<Mutex<String>>>               = std::sync::OnceLock::new();
 
 pub fn spawn(
     state_rx:  watch::Receiver<PlayerState>,
@@ -112,26 +112,24 @@ unsafe fn run(
     mut config_rx: watch::Receiver<Config>,
     cmd_tx:        mpsc::Sender<PlayerCommand>,
 ) -> windows::core::Result<()> {
-    // El hilo Win32 NO inicializa COM — WASAPI corre en su propio hilo dedicado.
+    // WASAPI en hilo propio. Este hilo Win32 NO inicializa COM.
     let own_pid = std::process::id();
-
-    // Arc compartido entre el wasapi-monitor thread y este loop.
-    // El monitor escribe (peak, game_name) cada 500ms sin bloquear este hilo.
-    let audio_activity: Arc<Mutex<(f32, Option<String>)>> =
-        Arc::new(Mutex::new((0.0, None)));
     {
-        let activity = Arc::clone(&audio_activity);
+        let shared_game = Arc::new(Mutex::new(String::new()));
+        let sg = Arc::clone(&shared_game);
+        // Guardamos el Arc en un OnceLock para que el paint lo lea
+        GAME_STATE.get_or_init(|| shared_game);
+
         std::thread::Builder::new()
             .name("wasapi-monitor".into())
             .spawn(move || unsafe {
                 let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
                 loop {
-                    // Snapshot de procesos: O(n_procesos), sin OpenProcess, nunca bloquea
                     let proc_map = build_process_snapshot();
-                    let result   = detect_audio_activity(own_pid, &proc_map);
-                    if let Ok(mut g) = activity.lock() {
-                        *g = result;
-                    }
+                    let (_peak, detected) = detect_audio_activity(own_pid, &proc_map);
+                    let name = detected.unwrap_or_default();
+                    crate::game_detect::set(if name.is_empty() { None } else { Some(name.clone()) });
+                    if let Ok(mut g) = sg.lock() { *g = name; }
                     std::thread::sleep(Duration::from_millis(500));
                 }
             })
@@ -184,16 +182,15 @@ unsafe fn run(
     let (media_tx, media_rx) = std::sync::mpsc::sync_channel::<u32>(4);
     let _ = MEDIA_VK_TX.set(media_tx);
 
-    let mut hook:            HHOOK           = HHOOK::default();
-    let mut tray_added:      bool            = false;
+    let mut hook:           HHOOK         = HHOOK::default();
+    let mut tray_added:     bool          = false;
     let tray_id: u32 = 1001;
+    let wm_tray      = WM_APP + 1;
 
-    let mut is_ducked:       bool            = false;
-    let mut pre_duck_vol:    f32             = 1.0;
-    let mut quiet_since:     Option<Instant> = None;
-    let mut next_duck_check: Instant         = Instant::now();
-    let mut current_game:    Option<String>  = None;
-    let wm_tray = WM_APP + 1;
+    let mut is_ducked:      bool          = false;
+    let mut pre_duck_vol:   f32           = 1.0;
+    let mut quiet_since:    Option<Instant> = None;
+    let mut next_duck_check: Instant      = Instant::now();
 
     // Aplicar el estado inicial de la config — has_changed() no dispara al arrancar
     if cfg.media_keys {
@@ -319,29 +316,25 @@ unsafe fn run(
             need_repaint = true;
         }
 
-        // ── Juego activo + auto-duck (lee del wasapi-monitor thread) ──
-        if Instant::now() >= next_duck_check {
-            next_duck_check = Instant::now() + Duration::from_millis(500);
-
-            let (peak, detected_game) = audio_activity.lock()
-                .map(|g| g.clone())
-                .unwrap_or((0.0, None));
-
-            // Actualiza nombre del juego si cambió
-            if detected_game != current_game {
-                current_game = detected_game.clone();
-                let _ = cmd_tx.try_send(
-                    PlayerCommand::SetActiveGame(current_game.clone()),
-                );
-                if let Ok(mut s) = shared.lock() {
-                    s.game = current_game.clone().unwrap_or_default();
+        // ── Juego activo (lee del wasapi-monitor, sin bloquear) ───────
+        if let Some(gs) = GAME_STATE.get() {
+            if let Ok(name) = gs.try_lock() {
+                if let Ok(mut s) = shared.try_lock() {
+                    if s.game != *name {
+                        s.game = name.clone();
+                        need_repaint = true;
+                    }
                 }
-                need_repaint = true;
             }
+        }
 
-            // Duck solo si está habilitado y Reverbic está reproduciendo
-            if cfg.duck_enabled && playing {
+        // ── Auto-duck ─────────────────────────────────────────────
+        if cfg.duck_enabled && playing {
+            if Instant::now() >= next_duck_check {
+                next_duck_check = Instant::now() + Duration::from_millis(500);
+                let peak        = other_audio_peak(own_pid);
                 let duck_target = cfg.duck_volume as f32 / 100.0;
+
                 if peak > DUCK_THRESHOLD {
                     quiet_since = None;
                     if !is_ducked {
@@ -354,20 +347,21 @@ unsafe fn run(
                     }
                 } else if is_ducked {
                     match quiet_since {
-                        None    => quiet_since = Some(Instant::now()),
+                        None => quiet_since = Some(Instant::now()),
                         Some(t) if t.elapsed().as_millis() >= UNDUCK_DELAY_MS => {
                             let _ = cmd_tx.blocking_send(PlayerCommand::SetVolume(pre_duck_vol));
-                            is_ducked   = false;
-                            quiet_since = None;
+                            is_ducked    = false;
+                            quiet_since  = None;
                         }
                         _ => {}
                     }
                 }
-            } else if is_ducked {
-                let _ = cmd_tx.blocking_send(PlayerCommand::SetVolume(pre_duck_vol));
-                is_ducked   = false;
-                quiet_since = None;
             }
+        } else if is_ducked {
+            // duck desactivado o Reverbic detenido — restaurar inmediatamente
+            let _ = cmd_tx.blocking_send(PlayerCommand::SetVolume(pre_duck_vol));
+            is_ducked   = false;
+            quiet_since = None;
         }
 
         // ── Peak decay (corre siempre, independiente de rx) ───────
@@ -499,7 +493,7 @@ unsafe fn paint(hdc: HDC, s: &State) {
     let title = if s.title.is_empty() { "—" } else { s.title.as_str() };
     let _ = TextOutW(hdc, PAD_L, y_title, &wide_truncated(title, 38));
 
-    // ── Jugando (solo si hay juego detectado) ─────────────────────
+    // ── Jugando ───────────────────────────────────────────────────
     let vu_top = if !s.game.is_empty() {
         fill(hdc, RECT { left: PAD_L, top: 77, right: OW - PAD_R, bottom: 78 }, C_SEPARATOR);
         let f_game = font(11, false);
@@ -510,9 +504,7 @@ unsafe fn paint(hdc: HDC, s: &State) {
         let _ = TextOutW(hdc, PAD_L + 52, 80, &wide_truncated(&s.game, 28));
         let _ = DeleteObject(HGDIOBJ(f_game.0));
         94
-    } else {
-        79
-    };
+    } else { 79 };
 
     // ── VU meter + peak hold ──────────────────────────────────────
     let vu_x1 = PAD_L;
@@ -676,8 +668,11 @@ unsafe fn is_fullscreen_foreground(overlay_hwnd: HWND) -> bool {
     w >= sw && h >= sh
 }
 
-/// Snapshot de todos los procesos activos: PID → nombre (sin .exe).
-/// Usa CreateToolhelp32Snapshot — nunca bloquea, no requiere OpenProcess.
+fn other_audio_peak(own_pid: u32) -> f32 {
+    let proc_map = build_process_snapshot();
+    unsafe { detect_audio_activity(own_pid, &proc_map).0 }
+}
+
 fn build_process_snapshot() -> HashMap<u32, String> {
     let mut map = HashMap::new();
     unsafe {
@@ -702,8 +697,6 @@ fn build_process_snapshot() -> HashMap<u32, String> {
     map
 }
 
-/// Peak de audio de otros procesos + nombre del proceso más activo.
-/// Llama únicamente a WASAPI (COM puro) — sin OpenProcess.
 unsafe fn detect_audio_activity(
     own_pid:  u32,
     proc_map: &HashMap<u32, String>,
