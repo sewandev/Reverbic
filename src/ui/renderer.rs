@@ -618,9 +618,24 @@ fn render_screensaver(
     }
 
     if let Some((ref name, ref genre)) = crate::game_detect::get() {
-        let game_line = if genre.is_empty() { format!("🎮 {name}") }
-                        else { format!("🎮 {name}  ·  {genre}") };
-        put!(Line::from(Span::styled(game_line, Style::default().fg(theme::DIM))));
+        let line = match crate::integrations::dota2::get().filter(|d| !d.hero.is_empty()) {
+            Some(ref d) => Line::from(vec![
+                Span::styled(format!("🎮 {name}  ·  "), Style::default().fg(theme::DIM)),
+                Span::styled(d.hero.clone(), Style::default().fg(theme::HIGHLIGHT)),
+                Span::styled("  ·  ", Style::default().fg(theme::DIM)),
+                Span::styled(d.kda(), Style::default().fg(theme::MUTED)),
+                Span::styled("  ·  ", Style::default().fg(theme::DIM)),
+                Span::styled(d.time_display(), Style::default().fg(theme::MUTED)),
+                Span::styled("  ·  ", Style::default().fg(theme::DIM)),
+                Span::styled(d.gold(), Style::default().fg(theme::MUTED)),
+            ]),
+            None => {
+                let text = if genre.is_empty() { format!("🎮 {name}") }
+                           else { format!("🎮 {name}  ·  {genre}") };
+                Line::from(Span::styled(text, Style::default().fg(theme::DIM)))
+            }
+        };
+        put!(line);
     }
 
     if has_recent {
