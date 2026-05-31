@@ -438,9 +438,9 @@ impl App {
     }
 
     pub async fn on_key(&mut self, key: KeyCode) {
-        self.last_activity = Instant::now();
+        // Verificar screensaver ANTES de resetear el timer
         if self.screensaver_active() {
-            // 'O' abre el sitio web de la estación en el navegador predeterminado
+            self.last_activity = Instant::now();
             if key == KeyCode::Char('o') || key == KeyCode::Char('O') {
                 if let Some(ref d) = self.station_details {
                     if !d.homepage.is_empty() {
@@ -451,8 +451,9 @@ impl App {
                     }
                 }
             }
-            return; // cualquier otra tecla desactiva el screensaver
+            return;
         }
+        self.last_activity = Instant::now();
         if self.show_search_modal {
             self.on_key_search_modal(key).await;
             return;
