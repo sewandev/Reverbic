@@ -502,17 +502,11 @@ fn render_rename_overlay(frame: &mut Frame, input: &str) {
     );
 }
 fn render_screensaver(frame: &mut Frame, area: Rect, state: &PlayerState) {
-    use ratatui::{
-        layout::Alignment,
-        style::Color,
-        widgets::{Block, BorderType, Borders, Clear},
-    };
+    use ratatui::{layout::Alignment, style::Color, widgets::{Block, BorderType, Borders, Clear}};
     use crate::ui::widgets;
-    let spinner_fn = widgets::spinner_frame;
     const OVERLAY: Color = Color::Rgb(5, 5, 5);
     const BG:      Color = Color::Rgb(13, 13, 13);
 
-    // Fondo oscuro
     frame.render_widget(Clear, area);
     for y in area.top()..area.bottom() {
         for x in area.left()..area.right() {
@@ -520,11 +514,10 @@ fn render_screensaver(frame: &mut Frame, area: Rect, state: &PlayerState) {
         }
     }
 
-    // Panel central
-    let pw = area.width.min(60).max(40);
-    let ph: u16 = 9;
-    let px = area.x + area.width.saturating_sub(pw) / 2;
-    let py = area.y + area.height.saturating_sub(ph) / 2;
+    let pw  = area.width.min(60).max(40);
+    let ph  = 11u16;
+    let px  = area.x + area.width.saturating_sub(pw) / 2;
+    let py  = area.y + area.height.saturating_sub(ph) / 2;
     let panel = Rect::new(px, py, pw, ph);
 
     let block = Block::default()
@@ -538,13 +531,14 @@ fn render_screensaver(frame: &mut Frame, area: Rect, state: &PlayerState) {
     let cx = inner.x + 2;
     let cw = inner.width.saturating_sub(4);
 
-    // Estación
-    let station = state.station.as_ref().map(|s| s.name.as_str()).unwrap_or("—");
+    // Estación + estado
+    let station     = state.station.as_ref().map(|s| s.name.as_str()).unwrap_or("—");
     let status_icon = match state.status {
-        PlayerStatus::Playing  => ">>",
-        PlayerStatus::Paused   => "⏸",
-        PlayerStatus::Buffering(_) | PlayerStatus::Reconnecting(_) => "…",
-        _ => "—",
+        PlayerStatus::Playing              => ">>",
+        PlayerStatus::Paused               => "⏸",
+        PlayerStatus::Buffering(_)
+        | PlayerStatus::Reconnecting(_)    => "…",
+        _                                  => "—",
     };
     frame.render_widget(
         Paragraph::new(Line::from(vec![
@@ -554,7 +548,7 @@ fn render_screensaver(frame: &mut Frame, area: Rect, state: &PlayerState) {
         Rect::new(cx, inner.y, cw, 1),
     );
 
-    // Título de la canción
+    // Título
     let title = state.title.as_deref().unwrap_or("—");
     frame.render_widget(
         Paragraph::new(Span::styled(title.to_owned(), Style::default().fg(theme::HIGHLIGHT)))
@@ -562,7 +556,15 @@ fn render_screensaver(frame: &mut Frame, area: Rect, state: &PlayerState) {
         Rect::new(cx + 4, inner.y + 1, cw.saturating_sub(4), 1),
     );
 
-    // Juego activo
+    // Visualizador de barras (row 3)
+    let (bars, bar_color) = visualizer_bars(state.level_db, cw as usize);
+    frame.render_widget(
+        Paragraph::new(Span::styled(bars, Style::default().fg(bar_color)))
+            .style(Style::default().bg(BG)),
+        Rect::new(cx, inner.y + 3, cw, 1),
+    );
+
+    // Juego activo (row 5)
     if let Some((ref name, ref genre)) = crate::game_detect::get() {
         let game_line = if genre.is_empty() {
             format!("🎮 {name}")
@@ -572,32 +574,58 @@ fn render_screensaver(frame: &mut Frame, area: Rect, state: &PlayerState) {
         frame.render_widget(
             Paragraph::new(Span::styled(game_line, Style::default().fg(theme::DIM)))
                 .style(Style::default().bg(BG)),
-            Rect::new(cx, inner.y + 3, cw, 1),
+            Rect::new(cx, inner.y + 5, cw, 1),
         );
     }
 
-    // Prompt animado
-    let spinner = spinner_fn();
+    // Prompt + volumen (row 7)
+    let spinner = widgets::spinner_frame();
+    let vol_pct   = (state.volume.clamp(0.0, 1.0) * 100.0).round() as u32;
+    let vol_color = if state.volume > 0.85 { theme::WARNING } else { theme::ACCENT };
     frame.render_widget(
         Paragraph::new(Line::from(vec![
             Span::styled(format!("{spinner}  "), Style::default().fg(theme::ACCENT)),
             Span::styled(t("screensaver.prompt"), Style::default().fg(theme::MUTED)),
         ])).style(Style::default().bg(BG)),
-        Rect::new(cx, inner.y + 5, cw, 1),
+        Rect::new(cx, inner.y + 7, cw, 1),
     );
-
-    // Volumen
-    let vol_pct = (state.volume.clamp(0.0, 1.0) * 100.0).round() as u32;
-    let vol_color = if state.volume > 0.85 { theme::WARNING } else { theme::ACCENT };
     frame.render_widget(
-        Paragraph::new(Span::styled(
-            format!("{vol_pct:>3}%"),
-            Style::default().fg(vol_color),
-        ))
-        .alignment(Alignment::Right)
-        .style(Style::default().bg(BG)),
-        Rect::new(cx, inner.y + 5, cw, 1),
+        Paragraph::new(Span::styled(format!("{vol_pct:>3}%"), Style::default().fg(vol_color)))
+            .alignment(Alignment::Right)
+            .style(Style::default().bg(BG)),
+        Rect::new(cx, inner.y + 7, cw, 1),
     );
+}
+
+fn visualizer_bars(level_db: f32, width: usize) -> (String, ratatui::style::Color) {
+    const BLOCKS: &[char] = &['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
+
+    let base = ((level_db + 60.0) / 60.0).clamp(0.0, 1.0) as f64;
+    let ms   = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0) as f64;
+
+    let n_bars = (width / 2).max(1);
+    let mut s  = String::with_capacity(width);
+    for i in 0..n_bars {
+        let freq  = 0.0025 + (i as f64) * 0.00025;
+        let phase = i as f64 * 1.1;
+        let wave  = (ms * freq + phase).sin() * 0.35 + 0.35;
+        let h     = (base * 0.65 + wave * 0.35).clamp(0.0, 1.0);
+        let idx   = ((h * 7.0) as usize).min(7);
+        s.push(BLOCKS[idx]);
+        if i + 1 < n_bars { s.push(' '); }
+    }
+
+    let color = if level_db > -10.0 {
+        ratatui::style::Color::Yellow
+    } else if level_db > -35.0 {
+        theme::ACCENT
+    } else {
+        theme::MUTED
+    };
+    (s, color)
 }
 
 fn render_game_inline(frame: &mut Frame, area: Rect, name: &str, genre: &str) {
