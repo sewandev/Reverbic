@@ -519,18 +519,22 @@ fn render_screensaver(
         }
     }
 
-    // Altura dinámica según contenido disponible
-    let has_details  = details.is_some();
-    let has_game     = crate::game_detect::get().is_some();
-    let ph = 2u16                                        // bordes
-        + 2                                              // station + title
-        + 1 + 1                                          // empty + visualizer
-        + 1                                              // empty post-viz
-        + if has_details { 3 } else { 0 }               // metadata + tags + url
-        + if has_details && has_game { 1 } else { 0 }   // empty entre detalles y juego
-        + if has_game { 1 } else { 0 }                  // juego
-        + 1                                              // empty + prompt
-        + 1;                                             // prompt
+    let has_game    = crate::game_detect::get().is_some();
+    let has_details = details.is_some();
+    let has_geo     = details.as_ref()
+        .and_then(|d| d.geo_lat.zip(d.geo_lon))
+        .is_some();
+    const MAP_H: usize = 7;
+
+    let ph = 2u16                                              // bordes
+        + 2                                                    // station + title
+        + 1                                                    // empty
+        + if has_geo { MAP_H as u16 } else { 1 }              // mapa o visualizador
+        + 1                                                    // empty
+        + if has_details { 2 } else { 0 }                     // metadata + url
+        + if has_game    { 1 } else { 0 }                     // juego
+        + 1                                                    // empty
+        + 1;                                                   // prompt
 
     let pw    = area.width.min(62).max(44);
     let px    = area.x + area.width.saturating_sub(pw) / 2;
@@ -577,11 +581,34 @@ fn render_screensaver(
     let title = state.title.as_deref().unwrap_or("—");
     put!(Line::from(Span::styled(title.to_owned(), Style::default().fg(theme::HIGHLIGHT))));
 
-    // Vacío + visualizador
+    // Vacío antes del mapa/visualizador
     row += 1;
-    let (bars, bar_color) = visualizer_bars(state.level_db, cw as usize);
-    put!(Line::from(Span::styled(bars, Style::default().fg(bar_color))));
-    row += 1;
+
+    if let Some(d) = details {
+        if let Some((lat, lon)) = d.geo_lat.zip(d.geo_lon) {
+            // Mapa Mercator con ubicación de la estación
+            let dot_col = ((lon + 180.0) / 360.0 * cw as f32) as usize;
+            let dot_col = dot_col.min(cw as usize - 1);
+            let dot_row = ((90.0 - lat) / 180.0 * MAP_H as f32) as usize;
+            let dot_row = dot_row.min(MAP_H - 1);
+            for mr in 0..MAP_H {
+                let line = map_line(cw as usize, mr, MAP_H, Some(dot_col), mr == dot_row);
+                frame.render_widget(
+                    Paragraph::new(line).style(Style::default().bg(BG)),
+                    Rect::new(cx, row, cw, 1),
+                );
+                row += 1;
+            }
+        } else {
+            let (bars, bar_color) = visualizer_bars(state.level_db, cw as usize);
+            put!(Line::from(Span::styled(bars, Style::default().fg(bar_color))));
+        }
+    } else {
+        let (bars, bar_color) = visualizer_bars(state.level_db, cw as usize);
+        put!(Line::from(Span::styled(bars, Style::default().fg(bar_color))));
+    }
+
+    row += 1; // vacío post mapa/viz
 
     // Detalles RadioBrowser
     if let Some(d) = details {
@@ -598,13 +625,12 @@ fn render_screensaver(
             let codec_str = if d.bitrate > 0 { format!("{}  {}k", d.codec, d.bitrate) } else { d.codec.clone() };
             meta.push(Span::styled(codec_str, Style::default().fg(theme::DIM)));
         }
-        if !meta.is_empty() { put!(Line::from(meta)); } else { row += 1; }
-
-        // Tags
+        // Añadir tags al final de la línea de metadata
         if !d.tags.is_empty() {
-            let tag_str = d.tags.join("  ·  ");
-            put!(Line::from(Span::styled(tag_str, Style::default().fg(theme::MUTED))));
-        } else { row += 1; }
+            if !meta.is_empty() { meta.push(Span::styled("  ·  ", Style::default().fg(theme::MUTED))); }
+            meta.push(Span::styled(d.tags.join(" · "), Style::default().fg(theme::MUTED)));
+        }
+        if !meta.is_empty() { put!(Line::from(meta)); } else { row += 1; }
 
         // Homepage — Ctrl+Click en Windows Terminal para abrir
         if !d.homepage.is_empty() {
@@ -646,6 +672,86 @@ fn render_screensaver(
             .style(Style::default().bg(BG)),
         Rect::new(cx, row, cw, 1),
     );
+}
+
+// Bounding boxes de masas de tierra: (lon_min, lat_min, lon_max, lat_max)
+const LAND: &[(f32, f32, f32, f32)] = &[
+    (-168.0, 54.0,-141.0, 72.0), // Alaska
+    (-141.0, 48.0, -52.0, 84.0), // Canada
+    (-125.0, 24.0, -66.0, 50.0), // Continental USA
+    ( -54.0, 59.0, -17.0, 84.0), // Greenland
+    ( -25.0, 63.0, -13.0, 67.0), // Islandia
+    (-117.0, 14.0, -87.0, 32.0), // Mexico
+    ( -90.0,  7.0, -77.0, 22.0), // Centroamerica
+    ( -85.0, 14.0, -59.0, 23.0), // Caribe (aproximado)
+    ( -81.0, -5.0, -50.0, 12.0), // Norte de Sudamerica
+    ( -80.0,-56.0, -34.0, 12.0), // Sudamerica
+    ( -18.0,-35.0,  52.0, 37.0), // Africa
+    (  42.0, 10.0,  52.0, 18.0), // Cuerno de Africa
+    (  43.0,-26.0,  51.0,-12.0), // Madagascar
+    ( -11.0, 50.0,   2.0, 62.0), // UK + Irlanda
+    ( -10.0, 36.0,  40.0, 71.0), // Europa
+    (  32.0, 12.0,  60.0, 42.0), // Peninsula Arabiga + Oriente Medio
+    (  26.0, 50.0, 180.0, 82.0), // Rusia (de Europa a Siberia)
+    (  60.0,  4.0,  92.0, 36.0), // Iran, Afghanistan, Pakistan
+    (  68.0,  5.0,  80.0, 24.0), // Peninsula India
+    (  95.0,  0.0, 155.0, 55.0), // China, Corea, Vietnam, Tailandia
+    ( 130.0, 31.0, 146.0, 46.0), // Japon
+    ( 117.0,  5.0, 127.0, 20.0), // Filipinas
+    (  95.0, -8.0, 141.0,  8.0), // Indonesia
+    ( 130.0, -8.0, 148.0, -1.0), // Nueva Guinea
+    ( 113.0,-44.0, 154.0, -9.0), // Australia
+    ( 163.0,-47.0, 178.0,-34.0), // Nueva Zelanda
+    (-180.0,-90.0, 180.0,-63.0), // Antartida
+];
+
+fn is_land(lat: f32, lon: f32) -> bool {
+    LAND.iter().any(|&(lo1, la1, lo2, la2)| {
+        lon >= lo1 && lon <= lo2 && lat >= la1 && lat <= la2
+    })
+}
+
+fn map_line(
+    width:     usize,
+    row:       usize,
+    map_h:     usize,
+    dot_col:   Option<usize>,
+    is_dotrow: bool,
+) -> Line<'static> {
+    let lat = 90.0 - (row as f32 + 0.5) * 180.0 / map_h as f32;
+    let water_color = ratatui::style::Color::Rgb(30, 30, 50);
+
+    let mut spans: Vec<Span<'static>> = Vec::new();
+    let mut buf   = String::new();
+    let mut last  = '\0';
+
+    let flush = |buf: &mut String, ch: char, spans: &mut Vec<Span<'static>>| {
+        if buf.is_empty() { return; }
+        let color = match ch {
+            '●' => theme::ACCENT,
+            '▪' => theme::DIM,
+            _   => water_color,
+        };
+        spans.push(Span::styled(std::mem::take(buf), Style::default().fg(color)));
+    };
+
+    for col in 0..width {
+        let lon = -180.0 + (col as f32 + 0.5) * 360.0 / width as f32;
+        let ch = if is_dotrow && dot_col == Some(col) {
+            '●'
+        } else if is_land(lat, lon) {
+            '▪'
+        } else {
+            '·'
+        };
+        if ch != last && last != '\0' {
+            flush(&mut buf, last, &mut spans);
+        }
+        buf.push(ch);
+        last = ch;
+    }
+    flush(&mut buf, last, &mut spans);
+    Line::from(spans)
 }
 
 fn visualizer_bars(level_db: f32, width: usize) -> (String, ratatui::style::Color) {
