@@ -78,7 +78,7 @@
   "help.stop_preview": "[p] Stop",
   "help.searching_deezer": "Searching Deezer…  [p] Cancel",
 
-  "screensaver.prompt": "Press any key to return to search",
+  "screensaver.prompt": "Press any key to return",
 
   "status.connecting": "Connecting…",
   "status.search_placeholder": "search stations",
