@@ -53,7 +53,7 @@
   "config.value.on": "ON",
   "config.value.off": "OFF",
 
-  "overlay.playing_game": "Playing",
+  "overlay.playing_game": "🎮 Modo Gaming",
   "overlay.when_playing": "When playing",
   "overlay.always": "Always",
   "overlay.hidden": "Hidden",
