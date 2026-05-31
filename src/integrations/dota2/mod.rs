@@ -47,7 +47,7 @@ pub fn reset() {
 }
 
 pub enum InstallResult {
-    Installed,
+    Installed { needs_restart: bool },
     AlreadyInstalled,
     SteamNotFound,
     Dota2NotFound,
@@ -75,9 +75,21 @@ pub fn install_gsi_config() -> InstallResult {
     }
 
     match std::fs::write(&cfg_path, GSI_CONFIG) {
-        Ok(_)  => { tracing::info!("Dota2 GSI: config instalada en {:?}", cfg_path); InstallResult::Installed }
+        Ok(_)  => {
+            let needs_restart = is_dota_running();
+            tracing::info!("Dota2 GSI: config instalada (reinicio requerido: {needs_restart})");
+            InstallResult::Installed { needs_restart }
+        }
         Err(e) => InstallResult::WriteError(e.to_string()),
     }
+}
+
+fn is_dota_running() -> bool {
+    std::process::Command::new("tasklist")
+        .args(["/FI", "IMAGENAME eq dota2.exe", "/NH"])
+        .output()
+        .map(|out| String::from_utf8_lossy(&out.stdout).contains("dota2.exe"))
+        .unwrap_or(false)
 }
 
 fn find_steam_path() -> Option<std::path::PathBuf> {

@@ -158,6 +158,7 @@ pub struct App {
     station_details_rx:      Option<std::sync::mpsc::Receiver<StationDetails>>,
     last_details_uuid:       Option<String>,
     dota2_task:              Option<tokio::task::JoinHandle<()>>,
+    pub dota2_needs_restart: bool,
 }
 
 impl App {
@@ -213,6 +214,7 @@ impl App {
             station_details_rx: None,
             last_details_uuid:  None,
             dota2_task:         None,
+            dota2_needs_restart: false,
         }
     }
 
@@ -321,13 +323,16 @@ impl App {
 
     fn start_dota2_integration(&mut self) {
         use crate::integrations::dota2;
-        match dota2::install_gsi_config() {
-            dota2::InstallResult::Installed       => tracing::info!("Dota2 GSI: config instalada"),
-            dota2::InstallResult::AlreadyInstalled => tracing::info!("Dota2 GSI: config ya existia"),
-            dota2::InstallResult::SteamNotFound   => tracing::warn!("Dota2 GSI: Steam no encontrado"),
-            dota2::InstallResult::Dota2NotFound   => tracing::warn!("Dota2 GSI: Dota 2 no encontrado"),
-            dota2::InstallResult::WriteError(e)   => tracing::error!("Dota2 GSI: error escribiendo config: {e}"),
-        }
+        self.dota2_needs_restart = match dota2::install_gsi_config() {
+            dota2::InstallResult::Installed { needs_restart } => {
+                tracing::info!("Dota2 GSI: config instalada");
+                needs_restart
+            }
+            dota2::InstallResult::AlreadyInstalled => { tracing::info!("Dota2 GSI: config ya existia"); false }
+            dota2::InstallResult::SteamNotFound    => { tracing::warn!("Dota2 GSI: Steam no encontrado"); false }
+            dota2::InstallResult::Dota2NotFound    => { tracing::warn!("Dota2 GSI: Dota 2 no encontrado"); false }
+            dota2::InstallResult::WriteError(e)    => { tracing::error!("Dota2 GSI: {e}"); false }
+        };
         self.dota2_task = Some(dota2::spawn_server());
     }
 
@@ -336,6 +341,7 @@ impl App {
             task.abort();
         }
         crate::integrations::dota2::reset();
+        self.dota2_needs_restart = false;
     }
 
     async fn adjust_volume(&mut self, delta: f32) {

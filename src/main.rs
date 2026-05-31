@@ -134,6 +134,9 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
                 app.poll_search_results();
                 app.poll_on_demand_results();
                 app.poll_station_details();
+                if app.dota2_needs_restart && crate::integrations::dota2::get().is_some() {
+                    app.dota2_needs_restart = false;
+                }
             }
             maybe_event = events.next() => {
                 let now = Instant::now();

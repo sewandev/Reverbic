@@ -57,6 +57,7 @@
 
   "config.value.on": "ON",
   "config.value.off": "OFF",
+  "config.value.restart_dota": "Reinicia Dota 2",
 
   "overlay.playing_game": "🎮 Modo Gaming",
   "overlay.when_playing": "Al reproducir",

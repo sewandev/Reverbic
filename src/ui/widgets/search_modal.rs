@@ -68,8 +68,9 @@ pub struct SearchModalWidget<'a> {
     pub duck_volume:               u8,
     pub overlay_alpha:             u8,
     pub screensaver_secs:          u16,
-    pub game_integrations_enabled: bool,
-    pub integration_dota2:         bool,
+    pub game_integrations_enabled:  bool,
+    pub integration_dota2:          bool,
+    pub dota2_needs_restart:        bool,
 }
 
 impl Widget for SearchModalWidget<'_> {
@@ -443,7 +444,11 @@ impl SearchModalWidget<'_> {
                 Language::En => t("lang.display.en"),
             },
             SettingItem::GameIntegrations => if self.game_integrations_enabled { on } else { off },
-            SettingItem::IntegrationDota2 => if self.integration_dota2 { on } else { off },
+            SettingItem::IntegrationDota2 => {
+                if !self.integration_dota2 { off }
+                else if self.dota2_needs_restart { t("config.value.restart_dota") }
+                else { on }
+            }
         }
     }
 
