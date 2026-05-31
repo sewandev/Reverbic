@@ -618,12 +618,8 @@ fn render_screensaver(
     }
 
     if let Some((ref name, ref genre)) = crate::game_detect::get() {
-        let gsi = crate::integrations::dota2::get();
-        let game_line = match gsi {
-            Some(ref d) if !d.hero.is_empty() =>
-                format!("🎮 {}  ·  {}  ·  {}  ·  {}", d.hero, d.kda(), d.time_display(), d.gold()),
-            _ => if genre.is_empty() { format!("🎮 {name}") } else { format!("🎮 {name}  ·  {genre}") },
-        };
+        let game_line = if genre.is_empty() { format!("🎮 {name}") }
+                        else { format!("🎮 {name}  ·  {genre}") };
         put!(Line::from(Span::styled(game_line, Style::default().fg(theme::DIM))));
     }
 
@@ -704,7 +700,11 @@ fn render_game_inline(frame: &mut Frame, area: Rect, name: &str, genre: &str) {
         Span::styled(format!("  {label}  "), Style::default().fg(theme::MUTED)),
         Span::styled(name.to_owned(), theme::PLAYING_STYLE),
     ];
-    if !genre.is_empty() {
+    if let Some(ref d) = crate::integrations::dota2::get().filter(|d| !d.hero.is_empty()) {
+        spans.push(Span::styled("  ·  ", Style::default().fg(theme::MUTED)));
+        spans.push(Span::styled(d.hero.clone(), Style::default().fg(theme::HIGHLIGHT)));
+        spans.push(Span::styled(format!("  {}  {}  {}", d.kda(), d.time_display(), d.gold()), Style::default().fg(theme::DIM)));
+    } else if !genre.is_empty() {
         spans.push(Span::styled("  ·  ", Style::default().fg(theme::MUTED)));
         spans.push(Span::styled(genre.to_owned(), Style::default().fg(theme::DIM)));
     }
@@ -736,7 +736,16 @@ fn render_game_strip(frame: &mut Frame, area: Rect, name: &str, genre: &str) {
     let mut spans: Vec<Span<'static>> = vec![
         Span::styled(name.to_owned(), theme::PLAYING_STYLE),
     ];
-    if !genre.is_empty() {
+    if let Some(ref d) = crate::integrations::dota2::get().filter(|d| !d.hero.is_empty()) {
+        spans.push(Span::styled("  ·  ", Style::default().fg(theme::MUTED)));
+        spans.push(Span::styled(d.hero.clone(), Style::default().fg(theme::HIGHLIGHT)));
+        spans.push(Span::styled("  ·  ", Style::default().fg(theme::MUTED)));
+        spans.push(Span::styled(d.kda(), Style::default().fg(theme::DIM)));
+        spans.push(Span::styled("  ·  ", Style::default().fg(theme::MUTED)));
+        spans.push(Span::styled(d.time_display(), Style::default().fg(theme::DIM)));
+        spans.push(Span::styled("  ·  ", Style::default().fg(theme::MUTED)));
+        spans.push(Span::styled(d.gold(), Style::default().fg(theme::DIM)));
+    } else if !genre.is_empty() {
         spans.push(Span::styled("  ·  ", Style::default().fg(theme::MUTED)));
         spans.push(Span::styled(genre.to_owned(), Style::default().fg(theme::DIM)));
     }
