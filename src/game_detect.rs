@@ -36,7 +36,6 @@ pub fn init_game_db() {
     let _ = DB.set(db);
 }
 pub fn set(raw: Option<String>) {
-    // Solo activar si el proceso está en games.json; ignorar Steam, browsers, etc.
     let resolved = raw.as_deref().and_then(|n| {
         let key = n.to_lowercase();
         let info = DB.get()?.get(&key)?;

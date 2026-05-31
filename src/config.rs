@@ -43,6 +43,37 @@ impl OverlayMode {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum OverlayPosition {
+    #[default]
+    TopLeft,
+    TopRight,
+    BottomRight,
+    BottomLeft,
+}
+
+impl OverlayPosition {
+    pub fn display(self) -> String {
+        use crate::i18n::t;
+        match self {
+            Self::TopLeft     => t("overlay.top_left"),
+            Self::TopRight    => t("overlay.top_right"),
+            Self::BottomRight => t("overlay.bottom_right"),
+            Self::BottomLeft  => t("overlay.bottom_left"),
+        }
+    }
+
+    pub fn next(self) -> Self {
+        match self {
+            Self::TopLeft     => Self::TopRight,
+            Self::TopRight    => Self::BottomRight,
+            Self::BottomRight => Self::BottomLeft,
+            Self::BottomLeft  => Self::TopLeft,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     pub volume:         f32,
@@ -73,6 +104,8 @@ pub struct Config {
     pub duck_volume:     u8,
     #[serde(default = "default_overlay_alpha")]
     pub overlay_alpha:     u8,
+    #[serde(default)]
+    pub overlay_position:  OverlayPosition,
     #[serde(default = "default_screensaver_secs")]
     pub screensaver_secs:  u16,
 }
@@ -114,6 +147,7 @@ impl Default for Config {
             duck_enabled:    false,
             duck_volume:     40,
             overlay_alpha:     90,
+            overlay_position:  OverlayPosition::TopLeft,
             screensaver_secs:  10,
         }
     }
@@ -172,7 +206,6 @@ impl Config {
     pub fn load() -> Self {
         let path = Self::path();
         if !path.exists() {
-            // Primera vez: auto-detectar idioma del sistema operativo
             let mut config = Self::default();
             config.language = detect_system_language();
             return config;

@@ -37,6 +37,7 @@
   "config.setting.crossfade": "Crossfade",
   "config.setting.overlay": "Overlay mode",
   "config.setting.overlay_alpha": "Overlay transparency",
+  "config.setting.overlay_position": "Overlay position",
   "config.setting.screensaver": "Screensaver",
   "config.setting.duck": "Auto-duck while gaming",
   "config.setting.duck_volume": "Duck volume",
@@ -59,6 +60,10 @@
   "overlay.always": "Always",
   "overlay.hidden": "Hidden",
   "overlay.games": "With games",
+  "overlay.top_left": "Top left",
+  "overlay.top_right": "Top right",
+  "overlay.bottom_left": "Bottom left",
+  "overlay.bottom_right": "Bottom right",
 
   "crossfade.off": "Off",
   "crossfade.1s": "1 sec",
