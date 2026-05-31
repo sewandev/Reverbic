@@ -186,7 +186,7 @@ pub fn render(frame: &mut Frame, app: &App) {
     );
 
     if app.show_search_modal && app.screensaver_active() {
-        render_screensaver(frame, frame.area(), &player_state);
+        render_screensaver(frame, frame.area(), &player_state, app.station_details.as_ref());
         return;
     }
 
@@ -501,7 +501,12 @@ fn render_rename_overlay(frame: &mut Frame, input: &str) {
         text_area,
     );
 }
-fn render_screensaver(frame: &mut Frame, area: Rect, state: &PlayerState) {
+fn render_screensaver(
+    frame:   &mut Frame,
+    area:    Rect,
+    state:   &PlayerState,
+    details: Option<&crate::station::StationDetails>,
+) {
     use ratatui::{layout::Alignment, style::Color, widgets::{Block, BorderType, Borders, Clear}};
     use crate::ui::widgets;
     const OVERLAY: Color = Color::Rgb(5, 5, 5);
@@ -514,11 +519,23 @@ fn render_screensaver(frame: &mut Frame, area: Rect, state: &PlayerState) {
         }
     }
 
-    let pw  = area.width.min(60).max(40);
-    let ph  = 11u16;
-    let px  = area.x + area.width.saturating_sub(pw) / 2;
-    let py  = area.y + area.height.saturating_sub(ph) / 2;
-    let panel = Rect::new(px, py, pw, ph);
+    // Altura dinámica según contenido disponible
+    let has_details  = details.is_some();
+    let has_game     = crate::game_detect::get().is_some();
+    let ph = 2u16                                        // bordes
+        + 2                                              // station + title
+        + 1 + 1                                          // empty + visualizer
+        + 1                                              // empty post-viz
+        + if has_details { 3 } else { 0 }               // metadata + tags + url
+        + if has_details && has_game { 1 } else { 0 }   // empty entre detalles y juego
+        + if has_game { 1 } else { 0 }                  // juego
+        + 1                                              // empty + prompt
+        + 1;                                             // prompt
+
+    let pw    = area.width.min(62).max(44);
+    let px    = area.x + area.width.saturating_sub(pw) / 2;
+    let py    = area.y + area.height.saturating_sub(ph) / 2;
+    let panel = Rect::new(px, py, pw, ph.min(area.height));
 
     let block = Block::default()
         .borders(Borders::ALL)
@@ -528,58 +545,92 @@ fn render_screensaver(frame: &mut Frame, area: Rect, state: &PlayerState) {
     let inner = block.inner(panel);
     frame.render_widget(block, panel);
 
-    let cx = inner.x + 2;
-    let cw = inner.width.saturating_sub(4);
+    let cx  = inner.x + 2;
+    let cw  = inner.width.saturating_sub(4);
+    let mut row = inner.y;
 
-    // Estación + estado
+    macro_rules! put {
+        ($line:expr) => {
+            frame.render_widget(
+                Paragraph::new($line).style(Style::default().bg(BG)),
+                Rect::new(cx, row, cw, 1),
+            );
+            row += 1;
+        };
+    }
+
+    // Estación
     let station     = state.station.as_ref().map(|s| s.name.as_str()).unwrap_or("—");
     let status_icon = match state.status {
-        PlayerStatus::Playing              => ">>",
-        PlayerStatus::Paused               => "⏸",
+        PlayerStatus::Playing             => ">>",
+        PlayerStatus::Paused              => "⏸",
         PlayerStatus::Buffering(_)
-        | PlayerStatus::Reconnecting(_)    => "…",
-        _                                  => "—",
+        | PlayerStatus::Reconnecting(_)   => "…",
+        _                                 => "—",
     };
-    frame.render_widget(
-        Paragraph::new(Line::from(vec![
-            Span::styled(format!("{status_icon}  "), Style::default().fg(theme::ACCENT)),
-            Span::styled(station.to_owned(), theme::PLAYING_STYLE),
-        ])).style(Style::default().bg(BG)),
-        Rect::new(cx, inner.y, cw, 1),
-    );
+    put!(Line::from(vec![
+        Span::styled(format!("{status_icon}  "), Style::default().fg(theme::ACCENT)),
+        Span::styled(station.to_owned(), theme::PLAYING_STYLE),
+    ]));
 
     // Título
     let title = state.title.as_deref().unwrap_or("—");
-    frame.render_widget(
-        Paragraph::new(Span::styled(title.to_owned(), Style::default().fg(theme::HIGHLIGHT)))
-            .style(Style::default().bg(BG)),
-        Rect::new(cx + 4, inner.y + 1, cw.saturating_sub(4), 1),
-    );
+    put!(Line::from(Span::styled(title.to_owned(), Style::default().fg(theme::HIGHLIGHT))));
 
-    // Visualizador de barras (row 3)
+    // Vacío + visualizador
+    row += 1;
     let (bars, bar_color) = visualizer_bars(state.level_db, cw as usize);
-    frame.render_widget(
-        Paragraph::new(Span::styled(bars, Style::default().fg(bar_color)))
-            .style(Style::default().bg(BG)),
-        Rect::new(cx, inner.y + 3, cw, 1),
-    );
+    put!(Line::from(Span::styled(bars, Style::default().fg(bar_color))));
+    row += 1;
 
-    // Juego activo (row 5)
-    if let Some((ref name, ref genre)) = crate::game_detect::get() {
-        let game_line = if genre.is_empty() {
-            format!("🎮 {name}")
-        } else {
-            format!("🎮 {name}  ·  {genre}")
-        };
-        frame.render_widget(
-            Paragraph::new(Span::styled(game_line, Style::default().fg(theme::DIM)))
-                .style(Style::default().bg(BG)),
-            Rect::new(cx, inner.y + 5, cw, 1),
-        );
+    // Detalles RadioBrowser
+    if let Some(d) = details {
+        // Línea: country · language · codec bitrate
+        let mut meta: Vec<Span<'static>> = Vec::new();
+        for (val, _) in [(&d.country, true), (&d.language, true)] {
+            if !val.is_empty() {
+                if !meta.is_empty() { meta.push(Span::styled("  ·  ", Style::default().fg(theme::MUTED))); }
+                meta.push(Span::styled(val.clone(), Style::default().fg(theme::DIM)));
+            }
+        }
+        if !d.codec.is_empty() {
+            if !meta.is_empty() { meta.push(Span::styled("  ·  ", Style::default().fg(theme::MUTED))); }
+            let codec_str = if d.bitrate > 0 { format!("{}  {}k", d.codec, d.bitrate) } else { d.codec.clone() };
+            meta.push(Span::styled(codec_str, Style::default().fg(theme::DIM)));
+        }
+        if !meta.is_empty() { put!(Line::from(meta)); } else { row += 1; }
+
+        // Tags
+        if !d.tags.is_empty() {
+            let tag_str = d.tags.join("  ·  ");
+            put!(Line::from(Span::styled(tag_str, Style::default().fg(theme::MUTED))));
+        } else { row += 1; }
+
+        // Homepage — Ctrl+Click en Windows Terminal para abrir
+        if !d.homepage.is_empty() {
+            let url = d.homepage.trim_start_matches("https://")
+                                 .trim_start_matches("http://")
+                                 .trim_end_matches('/')
+                                 .to_string();
+            put!(Line::from(vec![
+                Span::styled("↗  ", Style::default().fg(theme::MUTED)),
+                Span::styled(url, Style::default().fg(theme::ACCENT).add_modifier(Modifier::UNDERLINED)),
+            ]));
+        } else { row += 1; }
+
+        if has_game { row += 1; } // separador antes del juego
     }
 
-    // Prompt + volumen (row 7)
-    let spinner = widgets::spinner_frame();
+    // Juego activo
+    if let Some((ref name, ref genre)) = crate::game_detect::get() {
+        let game_line = if genre.is_empty() { format!("🎮 {name}") }
+                        else { format!("🎮 {name}  ·  {genre}") };
+        put!(Line::from(Span::styled(game_line, Style::default().fg(theme::DIM))));
+    }
+
+    // Prompt + volumen
+    row += 1;
+    let spinner   = widgets::spinner_frame();
     let vol_pct   = (state.volume.clamp(0.0, 1.0) * 100.0).round() as u32;
     let vol_color = if state.volume > 0.85 { theme::WARNING } else { theme::ACCENT };
     frame.render_widget(
@@ -587,13 +638,13 @@ fn render_screensaver(frame: &mut Frame, area: Rect, state: &PlayerState) {
             Span::styled(format!("{spinner}  "), Style::default().fg(theme::ACCENT)),
             Span::styled(t("screensaver.prompt"), Style::default().fg(theme::MUTED)),
         ])).style(Style::default().bg(BG)),
-        Rect::new(cx, inner.y + 7, cw, 1),
+        Rect::new(cx, row, cw, 1),
     );
     frame.render_widget(
         Paragraph::new(Span::styled(format!("{vol_pct:>3}%"), Style::default().fg(vol_color)))
             .alignment(Alignment::Right)
             .style(Style::default().bg(BG)),
-        Rect::new(cx, inner.y + 7, cw, 1),
+        Rect::new(cx, row, cw, 1),
     );
 }
 
