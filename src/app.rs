@@ -435,7 +435,18 @@ impl App {
     pub async fn on_key(&mut self, key: KeyCode) {
         self.last_activity = Instant::now();
         if self.screensaver_active() {
-            return; // cualquier tecla desactiva el screensaver; no se procesa
+            // 'O' abre el sitio web de la estación en el navegador predeterminado
+            if key == KeyCode::Char('o') || key == KeyCode::Char('O') {
+                if let Some(ref d) = self.station_details {
+                    if !d.homepage.is_empty() {
+                        #[cfg(target_os = "windows")]
+                        let _ = std::process::Command::new("cmd")
+                            .args(["/c", "start", "", &d.homepage])
+                            .spawn();
+                    }
+                }
+            }
+            return; // cualquier otra tecla desactiva el screensaver
         }
         if self.show_search_modal {
             self.on_key_search_modal(key).await;
