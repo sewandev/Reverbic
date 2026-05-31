@@ -190,8 +190,6 @@ pub struct StationDetails {
     pub tags:       Vec<String>,
     pub codec:      String,
     pub bitrate:    u32,
-    pub geo_lat:    Option<f32>,
-    pub geo_lon:    Option<f32>,
 }
 
 pub async fn fetch_station_details(uuid: &str) -> Option<StationDetails> {
@@ -219,10 +217,8 @@ pub async fn fetch_station_details(uuid: &str) -> Option<StationDetails> {
                 country:  s["country"].as_str().unwrap_or("").to_string(),
                 language: s["language"].as_str().unwrap_or("").to_string(),
                 tags,
-                codec:   s["codec"].as_str().unwrap_or("").to_string(),
-                bitrate: s["bitrate"].as_u64().unwrap_or(0) as u32,
-                geo_lat: s["geo_lat"].as_str().and_then(|v| v.parse().ok()),
-                geo_lon: s["geo_long"].as_str().and_then(|v| v.parse().ok()),
+                codec:    s["codec"].as_str().unwrap_or("").to_string(),
+                bitrate:  s["bitrate"].as_u64().unwrap_or(0) as u32,
             });
         }
     }
