@@ -68,13 +68,16 @@ pub struct Config {
     #[serde(default = "default_true")]
     pub restore_volume: bool,
     #[serde(default)]
-    pub duck_enabled:   bool,
+    pub duck_enabled:    bool,
     #[serde(default = "default_duck_volume")]
-    pub duck_volume:    u8,
+    pub duck_volume:     u8,
+    #[serde(default = "default_overlay_alpha")]
+    pub overlay_alpha:   u8,
 }
 
 fn default_true() -> bool { true }
 fn default_duck_volume() -> u8 { 40 }
+fn default_overlay_alpha() -> u8 { 90 }
 
 impl Default for Config {
     fn default() -> Self {
@@ -91,8 +94,9 @@ impl Default for Config {
             notifications: false,
             language: Language::default(),
             restore_volume: true,
-            duck_enabled:   false,
-            duck_volume:    40,
+            duck_enabled:    false,
+            duck_volume:     40,
+            overlay_alpha:   90,
         }
     }
 }
