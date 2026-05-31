@@ -523,6 +523,8 @@ fn render_screensaver(
 
     let has_details  = details.is_some();
     let has_game     = crate::game_detect::get().is_some();
+    let n_recent     = state.recent_titles.len().saturating_sub(1).min(5) as u16;
+    let has_recent   = n_recent > 0;
     let ph = 2u16                                        // bordes
         + 2                                              // station + title
         + 1 + 1                                          // empty + visualizer
@@ -530,6 +532,7 @@ fn render_screensaver(
         + if has_details { 3 } else { 0 }               // metadata + tags + url
         + if has_details && has_game { 1 } else { 0 }   // empty entre detalles y juego
         + if has_game { 1 } else { 0 }                  // juego
+        + if has_recent { 2 + n_recent } else { 0 }     // sep + header + tracks
         + 1                                              // empty + prompt
         + 1;                                             // prompt
 
@@ -616,6 +619,27 @@ fn render_screensaver(
         let game_line = if genre.is_empty() { format!("🎮 {name}") }
                         else { format!("🎮 {name}  ·  {genre}") };
         put!(Line::from(Span::styled(game_line, Style::default().fg(theme::DIM))));
+    }
+
+    if has_recent {
+        let sep = "─".repeat(cw as usize);
+        put!(Line::from(Span::styled(sep, Style::default().fg(theme::DIM))));
+        put!(Line::from(Span::styled(
+            t("screensaver.recent_tracks"),
+            Style::default().fg(theme::MUTED),
+        )));
+        let max_title = cw.saturating_sub(5) as usize;
+        for track in state.recent_titles.iter().skip(1).take(5) {
+            let display = if track.chars().count() > max_title {
+                format!("{}…", track.chars().take(max_title - 1).collect::<String>())
+            } else {
+                track.clone()
+            };
+            put!(Line::from(vec![
+                Span::styled("  ↳  ", Style::default().fg(theme::DIM)),
+                Span::styled(display, Style::default().fg(theme::HIGHLIGHT)),
+            ]));
+        }
     }
 
     row += 1;
