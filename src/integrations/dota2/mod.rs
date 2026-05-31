@@ -41,7 +41,7 @@ pub fn get() -> Option<Dota2State> {
     STATE.get()
         .and_then(|arc| arc.try_lock().ok())
         .map(|s| s.clone())
-        .filter(|s| s.in_game)
+        .filter(|s| s.phase.is_active())
 }
 
 pub fn spawn_server() -> tokio::task::JoinHandle<()> {
