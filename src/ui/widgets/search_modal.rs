@@ -505,6 +505,13 @@ impl SearchModalWidget<'_> {
                 )).render(Rect::new(list_x, y, list_w, 1), buf);
             }
         }
+
+        // Scrollbar cuando el total de filas supera el espacio visible
+        let total_rows = rows.len();
+        if total_rows > visible_n {
+            let scroll_area = Rect::new(list_x, list_area.y, list_w, list_area.height);
+            self.render_scrollbar(scroll_area, total_rows, selected_row, buf);
+        }
     }
 
     fn render_country_body(&self, area: Rect, content_x: u16, content_w: u16, buf: &mut Buffer) {
