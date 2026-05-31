@@ -53,7 +53,7 @@
   "config.value.on": "ON",
   "config.value.off": "OFF",
 
-  "overlay.playing_game": "🎮 Modo Gaming",
+  "overlay.playing_game": "🎮 Gaming Mode",
   "overlay.when_playing": "When playing",
   "overlay.always": "Always",
   "overlay.hidden": "Hidden",
@@ -77,6 +77,8 @@
   "help.stations_paused": "[↵] Play  [Space] Resume  [F] ★  [+/-] Vol  [/] Search  [Esc] Quit",
   "help.stop_preview": "[p] Stop",
   "help.searching_deezer": "Searching Deezer…  [p] Cancel",
+
+  "screensaver.prompt": "Press any key to return to search",
 
   "status.connecting": "Connecting…",
   "status.search_placeholder": "search stations",

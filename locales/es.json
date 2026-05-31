@@ -78,6 +78,8 @@
   "help.stop_preview": "[p] Detener",
   "help.searching_deezer": "Buscando en Deezer…  [p] Cancelar",
 
+  "screensaver.prompt": "Presiona cualquier tecla para volver al buscador",
+
   "status.connecting": "Conectando…",
   "status.search_placeholder": "buscar estaciones",
 

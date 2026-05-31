@@ -60,6 +60,7 @@ pub struct App {
     pub renaming_favorite:   Option<usize>,
     pub rename_input:        String,
     pub click_flash:         Option<(usize, Instant)>,
+    pub last_activity:       Instant,
     pub windows_tx:          Option<tokio::sync::watch::Sender<crate::config::Config>>,
     pub config:              Config,
     metadata_task:           Option<tokio::task::JoinHandle<()>>,
@@ -110,6 +111,7 @@ impl App {
             renaming_favorite:  None,
             rename_input:       String::new(),
             click_flash:        None,
+            last_activity:      Instant::now(),
             windows_tx:         None,
             config,
             metadata_task:      None,
@@ -118,6 +120,10 @@ impl App {
             on_demand_task:     None,
             on_demand_rx:       None,
         }
+    }
+
+    pub fn screensaver_active(&self) -> bool {
+        self.show_search_modal && self.last_activity.elapsed().as_secs() >= 10
     }
 
     fn total_stations(&self) -> usize {
@@ -421,6 +427,10 @@ impl App {
     }
 
     pub async fn on_key(&mut self, key: KeyCode) {
+        self.last_activity = Instant::now();
+        if self.screensaver_active() {
+            return; // cualquier tecla desactiva el screensaver; no se procesa
+        }
         if self.show_search_modal {
             self.on_key_search_modal(key).await;
             return;
