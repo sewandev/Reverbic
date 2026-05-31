@@ -128,9 +128,10 @@ unsafe fn run(
                 loop {
                     let proc_map = build_process_snapshot();
                     let (_peak, detected) = detect_audio_activity(own_pid, &proc_map);
-                    let name = detected.unwrap_or_default();
-                    crate::game_detect::set(if name.is_empty() { None } else { Some(name.clone()) });
-                    if let Ok(mut g) = sg.lock() { *g = name; }
+                    let raw = detected.unwrap_or_default();
+                    crate::game_detect::set(if raw.is_empty() { None } else { Some(raw) });
+                    let display = crate::game_detect::get_name().unwrap_or_default();
+                    if let Ok(mut g) = sg.lock() { *g = display; }
                     std::thread::sleep(Duration::from_millis(500));
                 }
             })

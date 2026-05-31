@@ -40,6 +40,7 @@ async fn main() -> Result<()> {
 
     // i18n debe inicializarse antes de cualquier render
     i18n::init(config::Config::load().language);
+    game_detect::init_game_db();
 
     tracing::info!("reverbic iniciando");
 

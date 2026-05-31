@@ -467,7 +467,7 @@ impl SearchModalWidget<'_> {
             Constraint::Fill(1),
         ]).areas(area);
 
-        let visible_n = list_area.height as usize;
+        let visible_n = list_area.height.saturating_sub(1) as usize;
         let offset    = if selected_row >= visible_n { selected_row + 1 - visible_n } else { 0 };
 
         item_idx = 0;
