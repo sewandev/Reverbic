@@ -5,6 +5,16 @@ pub use state::Dota2State;
 
 use std::sync::{Arc, Mutex};
 
+/// Implementación de [`crate::integrations::GameIntegration`] para Dota 2 via GSI.
+pub struct Dota2Integration;
+
+impl crate::integrations::GameIntegration for Dota2Integration {
+    type State = Dota2State;
+    fn get() -> Option<Self::State>               { get() }
+    fn spawn_server() -> tokio::task::JoinHandle<()> { spawn_server() }
+    fn reset()                                    { reset() }
+}
+
 const GSI_PORT: u16 = 7836;
 
 const GSI_CONFIG: &str = concat!(

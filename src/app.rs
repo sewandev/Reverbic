@@ -322,7 +322,7 @@ impl App {
     }
 
     fn start_dota2_integration(&mut self) {
-        use crate::integrations::dota2;
+        use crate::integrations::{GameIntegration, dota2::{self, Dota2Integration}};
         self.dota2_needs_restart = match dota2::install_gsi_config() {
             dota2::InstallResult::Installed { needs_restart } => {
                 tracing::info!("Dota2 GSI: config instalada");
@@ -333,14 +333,13 @@ impl App {
             dota2::InstallResult::Dota2NotFound    => { tracing::warn!("Dota2 GSI: Dota 2 no encontrado"); false }
             dota2::InstallResult::WriteError(e)    => { tracing::error!("Dota2 GSI: {e}"); false }
         };
-        self.dota2_task = Some(dota2::spawn_server());
+        self.dota2_task = Some(Dota2Integration::spawn_server());
     }
 
     fn stop_dota2_integration(&mut self) {
-        if let Some(task) = self.dota2_task.take() {
-            task.abort();
-        }
-        crate::integrations::dota2::reset();
+        use crate::integrations::{GameIntegration, dota2::Dota2Integration};
+        if let Some(task) = self.dota2_task.take() { task.abort(); }
+        Dota2Integration::reset();
         self.dota2_needs_restart = false;
     }
 
