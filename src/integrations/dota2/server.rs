@@ -18,20 +18,47 @@ pub async fn run(port: u16, state: Arc<Mutex<Dota2State>>) {
 }
 
 async fn handle(mut stream: tokio::net::TcpStream, state: Arc<Mutex<Dota2State>>) {
-    let mut buf = vec![0u8; 65_536];
-    let n = match tokio::time::timeout(
-        std::time::Duration::from_secs(5),
-        stream.read(&mut buf),
-    ).await {
-        Ok(Ok(n)) if n > 0 => n,
-        _                  => return,
+    let timeout = std::time::Duration::from_secs(5);
+
+    // Lee hasta encontrar el fin de cabeceras \r\n\r\n (puede requerir varios reads)
+    let mut raw = Vec::with_capacity(8192);
+    let header_end = loop {
+        let mut chunk = [0u8; 4096];
+        let n = match tokio::time::timeout(timeout, stream.read(&mut chunk)).await {
+            Ok(Ok(n)) if n > 0 => n,
+            _                  => return,
+        };
+        raw.extend_from_slice(&chunk[..n]);
+        if let Some(pos) = raw.windows(4).position(|w| w == b"\r\n\r\n") {
+            break pos + 4;
+        }
+        if raw.len() > 65_536 { return; }
     };
 
-    if let Some(off) = buf[..n].windows(4).position(|w| w == b"\r\n\r\n") {
-        let body = &buf[off + 4..n];
-        if let Ok(json) = serde_json::from_slice::<serde_json::Value>(body) {
-            apply(&json, &state);
-        }
+    // Parsea Content-Length de las cabeceras
+    let headers = String::from_utf8_lossy(&raw[..header_end]);
+    let content_length: usize = headers
+        .lines()
+        .find(|l| l.to_ascii_lowercase().starts_with("content-length:"))
+        .and_then(|l| l.splitn(2, ':').nth(1)?.trim().parse().ok())
+        .unwrap_or(0);
+
+    // El body puede haber llegado parcialmente junto con las cabeceras
+    let mut body = raw[header_end..].to_vec();
+
+    // Lee el resto del body hasta completar content_length
+    while body.len() < content_length {
+        let need = (content_length - body.len()).min(4096);
+        let mut chunk = vec![0u8; need];
+        let n = match tokio::time::timeout(timeout, stream.read(&mut chunk)).await {
+            Ok(Ok(n)) if n > 0 => n,
+            _                  => break,
+        };
+        body.extend_from_slice(&chunk[..n]);
+    }
+
+    if let Ok(json) = serde_json::from_slice::<serde_json::Value>(&body) {
+        apply(&json, &state);
     }
 
     let _ = stream.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n").await;
