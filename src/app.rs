@@ -1057,6 +1057,9 @@ impl App {
                 (Self::filter_genres(&self.genre_filter).len(), &mut self.genre_selected)
             } else if self.search_results.is_empty() && matches!(self.modal_mode, SearchMode::Country) {
                 (Self::filter_countries(&self.country_filter).len(), &mut self.country_selected)
+            } else if matches!(self.modal_mode, SearchMode::Settings) {
+                let count = 10 + usize::from(self.config.duck_enabled);
+                (count, &mut self.settings_selected)
             } else {
                 (self.search_results.len(), &mut self.modal_selected)
             };
