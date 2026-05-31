@@ -223,24 +223,19 @@ impl AudioPlayer {
 }
 
 fn process_icy_titles(
-    title_rx: &mut Option<std_mpsc::Receiver<String>>,
-    state_tx: &watch::Sender<PlayerState>,
-    api_fresh: bool,
-    api_has_recent: bool,
-    od: &OnDemandTracker,
-    current_station: &Option<Station>,
-    reconnect_at: &mut Option<std::time::Instant>,
-    reconnect_count: &mut u32,
+    st:           &mut AudioLoopState,
+    state_tx:     &watch::Sender<PlayerState>,
+    api_fresh:    bool,
     download_done: bool,
 ) {
-    let rx = match title_rx {
-        Some(r) => r,
-        None    => return,
+    let rx = match st.title_rx {
+        Some(ref mut r) => r,
+        None            => return,
     };
     loop {
         match rx.try_recv() {
             Ok(title) => {
-                let use_icy = !api_fresh || !api_has_recent;
+                let use_icy = !api_fresh || !st.api_has_recent;
                 if use_icy {
                     let mut state = state_tx.borrow().clone();
                     if state.recent_titles.first().map(String::as_str) != Some(title.as_str()) {
@@ -253,33 +248,33 @@ fn process_icy_titles(
             }
             Err(std_mpsc::TryRecvError::Empty) => break,
             Err(std_mpsc::TryRecvError::Disconnected) => {
-                *title_rx = None;
-                if current_station.is_some() && reconnect_at.is_none() {
-                    let delay = backoff_duration(*reconnect_count, 1, 30);
-                    if od.active {
+                st.title_rx = None;
+                if st.current_station.is_some() && st.reconnect_at.is_none() {
+                    let delay = backoff_duration(st.reconnect_count, 1, 30);
+                    if st.od.active {
                         if download_done {
                             info!("On-demand: descarga completa, reproduciendo desde buffer");
                         } else {
-                            let pos = od.current_pos();
+                            let pos = st.od.current_pos();
                             let duration = state_tx.borrow().playback_duration_secs.unwrap_or(f32::MAX);
                             if pos >= duration * 0.97 {
                                 info!("On-demand: fin de archivo — deteniendo");
                             } else {
                                 warn!(
                                     "On-demand: stream cortado en {pos:.0}s \u{2014} reconectando en {:.1}s (intento {})",
-                                    delay.as_secs_f32(), *reconnect_count + 1
+                                    delay.as_secs_f32(), st.reconnect_count + 1
                                 );
-                                *reconnect_at = Some(std::time::Instant::now() + delay);
-                                *reconnect_count += 1;
+                                st.reconnect_at    = Some(std::time::Instant::now() + delay);
+                                st.reconnect_count += 1;
                             }
                         }
                     } else {
                         warn!(
                             "Stream terminado inesperadamente \u{2014} reconectando en {:.1}s (intento {})",
-                            delay.as_secs_f32(), *reconnect_count + 1
+                            delay.as_secs_f32(), st.reconnect_count + 1
                         );
-                        *reconnect_at = Some(std::time::Instant::now() + delay);
-                        *reconnect_count += 1;
+                        st.reconnect_at    = Some(std::time::Instant::now() + delay);
+                        st.reconnect_count += 1;
                     }
                 }
                 break;
@@ -288,20 +283,16 @@ fn process_icy_titles(
     }
 }
 
-fn update_level_and_position(
-    state_tx: &watch::Sender<PlayerState>,
-    level: &Arc<AtomicU32>,
-    od: &OnDemandTracker,
-) {
-    let db = f32::from_bits(level.load(Ordering::Acquire));
+fn update_level_and_position(state_tx: &watch::Sender<PlayerState>, st: &AudioLoopState) {
+    let db = f32::from_bits(st.level.load(Ordering::Acquire));
     let mut state = state_tx.borrow().clone();
     let mut changed = false;
     if (state.level_db - db).abs() > 0.5 {
         state.level_db = db;
         changed = true;
     }
-    if od.active {
-        let pos = od.current_pos();
+    if st.od.active {
+        let pos = st.od.current_pos();
         if state.playback_pos_secs.map(|p| (p - pos).abs() > 0.5).unwrap_or(true) {
             state.playback_pos_secs = Some(pos);
             changed = true;
@@ -326,6 +317,48 @@ struct CrossfadeOut {
     from_vol:      f32,
     start:         std::time::Instant,
     duration_secs: f32,
+}
+
+struct AudioLoopState {
+    level:               Arc<AtomicU32>,
+    player:              Option<Player>,
+    preview_player:      Option<Player>,
+    current_volume:      f32,
+    volume_before_duck:  Option<f32>,
+    title_rx:            Option<std_mpsc::Receiver<String>>,
+    api_last_success:    Option<std::time::Instant>,
+    api_has_recent:      bool,
+    current_station:     Option<Station>,
+    reconnect_at:        Option<std::time::Instant>,
+    reconnect_count:     u32,
+    stream_retry_at:     Option<(u32, std::time::Instant)>,
+    od:                  OnDemandTracker,
+    stream_last_chunk:   Option<Arc<AtomicU64>>,
+    stream_download_done: Option<Arc<AtomicBool>>,
+    crossfade_out:       Option<CrossfadeOut>,
+}
+
+impl AudioLoopState {
+    fn new() -> Self {
+        Self {
+            level:               Arc::new(AtomicU32::new((-60.0f32).to_bits())),
+            player:              None,
+            preview_player:      None,
+            current_volume:      1.0,
+            volume_before_duck:  None,
+            title_rx:            None,
+            api_last_success:    None,
+            api_has_recent:      false,
+            current_station:     None,
+            reconnect_at:        None,
+            reconnect_count:     0,
+            stream_retry_at:     None,
+            od:                  OnDemandTracker::inactive(),
+            stream_last_chunk:   None,
+            stream_download_done: None,
+            crossfade_out:       None,
+        }
+    }
 }
 
 struct StreamConnection {
@@ -364,14 +397,12 @@ fn playing_state(station: Station, volume: f32, is_on_demand: bool, duration_sec
 }
 
 fn open_stream(
-    station:        &Station,
-    player_volume:  f32,
-    current_volume: f32,
-    handle:         &tokio::runtime::Handle,
-    device_sink:    &MixerDeviceSink,
-    level:          &Arc<AtomicU32>,
-    od:             &mut OnDemandTracker,
-    state_tx:       &watch::Sender<PlayerState>,
+    station:       &Station,
+    player_volume: f32,
+    handle:        &tokio::runtime::Handle,
+    device_sink:   &MixerDeviceSink,
+    state_tx:      &watch::Sender<PlayerState>,
+    st:            &mut AudioLoopState,
 ) -> Result<StreamConnection, String> {
     let is_on_demand = station.key.starts_with("ondemand_");
     let url          = station.url.to_string();
@@ -384,7 +415,7 @@ fn open_stream(
         let _ = state_tx.send(PlayerState {
             status:  PlayerStatus::Buffering(0.0),
             station: Some(station.clone()),
-            volume:  current_volume,
+            volume:  st.current_volume,
             ..Default::default()
         });
         let target = (PRE_BUFFER_SECS * ONDEMAND_BYTES_PER_SEC) as usize;
@@ -399,12 +430,12 @@ fn open_stream(
     match Decoder::try_from(reader) {
         Ok(decoder) => {
             let duration_secs = decoder.total_duration().map(|d| d.as_secs_f32()).filter(|&d| d > 0.0);
-            let metered = MeterSource::new(decoder, Arc::clone(level));
+            let metered = MeterSource::new(decoder, Arc::clone(&st.level));
             let p = Player::connect_new(&device_sink.mixer());
             p.set_volume(player_volume);
             p.append(metered);
             p.play();
-            od.start_playback(is_on_demand);
+            st.od.start_playback(is_on_demand);
             Ok(StreamConnection { player: p, duration_secs, title_rx, last_chunk, download_done })
         }
         Err(e) => Err(e.to_string()),
@@ -412,26 +443,24 @@ fn open_stream(
 }
 
 fn schedule_retry(
-    error_msg:       &str,
-    station:         Station,
-    current_volume:  f32,
-    stream_retry_at: &mut Option<(u32, std::time::Instant)>,
-    title_rx:        &mut Option<std_mpsc::Receiver<String>>,
-    state_tx:        &watch::Sender<PlayerState>,
+    st:        &mut AudioLoopState,
+    error_msg: &str,
+    station:   Station,
+    state_tx:  &watch::Sender<PlayerState>,
 ) {
-    *title_rx = None;
-    let retry_count = stream_retry_at.take().map(|(count, _)| count + 1).unwrap_or(1);
+    st.title_rx = None;
+    let retry_count = st.stream_retry_at.take().map(|(count, _)| count + 1).unwrap_or(1);
     if retry_count <= MAX_STREAM_RETRIES {
         let delay = backoff_duration(retry_count - 1, BASE_RETRY_DELAY_SECS, MAX_RETRY_DELAY_SECS);
         warn!(
             "Error al decodificar stream (intento {}/{}): {error_msg}. Reintentando en {:.1}s",
             retry_count, MAX_STREAM_RETRIES, delay.as_secs_f32()
         );
-        *stream_retry_at = Some((retry_count, std::time::Instant::now() + delay));
+        st.stream_retry_at = Some((retry_count, std::time::Instant::now() + delay));
         let _ = state_tx.send(PlayerState {
             status:  PlayerStatus::Reconnecting(retry_count),
             station: Some(station),
-            volume:  current_volume,
+            volume:  st.current_volume,
             ..Default::default()
         });
     } else {
@@ -439,7 +468,7 @@ fn schedule_retry(
         let _ = state_tx.send(PlayerState {
             status:  PlayerStatus::Error(format!("Stream: {} intentos fallidos", retry_count)),
             station: Some(station),
-            volume:  current_volume,
+            volume:  st.current_volume,
             ..Default::default()
         });
     }
@@ -462,104 +491,62 @@ fn audio_loop(
         }
     };
 
-    let level = Arc::new(AtomicU32::new((-60.0f32).to_bits()));
-    let mut player: Option<Player> = None;
-    let mut preview_player: Option<Player> = None;
-    let mut current_volume: f32 = 1.0;
-    let mut volume_before_duck: Option<f32> = None;
-    let mut title_rx: Option<std_mpsc::Receiver<String>> = None;
-    let mut api_last_success: Option<std::time::Instant> = None;
-    let mut api_has_recent: bool = false;
-    let mut current_station: Option<Station> = None;
-    let mut reconnect_at: Option<std::time::Instant> = None;
-    let mut reconnect_count: u32 = 0;
-    let mut stream_retry_at: Option<(u32, std::time::Instant)> = None;
-    let mut od = OnDemandTracker::inactive();
-    let mut stream_last_chunk:    Option<Arc<AtomicU64>>  = None;
-    let mut stream_download_done: Option<Arc<AtomicBool>> = None;
-    let mut crossfade_out: Option<CrossfadeOut> = None;
+    let mut st = AudioLoopState::new();
 
     loop {
-        let cf_done = if let Some(ref cf) = crossfade_out {
+        let cf_done = if let Some(ref cf) = st.crossfade_out {
             let progress = (cf.start.elapsed().as_secs_f32() / cf.duration_secs).clamp(0.0, 1.0);
             cf.player.set_volume(cf.from_vol * (1.0 - progress));
-            if let Some(ref p) = player {
-                p.set_volume(current_volume * progress);
-            }
+            if let Some(ref p) = st.player { p.set_volume(st.current_volume * progress); }
             progress >= 1.0
-        } else {
-            false
-        };
-        if cf_done {
-            if let Some(cf) = crossfade_out.take() { cf.player.stop(); }
-        }
+        } else { false };
+        if cf_done { if let Some(cf) = st.crossfade_out.take() { cf.player.stop(); } }
 
-        let api_fresh = api_last_success
-            .map(|t| t.elapsed().as_secs() < 60)
-            .unwrap_or(false);
-        let download_done = if let Some(ref arc) = stream_download_done {
+        let api_fresh = st.api_last_success.map(|t| t.elapsed().as_secs() < 60).unwrap_or(false);
+        let download_done = if let Some(ref arc) = st.stream_download_done {
             if arc.load(Ordering::Acquire) {
-                stream_last_chunk    = None;
-                stream_download_done = None;
+                st.stream_last_chunk    = None;
+                st.stream_download_done = None;
                 true
-            } else {
-                false
-            }
-        } else {
-            false
-        };
+            } else { false }
+        } else { false };
 
-        process_icy_titles(
-            &mut title_rx,
-            &state_tx,
-            api_fresh,
-            api_has_recent,
-            &od,
-            &current_station,
-            &mut reconnect_at,
-            &mut reconnect_count,
-            download_done,
-        );
-        update_level_and_position(&state_tx, &level, &od);
-        if reconnect_at.is_none() && stream_retry_at.is_none() {
-            if let (Some(ref arc), Some(ref _station)) = (&stream_last_chunk, &current_station) {
+        process_icy_titles(&mut st, &state_tx, api_fresh, download_done);
+        update_level_and_position(&state_tx, &st);
+
+        if st.reconnect_at.is_none() && st.stream_retry_at.is_none() {
+            if let (Some(ref arc), Some(_)) = (&st.stream_last_chunk, &st.current_station) {
                 let last_ms = arc.load(Ordering::Acquire);
                 if last_ms > 0 {
-                    let stall_threshold = if od.active { STALL_SECS_ON_DEMAND } else { STALL_SECS_LIVE };
+                    let stall_threshold = if st.od.active { STALL_SECS_ON_DEMAND } else { STALL_SECS_LIVE };
                     let now_ms = std::time::SystemTime::now()
                         .duration_since(std::time::UNIX_EPOCH)
                         .map(|d| d.as_millis() as u64)
                         .unwrap_or(0);
                     if now_ms.saturating_sub(last_ms) > stall_threshold * 1000 {
-                        let delay = backoff_duration(reconnect_count, BASE_RECONNECT_DELAY_SECS, MAX_RETRY_DELAY_SECS);
+                        let delay = backoff_duration(st.reconnect_count, BASE_RECONNECT_DELAY_SECS, MAX_RETRY_DELAY_SECS);
                         warn!(
                             "Stream sin datos por {}s — reconectando en {:.1}s (intento {})",
-                            stall_threshold, delay.as_secs_f32(), reconnect_count + 1
+                            stall_threshold, delay.as_secs_f32(), st.reconnect_count + 1
                         );
-                        stream_last_chunk = None;
-                        reconnect_at = Some(std::time::Instant::now() + delay);
-                        reconnect_count += 1;
+                        st.stream_last_chunk = None;
+                        st.reconnect_at      = Some(std::time::Instant::now() + delay);
+                        st.reconnect_count  += 1;
                     }
                 }
             }
         }
 
         let mut is_auto_reconnect = false;
-        let cmd = if reconnect_at.map(|t| std::time::Instant::now() >= t).unwrap_or(false) {
-            reconnect_at = None;
+        let cmd = if st.reconnect_at.map(|t| std::time::Instant::now() >= t).unwrap_or(false) {
+            st.reconnect_at = None;
             is_auto_reconnect = true;
-            if od.active {
-                Some(PlayerCommand::Seek(od.current_pos()))
-            } else {
-                current_station.clone().map(PlayerCommand::Play)
-            }
-        } else if stream_retry_at.map(|(_, t)| std::time::Instant::now() >= t).unwrap_or(false) {
+            if st.od.active { Some(PlayerCommand::Seek(st.od.current_pos())) }
+            else             { st.current_station.clone().map(PlayerCommand::Play) }
+        } else if st.stream_retry_at.map(|(_, t)| std::time::Instant::now() >= t).unwrap_or(false) {
             is_auto_reconnect = true;
-            if od.active {
-                Some(PlayerCommand::Seek(od.current_pos()))
-            } else {
-                current_station.clone().map(PlayerCommand::Play)
-            }
+            if st.od.active { Some(PlayerCommand::Seek(st.od.current_pos())) }
+            else             { st.current_station.clone().map(PlayerCommand::Play) }
         } else {
             let result = handle.block_on(async {
                 tokio::time::timeout(
@@ -582,9 +569,9 @@ fn audio_loop(
 
         match cmd {
             PlayerCommand::ApiMetadata { title, artist, show, recent } => {
-                api_last_success = Some(std::time::Instant::now());
-                let has_recent  = !recent.is_empty();
-                if has_recent { api_has_recent = true; }
+                st.api_last_success = Some(std::time::Instant::now());
+                let has_recent = !recent.is_empty();
+                if has_recent { st.api_has_recent = true; }
                 let title_str = if artist.is_empty() { title } else { format!("{artist} - {title}") };
                 update_state(&state_tx, |s| {
                     s.title    = Some(title_str);
@@ -594,110 +581,110 @@ fn audio_loop(
             }
 
             PlayerCommand::Play(station) => {
-                if !is_auto_reconnect { reconnect_count = 0; }
-                current_station    = Some(station.clone());
-                reconnect_at       = None;
-                stream_retry_at    = None;
-                api_last_success   = None;
-                api_has_recent     = false;
-                volume_before_duck = None;
-                od.reset();
-                if let Some(cf) = crossfade_out.take() { cf.player.stop(); }
-                if let Some(p)  = player.take()        { p.stop(); }
+                if !is_auto_reconnect { st.reconnect_count = 0; }
+                st.current_station    = Some(station.clone());
+                st.reconnect_at       = None;
+                st.stream_retry_at    = None;
+                st.api_last_success   = None;
+                st.api_has_recent     = false;
+                st.volume_before_duck = None;
+                st.od.reset();
+                if let Some(cf) = st.crossfade_out.take() { cf.player.stop(); }
+                if let Some(p)  = st.player.take()        { p.stop(); }
 
                 info!("Conectando a: {}", station.name);
                 let _ = state_tx.send(PlayerState {
                     status:  PlayerStatus::Connecting,
                     station: Some(station.clone()),
-                    volume:  current_volume,
+                    volume:  st.current_volume,
                     ..Default::default()
                 });
 
-                match open_stream(&station, current_volume, current_volume, &handle, &device_sink, &level, &mut od, &state_tx) {
+                match open_stream(&station, st.current_volume, &handle, &device_sink, &state_tx, &mut st) {
                     Ok(conn) => {
-                        stream_retry_at      = None;
-                        title_rx             = Some(conn.title_rx);
-                        stream_last_chunk    = Some(conn.last_chunk);
-                        stream_download_done = Some(conn.download_done);
-                        info!(station = %station.name, url = %station.url, on_demand = od.active, "Reproducción iniciada");
-                        let _ = state_tx.send(playing_state(station, current_volume, od.active, conn.duration_secs));
-                        player = Some(conn.player);
+                        st.stream_retry_at      = None;
+                        st.title_rx             = Some(conn.title_rx);
+                        st.stream_last_chunk    = Some(conn.last_chunk);
+                        st.stream_download_done = Some(conn.download_done);
+                        info!(station = %station.name, url = %station.url, on_demand = st.od.active, "Reproducción iniciada");
+                        let _ = state_tx.send(playing_state(station, st.current_volume, st.od.active, conn.duration_secs));
+                        st.player = Some(conn.player);
                     }
-                    Err(e) => schedule_retry(&e, station, current_volume, &mut stream_retry_at, &mut title_rx, &state_tx),
+                    Err(e) => schedule_retry(&mut st, &e, station, &state_tx),
                 }
             }
 
             PlayerCommand::CrossfadeTo { station, secs } => {
-                reconnect_count    = 0;
-                if let Some(cf) = crossfade_out.take() { cf.player.stop(); }
-                current_station    = Some(station.clone());
-                reconnect_at       = None;
-                stream_retry_at    = None;
-                api_last_success   = None;
-                api_has_recent     = false;
-                volume_before_duck = None;
-                od.reset();
+                st.reconnect_count    = 0;
+                if let Some(cf) = st.crossfade_out.take() { cf.player.stop(); }
+                st.current_station    = Some(station.clone());
+                st.reconnect_at       = None;
+                st.stream_retry_at    = None;
+                st.api_last_success   = None;
+                st.api_has_recent     = false;
+                st.volume_before_duck = None;
+                st.od.reset();
 
-                let outgoing = player.take();
+                let outgoing = st.player.take();
 
                 info!("Crossfade → {}", station.name);
                 let _ = state_tx.send(PlayerState {
                     status:  PlayerStatus::Connecting,
                     station: Some(station.clone()),
-                    volume:  current_volume,
+                    volume:  st.current_volume,
                     ..Default::default()
                 });
 
-                match open_stream(&station, 0.0, current_volume, &handle, &device_sink, &level, &mut od, &state_tx) {
+                match open_stream(&station, 0.0, &handle, &device_sink, &state_tx, &mut st) {
                     Ok(conn) => {
-                        stream_retry_at      = None;
-                        title_rx             = Some(conn.title_rx);
-                        stream_last_chunk    = Some(conn.last_chunk);
-                        stream_download_done = Some(conn.download_done);
+                        st.stream_retry_at      = None;
+                        st.title_rx             = Some(conn.title_rx);
+                        st.stream_last_chunk    = Some(conn.last_chunk);
+                        st.stream_download_done = Some(conn.download_done);
 
                         if let Some(out) = outgoing {
-                            crossfade_out = Some(CrossfadeOut {
+                            st.crossfade_out = Some(CrossfadeOut {
                                 player:        out,
-                                from_vol:      current_volume,
+                                from_vol:      st.current_volume,
                                 start:         std::time::Instant::now(),
                                 duration_secs: secs as f32,
                             });
                         }
-                        player = Some(conn.player);
+                        st.player = Some(conn.player);
                         info!(station = %station.name, "Crossfade: reproducción iniciada");
-                        let _ = state_tx.send(playing_state(station, current_volume, od.active, conn.duration_secs));
+                        let _ = state_tx.send(playing_state(station, st.current_volume, st.od.active, conn.duration_secs));
                     }
                     Err(e) => {
                         if let Some(out) = outgoing { out.stop(); }
-                        schedule_retry(&e, station, current_volume, &mut stream_retry_at, &mut title_rx, &state_tx);
+                        schedule_retry(&mut st, &e, station, &state_tx);
                     }
                 }
             }
 
             PlayerCommand::Pause => {
-                if let Some(ref p) = player {
+                if let Some(ref p) = st.player {
                     p.pause();
-                    od.on_pause();
+                    st.od.on_pause();
                     update_state(&state_tx, |s| s.status = PlayerStatus::Paused);
                 }
             }
 
             PlayerCommand::Resume => {
-                if let Some(ref p) = player {
+                if let Some(ref p) = st.player {
                     p.play();
-                    od.on_resume();
+                    st.od.on_resume();
                     update_state(&state_tx, |s| s.status = PlayerStatus::Playing);
                 }
             }
 
             PlayerCommand::SetVolume(v) => {
-                current_volume = v.clamp(0.0, 1.0);
-                if volume_before_duck.is_none() {
-                    if let Some(ref p) = player { p.set_volume(current_volume); }
+                st.current_volume = v.clamp(0.0, 1.0);
+                if st.volume_before_duck.is_none() {
+                    if let Some(ref p) = st.player { p.set_volume(st.current_volume); }
                 } else {
-                    volume_before_duck = Some(current_volume);
+                    st.volume_before_duck = Some(st.current_volume);
                 }
-                update_state(&state_tx, |s| s.volume = current_volume);
+                update_state(&state_tx, |s| s.volume = st.current_volume);
             }
 
             PlayerCommand::SetPreviewSearching(searching) => {
@@ -705,18 +692,18 @@ fn audio_loop(
             }
 
             PlayerCommand::PlayPreview { url, title, raw_track } => {
-                if let Some(p) = preview_player.take() { p.stop(); }
+                if let Some(p) = st.preview_player.take() { p.stop(); }
                 let preview_reader = StreamReader::connect_preview(url, handle.clone());
                 let reader = std::io::BufReader::new(preview_reader);
                 match Decoder::try_from(reader) {
                     Ok(decoder) => {
-                        volume_before_duck = Some(current_volume);
-                        if let Some(ref p) = player { p.set_volume(0.05); }
+                        st.volume_before_duck = Some(st.current_volume);
+                        if let Some(ref p) = st.player { p.set_volume(0.05); }
                         let p = Player::connect_new(&device_sink.mixer());
-                        p.set_volume(current_volume);
+                        p.set_volume(st.current_volume);
                         p.append(decoder);
                         p.play();
-                        preview_player = Some(p);
+                        st.preview_player = Some(p);
                         update_state(&state_tx, |s| {
                             s.preview_title         = Some(title);
                             s.preview_searching     = false;
@@ -735,9 +722,9 @@ fn audio_loop(
             }
 
             PlayerCommand::StopPreview => {
-                if let Some(p) = preview_player.take() { p.stop(); }
-                if let Some(pre_duck) = volume_before_duck.take() {
-                    if let Some(ref p) = player { p.set_volume(pre_duck); }
+                if let Some(p) = st.preview_player.take() { p.stop(); }
+                if let Some(pre_duck) = st.volume_before_duck.take() {
+                    if let Some(ref p) = st.player { p.set_volume(pre_duck); }
                     info!("Preview detenido (volumen radio restaurado → {:.0}%)", pre_duck * 100.0);
                 }
                 update_state(&state_tx, |s| {
@@ -757,26 +744,24 @@ fn audio_loop(
             }
 
             PlayerCommand::Seek(target_secs) => {
-                if !od.active {
-                    continue;
-                }
-                let url = match current_station.as_ref().map(|s| s.url.clone()) {
+                if !st.od.active { continue; }
+                let url = match st.current_station.as_ref().map(|s| s.url.clone()) {
                     Some(u) => u,
                     None    => continue,
                 };
                 let byte_offset = (target_secs * ONDEMAND_BYTES_PER_SEC) as u64;
                 info!("Seek a {target_secs:.0}s → byte {byte_offset}");
 
-                if let Some(p) = player.take() { p.stop(); }
+                if let Some(p) = st.player.take() { p.stop(); }
                 update_state(&state_tx, |s| {
                     s.status            = PlayerStatus::Buffering(0.0);
                     s.playback_pos_secs = Some(target_secs);
                 });
 
                 let (mut stream_reader, new_title_rx) = StreamReader::connect(url, byte_offset, 4096, handle.clone());
-                title_rx             = Some(new_title_rx);
-                stream_last_chunk    = Some(stream_reader.last_chunk_arc());
-                stream_download_done = Some(stream_reader.download_done_arc());
+                st.title_rx             = Some(new_title_rx);
+                st.stream_last_chunk    = Some(stream_reader.last_chunk_arc());
+                st.stream_download_done = Some(stream_reader.download_done_arc());
                 let target = (PRE_BUFFER_SECS * ONDEMAND_BYTES_PER_SEC) as usize;
                 stream_reader.pre_buffer(target, |pct| {
                     update_state(&state_tx, |s| s.status = PlayerStatus::Buffering(pct));
@@ -786,41 +771,39 @@ fn audio_loop(
 
                 match Decoder::try_from(reader) {
                     Ok(decoder) => {
-                        let metered = MeterSource::new(decoder, Arc::clone(&level));
+                        let metered = MeterSource::new(decoder, Arc::clone(&st.level));
                         let new_player = Player::connect_new(&device_sink.mixer());
-                        new_player.set_volume(current_volume);
+                        new_player.set_volume(st.current_volume);
                         new_player.append(metered);
                         new_player.play();
-                        player = Some(new_player);
-                        od.on_seek(target_secs);
+                        st.player = Some(new_player);
+                        st.od.on_seek(target_secs);
                         update_state(&state_tx, |s| {
                             s.status            = PlayerStatus::Playing;
                             s.playback_pos_secs = Some(target_secs);
                         });
                     }
-                    Err(e) => {
-                        warn!("Seek: error al redecodificar desde byte {byte_offset}: {e}");
-                    }
+                    Err(e) => warn!("Seek: error al redecodificar desde byte {byte_offset}: {e}"),
                 }
             }
 
             PlayerCommand::Stop => {
-                if let Some(cf) = crossfade_out.take() { cf.player.stop(); }
-                if let Some(p) = player.take() { p.stop(); }
-                if let Some(p) = preview_player.take() { p.stop(); }
-                title_rx             = None;
-                api_last_success     = None;
-                current_station      = None;
-                reconnect_at         = None;
-                reconnect_count      = 0;
-                stream_retry_at      = None;
-                stream_last_chunk    = None;
-                stream_download_done = None;
-                volume_before_duck   = None;
-                od.reset();
-                level.store((-60.0f32).to_bits(), Ordering::Release);
+                if let Some(cf) = st.crossfade_out.take()   { cf.player.stop(); }
+                if let Some(p)  = st.player.take()          { p.stop(); }
+                if let Some(p)  = st.preview_player.take()  { p.stop(); }
+                st.title_rx             = None;
+                st.api_last_success     = None;
+                st.current_station      = None;
+                st.reconnect_at         = None;
+                st.reconnect_count      = 0;
+                st.stream_retry_at      = None;
+                st.stream_last_chunk    = None;
+                st.stream_download_done = None;
+                st.volume_before_duck   = None;
+                st.od.reset();
+                st.level.store((-60.0f32).to_bits(), Ordering::Release);
                 let _ = state_tx.send(PlayerState {
-                    volume: current_volume,
+                    volume: st.current_volume,
                     ..Default::default()
                 });
                 info!("Reproducción detenida");
