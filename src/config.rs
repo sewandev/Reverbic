@@ -72,12 +72,29 @@ pub struct Config {
     #[serde(default = "default_duck_volume")]
     pub duck_volume:     u8,
     #[serde(default = "default_overlay_alpha")]
-    pub overlay_alpha:   u8,
+    pub overlay_alpha:     u8,
+    #[serde(default = "default_screensaver_secs")]
+    pub screensaver_secs:  u16,
 }
 
 fn default_true() -> bool { true }
 fn default_duck_volume() -> u8 { 40 }
 fn default_overlay_alpha() -> u8 { 90 }
+fn default_screensaver_secs() -> u16 { 10 }
+
+impl Config {
+    pub fn screensaver_next(&mut self) {
+        self.screensaver_secs = match self.screensaver_secs {
+            0          => 10,
+            10         => 20,
+            20         => 30,
+            30         => 60,
+            60         => 120,
+            120        => 300,
+            _          => 0,
+        };
+    }
+}
 
 impl Default for Config {
     fn default() -> Self {
@@ -96,7 +113,8 @@ impl Default for Config {
             restore_volume: true,
             duck_enabled:    false,
             duck_volume:     40,
-            overlay_alpha:   90,
+            overlay_alpha:     90,
+            screensaver_secs:  10,
         }
     }
 }

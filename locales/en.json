@@ -37,6 +37,7 @@
   "config.setting.crossfade": "Crossfade",
   "config.setting.overlay": "Overlay mode",
   "config.setting.overlay_alpha": "Overlay transparency",
+  "config.setting.screensaver": "Screensaver",
   "config.setting.duck": "Auto-duck while gaming",
   "config.setting.duck_volume": "Duck volume",
   "config.setting.media_keys": "Media keys",

@@ -216,6 +216,7 @@ pub fn render(frame: &mut Frame, app: &App) {
                 duck_enabled:       app.config.duck_enabled,
                 duck_volume:        app.config.duck_volume,
                 overlay_alpha:      app.config.overlay_alpha,
+                screensaver_secs:   app.config.screensaver_secs,
             },
             full_area,
         );
