@@ -210,7 +210,21 @@ pub fn render(frame: &mut Frame, app: &App) {
         let modal_h = full_area.height.min(14).max(10);
         let modal_x = full_area.x + full_area.width.saturating_sub(modal_w) / 2;
         let modal_y = full_area.y + full_area.height.saturating_sub(modal_h) / 2;
-        let strip_y = modal_y + modal_h;
+
+        // Panel "Jugando: X" encima del modal
+        if let Some(ref game) = player_state.active_game {
+            let panel_h: u16 = 3;
+            if modal_y >= panel_h {
+                render_game_strip(
+                    frame,
+                    Rect::new(modal_x, modal_y - panel_h, modal_w, panel_h),
+                    game,
+                );
+            }
+        }
+
+        // Panel now-playing debajo del modal
+        let strip_y     = modal_y + modal_h;
         let remaining_h = full_area.bottom().saturating_sub(strip_y);
         if remaining_h >= 3 {
             let strip = Rect::new(modal_x, strip_y, modal_w, remaining_h);
@@ -479,6 +493,36 @@ fn render_rename_overlay(frame: &mut Frame, input: &str) {
             Span::styled("_", Style::default().fg(theme::ACCENT).add_modifier(Modifier::BOLD)),
         ])),
         text_area,
+    );
+}
+
+fn render_game_strip(frame: &mut Frame, area: Rect, game: &str) {
+    use ratatui::{style::Color, widgets::{Block, BorderType, Borders}};
+    const STRIP_BG: Color = Color::Rgb(13, 13, 13);
+    const H_PAD:    u16   = 2;
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(theme::MUTED))
+        .style(Style::default().bg(STRIP_BG));
+
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+
+    let cx = inner.x + H_PAD;
+    let cw = inner.width.saturating_sub(H_PAD * 2);
+
+    frame.render_widget(
+        Paragraph::new(Line::from(vec![
+            Span::styled(
+                format!("{}  ", t("overlay.playing_game")),
+                Style::default().fg(theme::MUTED),
+            ),
+            Span::styled(game.to_owned(), theme::PLAYING_STYLE),
+        ]))
+        .style(Style::default().bg(STRIP_BG)),
+        Rect::new(cx, inner.y, cw, 1),
     );
 }
 
