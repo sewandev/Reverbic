@@ -20,6 +20,82 @@ pub enum SearchMode {
     Settings,
 }
 
+#[derive(Clone, Copy, PartialEq)]
+pub(crate) enum SettingItem {
+    Autoplay,
+    RestoreVolume,
+    Crossfade,
+    OverlayMode,
+    OverlayAlpha,
+    OverlayPosition,
+    Screensaver,
+    DuckEnabled,
+    DuckVolume,
+    MediaKeys,
+    TrayIcon,
+    Notifications,
+    Language,
+}
+
+impl SettingItem {
+    pub(crate) fn label(self) -> String {
+        use crate::i18n::t;
+        match self {
+            Self::Autoplay        => t("config.setting.autoplay"),
+            Self::RestoreVolume   => t("config.setting.restore_volume"),
+            Self::Crossfade       => t("config.setting.crossfade"),
+            Self::OverlayMode     => t("config.setting.overlay"),
+            Self::OverlayAlpha    => t("config.setting.overlay_alpha"),
+            Self::OverlayPosition => t("config.setting.overlay_position"),
+            Self::Screensaver     => t("config.setting.screensaver"),
+            Self::DuckEnabled     => t("config.setting.duck"),
+            Self::DuckVolume      => t("config.setting.duck_volume"),
+            Self::MediaKeys       => t("config.setting.media_keys"),
+            Self::TrayIcon        => t("config.setting.tray"),
+            Self::Notifications   => t("config.setting.notifications"),
+            Self::Language        => t("config.setting.language"),
+        }
+    }
+
+    pub(crate) fn group_key(self) -> &'static str {
+        match self {
+            Self::Autoplay | Self::RestoreVolume | Self::Crossfade
+                => "config.group.playback",
+            Self::OverlayMode | Self::OverlayAlpha | Self::OverlayPosition | Self::Screensaver
+                => "config.group.overlay",
+            Self::DuckEnabled | Self::DuckVolume
+                => "config.group.game",
+            Self::MediaKeys | Self::TrayIcon | Self::Notifications
+                => "config.group.system",
+            Self::Language
+                => "config.group.appearance",
+        }
+    }
+}
+
+pub(crate) fn settings_items(duck_enabled: bool) -> Vec<SettingItem> {
+    let mut items = vec![
+        SettingItem::Autoplay,
+        SettingItem::RestoreVolume,
+        SettingItem::Crossfade,
+        SettingItem::OverlayMode,
+        SettingItem::OverlayAlpha,
+        SettingItem::OverlayPosition,
+        SettingItem::Screensaver,
+        SettingItem::DuckEnabled,
+    ];
+    if duck_enabled {
+        items.push(SettingItem::DuckVolume);
+    }
+    items.extend([
+        SettingItem::MediaKeys,
+        SettingItem::TrayIcon,
+        SettingItem::Notifications,
+        SettingItem::Language,
+    ]);
+    items
+}
+
 pub enum AppFocus {
     Stations,
     RecentTracks,
@@ -780,7 +856,7 @@ impl App {
     }
 
     fn on_key_modal_settings(&mut self, key: KeyCode) {
-        let count = 12 + usize::from(self.config.duck_enabled);
+        let count = settings_items(self.config.duck_enabled).len();
         match key {
             KeyCode::Esc => {
                 self.show_search_modal = false;
@@ -1102,7 +1178,7 @@ impl App {
             } else if self.search_results.is_empty() && matches!(self.modal_mode, SearchMode::Country) {
                 (Self::filter_countries(&self.country_filter).len(), &mut self.country_selected)
             } else if matches!(self.modal_mode, SearchMode::Settings) {
-                let count = 12 + usize::from(self.config.duck_enabled);
+                let count = settings_items(self.config.duck_enabled).len();
                 (count, &mut self.settings_selected)
             } else {
                 (self.search_results.len(), &mut self.modal_selected)
@@ -1267,13 +1343,13 @@ impl App {
     }
 
     fn apply_settings_toggle(&mut self, idx: usize) {
-        let duck_on = self.config.duck_enabled;
-        match idx {
-            0 => { self.config.autoplay_last  = !self.config.autoplay_last; }
-            1 => { self.config.restore_volume = !self.config.restore_volume; }
-            2 => { self.config.crossfade_next(); }
-            3 => { self.config.overlay_mode   = self.config.overlay_mode.next(); }
-            4 => {
+        let Some(&item) = settings_items(self.config.duck_enabled).get(idx) else { return };
+        match item {
+            SettingItem::Autoplay        => self.config.autoplay_last  = !self.config.autoplay_last,
+            SettingItem::RestoreVolume   => self.config.restore_volume = !self.config.restore_volume,
+            SettingItem::Crossfade       => self.config.crossfade_next(),
+            SettingItem::OverlayMode     => self.config.overlay_mode     = self.config.overlay_mode.next(),
+            SettingItem::OverlayAlpha    => {
                 self.config.overlay_alpha = match self.config.overlay_alpha {
                     v if v < 30 => 30,
                     v if v < 50 => 50,
@@ -1282,10 +1358,10 @@ impl App {
                     _           => 20,
                 };
             }
-            5 => { self.config.overlay_position = self.config.overlay_position.next(); }
-            6 => { self.config.screensaver_next(); }
-            7 => { self.config.duck_enabled = !self.config.duck_enabled; }
-            8 if duck_on => {
+            SettingItem::OverlayPosition => self.config.overlay_position = self.config.overlay_position.next(),
+            SettingItem::Screensaver     => self.config.screensaver_next(),
+            SettingItem::DuckEnabled     => self.config.duck_enabled = !self.config.duck_enabled,
+            SettingItem::DuckVolume      => {
                 self.config.duck_volume = match self.config.duck_volume {
                     v if v < 20 => 20,
                     v if v < 30 => 30,
@@ -1297,18 +1373,12 @@ impl App {
                     _           => 10,
                 };
             }
-            i => {
-                let j = if duck_on { i - 1 } else { i };
-                match j {
-                    8  => { self.config.media_keys    = !self.config.media_keys; }
-                    9  => { self.config.tray_icon     = !self.config.tray_icon; }
-                    10 => { self.config.notifications = !self.config.notifications; }
-                    11 => {
-                        self.config.language = self.config.language.next();
-                        i18n::set_language(self.config.language);
-                    }
-                    _ => {}
-                }
+            SettingItem::MediaKeys       => self.config.media_keys    = !self.config.media_keys,
+            SettingItem::TrayIcon        => self.config.tray_icon     = !self.config.tray_icon,
+            SettingItem::Notifications   => self.config.notifications = !self.config.notifications,
+            SettingItem::Language        => {
+                self.config.language = self.config.language.next();
+                i18n::set_language(self.config.language);
             }
         }
         self.save_config();

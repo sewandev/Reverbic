@@ -6,7 +6,7 @@ use ratatui::{
     widgets::{Block, BorderType, Borders, Clear, List, ListItem, Paragraph, Widget},
 };
 
-use crate::app::SearchMode;
+use crate::app::{SearchMode, SettingItem, settings_items};
 use crate::i18n::{t, current_language, Language};
 use crate::station::{DynamicStation, GENRES, COUNTRIES};
 use crate::ui::theme;
@@ -420,37 +420,40 @@ impl SearchModalWidget<'_> {
         }
     }
 
-    fn render_settings_body(&self, area: Rect, content_x: u16, content_w: u16, buf: &mut Buffer) {
+    fn item_value(&self, item: SettingItem) -> String {
         let on  = t("config.value.on");
         let off = t("config.value.off");
-        let lang_value = match current_language() {
-            Language::Es => t("lang.display.es"),
-            Language::En => t("lang.display.en"),
-        };
-        let mut rows: Vec<(String, Option<String>)> = vec![
-            (t("config.group.playback"),          None),
-            (t("config.setting.autoplay"),        Some(if self.autoplay_last  { on.clone() } else { off.clone() })),
-            (t("config.setting.restore_volume"),  Some(if self.restore_volume { on.clone() } else { off.clone() })),
-            (t("config.setting.crossfade"),       Some(self.crossfade.clone())),
-            (t("config.group.overlay"),           None),
-            (t("config.setting.overlay"),          Some(self.overlay_mode.clone())),
-            (t("config.setting.overlay_alpha"),    Some(format!("{}%", self.overlay_alpha))),
-            (t("config.setting.overlay_position"), Some(self.overlay_position.clone())),
-            (t("config.setting.screensaver"),      Some(screensaver_display(self.screensaver_secs))),
-            (t("config.group.game"),              None),
-            (t("config.setting.duck"),            Some(if self.duck_enabled { on.clone() } else { off.clone() })),
-        ];
-        if self.duck_enabled {
-            rows.push((t("config.setting.duck_volume"), Some(format!("{}%", self.duck_volume))));
+        match item {
+            SettingItem::Autoplay        => if self.autoplay_last  { on } else { off },
+            SettingItem::RestoreVolume   => if self.restore_volume { on } else { off },
+            SettingItem::Crossfade       => self.crossfade.clone(),
+            SettingItem::OverlayMode     => self.overlay_mode.clone(),
+            SettingItem::OverlayAlpha    => format!("{}%", self.overlay_alpha),
+            SettingItem::OverlayPosition => self.overlay_position.clone(),
+            SettingItem::Screensaver     => screensaver_display(self.screensaver_secs),
+            SettingItem::DuckEnabled     => if self.duck_enabled { on } else { off },
+            SettingItem::DuckVolume      => format!("{}%", self.duck_volume),
+            SettingItem::MediaKeys       => if self.media_keys    { on } else { off },
+            SettingItem::TrayIcon        => if self.tray_icon     { on } else { off },
+            SettingItem::Notifications   => if self.notifications { on } else { off },
+            SettingItem::Language        => match current_language() {
+                Language::Es => t("lang.display.es"),
+                Language::En => t("lang.display.en"),
+            },
         }
-        rows.extend([
-            (t("config.group.system"),            None),
-            (t("config.setting.media_keys"),      Some(if self.media_keys    { on.clone() } else { off.clone() })),
-            (t("config.setting.tray"),            Some(if self.tray_icon     { on.clone() } else { off.clone() })),
-            (t("config.setting.notifications"),   Some(if self.notifications { on.clone() } else { off.clone() })),
-            (t("config.group.appearance"),        None),
-            (t("config.setting.language"),        Some(lang_value)),
-        ]);
+    }
+
+    fn render_settings_body(&self, area: Rect, content_x: u16, content_w: u16, buf: &mut Buffer) {
+        let mut rows: Vec<(String, Option<String>)> = Vec::new();
+        let mut last_group = "";
+        for item in settings_items(self.duck_enabled) {
+            let gk = item.group_key();
+            if gk != last_group {
+                rows.push((t(gk), None));
+                last_group = gk;
+            }
+            rows.push((item.label(), Some(self.item_value(item))));
+        }
         let mut item_idx = 0usize;
         let mut selected_row = 0usize;
         for (ri, (_, val)) in rows.iter().enumerate() {
