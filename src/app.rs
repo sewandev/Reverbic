@@ -647,15 +647,17 @@ impl App {
     async fn on_key_modal_name(&mut self, key: KeyCode) {
         match key {
             KeyCode::Esc => {
-                self.show_search_modal = false;
-                self.search_query.clear();
-                self.search_results.clear();
-                self.modal_selected = 0;
+                if self.search_query.is_empty() && self.search_results.is_empty() {
+                    self.should_quit = true;
+                } else {
+                    self.search_query.clear();
+                    self.search_results.clear();
+                    self.modal_selected = 0;
+                }
             }
             KeyCode::Enter => {
                 if !self.search_results.is_empty() {
                     let idx = self.modal_selected.min(self.search_results.len() - 1);
-                    self.show_search_modal = false;
                     if !self.search_query.is_empty() {
                         self.config.add_to_history(self.search_query.clone());
                         self.save_config();
@@ -704,12 +706,10 @@ impl App {
                 }
                 KeyCode::Enter => {
                     let idx = self.modal_selected.min(self.search_results.len() - 1);
-                    self.show_search_modal = false;
                     self.play_dynamic_station(idx).await;
                 }
                 KeyCode::Char('R') => {
                     if let Some(idx) = self.play_random_result() {
-                        self.show_search_modal = false;
                         self.play_dynamic_station(idx).await;
                     }
                 }
@@ -733,7 +733,6 @@ impl App {
                     self.genre_filter.clear();
                     self.genre_selected = 0;
                 } else {
-                    self.show_search_modal = false;
                     self.modal_mode = SearchMode::Name;
                     self.genre_selected = 0;
                 }
@@ -804,12 +803,10 @@ impl App {
                 }
                 KeyCode::Enter => {
                     let idx = self.modal_selected.min(self.search_results.len() - 1);
-                    self.show_search_modal = false;
                     self.play_dynamic_station(idx).await;
                 }
                 KeyCode::Char('R') => {
                     if let Some(idx) = self.play_random_result() {
-                        self.show_search_modal = false;
                         self.play_dynamic_station(idx).await;
                     }
                 }
@@ -833,7 +830,6 @@ impl App {
                     self.country_filter.clear();
                     self.country_selected = 0;
                 } else {
-                    self.show_search_modal = false;
                     self.modal_mode = SearchMode::Name;
                     self.country_selected = 0;
                 }
@@ -869,7 +865,7 @@ impl App {
         let count = settings_items(self.config.duck_enabled).len();
         match key {
             KeyCode::Esc => {
-                self.show_search_modal = false;
+                self.modal_mode = SearchMode::Name;
             }
             KeyCode::Up | KeyCode::Char('k') => {
                 if self.settings_selected > 0 { self.settings_selected -= 1; }
