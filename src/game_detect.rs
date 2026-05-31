@@ -36,13 +36,11 @@ pub fn init_game_db() {
     let _ = DB.set(db);
 }
 pub fn set(raw: Option<String>) {
-    let resolved = raw.as_deref().map(|n| {
+    // Solo activar si el proceso está en games.json; ignorar Steam, browsers, etc.
+    let resolved = raw.as_deref().and_then(|n| {
         let key = n.to_lowercase();
-        if let Some(info) = DB.get().and_then(|db| db.get(&key)) {
-            (info.name.clone(), info.genre.clone())
-        } else {
-            (n.to_owned(), String::new())
-        }
+        let info = DB.get()?.get(&key)?;
+        Some((info.name.clone(), info.genre.clone()))
     });
     if let Ok(mut g) = store().try_lock() {
         *g = resolved;
