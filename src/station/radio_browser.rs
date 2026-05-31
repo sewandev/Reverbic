@@ -182,6 +182,49 @@ impl From<RadioBrowserStation> for DynamicStation {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct StationDetails {
+    pub homepage:   String,
+    pub country:    String,
+    pub language:   String,
+    pub tags:       Vec<String>,
+    pub codec:      String,
+    pub bitrate:    u32,
+}
+
+pub async fn fetch_station_details(uuid: &str) -> Option<StationDetails> {
+    let client = reqwest::Client::builder()
+        .user_agent("reverbic/0.1")
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .ok()?;
+
+    for server in RADIO_BROWSER_SERVERS {
+        let url = format!("{server}/json/stations/byuuid/{uuid}");
+        let Ok(resp) = client.get(&url).send().await else { continue };
+        if !resp.status().is_success() { continue }
+        let Ok(body) = resp.text().await else { continue };
+        let Ok(list) = serde_json::from_str::<Vec<serde_json::Value>>(&body) else { continue };
+        if let Some(s) = list.into_iter().next() {
+            let tags = s["tags"].as_str().unwrap_or("")
+                .split(',')
+                .map(|t| t.trim().to_string())
+                .filter(|t| !t.is_empty())
+                .take(4)
+                .collect();
+            return Some(StationDetails {
+                homepage: s["homepage"].as_str().unwrap_or("").to_string(),
+                country:  s["country"].as_str().unwrap_or("").to_string(),
+                language: s["language"].as_str().unwrap_or("").to_string(),
+                tags,
+                codec:    s["codec"].as_str().unwrap_or("").to_string(),
+                bitrate:  s["bitrate"].as_u64().unwrap_or(0) as u32,
+            });
+        }
+    }
+    None
+}
+
 pub async fn search_stations(name: &str, limit: u32) -> Option<Vec<DynamicStation>> {
     fetch("name", name, limit).await
 }

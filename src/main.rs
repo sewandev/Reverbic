@@ -118,6 +118,7 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
     loop {
         app.poll_search_results();
         app.poll_on_demand_results();
+        app.poll_station_details();
         let mut last_area = app.terminal_area;
         tui.draw(|frame| {
             last_area = frame.area();
@@ -129,6 +130,7 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
             _ = ticker.tick() => {
                 app.poll_search_results();
                 app.poll_on_demand_results();
+                app.poll_station_details();
             }
             maybe_event = events.next() => {
                 let now = Instant::now();

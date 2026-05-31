@@ -11,7 +11,7 @@ use crate::preview::{deezer_preview, parse_seek_input};
 use crate::schedule::poll_metadata_loop;
 use crate::station::on_demand::OnDemandShow;
 use crate::i18n::{self, t};
-use crate::station::{enrich, find_enrichment, is_duplicate, on_demand, search_stations, search_stations_by_tag, search_stations_by_country, DynamicStation, Station};
+use crate::station::{enrich, fetch_station_details, find_enrichment, is_duplicate, on_demand, search_stations, search_stations_by_tag, search_stations_by_country, DynamicStation, Station, StationDetails};
 
 pub enum SearchMode {
     Name,
@@ -61,6 +61,7 @@ pub struct App {
     pub rename_input:        String,
     pub click_flash:         Option<(usize, Instant)>,
     pub last_activity:       Instant,
+    pub station_details:     Option<StationDetails>,
     pub windows_tx:          Option<tokio::sync::watch::Sender<crate::config::Config>>,
     pub config:              Config,
     metadata_task:           Option<tokio::task::JoinHandle<()>>,
@@ -68,6 +69,8 @@ pub struct App {
     search_result_rx:        Option<std::sync::mpsc::Receiver<Vec<DynamicStation>>>,
     on_demand_task:          Option<tokio::task::JoinHandle<()>>,
     on_demand_rx:            Option<std::sync::mpsc::Receiver<Vec<OnDemandShow>>>,
+    station_details_rx:      Option<std::sync::mpsc::Receiver<StationDetails>>,
+    last_details_uuid:       Option<String>,
 }
 
 impl App {
@@ -112,6 +115,7 @@ impl App {
             rename_input:       String::new(),
             click_flash:        None,
             last_activity:      Instant::now(),
+            station_details:    None,
             windows_tx:         None,
             config,
             metadata_task:      None,
@@ -119,6 +123,8 @@ impl App {
             search_result_rx:   None,
             on_demand_task:     None,
             on_demand_rx:       None,
+            station_details_rx: None,
+            last_details_uuid:  None,
         }
     }
 
@@ -970,6 +976,37 @@ impl App {
                 .collect();
             let _ = tx.send(filtered);
         }));
+    }
+
+    pub fn poll_station_details(&mut self) {
+        // Recibir detalles si llegaron
+        if let Some(rx) = self.station_details_rx.take() {
+            match rx.try_recv() {
+                Ok(details) => { self.station_details = Some(details); }
+                Err(std::sync::mpsc::TryRecvError::Empty) => {
+                    self.station_details_rx = Some(rx);
+                }
+                Err(_) => {}
+            }
+        }
+
+        // Disparar fetch si la estación cambió
+        let current_uuid = self.player.state().station.as_ref().map(|s| s.key.clone());
+        if current_uuid == self.last_details_uuid { return; }
+
+        self.last_details_uuid = current_uuid.clone();
+        self.station_details   = None;
+
+        if let Some(uuid) = current_uuid {
+            if uuid.is_empty() || uuid.starts_with("ondemand_") { return; }
+            let (tx, rx) = std::sync::mpsc::channel();
+            self.station_details_rx = Some(rx);
+            tokio::spawn(async move {
+                if let Some(d) = fetch_station_details(&uuid).await {
+                    let _ = tx.send(d);
+                }
+            });
+        }
     }
 
     pub fn poll_search_results(&mut self) {
