@@ -22,6 +22,14 @@ pub enum OverlayMode {
     Games,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct GameIntegrationsConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default)]
+    pub dota2:   bool,
+}
+
 impl OverlayMode {
     pub fn display(self) -> String {
         use crate::i18n::t;
@@ -107,7 +115,9 @@ pub struct Config {
     #[serde(default)]
     pub overlay_position:  OverlayPosition,
     #[serde(default = "default_screensaver_secs")]
-    pub screensaver_secs:  u16,
+    pub screensaver_secs:     u16,
+    #[serde(default)]
+    pub game_integrations:    GameIntegrationsConfig,
 }
 
 fn default_true() -> bool { true }
@@ -149,6 +159,7 @@ impl Default for Config {
             overlay_alpha:     90,
             overlay_position:  OverlayPosition::TopLeft,
             screensaver_secs:  10,
+            game_integrations: GameIntegrationsConfig::default(),
         }
     }
 }

@@ -50,6 +50,9 @@
   "config.group.overlay": "Overlay",
   "config.group.game": "Gaming",
   "config.group.system": "System",
+  "config.group.integrations": "Integrations",
+  "config.setting.game_integrations": "Game integrations [EXP]",
+  "config.setting.integration_dota2": "Dota 2",
   "config.group.appearance": "Appearance",
 
   "config.value.on": "ON",
