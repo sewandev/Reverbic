@@ -185,6 +185,11 @@ pub fn render(frame: &mut Frame, app: &App) {
         &app.seek_input,
     );
 
+    if app.show_search_modal && app.screensaver_active() {
+        render_screensaver(frame, frame.area(), &player_state);
+        return;
+    }
+
     if app.show_search_modal {
         use crate::ui::widgets::search_modal::SearchModalWidget;
         let full_area = frame.area();
@@ -496,6 +501,105 @@ fn render_rename_overlay(frame: &mut Frame, input: &str) {
         text_area,
     );
 }
+fn render_screensaver(frame: &mut Frame, area: Rect, state: &PlayerState) {
+    use ratatui::{
+        layout::Alignment,
+        style::Color,
+        widgets::{Block, BorderType, Borders, Clear},
+    };
+    use crate::ui::widgets;
+    let spinner_fn = widgets::spinner_frame;
+    const OVERLAY: Color = Color::Rgb(5, 5, 5);
+    const BG:      Color = Color::Rgb(13, 13, 13);
+
+    // Fondo oscuro
+    frame.render_widget(Clear, area);
+    for y in area.top()..area.bottom() {
+        for x in area.left()..area.right() {
+            frame.buffer_mut()[(x, y)].set_bg(OVERLAY);
+        }
+    }
+
+    // Panel central
+    let pw = area.width.min(60).max(40);
+    let ph: u16 = 9;
+    let px = area.x + area.width.saturating_sub(pw) / 2;
+    let py = area.y + area.height.saturating_sub(ph) / 2;
+    let panel = Rect::new(px, py, pw, ph);
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(theme::MUTED))
+        .style(Style::default().bg(BG));
+    let inner = block.inner(panel);
+    frame.render_widget(block, panel);
+
+    let cx = inner.x + 2;
+    let cw = inner.width.saturating_sub(4);
+
+    // Estación
+    let station = state.station.as_ref().map(|s| s.name.as_str()).unwrap_or("—");
+    let status_icon = match state.status {
+        PlayerStatus::Playing  => ">>",
+        PlayerStatus::Paused   => "⏸",
+        PlayerStatus::Buffering(_) | PlayerStatus::Reconnecting(_) => "…",
+        _ => "—",
+    };
+    frame.render_widget(
+        Paragraph::new(Line::from(vec![
+            Span::styled(format!("{status_icon}  "), Style::default().fg(theme::ACCENT)),
+            Span::styled(station.to_owned(), theme::PLAYING_STYLE),
+        ])).style(Style::default().bg(BG)),
+        Rect::new(cx, inner.y, cw, 1),
+    );
+
+    // Título de la canción
+    let title = state.title.as_deref().unwrap_or("—");
+    frame.render_widget(
+        Paragraph::new(Span::styled(title.to_owned(), Style::default().fg(theme::HIGHLIGHT)))
+            .style(Style::default().bg(BG)),
+        Rect::new(cx + 4, inner.y + 1, cw.saturating_sub(4), 1),
+    );
+
+    // Juego activo
+    if let Some((ref name, ref genre)) = crate::game_detect::get() {
+        let game_line = if genre.is_empty() {
+            format!("🎮 {name}")
+        } else {
+            format!("🎮 {name}  ·  {genre}")
+        };
+        frame.render_widget(
+            Paragraph::new(Span::styled(game_line, Style::default().fg(theme::DIM)))
+                .style(Style::default().bg(BG)),
+            Rect::new(cx, inner.y + 3, cw, 1),
+        );
+    }
+
+    // Prompt animado
+    let spinner = spinner_fn();
+    frame.render_widget(
+        Paragraph::new(Line::from(vec![
+            Span::styled(format!("{spinner}  "), Style::default().fg(theme::ACCENT)),
+            Span::styled(t("screensaver.prompt"), Style::default().fg(theme::MUTED)),
+        ])).style(Style::default().bg(BG)),
+        Rect::new(cx, inner.y + 5, cw, 1),
+    );
+
+    // Volumen
+    let vol_pct = (state.volume.clamp(0.0, 1.0) * 100.0).round() as u32;
+    let vol_color = if state.volume > 0.85 { theme::WARNING } else { theme::ACCENT };
+    frame.render_widget(
+        Paragraph::new(Span::styled(
+            format!("{vol_pct:>3}%"),
+            Style::default().fg(vol_color),
+        ))
+        .alignment(Alignment::Right)
+        .style(Style::default().bg(BG)),
+        Rect::new(cx, inner.y + 5, cw, 1),
+    );
+}
+
 fn render_game_inline(frame: &mut Frame, area: Rect, name: &str, genre: &str) {
     let label = t("overlay.playing_game");
     let mut spans = vec![
