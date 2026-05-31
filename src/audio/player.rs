@@ -39,7 +39,6 @@ pub enum PlayerStatus {
     #[default]
     Idle,
     Connecting,
-    /// Llenando el buffer de red antes de iniciar la reproducción (0.0-1.0).
     Buffering(f32),
     Reconnecting(u32),
     Playing,
@@ -240,9 +239,6 @@ fn process_icy_titles(
     loop {
         match rx.try_recv() {
             Ok(title) => {
-                // Usar ICY si:
-                // - la API no está fresca (o no hay API), O
-                // - la API está fresca pero nunca proveyó historial
                 let use_icy = !api_fresh || !api_has_recent;
                 if use_icy {
                     let mut state = state_tx.borrow().clone();
@@ -261,8 +257,6 @@ fn process_icy_titles(
                     let delay = backoff_duration(*reconnect_count, 1, 30);
                     if od.active {
                         if download_done {
-                            // Descarga completada a máxima velocidad — el audio sigue
-                            // reproduciéndose desde el canal/VecDeque. No reconectar.
                             info!("On-demand: descarga completa, reproduciendo desde buffer");
                         } else {
                             let pos = od.current_pos();
@@ -319,7 +313,6 @@ fn update_level_and_position(
 
 fn backoff_duration(attempt: u32, base_secs: u64, max_secs: u64) -> std::time::Duration {
     let exp = (base_secs * (1u64 << attempt.min(6))).min(max_secs);
-    // Pseudo-jitter: usa los nanosegundos de subsegundo del reloj del sistema
     let jitter_ms = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.subsec_nanos() as u64 % 500) // 0–499 ms
@@ -356,31 +349,22 @@ fn audio_loop(
     let mut reconnect_at: Option<std::time::Instant> = None;
     let mut reconnect_count: u32 = 0;
     let mut stream_retry_at: Option<(u32, std::time::Instant)> = None;
-    // Tracking de posición para streams on-demand
     let mut od = OnDemandTracker::inactive();
     let mut stream_last_chunk:    Option<Arc<AtomicU64>>  = None;
     let mut stream_download_done: Option<Arc<AtomicBool>> = None;
-    // Constantes de detección de stall
     const STALL_SECS_LIVE: u64        = 30; // para radio en vivo
     const STALL_SECS_ON_DEMAND: u64   = 60; // para on-demand (puede pausarse)
     const MAX_STREAM_RETRIES: u32     = 6;
     const BASE_RETRY_DELAY_SECS: u64  = 2;  // para decode failures
     const BASE_RECONNECT_DELAY_SECS: u64 = 1; // para stream disconnects (1→2→4→8→…→30s)
     const MAX_RETRY_DELAY_SECS: u64   = 30;
-    // 128 kbps = 16 000 bytes/sec (bitrate fijo de los on-demand de OMNY)
     const ONDEMAND_BYTES_PER_SEC: f32 = 16_000.0;
-    // 30 s = 480 KB @ 128 kbps — garantiza que el VecDeque nunca se vacíe
-    // ante variabilidad de red o rate-limiting del CDN (~1× bitrate).
     const PRE_BUFFER_SECS: f32 = 30.0;
 
     loop {
         let api_fresh = api_last_success
             .map(|t| t.elapsed().as_secs() < 60)
             .unwrap_or(false);
-
-        // Cuando la descarga completa a velocidad de red, desactivar el stall
-        // detector (ya no llegan chunks) y marcar para que process_icy_titles
-        // no confunda el cierre del canal con un corte de stream.
         let download_done = if let Some(ref arc) = stream_download_done {
             if arc.load(Ordering::Acquire) {
                 stream_last_chunk    = None;
@@ -405,8 +389,6 @@ fn audio_loop(
             download_done,
         );
         update_level_and_position(&state_tx, &level, &od);
-
-        // Detectar stall — solo si estamos reproduciendo y no hay reconexión pendiente
         if reconnect_at.is_none() && stream_retry_at.is_none() {
             if let (Some(ref arc), Some(ref _station)) = (&stream_last_chunk, &current_station) {
                 let last_ms = arc.load(Ordering::Acquire);
@@ -508,15 +490,11 @@ fn audio_loop(
 
                 let is_on_demand = station.key.starts_with("ondemand_");
                 let url = station.url.to_string();
-                // On-demand: canal grande para que la descarga no se bloquee
-                // y el servidor no cierre la conexión por inactividad
                 let ch_size = if is_on_demand { 4096 } else { 64 };
                 let (mut stream_reader, new_title_rx) = StreamReader::connect(url, 0, ch_size, handle.clone());
                 title_rx             = Some(new_title_rx);
                 stream_last_chunk    = Some(stream_reader.last_chunk_arc());
                 stream_download_done = Some(stream_reader.download_done_arc());
-
-                // Pre-buffer on-demand antes de decodificar para evitar cortes al inicio
                 if is_on_demand {
                     let _ = state_tx.send(PlayerState {
                         status:  PlayerStatus::Buffering(0.0),
@@ -575,8 +553,6 @@ fn audio_loop(
                         });
                     }
                     Err(e) => {
-                        // Bug 1 fix: do NOT reset od.active here — stream_retry_at needs
-                        // od.active to decide between Seek (on-demand) and Play (live).
                         let retry_count = stream_retry_at.take().map(|(count, _)| count + 1).unwrap_or(1);
                         title_rx = None;
                         if retry_count <= MAX_STREAM_RETRIES {
@@ -719,8 +695,6 @@ fn audio_loop(
                 info!("Seek a {target_secs:.0}s → byte {byte_offset}");
 
                 if let Some(p) = player.take() { p.stop(); }
-
-                // Señalizar buffering de inmediato; adelantar la barra de progreso al target
                 {
                     let mut s = state_tx.borrow().clone();
                     s.status = PlayerStatus::Buffering(0.0);
@@ -732,8 +706,6 @@ fn audio_loop(
                 title_rx             = Some(new_title_rx);
                 stream_last_chunk    = Some(stream_reader.last_chunk_arc());
                 stream_download_done = Some(stream_reader.download_done_arc());
-
-                // Pre-buffer para garantizar reproducción fluida
                 let target = (PRE_BUFFER_SECS * ONDEMAND_BYTES_PER_SEC) as usize;
                 stream_reader.pre_buffer(target, |pct| {
                     let mut s = state_tx.borrow().clone();

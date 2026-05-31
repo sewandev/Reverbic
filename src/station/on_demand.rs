@@ -91,8 +91,6 @@ pub async fn fetch_shows_for_playlist(playlist_id: &str) -> Option<Vec<OnDemandS
             let title = c["Title"].as_str()?.to_string();
             let published = c["PublishedUtc"].as_str().unwrap_or("");
             let duration_secs = c["DurationSeconds"].as_f64().map(|d| d as f32);
-
-            // Incluir duración en el campo date para mostrarlo en el panel
             let date = {
                 let d = format_date(published);
                 if let Some(dur) = duration_secs {
@@ -101,8 +99,6 @@ pub async fn fetch_shows_for_playlist(playlist_id: &str) -> Option<Vec<OnDemandS
                     d
                 }
             };
-
-            // AudioUrl de la API incluye in_playlist para correcta analítica de Omny
             let audio_url = c["AudioUrl"]
                 .as_str()
                 .map(|s| s.to_string())

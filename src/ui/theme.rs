@@ -1,6 +1,4 @@
 use ratatui::style::{Color, Modifier, Style};
-
-// Verde Reverbic — coherente con overlay Win32 (0x44CC33)
 pub const ACCENT:          Color = Color::Rgb(68, 204, 51);
 pub const PLAYING:         Color = Color::Rgb(68, 204, 51);
 pub const MUTED:           Color = Color::DarkGray;

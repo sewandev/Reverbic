@@ -24,8 +24,6 @@ impl<'a> Widget for SavedTracksWidget<'a> {
         if inner.height == 0 {
             return;
         }
-
-        // Título en primera línea
         let count = self.tracks.len();
         let title = match (self.station_name, count) {
             (Some(name), 0) => format!("LIBRARY — {name}"),

@@ -44,10 +44,6 @@ pub fn set_language(lang: Language) {
 pub fn current_language() -> Language {
     if CURRENT.load(Ordering::Relaxed) == 1 { Language::En } else { Language::Es }
 }
-
-/// Devuelve la traducción de la clave en el idioma activo.
-/// Si la clave no existe en el idioma activo, intenta con español.
-/// Si tampoco existe, devuelve la clave tal cual.
 pub fn t(key: &str) -> String {
     let lang = current_language();
     let primary = match lang {

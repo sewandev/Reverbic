@@ -771,7 +771,6 @@ impl App {
     }
 
     fn on_key_modal_settings(&mut self, key: KeyCode) {
-        // Base 10 items + 1 cuando duck_volume es visible
         let count = 10 + usize::from(self.config.duck_enabled);
         match key {
             KeyCode::Esc => {
@@ -1222,8 +1221,6 @@ impl App {
     }
 
     fn apply_settings_toggle(&mut self, idx: usize) {
-        // Índices cuando duck OFF: 0-9 (10 items)
-        // Índices cuando duck ON:  0-10 (11 items, duck_volume en 6, resto +1)
         let duck_on = self.config.duck_enabled;
         match idx {
             0 => { self.config.autoplay_last  = !self.config.autoplay_last; }

@@ -36,8 +36,6 @@ impl<'a> Widget for OnDemandPanelWidget<'a> {
         } else {
             theme::BORDER_STYLE
         };
-
-        // Solo borde izquierdo como separador de columna
         let block = Block::default()
             .borders(Borders::LEFT)
             .border_style(border_style);
@@ -47,8 +45,6 @@ impl<'a> Widget for OnDemandPanelWidget<'a> {
         if inner.height == 0 {
             return;
         }
-
-        // Título del programa en primera línea
         let title_hint = if self.focused { "  [p] cambiar" } else { "  [Tab]" };
         let prog_style = if self.focused {
             Style::new().fg(theme::ACCENT).add_modifier(Modifier::BOLD)
@@ -81,7 +77,6 @@ impl<'a> Widget for OnDemandPanelWidget<'a> {
         let list_area = Rect::new(inner.x, inner.y + 1, inner.width, inner.height - 1);
         let total    = self.shows.len();
         let selected = self.selected.min(total.saturating_sub(1));
-        // Cada show ocupa 2 líneas (título + fecha)
         let height  = (list_area.height as usize).saturating_div(2).max(1);
         let offset  = if selected >= height { selected + 1 - height } else { 0 };
         let end     = (offset + height).min(total);
