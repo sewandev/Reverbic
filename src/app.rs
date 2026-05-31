@@ -708,12 +708,12 @@ impl App {
                 }
             }
             KeyCode::Up => {
-                if self.modal_selected > 0 { self.modal_selected -= 1; }
+                let n = self.search_results.len();
+                if n > 0 { self.modal_selected = self.modal_selected.checked_sub(1).unwrap_or(n - 1); }
             }
             KeyCode::Down => {
-                if self.modal_selected + 1 < self.search_results.len() {
-                    self.modal_selected += 1;
-                }
+                let n = self.search_results.len();
+                if n > 0 { self.modal_selected = (self.modal_selected + 1) % n; }
             }
             KeyCode::Backspace => {
                 self.search_query.pop();
@@ -756,12 +756,12 @@ impl App {
                     }
                 }
                 KeyCode::Up | KeyCode::Char('k') => {
-                    if self.modal_selected > 0 { self.modal_selected -= 1; }
+                    let n = self.search_results.len();
+                    if n > 0 { self.modal_selected = self.modal_selected.checked_sub(1).unwrap_or(n - 1); }
                 }
                 KeyCode::Down | KeyCode::Char('j') => {
-                    if self.modal_selected + 1 < self.search_results.len() {
-                        self.modal_selected += 1;
-                    }
+                    let n = self.search_results.len();
+                    if n > 0 { self.modal_selected = (self.modal_selected + 1) % n; }
                 }
                 _ => {}
             }
@@ -780,12 +780,12 @@ impl App {
                 }
             }
             KeyCode::Up => {
-                if self.genre_selected > 0 { self.genre_selected -= 1; }
+                let n = filtered.len();
+                if n > 0 { self.genre_selected = self.genre_selected.checked_sub(1).unwrap_or(n - 1); }
             }
             KeyCode::Down => {
-                if self.genre_selected + 1 < filtered.len() {
-                    self.genre_selected += 1;
-                }
+                let n = filtered.len();
+                if n > 0 { self.genre_selected = (self.genre_selected + 1) % n; }
             }
             KeyCode::Enter => {
                 if let Some(&(tag, label)) = filtered.get(self.genre_selected) {
@@ -853,12 +853,12 @@ impl App {
                     }
                 }
                 KeyCode::Up | KeyCode::Char('k') => {
-                    if self.modal_selected > 0 { self.modal_selected -= 1; }
+                    let n = self.search_results.len();
+                    if n > 0 { self.modal_selected = self.modal_selected.checked_sub(1).unwrap_or(n - 1); }
                 }
                 KeyCode::Down | KeyCode::Char('j') => {
-                    if self.modal_selected + 1 < self.search_results.len() {
-                        self.modal_selected += 1;
-                    }
+                    let n = self.search_results.len();
+                    if n > 0 { self.modal_selected = (self.modal_selected + 1) % n; }
                 }
                 _ => {}
             }
@@ -877,12 +877,12 @@ impl App {
                 }
             }
             KeyCode::Up => {
-                if self.country_selected > 0 { self.country_selected -= 1; }
+                let n = filtered.len();
+                if n > 0 { self.country_selected = self.country_selected.checked_sub(1).unwrap_or(n - 1); }
             }
             KeyCode::Down => {
-                if self.country_selected + 1 < filtered.len() {
-                    self.country_selected += 1;
-                }
+                let n = filtered.len();
+                if n > 0 { self.country_selected = (self.country_selected + 1) % n; }
             }
             KeyCode::Enter => {
                 if let Some(&(tag, label)) = filtered.get(self.country_selected) {
@@ -910,12 +910,10 @@ impl App {
                 self.modal_mode = SearchMode::Name;
             }
             KeyCode::Up | KeyCode::Char('k') => {
-                if self.settings_selected > 0 { self.settings_selected -= 1; }
+                if count > 0 { self.settings_selected = self.settings_selected.checked_sub(1).unwrap_or(count - 1); }
             }
             KeyCode::Down | KeyCode::Char('j') => {
-                if self.settings_selected + 1 < count {
-                    self.settings_selected += 1;
-                }
+                if count > 0 { self.settings_selected = (self.settings_selected + 1) % count; }
             }
             KeyCode::Enter | KeyCode::Char(' ') => {
                 self.apply_settings_toggle(self.settings_selected);
