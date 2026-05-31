@@ -36,7 +36,7 @@ use crate::audio::{PlayerCommand, PlayerState, PlayerStatus};
 use crate::config::{Config, OverlayMode};
 
 const OW: i32 = 320;
-const OH: i32 = 90;
+const OH: i32 = 105;
 const ACCENT_W: i32 = 3;
 const PAD_L:    i32 = ACCENT_W + 10;
 const PAD_R:    i32 = 8;

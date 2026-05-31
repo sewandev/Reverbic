@@ -138,6 +138,16 @@ pub fn render(frame: &mut Frame, app: &App) {
     }
 
     if let Some(r) = layout.now_playing {
+        // Si hay juego activo, mostrar panel de juego encima de now_playing
+        if let Some(ref game) = crate::game_detect::get() {
+            let area = frame.area();
+            let panel_w = area.width.min(66).max(44);
+            let panel_x = area.x + area.width.saturating_sub(panel_w) / 2;
+            let panel_h: u16 = 1;
+            if r.y >= panel_h {
+                render_game_inline(frame, Rect::new(panel_x, r.y, panel_w, panel_h), game);
+            }
+        }
         frame.render_widget(NowPlayingWidget { state: &player_state }, r);
     }
 
@@ -211,12 +221,11 @@ pub fn render(frame: &mut Frame, app: &App) {
         let modal_x = full_area.x + full_area.width.saturating_sub(modal_w) / 2;
         let modal_y = full_area.y + full_area.height.saturating_sub(modal_h) / 2;
 
-        // Panel "Jugando: X" encima del modal
-        if let Some(game) = crate::game_detect::get() {
+        // Panel "Jugando: X" encima del modal — se ancla al borde superior si no hay espacio
+        if let Some(ref game) = crate::game_detect::get() {
             let panel_h: u16 = 3;
-            if modal_y >= panel_h {
-                render_game_strip(frame, Rect::new(modal_x, modal_y - panel_h, modal_w, panel_h), &game);
-            }
+            let game_y = modal_y.saturating_sub(panel_h);
+            render_game_strip(frame, Rect::new(modal_x, game_y, modal_w, panel_h), game);
         }
 
         let strip_y     = modal_y + modal_h;
@@ -489,6 +498,18 @@ fn render_rename_overlay(frame: &mut Frame, input: &str) {
         ])),
         text_area,
     );
+}
+
+/// Versión inline (1 fila, sin bordes) para la vista principal.
+fn render_game_inline(frame: &mut Frame, area: Rect, game: &str) {
+    let line = Line::from(vec![
+        Span::styled(
+            format!("  {}  ", t("overlay.playing_game")),
+            Style::default().fg(theme::MUTED),
+        ),
+        Span::styled(game.to_owned(), theme::PLAYING_STYLE),
+    ]);
+    frame.render_widget(Paragraph::new(line), area);
 }
 
 fn render_game_strip(frame: &mut Frame, area: Rect, game: &str) {
