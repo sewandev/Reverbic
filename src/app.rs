@@ -313,6 +313,12 @@ impl App {
         self.config.save();
     }
 
+    pub fn init_integrations(&mut self) {
+        if self.config.game_integrations.enabled && self.config.game_integrations.dota2 {
+            self.start_dota2_integration();
+        }
+    }
+
     fn start_dota2_integration(&mut self) {
         use crate::integrations::dota2;
         match dota2::install_gsi_config() {
