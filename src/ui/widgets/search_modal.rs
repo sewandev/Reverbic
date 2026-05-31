@@ -65,6 +65,7 @@ pub struct SearchModalWidget<'a> {
     pub restore_volume:     bool,
     pub duck_enabled:       bool,
     pub duck_volume:        u8,
+    pub overlay_alpha:      u8,
 }
 
 impl Widget for SearchModalWidget<'_> {
@@ -425,18 +426,39 @@ impl SearchModalWidget<'_> {
             Language::En => t("lang.display.en"),
         };
 
-        let items: Vec<(String, String)> = vec![
-            (t("config.setting.autoplay"),       if self.autoplay_last   { on.clone()  } else { off.clone() }),
-            (t("config.setting.overlay"),        self.overlay_mode.clone()),
-            (t("config.setting.crossfade"),      self.crossfade.clone()),
-            (t("config.setting.media_keys"),     if self.media_keys      { on.clone()  } else { off.clone() }),
-            (t("config.setting.tray"),           if self.tray_icon       { on.clone()  } else { off.clone() }),
-            (t("config.setting.notifications"),  if self.notifications   { on.clone()  } else { off.clone() }),
-            (t("config.setting.language"),       lang_value),
-            (t("config.setting.restore_volume"), if self.restore_volume { on.clone() } else { off.clone() }),
-            (t("config.setting.duck"),           if self.duck_enabled  { on.clone() } else { off.clone() }),
-            (t("config.setting.duck_volume"),    format!("{}%", self.duck_volume)),
+        // Filas: None = grupo (no seleccionable), Some = item seleccionable
+        let mut rows: Vec<(String, Option<String>)> = vec![
+            (t("config.group.playback"),          None),
+            (t("config.setting.autoplay"),        Some(if self.autoplay_last  { on.clone() } else { off.clone() })),
+            (t("config.setting.restore_volume"),  Some(if self.restore_volume { on.clone() } else { off.clone() })),
+            (t("config.setting.crossfade"),       Some(self.crossfade.clone())),
+            (t("config.group.overlay"),           None),
+            (t("config.setting.overlay"),         Some(self.overlay_mode.clone())),
+            (t("config.setting.overlay_alpha"),   Some(format!("{}%", self.overlay_alpha))),
+            (t("config.group.game"),              None),
+            (t("config.setting.duck"),            Some(if self.duck_enabled { on.clone() } else { off.clone() })),
         ];
+        if self.duck_enabled {
+            rows.push((t("config.setting.duck_volume"), Some(format!("{}%", self.duck_volume))));
+        }
+        rows.extend([
+            (t("config.group.system"),            None),
+            (t("config.setting.media_keys"),      Some(if self.media_keys    { on.clone() } else { off.clone() })),
+            (t("config.setting.tray"),            Some(if self.tray_icon     { on.clone() } else { off.clone() })),
+            (t("config.setting.notifications"),   Some(if self.notifications { on.clone() } else { off.clone() })),
+            (t("config.group.appearance"),        None),
+            (t("config.setting.language"),        Some(lang_value)),
+        ]);
+
+        // Índice de fila del item seleccionado (para calcular scroll)
+        let mut item_idx = 0usize;
+        let mut selected_row = 0usize;
+        for (ri, (_, val)) in rows.iter().enumerate() {
+            if val.is_some() {
+                if item_idx == self.settings_selected { selected_row = ri; }
+                item_idx += 1;
+            }
+        }
 
         let list_x    = content_x + 2;
         let list_w    = content_w.saturating_sub(2);
@@ -446,34 +468,42 @@ impl SearchModalWidget<'_> {
         ]).areas(area);
 
         let visible_n = list_area.height as usize;
-        let offset    = if self.settings_selected >= visible_n {
-            self.settings_selected + 1 - visible_n
-        } else { 0 };
+        let offset    = if selected_row >= visible_n { selected_row + 1 - visible_n } else { 0 };
 
-        for (i, (label, value)) in items.iter().enumerate().skip(offset).take(visible_n) {
-            let y = list_area.y + (i - offset) as u16;
-            let active = i == self.settings_selected;
-            let (label_st, val_st) = if active {
-                (
-                    Style::default().fg(theme::ACCENT).add_modifier(Modifier::BOLD),
-                    Style::default().fg(theme::PLAYING).add_modifier(Modifier::BOLD),
-                )
+        item_idx = 0;
+        for (ri, (label, val_opt)) in rows.iter().enumerate() {
+            let display_y = ri as isize - offset as isize;
+            if display_y < 0 || display_y >= visible_n as isize {
+                if val_opt.is_some() { item_idx += 1; }
+                continue;
+            }
+            let y = list_area.y + display_y as u16;
+
+            if let Some(value) = val_opt {
+                let active = item_idx == self.settings_selected;
+                let (label_st, val_st) = if active {
+                    (Style::default().fg(theme::ACCENT).add_modifier(Modifier::BOLD),
+                     Style::default().fg(theme::PLAYING).add_modifier(Modifier::BOLD))
+                } else {
+                    (Style::default().fg(theme::HIGHLIGHT),
+                     Style::default().fg(theme::MUTED))
+                };
+                let prefix = if active { "▶  " } else { "   " };
+                Paragraph::new(Line::from(vec![
+                    Span::styled(prefix,        label_st),
+                    Span::styled(label.clone(), label_st),
+                    Span::styled("  [",         Style::default().fg(theme::MUTED)),
+                    Span::styled(value.clone(), val_st),
+                    Span::styled("]",           Style::default().fg(theme::MUTED)),
+                ])).render(Rect::new(list_x, y, list_w, 1), buf);
+                item_idx += 1;
             } else {
-                (
-                    Style::default().fg(theme::HIGHLIGHT),
+                // Encabezado de grupo
+                Paragraph::new(Span::styled(
+                    format!("── {} ", label),
                     Style::default().fg(theme::MUTED),
-                )
-            };
-            let prefix = if active { "▶  " } else { "   " };
-            let row = Rect::new(list_x, y, list_w, 1);
-            Paragraph::new(Line::from(vec![
-                Span::styled(prefix,        label_st),
-                Span::styled(label.clone(), label_st),
-                Span::styled("  [",         Style::default().fg(theme::MUTED)),
-                Span::styled(value.clone(), val_st),
-                Span::styled("]",           Style::default().fg(theme::MUTED)),
-            ]))
-            .render(row, buf);
+                )).render(Rect::new(list_x, y, list_w, 1), buf);
+            }
         }
     }
 

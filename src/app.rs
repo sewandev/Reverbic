@@ -771,7 +771,8 @@ impl App {
     }
 
     fn on_key_modal_settings(&mut self, key: KeyCode) {
-        const SETTINGS_COUNT: usize = 10;
+        // Base 10 items + 1 cuando duck_volume es visible
+        let count = 10 + usize::from(self.config.duck_enabled);
         match key {
             KeyCode::Esc => {
                 self.show_search_modal = false;
@@ -780,7 +781,7 @@ impl App {
                 if self.settings_selected > 0 { self.settings_selected -= 1; }
             }
             KeyCode::Down | KeyCode::Char('j') => {
-                if self.settings_selected + 1 < SETTINGS_COUNT {
+                if self.settings_selected + 1 < count {
                     self.settings_selected += 1;
                 }
             }
@@ -1218,20 +1219,25 @@ impl App {
     }
 
     fn apply_settings_toggle(&mut self, idx: usize) {
+        // Índices cuando duck OFF: 0-9 (10 items)
+        // Índices cuando duck ON:  0-10 (11 items, duck_volume en 6, resto +1)
+        let duck_on = self.config.duck_enabled;
         match idx {
             0 => { self.config.autoplay_last  = !self.config.autoplay_last; }
-            1 => { self.config.overlay_mode   = self.config.overlay_mode.next(); }
-            2 => { self.config.crossfade_secs = { self.config.crossfade_next(); self.config.crossfade_secs }; }
-            3 => { self.config.media_keys     = !self.config.media_keys; }
-            4 => { self.config.tray_icon      = !self.config.tray_icon; }
-            5 => { self.config.notifications  = !self.config.notifications; }
-            6 => {
-                self.config.language = self.config.language.next();
-                i18n::set_language(self.config.language);
+            1 => { self.config.restore_volume = !self.config.restore_volume; }
+            2 => { self.config.crossfade_next(); }
+            3 => { self.config.overlay_mode   = self.config.overlay_mode.next(); }
+            4 => {
+                self.config.overlay_alpha = match self.config.overlay_alpha {
+                    v if v < 30 => 30,
+                    v if v < 50 => 50,
+                    v if v < 70 => 70,
+                    v if v < 90 => 90,
+                    _           => 20,
+                };
             }
-            7 => { self.config.restore_volume = !self.config.restore_volume; }
-            8 => { self.config.duck_enabled = !self.config.duck_enabled; }
-            9 => {
+            5 => { self.config.duck_enabled = !self.config.duck_enabled; }
+            6 if duck_on => {
                 self.config.duck_volume = match self.config.duck_volume {
                     v if v < 20 => 20,
                     v if v < 30 => 30,
@@ -1243,7 +1249,19 @@ impl App {
                     _           => 10,
                 };
             }
-            _ => {}
+            i => {
+                let j = if duck_on { i - 1 } else { i };
+                match j {
+                    6 => { self.config.media_keys    = !self.config.media_keys; }
+                    7 => { self.config.tray_icon     = !self.config.tray_icon; }
+                    8 => { self.config.notifications = !self.config.notifications; }
+                    9 => {
+                        self.config.language = self.config.language.next();
+                        i18n::set_language(self.config.language);
+                    }
+                    _ => {}
+                }
+            }
         }
         self.config.save();
         if let Some(ref tx) = self.windows_tx {

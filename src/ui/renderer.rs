@@ -212,6 +212,7 @@ pub fn render(frame: &mut Frame, app: &App) {
                 restore_volume:     app.config.restore_volume,
                 duck_enabled:       app.config.duck_enabled,
                 duck_volume:        app.config.duck_volume,
+                overlay_alpha:      app.config.overlay_alpha,
             },
             full_area,
         );
@@ -502,22 +503,27 @@ fn render_rename_overlay(frame: &mut Frame, input: &str) {
 
 /// Versión inline (1 fila, sin bordes) para la vista principal.
 fn render_game_inline(frame: &mut Frame, area: Rect, game: &str) {
+    let label = t("overlay.playing_game").to_uppercase();
     let line = Line::from(vec![
-        Span::styled(
-            format!("  {}  ", t("overlay.playing_game")),
-            Style::default().fg(theme::MUTED),
-        ),
+        Span::styled(format!("  {label}  "), Style::default().fg(theme::MUTED)),
         Span::styled(game.to_owned(), theme::PLAYING_STYLE),
     ]);
     frame.render_widget(Paragraph::new(line), area);
 }
 
 fn render_game_strip(frame: &mut Frame, area: Rect, game: &str) {
-    use ratatui::{style::Color, widgets::{Block, BorderType, Borders}};
+    use ratatui::{layout::Alignment, style::Color, widgets::{Block, BorderType, Borders}};
     const BG: Color = Color::Rgb(13, 13, 13);
     const H_PAD: u16 = 2;
 
     let block = Block::default()
+        .title_top(
+            Line::from(Span::styled(
+                format!(" {} ", t("overlay.playing_game").to_uppercase()),
+                Style::default().fg(theme::MUTED),
+            ))
+            .alignment(Alignment::Left),
+        )
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(theme::MUTED))
@@ -526,14 +532,8 @@ fn render_game_strip(frame: &mut Frame, area: Rect, game: &str) {
     frame.render_widget(block, area);
 
     frame.render_widget(
-        Paragraph::new(Line::from(vec![
-            Span::styled(
-                format!("{}  ", t("overlay.playing_game")),
-                Style::default().fg(theme::MUTED),
-            ),
-            Span::styled(game.to_owned(), theme::PLAYING_STYLE),
-        ]))
-        .style(Style::default().bg(BG)),
+        Paragraph::new(Span::styled(game.to_owned(), theme::PLAYING_STYLE))
+            .style(Style::default().bg(BG)),
         Rect::new(inner.x + H_PAD, inner.y, inner.width.saturating_sub(H_PAD * 2), 1),
     );
 }

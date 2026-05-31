@@ -170,7 +170,8 @@ unsafe fn run(
         Some(raw as *const _),
     )?;
 
-    SetLayeredWindowAttributes(hwnd, COLORREF(0), 230, LWA_ALPHA)?;
+    let init_alpha: u8 = (config_rx.borrow().overlay_alpha.min(100) as u32 * 255 / 100) as u8;
+    SetLayeredWindowAttributes(hwnd, COLORREF(0), init_alpha, LWA_ALPHA)?;
 
     let mut msg           = MSG::default();
     let mut visible       = false;
@@ -250,6 +251,10 @@ unsafe fn run(
                 remove_tray_icon(hwnd, tray_id);
                 tray_added = false;
             }
+
+            // Transparencia overlay
+            let new_alpha: u8 = (cfg.overlay_alpha.min(100) as u32 * 255 / 100) as u8;
+            let _ = SetLayeredWindowAttributes(hwnd, COLORREF(0), new_alpha, LWA_ALPHA);
         }
 
         let mut need_repaint = false;
@@ -688,7 +693,9 @@ fn build_process_snapshot() -> HashMap<u32, String> {
             loop {
                 let nul  = entry.szExeFile.iter().position(|&c| c == 0).unwrap_or(260);
                 let raw  = String::from_utf16_lossy(&entry.szExeFile[..nul]);
-                let name = raw.strip_suffix(".exe").unwrap_or(&raw).to_string();
+                let name = if raw.to_ascii_lowercase().ends_with(".exe") {
+                    raw[..raw.len().saturating_sub(4)].to_string()
+                } else { raw };
                 map.insert(entry.th32ProcessID, name);
                 if Process32NextW(snap, &mut entry).is_err() { break; }
             }
