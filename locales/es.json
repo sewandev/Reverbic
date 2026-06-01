@@ -143,5 +143,7 @@
   "integrations.spotify.web.open_short":   "Abrir navegador",
   "integrations.spotify.web.waiting":      "Esperando autorizacion del navegador...",
   "integrations.spotify.web.waiting2":     "Completa el inicio de sesion en el navegador",
-  "integrations.spotify.web.retry":        "[Esc] Volver"
+  "integrations.spotify.web.retry":        "[Esc] Volver",
+
+  "integrations.spotify.error.premium_required": "Esta funcionalidad requiere cuenta Spotify Premium"
 }

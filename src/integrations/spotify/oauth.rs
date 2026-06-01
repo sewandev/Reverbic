@@ -177,6 +177,9 @@ async fn fetch_username(access_token: &str) -> Result<String, String> {
     tracing::debug!("spotify /v1/me — status={status} body={}", &body[..body.len().min(300)]);
 
     if !status.is_success() {
+        if status == reqwest::StatusCode::FORBIDDEN {
+            return Err(crate::i18n::t("integrations.spotify.error.premium_required"));
+        }
         let msg = serde_json::from_str::<serde_json::Value>(&body)
             .ok()
             .and_then(|j| {
