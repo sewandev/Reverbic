@@ -3,7 +3,7 @@ use ratatui::{
     layout::{Alignment, Constraint, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, BorderType, Borders, Clear, List, ListItem, Paragraph, Widget},
+    widgets::{Block, BorderType, Borders, Clear, List, ListItem, Paragraph, Widget, Wrap},
 };
 
 use crate::app::{SearchMode, SettingItem, settings_items};
@@ -459,14 +459,15 @@ impl SearchModalWidget<'_> {
             }
         }
 
-        let list_x    = content_x + 2;
-        let list_w    = content_w.saturating_sub(2);
-        let [_gap, list_area] = Layout::vertical([
+        let list_x = content_x + 2;
+        let list_w = content_w.saturating_sub(2);
+        let [_gap, items_area, tooltip_area] = Layout::vertical([
             Constraint::Length(1),
             Constraint::Fill(1),
+            Constraint::Length(3),
         ]).areas(area);
 
-        let visible_n = list_area.height.saturating_sub(1) as usize;
+        let visible_n = items_area.height.saturating_sub(1) as usize;
         let offset    = super::scroll_offset(selected_row, visible_n);
 
         item_idx = 0;
@@ -476,7 +477,7 @@ impl SearchModalWidget<'_> {
                 if val_opt.is_some() { item_idx += 1; }
                 continue;
             }
-            let y = list_area.y + display_y as u16;
+            let y = items_area.y + display_y as u16;
 
             if let Some(value) = val_opt {
                 let active = item_idx == self.settings_selected;
@@ -505,9 +506,22 @@ impl SearchModalWidget<'_> {
         }
         let total_rows = rows.len();
         if total_rows > visible_n {
-            let scroll_area = Rect::new(list_x, list_area.y, list_w, list_area.height);
+            let scroll_area = Rect::new(list_x, items_area.y, list_w, items_area.height);
             self.render_scrollbar(scroll_area, total_rows, selected_row, buf);
         }
+
+        let sep = "─".repeat(content_w as usize);
+        Paragraph::new(Span::styled(sep, Style::default().fg(theme::DIM)))
+            .render(Rect::new(content_x, tooltip_area.y, content_w, 1), buf);
+
+        let tooltip = settings_items(self.duck_enabled)
+            .get(self.settings_selected)
+            .map(|item| t(item.tooltip_key()))
+            .unwrap_or_default();
+        Paragraph::new(tooltip)
+            .wrap(Wrap { trim: true })
+            .style(Style::default().fg(theme::MUTED))
+            .render(Rect::new(list_x, tooltip_area.y + 1, list_w, 2), buf);
     }
 
     fn render_country_body(&self, area: Rect, content_x: u16, content_w: u16, buf: &mut Buffer) {
