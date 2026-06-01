@@ -210,17 +210,20 @@ impl SearchModalWidget<'_> {
                     }
                 }
                 IntegrationView::SpotifyWebBrowser => {
-                    if matches!(self.spotify_status, SpotifyAuthStatus::Connecting) {
-                        vec![
+                    match self.spotify_status {
+                        SpotifyAuthStatus::Connecting => vec![
                             Span::raw(" "),
                             key("[Esc]"), sep_s(format!(" {} ", t("hint.back"))),
-                        ]
-                    } else {
-                        vec![
+                        ],
+                        SpotifyAuthStatus::Error(_) => vec![
+                            Span::raw(" "),
+                            key("[Esc]"), sep_s(format!(" {} ", t("hint.back"))),
+                        ],
+                        _ => vec![
                             Span::raw(" "),
                             key("[↵]"),   sep_s(format!(" {}  ", t("integrations.spotify.web.open_short"))),
                             key("[Esc]"), sep_s(format!(" {} ",  t("hint.back"))),
-                        ]
+                        ],
                     }
                 }
             },
@@ -904,6 +907,25 @@ impl SearchModalWidget<'_> {
             }
             if y < area.bottom() {
                 Paragraph::new(Span::styled(t("integrations.spotify.web.waiting2"), Style::default().fg(theme::DIM)))
+                    .render(Rect::new(lx, y, lw, 1), buf);
+            }
+            return;
+        }
+
+        if let SpotifyAuthStatus::Error(msg) = self.spotify_status {
+            let max = lw as usize;
+            let display: String = if msg.chars().count() > max {
+                msg.chars().take(max.saturating_sub(1)).collect::<String>() + "…"
+            } else {
+                msg.clone()
+            };
+            if y < area.bottom() {
+                Paragraph::new(Span::styled(display, Style::default().fg(theme::WARNING)))
+                    .render(Rect::new(lx, y, lw, 1), buf);
+                y += 1;
+            }
+            if y < area.bottom() {
+                Paragraph::new(Span::styled(t("integrations.spotify.web.retry"), Style::default().fg(theme::DIM)))
                     .render(Rect::new(lx, y, lw, 1), buf);
             }
             return;

@@ -142,5 +142,6 @@
   "integrations.spotify.web.line3":        "la app captura tu sesion.",
   "integrations.spotify.web.open_short":   "Abrir navegador",
   "integrations.spotify.web.waiting":      "Esperando autorizacion del navegador...",
-  "integrations.spotify.web.waiting2":     "Completa el inicio de sesion en el navegador"
+  "integrations.spotify.web.waiting2":     "Completa el inicio de sesion en el navegador",
+  "integrations.spotify.web.retry":        "[Esc] Volver"
 }

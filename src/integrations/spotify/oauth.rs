@@ -18,6 +18,14 @@ pub async fn start_flow() -> AuthResult {
 }
 
 async fn pkce_flow() -> Result<String, String> {
+    if CLIENT_ID == "REEMPLAZA_CON_TU_CLIENT_ID" {
+        return Err(
+            "CLIENT_ID sin configurar. Registra una app en \
+             developer.spotify.com y edita oauth.rs."
+                .to_string(),
+        );
+    }
+
     let code_verifier  = generate_verifier();
     let code_challenge = sha256_base64url(&code_verifier);
 
@@ -25,10 +33,6 @@ async fn pkce_flow() -> Result<String, String> {
         .map_err(|e| format!("No se pudo iniciar servidor local: {e}"))?;
     let port = listener.local_addr().map_err(|e| e.to_string())?.port();
     let redirect_uri = format!("http://127.0.0.1:{port}/callback");
-
-    if CLIENT_ID == "REEMPLAZA_CON_TU_CLIENT_ID" {
-        return Err("CLIENT_ID no configurado. Registra una app en developer.spotify.com.".to_string());
-    }
 
     let auth_url = build_auth_url(&code_challenge, &redirect_uri);
     open_browser(&auth_url);
