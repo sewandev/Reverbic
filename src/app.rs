@@ -55,6 +55,14 @@ pub enum SpotifyAuthStatus {
 }
 
 #[derive(Clone, Copy, PartialEq)]
+pub enum IntegrationView {
+    ServiceList,
+    SpotifyDetail,
+    SpotifyUserPass,
+    SpotifyWebBrowser,
+}
+
+#[derive(Clone, Copy, PartialEq)]
 pub(crate) enum SettingItem {
     Autoplay,
     RestoreVolume,
@@ -192,6 +200,9 @@ pub struct App {
     pub station_details:     Option<StationDetails>,
     pub windows_tx:          Option<tokio::sync::watch::Sender<crate::config::Config>>,
     pub config:              Config,
+    pub integration_view:       IntegrationView,
+    pub integration_selected:   usize,
+    pub spotify_auth_selected:  usize,
     pub spotify_username_input: String,
     pub spotify_password_input: String,
     pub spotify_field:          SpotifyField,
@@ -253,6 +264,9 @@ impl App {
             station_details:    None,
             windows_tx:         None,
             config,
+            integration_view:       IntegrationView::ServiceList,
+            integration_selected:   0,
+            spotify_auth_selected:  0,
             spotify_username_input,
             spotify_password_input: String::new(),
             spotify_field:          SpotifyField::Username,
@@ -542,15 +556,19 @@ impl App {
                 }
                 SearchMode::Settings     => {}
                 SearchMode::Integrations => {
-                    match self.spotify_field {
-                        SpotifyField::Username => {
-                            for c in text.chars().filter(|c| !c.is_control()) {
-                                self.spotify_username_input.push(c);
+                    if matches!(self.integration_view, IntegrationView::SpotifyUserPass)
+                        && !matches!(self.spotify_status, SpotifyAuthStatus::Connecting)
+                    {
+                        match self.spotify_field {
+                            SpotifyField::Username => {
+                                for c in text.chars().filter(|c| !c.is_control()) {
+                                    self.spotify_username_input.push(c);
+                                }
                             }
-                        }
-                        SpotifyField::Password => {
-                            for c in text.chars().filter(|c| !c.is_control()) {
-                                self.spotify_password_input.push(c);
+                            SpotifyField::Password => {
+                                for c in text.chars().filter(|c| !c.is_control()) {
+                                    self.spotify_password_input.push(c);
+                                }
                             }
                         }
                     }
@@ -725,6 +743,7 @@ impl App {
             self.country_selected = 0;
             abort_task(&mut self.search_task);
             self.search_loading = false;
+            self.integration_view = IntegrationView::ServiceList;
             return;
         }
 
@@ -920,20 +939,60 @@ impl App {
     }
 
     fn on_key_modal_integrations(&mut self, key: KeyCode) {
-        if matches!(self.spotify_status, SpotifyAuthStatus::Connecting) {
-            if key == KeyCode::Esc {
-                abort_task(&mut self.spotify_auth_task);
-                self.spotify_auth_rx = None;
-                self.spotify_status = SpotifyAuthStatus::Idle;
+        match self.integration_view {
+            IntegrationView::ServiceList       => self.on_key_integration_list(key),
+            IntegrationView::SpotifyDetail     => self.on_key_integration_spotify_detail(key),
+            IntegrationView::SpotifyUserPass   => self.on_key_integration_spotify_userpass(key),
+            IntegrationView::SpotifyWebBrowser => self.on_key_integration_spotify_web(key),
+        }
+    }
+
+    fn on_key_integration_list(&mut self, key: KeyCode) {
+        match key {
+            KeyCode::Esc => self.modal_mode = SearchMode::Name,
+            KeyCode::Up  => self.integration_selected = cycle_prev(self.integration_selected, 1),
+            KeyCode::Down => self.integration_selected = cycle_next(self.integration_selected, 1),
+            KeyCode::Enter if self.integration_selected == 0 => {
+                self.integration_view = IntegrationView::SpotifyDetail;
+            }
+            _ => {}
+        }
+    }
+
+    fn on_key_integration_spotify_detail(&mut self, key: KeyCode) {
+        if matches!(self.spotify_status, SpotifyAuthStatus::LoggedIn) {
+            match key {
+                KeyCode::Char('d') | KeyCode::Char('D') => self.spotify_logout(),
+                KeyCode::Esc => self.integration_view = IntegrationView::ServiceList,
+                _ => {}
             }
             return;
         }
 
-        if matches!(self.spotify_status, SpotifyAuthStatus::LoggedIn) {
-            match key {
-                KeyCode::Char('d') | KeyCode::Char('D') => self.spotify_logout(),
-                KeyCode::Esc => self.modal_mode = SearchMode::Name,
-                _ => {}
+        match key {
+            KeyCode::Esc => self.integration_view = IntegrationView::ServiceList,
+            KeyCode::Char('d') | KeyCode::Char('D')
+                if self.config.spotify.display_name.is_some() =>
+            {
+                self.spotify_logout();
+            }
+            KeyCode::Up   => self.spotify_auth_selected = cycle_prev(self.spotify_auth_selected, 2),
+            KeyCode::Down => self.spotify_auth_selected = cycle_next(self.spotify_auth_selected, 2),
+            KeyCode::Enter => match self.spotify_auth_selected {
+                0 => self.integration_view = IntegrationView::SpotifyUserPass,
+                _ => self.integration_view = IntegrationView::SpotifyWebBrowser,
+            },
+            _ => {}
+        }
+    }
+
+    fn on_key_integration_spotify_userpass(&mut self, key: KeyCode) {
+        if matches!(self.spotify_status, SpotifyAuthStatus::Connecting) {
+            if key == KeyCode::Esc {
+                abort_task(&mut self.spotify_auth_task);
+                self.spotify_auth_rx = None;
+                self.spotify_status  = SpotifyAuthStatus::Idle;
+                self.integration_view = IntegrationView::SpotifyDetail;
             }
             return;
         }
@@ -942,14 +1001,8 @@ impl App {
             KeyCode::Esc => {
                 if matches!(self.spotify_status, SpotifyAuthStatus::Error(_)) {
                     self.spotify_status = SpotifyAuthStatus::Idle;
-                } else {
-                    self.modal_mode = SearchMode::Name;
                 }
-            }
-            KeyCode::Char('d') | KeyCode::Char('D')
-                if self.config.spotify.display_name.is_some() =>
-            {
-                self.spotify_logout();
+                self.integration_view = IntegrationView::SpotifyDetail;
             }
             KeyCode::Up | KeyCode::Down => {
                 self.spotify_field = match self.spotify_field {
@@ -970,6 +1023,19 @@ impl App {
                 SpotifyField::Username => self.spotify_username_input.push(c),
                 SpotifyField::Password => self.spotify_password_input.push(c),
             },
+            _ => {}
+        }
+    }
+
+    fn on_key_integration_spotify_web(&mut self, key: KeyCode) {
+        match key {
+            KeyCode::Enter => {
+                #[cfg(target_os = "windows")]
+                let _ = std::process::Command::new("cmd")
+                    .args(["/c", "start", "", "https://accounts.spotify.com/"])
+                    .spawn();
+            }
+            KeyCode::Esc => self.integration_view = IntegrationView::SpotifyDetail,
             _ => {}
         }
     }
@@ -1003,7 +1069,8 @@ impl App {
                 Ok(AuthResult::Success { username }) => {
                     self.config.spotify.display_name = Some(username);
                     self.config.save();
-                    self.spotify_status = SpotifyAuthStatus::LoggedIn;
+                    self.spotify_status   = SpotifyAuthStatus::LoggedIn;
+                    self.integration_view = IntegrationView::SpotifyDetail;
                     self.spotify_password_input.clear();
                 }
                 Ok(AuthResult::Failure(msg)) => {
