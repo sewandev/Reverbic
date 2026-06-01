@@ -390,7 +390,7 @@ fn attach_player<S>(source: S, volume: f32, sink: &MixerDeviceSink) -> Player
 where
     S: Source<Item = f32> + Send + 'static,
 {
-    let p = Player::connect_new(&sink.mixer());
+    let p = Player::connect_new(sink.mixer());
     p.set_volume(volume);
     p.append(source);
     p.play();

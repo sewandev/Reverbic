@@ -12,7 +12,7 @@ use crate::ui::theme;
 
 pub(super) fn render_rename_overlay(frame: &mut Frame, input: &str) {
     let area  = frame.area();
-    let w     = area.width.min(50).max(30);
+    let w     = area.width.clamp(30, 50);
     let h: u16 = 5;
     let x     = area.width.saturating_sub(w) / 2;
     let y     = area.height.saturating_sub(h) / 2;

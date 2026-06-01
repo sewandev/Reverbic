@@ -55,7 +55,7 @@ pub(super) fn render_screensaver(
         + 1
         + 1;
 
-    let pw    = area.width.min(72).max(50);
+    let pw    = area.width.clamp(50, 72);
     let px    = area.x + area.width.saturating_sub(pw) / 2;
     let py    = area.y + area.height.saturating_sub(ph) / 2;
     let panel = Rect::new(px, py, pw, ph.min(area.height));
@@ -85,7 +85,7 @@ pub(super) fn render_screensaver(
     let h2       = (now_t.hour()   % 10) as u8;
     let m1       = (now_t.minute() / 10) as u8;
     let m2       = (now_t.minute() % 10) as u8;
-    let colon_on = now_t.second() % 2 == 0;
+    let colon_on = now_t.second().is_multiple_of(2);
     let clock_w: u16 = 19;
     let clock_x      = cx + cw.saturating_sub(clock_w) / 2;
     for r in 0..5usize {
@@ -281,6 +281,7 @@ fn big_digit_rows(d: u8) -> [&'static str; 5] {
     }
 }
 
+#[expect(clippy::too_many_arguments)]
 fn build_clock_row(
     row:      usize,
     h1: u8, h2: u8,

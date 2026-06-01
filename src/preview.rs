@@ -54,7 +54,7 @@ fn log_deezer_not_found(raw: &str, query: &str) {
 }
 
 pub async fn deezer_preview(raw: &str) -> Option<(String, String)> {
-    let clean = raw.splitn(2, "  ").nth(1).unwrap_or(raw).trim();
+    let clean = raw.split_once("  ").map(|(_, r)| r).unwrap_or(raw).trim();
     let q = if let Some(sep) = clean.find(" - ") {
         let raw_artist = clean[..sep].trim();
         let raw_title  = clean[sep + 3..].trim();

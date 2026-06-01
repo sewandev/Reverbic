@@ -64,8 +64,8 @@ impl Widget for SearchModalWidget<'_> {
             }
         }
 
-        let w = area.width.min(72).max(44);
-        let h = area.height.min(14).max(10);
+        let w = area.width.clamp(44, 72);
+        let h = area.height.clamp(10, 14);
         let x = area.x + area.width.saturating_sub(w) / 2;
         let y = area.y + area.height.saturating_sub(h) / 2;
         let panel = Rect::new(x, y, w, h);

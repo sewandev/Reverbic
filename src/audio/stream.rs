@@ -125,11 +125,8 @@ impl Read for StreamReader {
             let mut pending: Vec<Bytes> = Vec::new();
             {
                 let rx = self.rx.lock().expect("StreamReader mutex poisoned");
-                loop {
-                    match rx.try_recv() {
-                        Ok(chunk) => pending.push(chunk),
-                        Err(_) => break,
-                    }
+                while let Ok(chunk) = rx.try_recv() {
+                    pending.push(chunk);
                 }
             }
             for chunk in pending {
@@ -542,7 +539,7 @@ mod tests {
         let metaint = 8usize;
         let (mut s, rx) = make_stripper(metaint);
         let title_str = b"StreamTitle='Test Artist - Test Track';StreamUrl='';";
-        let padded_len = ((title_str.len() + 15) / 16) * 16;
+        let padded_len = title_str.len().div_ceil(16) * 16;
         let mut meta_block = vec![0u8; padded_len];
         meta_block[..title_str.len()].copy_from_slice(title_str);
         let meta_len_byte = (padded_len / 16) as u8;
@@ -564,9 +561,9 @@ mod tests {
     fn empty_metadata_block() {
         let metaint = 4usize;
         let (mut s, rx) = make_stripper(metaint);
-        let mut input = vec![1u8, 2, 3, 4, 0u8, 5, 6, 7, 8];
+        let input = vec![1u8, 2, 3, 4, 0u8, 5, 6, 7, 8];
         let mut out = Vec::new();
-        s.process(&mut input, &mut out);
+        s.process(&input, &mut out);
 
         assert_eq!(out, [1, 2, 3, 4, 5, 6, 7, 8]);
         assert!(rx.try_recv().is_err(), "no title expected con meta_len=0");
@@ -578,7 +575,7 @@ mod tests {
         let (mut s, rx) = make_stripper(metaint);
 
         let title_str = b"StreamTitle='Chunked';StreamUrl='';";
-        let padded_len = ((title_str.len() + 15) / 16) * 16;
+        let padded_len = title_str.len().div_ceil(16) * 16;
         let mut meta_block = vec![0u8; padded_len];
         meta_block[..title_str.len()].copy_from_slice(title_str);
         let meta_len_byte = (padded_len / 16) as u8;

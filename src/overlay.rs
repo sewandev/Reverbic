@@ -528,14 +528,14 @@ unsafe extern "system" fn keyboard_hook(code: i32, wparam: WPARAM, lparam: LPARA
 
 unsafe fn add_tray_icon(hwnd: HWND, id: u32, callback_msg: u32) -> windows::core::Result<()> {
     let hmodule  = GetModuleHandleW(None)?;
-    let icon = LoadIconW(hmodule, PCWSTR(1 as *const u16))
+    let icon = LoadIconW(hmodule, PCWSTR(std::ptr::dangling::<u16>()))
         .unwrap_or_else(|_| LoadIconW(HINSTANCE::default(), IDI_APPLICATION)
             .expect("IDI_APPLICATION siempre disponible"));
     let mut tip = [0u16; 128];
     let text: Vec<u16> = "Reverbic".encode_utf16().collect();
     tip[..text.len().min(127)].copy_from_slice(&text[..text.len().min(127)]);
 
-    let mut nid = NOTIFYICONDATAW {
+    let nid = NOTIFYICONDATAW {
         cbSize:           std::mem::size_of::<NOTIFYICONDATAW>() as u32,
         hWnd:             hwnd,
         uID:              id,
@@ -545,24 +545,24 @@ unsafe fn add_tray_icon(hwnd: HWND, id: u32, callback_msg: u32) -> windows::core
         szTip:            tip,
         ..Default::default()
     };
-    Shell_NotifyIconW(NIM_ADD, &mut nid).ok()
+    Shell_NotifyIconW(NIM_ADD, &nid).ok()
 }
 
 unsafe fn remove_tray_icon(hwnd: HWND, id: u32) {
-    let mut nid = NOTIFYICONDATAW {
+    let nid = NOTIFYICONDATAW {
         cbSize: std::mem::size_of::<NOTIFYICONDATAW>() as u32,
         hWnd:   hwnd,
         uID:    id,
         ..Default::default()
     };
-    let _ = Shell_NotifyIconW(NIM_DELETE, &mut nid);
+    let _ = Shell_NotifyIconW(NIM_DELETE, &nid);
 }
 
 unsafe fn update_tray_tip(hwnd: HWND, id: u32, tip: &str) -> windows::core::Result<()> {
     let mut tip_buf = [0u16; 128];
     let text: Vec<u16> = tip.encode_utf16().collect();
     tip_buf[..text.len().min(127)].copy_from_slice(&text[..text.len().min(127)]);
-    let mut nid = NOTIFYICONDATAW {
+    let nid = NOTIFYICONDATAW {
         cbSize: std::mem::size_of::<NOTIFYICONDATAW>() as u32,
         hWnd:   hwnd,
         uID:    id,
@@ -570,7 +570,7 @@ unsafe fn update_tray_tip(hwnd: HWND, id: u32, tip: &str) -> windows::core::Resu
         szTip:  tip_buf,
         ..Default::default()
     };
-    Shell_NotifyIconW(NIM_MODIFY, &mut nid).ok()
+    Shell_NotifyIconW(NIM_MODIFY, &nid).ok()
 }
 
 unsafe fn show_balloon(hwnd: HWND, id: u32, title: &str, body: &str) -> windows::core::Result<()> {
@@ -582,7 +582,7 @@ unsafe fn show_balloon(hwnd: HWND, id: u32, title: &str, body: &str) -> windows:
     let b: Vec<u16> = body.encode_utf16().collect();
     info[..b.len().min(255)].copy_from_slice(&b[..b.len().min(255)]);
 
-    let mut nid = NOTIFYICONDATAW {
+    let nid = NOTIFYICONDATAW {
         cbSize:       std::mem::size_of::<NOTIFYICONDATAW>() as u32,
         hWnd:         hwnd,
         uID:          id,
@@ -592,7 +592,7 @@ unsafe fn show_balloon(hwnd: HWND, id: u32, title: &str, body: &str) -> windows:
         dwInfoFlags:  NIIF_NOSOUND,
         ..Default::default()
     };
-    Shell_NotifyIconW(NIM_MODIFY, &mut nid).ok()
+    Shell_NotifyIconW(NIM_MODIFY, &nid).ok()
 }
 
 unsafe fn is_fullscreen_foreground(overlay_hwnd: HWND) -> bool {

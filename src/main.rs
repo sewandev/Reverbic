@@ -153,11 +153,8 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
                 handle_event(&mut app, maybe_event, click_count).await;
             }
         }
-        loop {
-            match events.next().now_or_never() {
-                Some(Some(maybe_event)) => handle_event(&mut app, Some(maybe_event), click_count).await,
-                _ => break,
-            }
+        while let Some(Some(maybe_event)) = events.next().now_or_never() {
+            handle_event(&mut app, Some(maybe_event), click_count).await;
         }
 
         if app.should_quit {

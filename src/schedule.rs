@@ -15,7 +15,7 @@ fn format_timed_track(time: &str, artist: &str, title: &str) -> String {
 pub fn brussels_offset_secs() -> i32 {
     let now = Local::now();
     let (y, m, d, h) = (now.year(), now.month(), now.day(), now.hour());
-    if m < 3 || m > 10 { return 3600; }
+    if !(3..=10).contains(&m) { return 3600; }
     if m > 3 && m < 10 { return 7200; }
     let last_sun = last_sunday_of_month(y, m);
     if m == 3 {

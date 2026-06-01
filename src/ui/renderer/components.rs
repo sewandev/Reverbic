@@ -37,6 +37,7 @@ pub(super) fn render_sep(frame: &mut Frame, area: Rect) {
     );
 }
 
+#[expect(clippy::too_many_arguments)]
 pub(super) fn render_help(
     frame:              &mut Frame,
     area:               Rect,

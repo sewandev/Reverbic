@@ -130,7 +130,7 @@ pub fn render(frame: &mut Frame, app: &App) {
     if let Some(r) = layout.now_playing {
         if let Some((ref name, ref genre)) = crate::game_detect::get() {
             let area  = frame.area();
-            let pw    = area.width.min(66).max(44);
+            let pw    = area.width.clamp(44, 66);
             let px    = area.x + area.width.saturating_sub(pw) / 2;
             if r.y >= 1 {
                 render_game_inline(frame, ratatui::layout::Rect::new(px, r.y, pw, 1), name, genre);
@@ -223,8 +223,8 @@ pub fn render(frame: &mut Frame, app: &App) {
             full_area,
         );
 
-        let modal_w = full_area.width.min(72).max(44);
-        let modal_h = full_area.height.min(14).max(10);
+        let modal_w = full_area.width.clamp(44, 72);
+        let modal_h = full_area.height.clamp(10, 14);
         let modal_x = full_area.x + full_area.width.saturating_sub(modal_w) / 2;
         let modal_y = full_area.y + full_area.height.saturating_sub(modal_h) / 2;
         if let Some((ref name, ref genre)) = crate::game_detect::get() {
@@ -241,7 +241,7 @@ pub fn render(frame: &mut Frame, app: &App) {
         }
     }
 
-    if let Some(_) = app.renaming_favorite {
+    if app.renaming_favorite.is_some() {
         render_rename_overlay(frame, &app.rename_input);
     }
 }

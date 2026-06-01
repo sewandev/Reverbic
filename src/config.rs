@@ -226,9 +226,7 @@ impl Config {
     pub fn load() -> Self {
         let path = Self::path();
         if !path.exists() {
-            let mut config = Self::default();
-            config.language = detect_system_language();
-            return config;
+            return Self { language: detect_system_language(), ..Default::default() };
         }
         let Ok(data) = std::fs::read_to_string(&path) else {
             return Self::default();
