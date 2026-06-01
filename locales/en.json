@@ -124,17 +124,11 @@
 
   "integrations.services":                 "Services",
 
-  "integrations.spotify.connecting":       "Connecting to Spotify...",
   "integrations.spotify.logged_in":        "Connected as:",
   "integrations.spotify.saved":            "Saved account:",
-  "integrations.spotify.username":         "Username",
-  "integrations.spotify.password":         "Password",
-  "integrations.spotify.error":            "Auth error:",
   "integrations.spotify.logout_action":    "Disconnect",
-  "integrations.spotify.hint_login":       "Sign in",
   "integrations.spotify.hint_disconnect":  "Disconnect",
 
-  "integrations.spotify.method.userpass":  "Username and password",
   "integrations.spotify.method.browser":   "Sign in via web browser",
 
   "integrations.spotify.web.line1":        "Opens accounts.spotify.com in",

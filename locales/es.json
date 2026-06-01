@@ -124,17 +124,11 @@
 
   "integrations.services":                 "Servicios",
 
-  "integrations.spotify.connecting":       "Conectando a Spotify...",
   "integrations.spotify.logged_in":        "Conectado como:",
   "integrations.spotify.saved":            "Cuenta guardada:",
-  "integrations.spotify.username":         "Usuario",
-  "integrations.spotify.password":         "Contrasena",
-  "integrations.spotify.error":            "Error de autenticacion:",
   "integrations.spotify.logout_action":    "Desconectar",
-  "integrations.spotify.hint_login":       "Iniciar sesion",
   "integrations.spotify.hint_disconnect":  "Desconectar",
 
-  "integrations.spotify.method.userpass":  "Usuario y contrasena",
   "integrations.spotify.method.browser":   "Iniciar sesion via web",
 
   "integrations.spotify.web.line1":        "Abre accounts.spotify.com en tu",
