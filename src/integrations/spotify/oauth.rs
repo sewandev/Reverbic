@@ -5,9 +5,8 @@ use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpListener};
 
 use super::AuthResult;
 
-// Registra tu app en developer.spotify.com y reemplaza este valor.
-// Redirect URI a registrar: http://127.0.0.1  (Spotify acepta cualquier puerto para localhost en PKCE)
-const CLIENT_ID: &str = "REEMPLAZA_CON_TU_CLIENT_ID";
+// Leído desde .env en tiempo de compilación. Ver .env.example.
+const CLIENT_ID: &str = env!("SPOTIFY_CLIENT_ID", "Falta SPOTIFY_CLIENT_ID en .env");
 const SCOPES: &str = "user-read-email user-read-private streaming";
 
 pub async fn start_flow() -> AuthResult {
@@ -18,21 +17,17 @@ pub async fn start_flow() -> AuthResult {
 }
 
 async fn pkce_flow() -> Result<String, String> {
-    if CLIENT_ID == "REEMPLAZA_CON_TU_CLIENT_ID" {
-        return Err(
-            "CLIENT_ID sin configurar. Registra una app en \
-             developer.spotify.com y edita oauth.rs."
-                .to_string(),
-        );
+    if CLIENT_ID.is_empty() {
+        return Err("SPOTIFY_CLIENT_ID no definido en .env".to_string());
     }
 
     let code_verifier  = generate_verifier();
     let code_challenge = sha256_base64url(&code_verifier);
 
-    let listener = TcpListener::bind("127.0.0.1:0").await
-        .map_err(|e| format!("No se pudo iniciar servidor local: {e}"))?;
-    let port = listener.local_addr().map_err(|e| e.to_string())?.port();
-    let redirect_uri = format!("http://127.0.0.1:{port}/callback");
+    const CALLBACK_PORT: u16 = 8888;
+    let listener = TcpListener::bind(("127.0.0.1", CALLBACK_PORT)).await
+        .map_err(|e| format!("Puerto {CALLBACK_PORT} ocupado, cierra otras aplicaciones: {e}"))?;
+    let redirect_uri = format!("http://127.0.0.1:{CALLBACK_PORT}/callback");
 
     let auth_url = build_auth_url(&code_challenge, &redirect_uri);
     open_browser(&auth_url);
