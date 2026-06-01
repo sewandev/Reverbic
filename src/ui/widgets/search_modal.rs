@@ -467,7 +467,7 @@ impl SearchModalWidget<'_> {
         ]).areas(area);
 
         let visible_n = list_area.height.saturating_sub(1) as usize;
-        let offset    = if selected_row >= visible_n { selected_row + 1 - visible_n } else { 0 };
+        let offset    = super::scroll_offset(selected_row, visible_n);
 
         item_idx = 0;
         for (ri, (label, val_opt)) in rows.iter().enumerate() {
