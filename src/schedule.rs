@@ -4,6 +4,14 @@ use tokio::sync::mpsc;
 
 use crate::audio::PlayerCommand;
 
+fn format_timed_track(time: &str, artist: &str, title: &str) -> String {
+    if artist.is_empty() {
+        format!("{time}  {title}")
+    } else {
+        format!("{time}  {artist} - {title}")
+    }
+}
+
 pub fn brussels_offset_secs() -> i32 {
     let now = Local::now();
     let (y, m, d, h) = (now.year(), now.month(), now.day(), now.hour());
@@ -90,11 +98,7 @@ pub fn parse_history(body: &str) -> Vec<String> {
                             .to_string()
                     })
                     .unwrap_or_else(|_| "??:??".to_string());
-                Some(if artist.is_empty() {
-                    format!("{time}  {title}")
-                } else {
-                    format!("{time}  {artist} - {title}")
-                })
+                Some(format_timed_track(&time, artist, title))
             }).collect()
         })
         .unwrap_or_default()
@@ -129,11 +133,7 @@ pub fn parse_api_response(
                     let a     = e["artist"].as_str().unwrap_or("");
                     let start = e["startTime"].as_str().unwrap_or("");
                     let time  = utc_to_local_hhmm(start);
-                    Some(if a.is_empty() {
-                        format!("{time}  {t}")
-                    } else {
-                        format!("{time}  {a} - {t}")
-                    })
+                    Some(format_timed_track(&time, a, t))
                 }).collect()
             })
             .unwrap_or_default()

@@ -51,11 +51,10 @@ pub fn render(frame: &mut Frame, app: &App) {
         .as_ref()
         .and_then(|p| app.favorites.iter().position(|f| f.url == p.url));
 
-    let playing_ondemand_id: Option<String> = player_state
+    let playing_ondemand_id: Option<&str> = player_state
         .station
         .as_ref()
-        .and_then(|s| s.key.strip_prefix("ondemand_"))
-        .map(str::to_string);
+        .and_then(|s| s.key.strip_prefix("ondemand_"));
 
     let has_recent    = !player_state.recent_titles.is_empty();
     let has_saved     = !app.saved_tracks.is_empty();
@@ -99,7 +98,7 @@ pub fn render(frame: &mut Frame, app: &App) {
                 selected:     app.on_demand_selected,
                 focused,
                 loading:      app.on_demand_loading,
-                playing_id:   playing_ondemand_id.as_deref(),
+                playing_id:   playing_ondemand_id,
                 program_name: crate::station::on_demand::PROGRAMS
                     .get(app.selected_program)
                     .map(|p| p.name)
@@ -819,17 +818,14 @@ fn render_modal_np_strip(frame: &mut Frame, strip: Rect, state: &PlayerState) {
 }
 
 fn build_modal_station_line(state: &PlayerState) -> Line<'static> {
+    let name = state.station.as_ref().map(|s| s.name.clone()).unwrap_or_default();
     match &state.status {
         PlayerStatus::Connecting | PlayerStatus::Reconnecting(_) => Line::from(vec![
             Span::styled("…  ", Style::default().fg(theme::ACCENT)),
-            Span::styled(
-                state.station.as_ref().map(|s| s.name.clone()).unwrap_or_default(),
-                Style::default().fg(theme::MUTED),
-            ),
+            Span::styled(name, Style::default().fg(theme::MUTED)),
         ]),
         PlayerStatus::Buffering(_) | PlayerStatus::Playing | PlayerStatus::Paused => {
             let icon = if matches!(state.status, PlayerStatus::Paused) { "⏸  " } else { ">>  " };
-            let name = state.station.as_ref().map(|s| s.name.clone()).unwrap_or_default();
             Line::from(vec![
                 Span::styled(icon, Style::default().fg(theme::ACCENT)),
                 Span::styled(name, theme::PLAYING_STYLE),
