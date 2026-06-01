@@ -11,6 +11,7 @@ use tracing_subscriber::{fmt, fmt::time::ChronoLocal, EnvFilter};
 mod app;
 mod audio;
 mod game_detect;
+mod integrations;
 mod config;
 mod error;
 mod favorites;
@@ -121,6 +122,7 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
         app.poll_search_results();
         app.poll_on_demand_results();
         app.poll_station_details();
+        app.poll_spotify_auth();
         let mut last_area = app.terminal_area;
         tui.draw(|frame| {
             last_area = frame.area();

@@ -6,7 +6,7 @@ use ratatui::{
     widgets::{Block, BorderType, Borders, Clear, List, ListItem, Paragraph, Widget, Wrap},
 };
 
-use crate::app::{SearchMode, SettingItem, settings_items};
+use crate::app::{SearchMode, SettingItem, SpotifyAuthStatus, SpotifyField, settings_items};
 use crate::i18n::{t, current_language, Language};
 use crate::station::{filter_items, DynamicStation, GENRES, COUNTRIES};
 use crate::ui::theme;
@@ -68,6 +68,11 @@ pub struct SearchModalWidget<'a> {
     pub duck_volume:               u8,
     pub overlay_alpha:             u8,
     pub screensaver_secs:          u16,
+    pub spotify_status:            &'a SpotifyAuthStatus,
+    pub spotify_username:          &'a str,
+    pub spotify_pw_len:            usize,
+    pub spotify_field:             SpotifyField,
+    pub spotify_saved:             Option<&'a str>,
 }
 
 impl Widget for SearchModalWidget<'_> {
@@ -79,7 +84,7 @@ impl Widget for SearchModalWidget<'_> {
             }
         }
 
-        let w = area.width.min(66).max(44);
+        let w = area.width.min(72).max(44);
         let h = area.height.min(14).max(10);
         let x = area.x + area.width.saturating_sub(w) / 2;
         let y = area.y + area.height.saturating_sub(h) / 2;
@@ -113,10 +118,11 @@ impl Widget for SearchModalWidget<'_> {
         self.render_tabs(tabs_row, content_x, content_w, buf);
 
         match self.mode {
-            SearchMode::Name     => self.render_name_body(body_area, content_x, content_w, buf),
-            SearchMode::Genre    => self.render_genre_body(body_area, content_x, content_w, buf),
-            SearchMode::Country  => self.render_country_body(body_area, content_x, content_w, buf),
-            SearchMode::Settings => self.render_settings_body(body_area, content_x, content_w, buf),
+            SearchMode::Name         => self.render_name_body(body_area, content_x, content_w, buf),
+            SearchMode::Genre        => self.render_genre_body(body_area, content_x, content_w, buf),
+            SearchMode::Country      => self.render_country_body(body_area, content_x, content_w, buf),
+            SearchMode::Settings     => self.render_settings_body(body_area, content_x, content_w, buf),
+            SearchMode::Integrations => self.render_integrations_body(body_area, content_x, content_w, buf),
         }
     }
 }
@@ -155,6 +161,25 @@ impl SearchModalWidget<'_> {
                 key("[Tab]"),  sep_s(format!(" {}  ", t("hint.next_tab"))),
                 key("[Esc]"),  sep_s(format!(" {} ",  t("hint.close"))),
             ],
+            SearchMode::Integrations => match self.spotify_status {
+                SpotifyAuthStatus::Connecting => vec![
+                    Span::raw(" "),
+                    key("[Esc]"), sep_s(format!(" {} ", t("hint.back"))),
+                ],
+                SpotifyAuthStatus::LoggedIn => vec![
+                    Span::raw(" "),
+                    key("[D]"),   sep_s(format!(" {}  ", t("integrations.spotify.hint_disconnect"))),
+                    key("[Tab]"), sep_s(format!(" {}  ", t("hint.next_tab"))),
+                    key("[Esc]"), sep_s(format!(" {} ",  t("hint.close"))),
+                ],
+                _ => vec![
+                    Span::raw(" "),
+                    key("[↵]"),  sep_s(format!(" {}  ", t("integrations.spotify.hint_login"))),
+                    key("[↑↓]"), sep_s(format!(" {}  ", t("hint.nav"))),
+                    key("[Tab]"), sep_s(format!(" {}  ", t("hint.next_tab"))),
+                    key("[Esc]"), sep_s(format!(" {} ",  t("hint.close"))),
+                ],
+            },
         }
     }
 
@@ -162,20 +187,23 @@ impl SearchModalWidget<'_> {
         let tab_area = Rect::new(content_x, area.y, content_w, 1);
         let active   = Style::default().fg(theme::ACCENT).add_modifier(Modifier::BOLD);
         let inactive = Style::default().fg(theme::MUTED);
-        let (ns, gs, cs, ss) = match self.mode {
-            SearchMode::Name     => (active, inactive, inactive, inactive),
-            SearchMode::Genre    => (inactive, active, inactive, inactive),
-            SearchMode::Country  => (inactive, inactive, active, inactive),
-            SearchMode::Settings => (inactive, inactive, inactive, active),
+        let (ns, gs, cs, ss, is) = match self.mode {
+            SearchMode::Name         => (active, inactive, inactive, inactive, inactive),
+            SearchMode::Genre        => (inactive, active, inactive, inactive, inactive),
+            SearchMode::Country      => (inactive, inactive, active, inactive, inactive),
+            SearchMode::Settings     => (inactive, inactive, inactive, active, inactive),
+            SearchMode::Integrations => (inactive, inactive, inactive, inactive, active),
         };
         let line = Line::from(vec![
-            Span::styled(t("modal.tab.name"),    ns),
-            Span::styled("  ",                   Style::default()),
-            Span::styled(t("modal.tab.genre"),   gs),
-            Span::styled("  ",                   Style::default()),
-            Span::styled(t("modal.tab.country"), cs),
-            Span::styled("  ",                   Style::default()),
-            Span::styled(t("modal.tab.config"),  ss),
+            Span::styled(t("modal.tab.name"),         ns),
+            Span::styled("  ",                        Style::default()),
+            Span::styled(t("modal.tab.genre"),        gs),
+            Span::styled("  ",                        Style::default()),
+            Span::styled(t("modal.tab.country"),      cs),
+            Span::styled("  ",                        Style::default()),
+            Span::styled(t("modal.tab.config"),       ss),
+            Span::styled("  ",                        Style::default()),
+            Span::styled(t("modal.tab.integrations"), is),
         ]);
         Paragraph::new(line).render(tab_area, buf);
     }
@@ -616,6 +644,119 @@ impl SearchModalWidget<'_> {
 
         if filtered.len() > visible_n {
             self.render_scrollbar(list_area, filtered.len(), self.country_selected, buf);
+        }
+    }
+}
+
+impl SearchModalWidget<'_> {
+    fn render_integrations_body(&self, area: Rect, content_x: u16, content_w: u16, buf: &mut Buffer) {
+        let list_x = content_x + 2;
+        let list_w = content_w.saturating_sub(2);
+        let text_x = content_x + 2;
+        let text_w = content_w.saturating_sub(2);
+
+        if matches!(self.spotify_status, SpotifyAuthStatus::Connecting) {
+            let y = area.y + area.height / 2;
+            Paragraph::new(Line::from(vec![
+                Span::styled(spin_frame(), Style::default().fg(theme::ACCENT)),
+                Span::styled(
+                    format!("  {}", t("integrations.spotify.connecting")),
+                    Style::default().fg(theme::MUTED),
+                ),
+            ]))
+            .render(Rect::new(list_x, y, list_w, 1), buf);
+            return;
+        }
+
+        if matches!(self.spotify_status, SpotifyAuthStatus::LoggedIn) {
+            let mut y = area.y + 1;
+            Paragraph::new(Span::styled(
+                t("integrations.spotify.logged_in"),
+                Style::default().fg(theme::MUTED),
+            ))
+            .render(Rect::new(list_x, y, list_w, 1), buf);
+            y += 1;
+            let name = self.spotify_saved.unwrap_or("Spotify");
+            Paragraph::new(Line::from(vec![
+                Span::styled("▶  ", Style::default().fg(theme::PLAYING).add_modifier(Modifier::BOLD)),
+                Span::styled(name,   Style::default().fg(theme::PLAYING).add_modifier(Modifier::BOLD)),
+            ]))
+            .render(Rect::new(list_x, y, list_w, 1), buf);
+            y += 2;
+            Paragraph::new(Line::from(vec![
+                key("[D]"),
+                sep_s(format!(" {}", t("integrations.spotify.logout_action"))),
+            ]))
+            .render(Rect::new(list_x, y, list_w, 1), buf);
+            return;
+        }
+
+        let mut y = area.y;
+
+        if let SpotifyAuthStatus::Error(msg) = self.spotify_status {
+            let max = list_w as usize;
+            let display: String = if msg.chars().count() > max {
+                msg.chars().take(max.saturating_sub(1)).collect::<String>() + "…"
+            } else {
+                msg.clone()
+            };
+            Paragraph::new(Span::styled(display, Style::default().fg(theme::WARNING)))
+                .render(Rect::new(list_x, y, list_w, 1), buf);
+            y += 1;
+        }
+
+        y += 1;
+
+        let user_active = matches!(self.spotify_field, SpotifyField::Username);
+        let pass_active = !user_active;
+
+        if y < area.bottom() {
+            Paragraph::new(Span::styled(
+                t("integrations.spotify.username"),
+                Style::default().fg(if user_active { theme::ACCENT } else { theme::MUTED }),
+            ))
+            .render(Rect::new(list_x, y, list_w, 1), buf);
+            y += 1;
+        }
+
+        if y < area.bottom() {
+            let bar_fg = if user_active { theme::ACCENT } else { theme::DIM };
+            buf[(content_x, y)].set_symbol("┃").set_fg(bar_fg).set_bg(BG);
+            let max_w = text_w.saturating_sub(1) as usize;
+            let visible: String = if self.spotify_username.chars().count() > max_w {
+                self.spotify_username.chars().rev().take(max_w).collect::<String>().chars().rev().collect()
+            } else {
+                self.spotify_username.to_owned()
+            };
+            let mut spans = vec![Span::styled(visible, Style::default().fg(theme::HIGHLIGHT))];
+            if user_active {
+                spans.push(Span::styled("_", Style::default().fg(theme::ACCENT).add_modifier(Modifier::BOLD)));
+            }
+            Paragraph::new(Line::from(spans)).render(Rect::new(text_x, y, text_w, 1), buf);
+            y += 1;
+        }
+
+        y += 1;
+
+        if y < area.bottom() {
+            Paragraph::new(Span::styled(
+                t("integrations.spotify.password"),
+                Style::default().fg(if pass_active { theme::ACCENT } else { theme::MUTED }),
+            ))
+            .render(Rect::new(list_x, y, list_w, 1), buf);
+            y += 1;
+        }
+
+        if y < area.bottom() {
+            let bar_fg = if pass_active { theme::ACCENT } else { theme::DIM };
+            buf[(content_x, y)].set_symbol("┃").set_fg(bar_fg).set_bg(BG);
+            let dots = self.spotify_pw_len.min(text_w.saturating_sub(1) as usize);
+            let pw_display = "•".repeat(dots);
+            let mut spans = vec![Span::styled(pw_display, Style::default().fg(theme::HIGHLIGHT))];
+            if pass_active {
+                spans.push(Span::styled("_", Style::default().fg(theme::ACCENT).add_modifier(Modifier::BOLD)));
+            }
+            Paragraph::new(Line::from(spans)).render(Rect::new(text_x, y, text_w, 1), buf);
         }
     }
 }

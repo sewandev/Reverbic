@@ -82,6 +82,12 @@ impl OverlayPosition {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct SpotifyConfig {
+    #[serde(default)]
+    pub display_name: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     pub volume:         f32,
@@ -118,6 +124,8 @@ pub struct Config {
     pub screensaver_secs:     u16,
     #[serde(default)]
     pub game_integrations:    GameIntegrationsConfig,
+    #[serde(default)]
+    pub spotify:              SpotifyConfig,
 }
 
 fn default_true() -> bool { true }
@@ -160,6 +168,7 @@ impl Default for Config {
             overlay_position:  OverlayPosition::TopLeft,
             screensaver_secs:  10,
             game_integrations: GameIntegrationsConfig::default(),
+            spotify:           SpotifyConfig::default(),
         }
     }
 }

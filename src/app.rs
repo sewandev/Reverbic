@@ -38,6 +38,20 @@ pub enum SearchMode {
     Genre,
     Country,
     Settings,
+    Integrations,
+}
+
+#[derive(Clone, Copy, PartialEq)]
+pub enum SpotifyField {
+    Username,
+    Password,
+}
+
+pub enum SpotifyAuthStatus {
+    Idle,
+    Connecting,
+    LoggedIn,
+    Error(String),
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -178,7 +192,13 @@ pub struct App {
     pub station_details:     Option<StationDetails>,
     pub windows_tx:          Option<tokio::sync::watch::Sender<crate::config::Config>>,
     pub config:              Config,
+    pub spotify_username_input: String,
+    pub spotify_password_input: String,
+    pub spotify_field:          SpotifyField,
+    pub spotify_status:         SpotifyAuthStatus,
     metadata_task:           Option<tokio::task::JoinHandle<()>>,
+    spotify_auth_task:       Option<tokio::task::JoinHandle<()>>,
+    spotify_auth_rx:         Option<std::sync::mpsc::Receiver<crate::integrations::spotify::AuthResult>>,
     search_task:             Option<tokio::task::JoinHandle<()>>,
     search_result_rx:        Option<std::sync::mpsc::Receiver<Vec<DynamicStation>>>,
     on_demand_task:          Option<tokio::task::JoinHandle<()>>,
@@ -195,6 +215,7 @@ impl App {
         player.send(PlayerCommand::SetVolume(initial_vol)).await;
 
         let favorites = favorites::load();
+        let spotify_username_input = config.spotify.display_name.clone().unwrap_or_default();
         Self {
             stations:           Vec::new(),
             favorites,
@@ -232,7 +253,13 @@ impl App {
             station_details:    None,
             windows_tx:         None,
             config,
+            spotify_username_input,
+            spotify_password_input: String::new(),
+            spotify_field:          SpotifyField::Username,
+            spotify_status:         SpotifyAuthStatus::Idle,
             metadata_task:      None,
+            spotify_auth_task:  None,
+            spotify_auth_rx:    None,
             search_task:        None,
             search_result_rx:   None,
             on_demand_task:     None,
@@ -513,7 +540,21 @@ impl App {
                     }
                     self.country_selected = 0;
                 }
-                SearchMode::Settings => {}
+                SearchMode::Settings     => {}
+                SearchMode::Integrations => {
+                    match self.spotify_field {
+                        SpotifyField::Username => {
+                            for c in text.chars().filter(|c| !c.is_control()) {
+                                self.spotify_username_input.push(c);
+                            }
+                        }
+                        SpotifyField::Password => {
+                            for c in text.chars().filter(|c| !c.is_control()) {
+                                self.spotify_password_input.push(c);
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -668,10 +709,11 @@ impl App {
 
         if key == KeyCode::Tab {
             self.modal_mode = match self.modal_mode {
-                SearchMode::Name     => SearchMode::Genre,
-                SearchMode::Genre    => SearchMode::Country,
-                SearchMode::Country  => SearchMode::Settings,
-                SearchMode::Settings => SearchMode::Name,
+                SearchMode::Name         => SearchMode::Genre,
+                SearchMode::Genre        => SearchMode::Country,
+                SearchMode::Country      => SearchMode::Settings,
+                SearchMode::Settings     => SearchMode::Integrations,
+                SearchMode::Integrations => SearchMode::Name,
             };
             self.modal_selected = 0;
             self.search_results.clear();
@@ -687,10 +729,11 @@ impl App {
         }
 
         match self.modal_mode {
-            SearchMode::Name     => self.on_key_modal_name(key).await,
-            SearchMode::Genre    => self.on_key_modal_genre(key).await,
-            SearchMode::Country  => self.on_key_modal_country(key).await,
-            SearchMode::Settings => self.on_key_modal_settings(key),
+            SearchMode::Name         => self.on_key_modal_name(key).await,
+            SearchMode::Genre        => self.on_key_modal_genre(key).await,
+            SearchMode::Country      => self.on_key_modal_country(key).await,
+            SearchMode::Settings     => self.on_key_modal_settings(key),
+            SearchMode::Integrations => self.on_key_modal_integrations(key),
         }
     }
 
@@ -873,6 +916,106 @@ impl App {
                 self.apply_settings_toggle(self.settings_selected);
             }
             _ => {}
+        }
+    }
+
+    fn on_key_modal_integrations(&mut self, key: KeyCode) {
+        if matches!(self.spotify_status, SpotifyAuthStatus::Connecting) {
+            if key == KeyCode::Esc {
+                abort_task(&mut self.spotify_auth_task);
+                self.spotify_auth_rx = None;
+                self.spotify_status = SpotifyAuthStatus::Idle;
+            }
+            return;
+        }
+
+        if matches!(self.spotify_status, SpotifyAuthStatus::LoggedIn) {
+            match key {
+                KeyCode::Char('d') | KeyCode::Char('D') => self.spotify_logout(),
+                KeyCode::Esc => self.modal_mode = SearchMode::Name,
+                _ => {}
+            }
+            return;
+        }
+
+        match key {
+            KeyCode::Esc => {
+                if matches!(self.spotify_status, SpotifyAuthStatus::Error(_)) {
+                    self.spotify_status = SpotifyAuthStatus::Idle;
+                } else {
+                    self.modal_mode = SearchMode::Name;
+                }
+            }
+            KeyCode::Char('d') | KeyCode::Char('D')
+                if self.config.spotify.display_name.is_some() =>
+            {
+                self.spotify_logout();
+            }
+            KeyCode::Up | KeyCode::Down => {
+                self.spotify_field = match self.spotify_field {
+                    SpotifyField::Username => SpotifyField::Password,
+                    SpotifyField::Password => SpotifyField::Username,
+                };
+            }
+            KeyCode::Enter => {
+                if !self.spotify_username_input.is_empty() && !self.spotify_password_input.is_empty() {
+                    self.start_spotify_login();
+                }
+            }
+            KeyCode::Backspace => match self.spotify_field {
+                SpotifyField::Username => { self.spotify_username_input.pop(); }
+                SpotifyField::Password => { self.spotify_password_input.pop(); }
+            },
+            KeyCode::Char(c) if !c.is_control() => match self.spotify_field {
+                SpotifyField::Username => self.spotify_username_input.push(c),
+                SpotifyField::Password => self.spotify_password_input.push(c),
+            },
+            _ => {}
+        }
+    }
+
+    fn start_spotify_login(&mut self) {
+        let username = self.spotify_username_input.clone();
+        let password = self.spotify_password_input.clone();
+        let (tx, rx) = std::sync::mpsc::channel();
+        self.spotify_auth_rx = Some(rx);
+        self.spotify_status  = SpotifyAuthStatus::Connecting;
+        let handle = tokio::spawn(async move {
+            let result = crate::integrations::spotify::authenticate(username, password).await;
+            let _ = tx.send(result);
+        });
+        self.spotify_auth_task = Some(handle);
+    }
+
+    fn spotify_logout(&mut self) {
+        self.config.spotify.display_name = None;
+        self.config.save();
+        self.spotify_status         = SpotifyAuthStatus::Idle;
+        self.spotify_username_input.clear();
+        self.spotify_password_input.clear();
+        self.spotify_field          = SpotifyField::Username;
+    }
+
+    pub fn poll_spotify_auth(&mut self) {
+        use crate::integrations::spotify::AuthResult;
+        if let Some(rx) = self.spotify_auth_rx.take() {
+            match rx.try_recv() {
+                Ok(AuthResult::Success { username }) => {
+                    self.config.spotify.display_name = Some(username);
+                    self.config.save();
+                    self.spotify_status = SpotifyAuthStatus::LoggedIn;
+                    self.spotify_password_input.clear();
+                }
+                Ok(AuthResult::Failure(msg)) => {
+                    self.spotify_status = SpotifyAuthStatus::Error(msg);
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => {
+                    self.spotify_auth_rx = Some(rx);
+                }
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    self.spotify_status = SpotifyAuthStatus::Idle;
+                }
+            }
         }
     }
 

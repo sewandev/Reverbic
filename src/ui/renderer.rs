@@ -220,11 +220,16 @@ pub fn render(frame: &mut Frame, app: &App) {
                 duck_volume:               app.config.duck_volume,
                 overlay_alpha:             app.config.overlay_alpha,
                 screensaver_secs:          app.config.screensaver_secs,
+                spotify_status:            &app.spotify_status,
+                spotify_username:          &app.spotify_username_input,
+                spotify_pw_len:            app.spotify_password_input.len(),
+                spotify_field:             app.spotify_field,
+                spotify_saved:             app.config.spotify.display_name.as_deref(),
             },
             full_area,
         );
 
-        let modal_w = full_area.width.min(66).max(44);
+        let modal_w = full_area.width.min(72).max(44);
         let modal_h = full_area.height.min(14).max(10);
         let modal_x = full_area.x + full_area.width.saturating_sub(modal_w) / 2;
         let modal_y = full_area.y + full_area.height.saturating_sub(modal_h) / 2;

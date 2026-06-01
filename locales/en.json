@@ -5,6 +5,7 @@
   "modal.tab.country": "[ Country ]",
   "modal.tab.trending": "[ Trending ]",
   "modal.tab.config": "[ Config ]",
+  "modal.tab.integrations": "[ Integrations ]",
 
   "hint.play": "Play",
   "hint.vote": "Vote",
@@ -119,5 +120,15 @@
   "notice.saved": "Saved:",
   "notice.already_saved": "Already saved:",
   "notice.fav_added": "★ Added to favorites",
-  "notice.fav_removed": "☆ Removed from favorites"
+  "notice.fav_removed": "☆ Removed from favorites",
+
+  "integrations.spotify.connecting":       "Connecting to Spotify...",
+  "integrations.spotify.logged_in":        "Connected as:",
+  "integrations.spotify.saved":            "Saved account:",
+  "integrations.spotify.username":         "Username",
+  "integrations.spotify.password":         "Password",
+  "integrations.spotify.error":            "Auth error:",
+  "integrations.spotify.logout_action":    "Disconnect",
+  "integrations.spotify.hint_login":       "Sign in",
+  "integrations.spotify.hint_disconnect":  "Disconnect"
 }
