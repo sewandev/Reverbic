@@ -19,8 +19,6 @@ pub async fn run(port: u16, state: Arc<Mutex<Dota2State>>) {
 
 async fn handle(mut stream: tokio::net::TcpStream, state: Arc<Mutex<Dota2State>>) {
     let timeout = std::time::Duration::from_secs(5);
-
-    // Lee hasta encontrar el fin de cabeceras \r\n\r\n (puede requerir varios reads)
     let mut raw = Vec::with_capacity(8192);
     let header_end = loop {
         let mut chunk = [0u8; 4096];
@@ -34,19 +32,13 @@ async fn handle(mut stream: tokio::net::TcpStream, state: Arc<Mutex<Dota2State>>
         }
         if raw.len() > 65_536 { return; }
     };
-
-    // Parsea Content-Length de las cabeceras
     let headers = String::from_utf8_lossy(&raw[..header_end]);
     let content_length: usize = headers
         .lines()
         .find(|l| l.to_ascii_lowercase().starts_with("content-length:"))
         .and_then(|l| l.splitn(2, ':').nth(1)?.trim().parse().ok())
         .unwrap_or(0);
-
-    // El body puede haber llegado parcialmente junto con las cabeceras
     let mut body = raw[header_end..].to_vec();
-
-    // Lee el resto del body hasta completar content_length
     while body.len() < content_length {
         let need = (content_length - body.len()).min(4096);
         let mut chunk = vec![0u8; need];
@@ -57,8 +49,14 @@ async fn handle(mut stream: tokio::net::TcpStream, state: Arc<Mutex<Dota2State>>
         body.extend_from_slice(&chunk[..n]);
     }
 
-    if let Ok(json) = serde_json::from_slice::<serde_json::Value>(&body) {
-        apply(&json, &state);
+    match serde_json::from_slice::<serde_json::Value>(&body) {
+        Ok(json) => {
+            super::mark_received();
+            apply(&json, &state);
+        }
+        Err(e) => {
+            tracing::warn!("Dota2 GSI: JSON inválido ({} bytes): {e}", body.len());
+        }
     }
 
     let _ = stream.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n").await;
@@ -73,8 +71,10 @@ fn apply(json: &serde_json::Value, state: &Arc<Mutex<Dota2State>>) {
         if let Some(t) = map["clock_time"].as_i64() {
             s.game_time_secs = t as i32;
         }
+        tracing::debug!("Dota2 GSI: game_state={gs:?} phase={:?}", s.phase);
     } else {
         s.phase = DotaPhase::None;
+        tracing::debug!("Dota2 GSI: heartbeat (sin mapa)");
     }
 
     if let Some(p) = json.get("player") {
@@ -85,11 +85,13 @@ fn apply(json: &serde_json::Value, state: &Arc<Mutex<Dota2State>>) {
         if let Some(team) = p["team_name"].as_str().filter(|t| !t.is_empty()) {
             s.team = team.to_string();
         }
+        tracing::debug!("Dota2 GSI: player={}/{}/{} gold={}", s.kills, s.deaths, s.assists, s.net_worth);
     }
 
     if let Some(hero) = json.get("hero") {
         if let Some(name) = hero["name"].as_str().filter(|n| !n.is_empty()) {
             s.hero = hero_display(name);
+            tracing::debug!("Dota2 GSI: hero={:?}", s.hero);
         }
     }
 }

@@ -68,9 +68,6 @@ pub struct SearchModalWidget<'a> {
     pub duck_volume:               u8,
     pub overlay_alpha:             u8,
     pub screensaver_secs:          u16,
-    pub game_integrations_enabled:  bool,
-    pub integration_dota2:          bool,
-    pub dota2_needs_restart:        bool,
 }
 
 impl Widget for SearchModalWidget<'_> {
@@ -443,19 +440,13 @@ impl SearchModalWidget<'_> {
                 Language::Es => t("lang.display.es"),
                 Language::En => t("lang.display.en"),
             },
-            SettingItem::GameIntegrations => if self.game_integrations_enabled { on } else { off },
-            SettingItem::IntegrationDota2 => {
-                if !self.integration_dota2 { off }
-                else if self.dota2_needs_restart { t("config.value.restart_dota") }
-                else { on }
-            }
         }
     }
 
     fn render_settings_body(&self, area: Rect, content_x: u16, content_w: u16, buf: &mut Buffer) {
         let mut rows: Vec<(String, Option<String>)> = Vec::new();
         let mut last_group = "";
-        for item in settings_items(self.duck_enabled, self.game_integrations_enabled) {
+        for item in settings_items(self.duck_enabled) {
             let gk = item.group_key();
             if gk != last_group {
                 rows.push((t(gk), None));

@@ -4,8 +4,6 @@ mod server;
 pub use state::Dota2State;
 
 use std::sync::{Arc, Mutex};
-
-/// Implementación de [`crate::integrations::GameIntegration`] para Dota 2 via GSI.
 pub struct Dota2Integration;
 
 impl crate::integrations::GameIntegration for Dota2Integration {
@@ -31,7 +29,8 @@ const GSI_CONFIG: &str = concat!(
     "    }\n}\n"
 );
 
-static STATE: std::sync::OnceLock<Arc<Mutex<Dota2State>>> = std::sync::OnceLock::new();
+static STATE:    std::sync::OnceLock<Arc<Mutex<Dota2State>>>      = std::sync::OnceLock::new();
+static RECEIVED: std::sync::atomic::AtomicBool                    = std::sync::atomic::AtomicBool::new(false);
 
 fn shared_state() -> Arc<Mutex<Dota2State>> {
     Arc::clone(STATE.get_or_init(|| Arc::new(Mutex::new(Dota2State::default()))))
@@ -44,11 +43,30 @@ pub fn get() -> Option<Dota2State> {
         .filter(|s| s.phase.is_active())
 }
 
+pub fn mark_received() {
+    RECEIVED.store(true, std::sync::atomic::Ordering::Relaxed);
+}
+
+pub fn has_received_data() -> bool {
+    RECEIVED.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+pub fn check_launch_flag() -> bool {
+    let Some(steam_path) = find_steam_path() else { return false };
+    let Ok(entries) = std::fs::read_dir(steam_path.join("userdata")) else { return false };
+    entries.flatten().any(|e| {
+        std::fs::read_to_string(e.path().join("config").join("localconfig.vdf"))
+            .map(|c| c.contains("-gamestateintegration"))
+            .unwrap_or(false)
+    })
+}
+
 pub fn spawn_server() -> tokio::task::JoinHandle<()> {
     tokio::spawn(server::run(GSI_PORT, shared_state()))
 }
 
 pub fn reset() {
+    RECEIVED.store(false, std::sync::atomic::Ordering::Relaxed);
     if let Some(arc) = STATE.get() {
         if let Ok(mut s) = arc.lock() {
             *s = Dota2State::default();
