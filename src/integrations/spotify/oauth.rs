@@ -127,7 +127,8 @@ async fn wait_for_callback(listener: TcpListener) -> Result<String, String> {
 }
 
 async fn exchange_code(code: &str, verifier: &str, redirect_uri: &str) -> Result<String, String> {
-    let client = reqwest::Client::new();
+    let client = crate::http::http_client_timeout(15)
+        .ok_or_else(|| "No se pudo crear cliente HTTP".to_string())?;
     let params = [
         ("client_id",     CLIENT_ID),
         ("grant_type",    "authorization_code"),
@@ -162,7 +163,8 @@ async fn exchange_code(code: &str, verifier: &str, redirect_uri: &str) -> Result
 }
 
 async fn fetch_username(access_token: &str) -> Result<String, String> {
-    let client = reqwest::Client::new();
+    let client = crate::http::http_client_timeout(15)
+        .ok_or_else(|| "No se pudo crear cliente HTTP".to_string())?;
     let response = client
         .get("https://api.spotify.com/v1/me")
         .bearer_auth(access_token)

@@ -35,7 +35,7 @@ pub(super) fn spin_frame() -> &'static str {
         .map(|d| d.as_millis())
         .unwrap_or(0);
     const SPIN: &[&str] = &["⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏"];
-    SPIN[(ms / 80) as usize % SPIN.len()]
+    SPIN[(ms / 120) as usize % SPIN.len()]
 }
 
 pub(super) fn screensaver_display(secs: u16) -> String {

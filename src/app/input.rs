@@ -18,7 +18,6 @@ impl App {
 
         if event.modifiers.contains(KeyModifiers::SHIFT)
             && !self.show_search_modal
-            && !self.show_settings
             && matches!(self.focus, AppFocus::Stations)
         {
             if let Some(idx) = self.favorite_index() {
@@ -105,11 +104,6 @@ impl App {
         self.last_activity = Instant::now();
         if self.show_search_modal {
             self.on_key_search_modal(key).await;
-            return;
-        }
-
-        if self.show_settings {
-            self.on_key_settings(key);
             return;
         }
 
@@ -667,29 +661,6 @@ impl App {
                 } else {
                     self.focus = AppFocus::Stations;
                 }
-            }
-            _ => {}
-        }
-    }
-
-    fn on_key_settings(&mut self, key: KeyCode) {
-        const SETTINGS_COUNT: usize = 2;
-        match key {
-            KeyCode::Esc | KeyCode::Char('o') => {
-                self.show_settings = false;
-            }
-            KeyCode::Up | KeyCode::Char('k') => {
-                if self.settings_selected > 0 {
-                    self.settings_selected -= 1;
-                }
-            }
-            KeyCode::Down | KeyCode::Char('j') => {
-                if self.settings_selected + 1 < SETTINGS_COUNT {
-                    self.settings_selected += 1;
-                }
-            }
-            KeyCode::Enter | KeyCode::Char(' ') => {
-                self.apply_settings_toggle(self.settings_selected);
             }
             _ => {}
         }
