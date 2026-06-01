@@ -77,6 +77,24 @@ impl SettingItem {
         }
     }
 
+    pub(crate) fn tooltip_key(self) -> &'static str {
+        match self {
+            Self::Autoplay        => "config.tooltip.autoplay",
+            Self::RestoreVolume   => "config.tooltip.restore_volume",
+            Self::Crossfade       => "config.tooltip.crossfade",
+            Self::OverlayMode     => "config.tooltip.overlay",
+            Self::OverlayAlpha    => "config.tooltip.overlay_alpha",
+            Self::OverlayPosition => "config.tooltip.overlay_position",
+            Self::Screensaver     => "config.tooltip.screensaver",
+            Self::DuckEnabled     => "config.tooltip.duck",
+            Self::DuckVolume      => "config.tooltip.duck_volume",
+            Self::MediaKeys       => "config.tooltip.media_keys",
+            Self::TrayIcon        => "config.tooltip.tray",
+            Self::Notifications   => "config.tooltip.notifications",
+            Self::Language        => "config.tooltip.language",
+        }
+    }
+
     pub(crate) fn group_key(self) -> &'static str {
         match self {
             Self::Autoplay | Self::RestoreVolume | Self::Crossfade
