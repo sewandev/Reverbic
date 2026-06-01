@@ -27,6 +27,12 @@ Desktop.ini
 *.exe
 *.pdb
 
+# Archivos temporales del sistema
+*.tmp
+*.temp
+C*AppData*
+C*Users*
+
 # Otros
 plan.md
 CLAUDE.md
