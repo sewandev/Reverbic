@@ -8,12 +8,6 @@ pub enum SearchMode {
     Integrations,
 }
 
-#[derive(Clone, Copy, PartialEq)]
-pub enum SpotifyField {
-    Username,
-    Password,
-}
-
 pub enum SpotifyAuthStatus {
     Idle,
     Connecting,
@@ -25,7 +19,6 @@ pub enum SpotifyAuthStatus {
 pub enum IntegrationView {
     ServiceList,
     SpotifyDetail,
-    SpotifyUserPass,
     SpotifyWebBrowser,
 }
 

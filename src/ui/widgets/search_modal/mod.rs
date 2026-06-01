@@ -6,7 +6,7 @@ use ratatui::{
     widgets::{Block, BorderType, Borders, Clear, Widget},
 };
 
-use crate::app::{IntegrationView, SearchMode, SpotifyAuthStatus, SpotifyField};
+use crate::app::{IntegrationView, SearchMode, SpotifyAuthStatus};
 use crate::i18n::t;
 use crate::station::DynamicStation;
 use crate::ui::theme;
@@ -47,11 +47,7 @@ pub struct SearchModalWidget<'a> {
     pub screensaver_secs:          u16,
     pub integration_view:          IntegrationView,
     pub integration_selected:      usize,
-    pub spotify_auth_selected:     usize,
     pub spotify_status:            &'a SpotifyAuthStatus,
-    pub spotify_username:          &'a str,
-    pub spotify_pw_len:            usize,
-    pub spotify_field:             SpotifyField,
     pub spotify_saved:             Option<&'a str>,
 }
 
@@ -160,7 +156,6 @@ impl SearchModalWidget<'_> {
                         let mut h = vec![
                             Span::raw(" "),
                             key("[↵]"),   sep_s(format!(" {}  ", t("hint.play"))),
-                            key("[↑↓]"),  sep_s(format!(" {}  ", t("hint.nav"))),
                         ];
                         if self.spotify_saved.is_some() {
                             h.push(key("[D]"));
@@ -169,21 +164,6 @@ impl SearchModalWidget<'_> {
                         h.push(key("[Esc]"));
                         h.push(sep_s(format!(" {} ", t("hint.back"))));
                         h
-                    }
-                }
-                IntegrationView::SpotifyUserPass => {
-                    if matches!(self.spotify_status, SpotifyAuthStatus::Connecting) {
-                        vec![
-                            Span::raw(" "),
-                            key("[Esc]"), sep_s(format!(" {} ", t("hint.back"))),
-                        ]
-                    } else {
-                        vec![
-                            Span::raw(" "),
-                            key("[↵]"),   sep_s(format!(" {}  ", t("integrations.spotify.hint_login"))),
-                            key("[↑↓]"),  sep_s(format!(" {}  ", t("hint.nav"))),
-                            key("[Esc]"), sep_s(format!(" {} ",  t("hint.back"))),
-                        ]
                     }
                 }
                 IntegrationView::SpotifyWebBrowser => {

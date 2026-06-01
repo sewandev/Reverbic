@@ -9,7 +9,7 @@ use crate::preview::{deezer_preview, parse_seek_input};
 use crate::station::{filter_items, Station, COUNTRIES, GENRES};
 
 use super::{abort_task, cycle_next, cycle_prev, scroll_by, App};
-use super::modal::{AppFocus, IntegrationView, SearchMode, SpotifyAuthStatus, SpotifyField};
+use super::modal::{AppFocus, IntegrationView, SearchMode};
 use super::modal::settings_items;
 
 impl App {
@@ -71,24 +71,7 @@ impl App {
                     self.country_selected = 0;
                 }
                 SearchMode::Settings     => {}
-                SearchMode::Integrations => {
-                    if matches!(self.integration_view, IntegrationView::SpotifyUserPass)
-                        && !matches!(self.spotify_status, SpotifyAuthStatus::Connecting)
-                    {
-                        match self.spotify_field {
-                            SpotifyField::Username => {
-                                for c in text.chars().filter(|c| !c.is_control()) {
-                                    self.spotify_username_input.push(c);
-                                }
-                            }
-                            SpotifyField::Password => {
-                                for c in text.chars().filter(|c| !c.is_control()) {
-                                    self.spotify_password_input.push(c);
-                                }
-                            }
-                        }
-                    }
-                }
+                SearchMode::Integrations => {}
             }
         }
     }

@@ -6,12 +6,12 @@ use ratatui::{
     widgets::{Paragraph, Widget},
 };
 
-use crate::app::{IntegrationView, SpotifyAuthStatus, SpotifyField};
+use crate::app::{IntegrationView, SpotifyAuthStatus};
 use crate::i18n::t;
 use crate::ui::theme;
 
 use super::helpers::{key, sep_s, spin_frame};
-use super::{BG, SearchModalWidget};
+use super::SearchModalWidget;
 
 impl<'a> SearchModalWidget<'a> {
     pub(super) fn render_integrations_body(&self, area: Rect, content_x: u16, content_w: u16, buf: &mut Buffer) {
@@ -20,7 +20,6 @@ impl<'a> SearchModalWidget<'a> {
         match self.integration_view {
             IntegrationView::ServiceList       => self.render_integ_service_list(area, lx, lw, buf),
             IntegrationView::SpotifyDetail     => self.render_integ_spotify_detail(area, lx, lw, buf),
-            IntegrationView::SpotifyUserPass   => self.render_integ_spotify_userpass(area, content_x, content_w, lx, lw, buf),
             IntegrationView::SpotifyWebBrowser => self.render_integ_spotify_web(area, lx, lw, buf),
         }
     }
@@ -101,105 +100,13 @@ impl<'a> SearchModalWidget<'a> {
             }
         }
 
-        let methods = [
-            t("integrations.spotify.method.userpass"),
-            t("integrations.spotify.method.browser"),
-        ];
-        for (i, label) in methods.iter().enumerate() {
-            if y >= area.bottom() { break; }
-            let active = i == self.spotify_auth_selected;
-            let (prefix, st) = if active {
-                ("▶  ", Style::default().fg(theme::ACCENT).add_modifier(Modifier::BOLD))
-            } else {
-                ("   ", Style::default().fg(theme::HIGHLIGHT))
-            };
+        if y < area.bottom() {
+            let st = Style::default().fg(theme::ACCENT).add_modifier(Modifier::BOLD);
             Paragraph::new(Line::from(vec![
-                Span::styled(prefix,        st),
-                Span::styled(label.clone(), st),
+                Span::styled("▶  ", st),
+                Span::styled(t("integrations.spotify.method.browser"), st),
             ]))
             .render(Rect::new(lx, y, lw, 1), buf);
-            y += 1;
-        }
-    }
-
-    pub(super) fn render_integ_spotify_userpass(
-        &self, area: Rect, cx: u16, cw: u16, lx: u16, lw: u16, buf: &mut Buffer,
-    ) {
-        let tx = cx + 2;
-        let tw = cw.saturating_sub(2);
-
-        if matches!(self.spotify_status, SpotifyAuthStatus::Connecting) {
-            let y = area.y + area.height / 2;
-            Paragraph::new(Line::from(vec![
-                Span::styled(spin_frame(), Style::default().fg(theme::ACCENT)),
-                Span::styled(format!("  {}", t("integrations.spotify.connecting")), Style::default().fg(theme::MUTED)),
-            ]))
-            .render(Rect::new(lx, y, lw, 1), buf);
-            return;
-        }
-
-        let mut y = area.y;
-        let header = Line::from(vec![
-            Span::styled("← ", Style::default().fg(theme::MUTED)),
-            Span::styled(t("integrations.spotify.method.userpass"), Style::default().fg(theme::ACCENT).add_modifier(Modifier::BOLD)),
-        ]);
-        if let SpotifyAuthStatus::Error(msg) = self.spotify_status {
-            let max = lw as usize;
-            let display: String = if msg.chars().count() > max {
-                msg.chars().take(max.saturating_sub(1)).collect::<String>() + "…"
-            } else {
-                msg.clone()
-            };
-            Paragraph::new(Span::styled(display, Style::default().fg(theme::WARNING)))
-                .render(Rect::new(lx, y, lw, 1), buf);
-        } else {
-            Paragraph::new(header).render(Rect::new(lx, y, lw, 1), buf);
-        }
-        y += 2;
-
-        let user_active = matches!(self.spotify_field, SpotifyField::Username);
-        let pass_active = !user_active;
-
-        if y < area.bottom() {
-            Paragraph::new(Span::styled(
-                t("integrations.spotify.username"),
-                Style::default().fg(if user_active { theme::ACCENT } else { theme::MUTED }),
-            ))
-            .render(Rect::new(lx, y, lw, 1), buf);
-            y += 1;
-        }
-        if y < area.bottom() {
-            buf[(cx, y)].set_symbol("┃").set_fg(if user_active { theme::ACCENT } else { theme::DIM }).set_bg(BG);
-            let max_w = tw.saturating_sub(1) as usize;
-            let visible: String = if self.spotify_username.chars().count() > max_w {
-                self.spotify_username.chars().rev().take(max_w).collect::<String>().chars().rev().collect()
-            } else {
-                self.spotify_username.to_owned()
-            };
-            let mut spans = vec![Span::styled(visible, Style::default().fg(theme::HIGHLIGHT))];
-            if user_active {
-                spans.push(Span::styled("_", Style::default().fg(theme::ACCENT).add_modifier(Modifier::BOLD)));
-            }
-            Paragraph::new(Line::from(spans)).render(Rect::new(tx, y, tw, 1), buf);
-            y += 2;
-        }
-
-        if y < area.bottom() {
-            Paragraph::new(Span::styled(
-                t("integrations.spotify.password"),
-                Style::default().fg(if pass_active { theme::ACCENT } else { theme::MUTED }),
-            ))
-            .render(Rect::new(lx, y, lw, 1), buf);
-            y += 1;
-        }
-        if y < area.bottom() {
-            buf[(cx, y)].set_symbol("┃").set_fg(if pass_active { theme::ACCENT } else { theme::DIM }).set_bg(BG);
-            let dots = self.spotify_pw_len.min(tw.saturating_sub(1) as usize);
-            let mut spans = vec![Span::styled("•".repeat(dots), Style::default().fg(theme::HIGHLIGHT))];
-            if pass_active {
-                spans.push(Span::styled("_", Style::default().fg(theme::ACCENT).add_modifier(Modifier::BOLD)));
-            }
-            Paragraph::new(Line::from(spans)).render(Rect::new(tx, y, tw, 1), buf);
         }
     }
 

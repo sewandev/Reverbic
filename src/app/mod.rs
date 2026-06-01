@@ -8,7 +8,7 @@ mod integrations;
 mod input;
 
 pub use modal::{
-    AppFocus, IntegrationView, SearchMode, SettingItem, SpotifyAuthStatus, SpotifyField,
+    AppFocus, IntegrationView, SearchMode, SettingItem, SpotifyAuthStatus,
     settings_items,
 };
 
@@ -97,10 +97,6 @@ pub struct App {
     pub config:              Config,
     pub integration_view:       IntegrationView,
     pub integration_selected:   usize,
-    pub spotify_auth_selected:  usize,
-    pub spotify_username_input: String,
-    pub spotify_password_input: String,
-    pub spotify_field:          SpotifyField,
     pub spotify_status:         SpotifyAuthStatus,
     metadata_task:           Option<tokio::task::JoinHandle<()>>,
     spotify_auth_task:       Option<tokio::task::JoinHandle<()>>,
@@ -121,7 +117,6 @@ impl App {
         player.send(crate::audio::PlayerCommand::SetVolume(initial_vol)).await;
 
         let favorites = fav_store::load();
-        let spotify_username_input = config.spotify.display_name.clone().unwrap_or_default();
         Self {
             stations:           Vec::new(),
             favorites,
@@ -161,10 +156,6 @@ impl App {
             config,
             integration_view:       IntegrationView::ServiceList,
             integration_selected:   0,
-            spotify_auth_selected:  0,
-            spotify_username_input,
-            spotify_password_input: String::new(),
-            spotify_field:          SpotifyField::Username,
             spotify_status:         SpotifyAuthStatus::Idle,
             metadata_task:      None,
             spotify_auth_task:  None,
