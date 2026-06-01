@@ -544,6 +544,17 @@ impl App {
 
     pub async fn on_key(&mut self, key: KeyCode) {
         if self.screensaver_active() {
+            match key {
+                KeyCode::Char('+') | KeyCode::Char('=') => {
+                    self.adjust_volume(0.05).await;
+                    return;
+                }
+                KeyCode::Char('-') => {
+                    self.adjust_volume(-0.05).await;
+                    return;
+                }
+                _ => {}
+            }
             self.last_activity = Instant::now();
             if key == KeyCode::Char('o') || key == KeyCode::Char('O') {
                 if let Some(ref d) = self.station_details {
