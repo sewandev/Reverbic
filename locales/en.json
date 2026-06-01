@@ -137,8 +137,10 @@
   "integrations.spotify.method.userpass":  "Username and password",
   "integrations.spotify.method.browser":   "Sign in via web browser",
 
-  "integrations.spotify.web.line1":        "Open accounts.spotify.com in",
-  "integrations.spotify.web.line2":        "your browser and sign in to",
-  "integrations.spotify.web.line3":        "verify your credentials.",
-  "integrations.spotify.web.open_short":   "Open browser"
+  "integrations.spotify.web.line1":        "Opens accounts.spotify.com in",
+  "integrations.spotify.web.line2":        "your browser. After signing in,",
+  "integrations.spotify.web.line3":        "the app captures your session.",
+  "integrations.spotify.web.open_short":   "Open browser",
+  "integrations.spotify.web.waiting":      "Waiting for browser authorization...",
+  "integrations.spotify.web.waiting2":     "Complete sign-in in your browser"
 }

@@ -137,8 +137,10 @@
   "integrations.spotify.method.userpass":  "Usuario y contrasena",
   "integrations.spotify.method.browser":   "Iniciar sesion via web",
 
-  "integrations.spotify.web.line1":        "Abre accounts.spotify.com en",
-  "integrations.spotify.web.line2":        "tu navegador e inicia sesion",
-  "integrations.spotify.web.line3":        "para obtener tus credenciales.",
-  "integrations.spotify.web.open_short":   "Abrir navegador"
+  "integrations.spotify.web.line1":        "Abre accounts.spotify.com en tu",
+  "integrations.spotify.web.line2":        "navegador. Al iniciar sesion,",
+  "integrations.spotify.web.line3":        "la app captura tu sesion.",
+  "integrations.spotify.web.open_short":   "Abrir navegador",
+  "integrations.spotify.web.waiting":      "Esperando autorizacion del navegador...",
+  "integrations.spotify.web.waiting2":     "Completa el inicio de sesion en el navegador"
 }

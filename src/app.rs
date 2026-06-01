@@ -1028,16 +1028,30 @@ impl App {
     }
 
     fn on_key_integration_spotify_web(&mut self, key: KeyCode) {
-        match key {
-            KeyCode::Enter => {
-                #[cfg(target_os = "windows")]
-                let _ = std::process::Command::new("cmd")
-                    .args(["/c", "start", "", "https://accounts.spotify.com/"])
-                    .spawn();
+        if matches!(self.spotify_status, SpotifyAuthStatus::Connecting) {
+            if key == KeyCode::Esc {
+                abort_task(&mut self.spotify_auth_task);
+                self.spotify_auth_rx = None;
+                self.spotify_status  = SpotifyAuthStatus::Idle;
             }
-            KeyCode::Esc => self.integration_view = IntegrationView::SpotifyDetail,
+            return;
+        }
+        match key {
+            KeyCode::Enter => self.start_oauth_flow(),
+            KeyCode::Esc   => self.integration_view = IntegrationView::SpotifyDetail,
             _ => {}
         }
+    }
+
+    fn start_oauth_flow(&mut self) {
+        let (tx, rx) = std::sync::mpsc::channel();
+        self.spotify_auth_rx = Some(rx);
+        self.spotify_status  = SpotifyAuthStatus::Connecting;
+        let handle = tokio::spawn(async move {
+            let result = crate::integrations::spotify::oauth::start_flow().await;
+            let _ = tx.send(result);
+        });
+        self.spotify_auth_task = Some(handle);
     }
 
     fn start_spotify_login(&mut self) {

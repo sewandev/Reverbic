@@ -1,3 +1,5 @@
+pub mod oauth;
+
 use librespot_core::{
     authentication::Credentials,
     config::SessionConfig,

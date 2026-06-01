@@ -209,11 +209,20 @@ impl SearchModalWidget<'_> {
                         ]
                     }
                 }
-                IntegrationView::SpotifyWebBrowser => vec![
-                    Span::raw(" "),
-                    key("[↵]"),   sep_s(format!(" {}  ", t("integrations.spotify.web.open_short"))),
-                    key("[Esc]"), sep_s(format!(" {} ",  t("hint.back"))),
-                ],
+                IntegrationView::SpotifyWebBrowser => {
+                    if matches!(self.spotify_status, SpotifyAuthStatus::Connecting) {
+                        vec![
+                            Span::raw(" "),
+                            key("[Esc]"), sep_s(format!(" {} ", t("hint.back"))),
+                        ]
+                    } else {
+                        vec![
+                            Span::raw(" "),
+                            key("[↵]"),   sep_s(format!(" {}  ", t("integrations.spotify.web.open_short"))),
+                            key("[Esc]"), sep_s(format!(" {} ",  t("hint.back"))),
+                        ]
+                    }
+                }
             },
         }
     }
@@ -876,12 +885,29 @@ impl SearchModalWidget<'_> {
     fn render_integ_spotify_web(&self, area: Rect, lx: u16, lw: u16, buf: &mut Buffer) {
         let mut y = area.y + 1;
         if y >= area.bottom() { return; }
+
         Paragraph::new(Line::from(vec![
             Span::styled("← ", Style::default().fg(theme::MUTED)),
             Span::styled(t("integrations.spotify.method.browser"), Style::default().fg(theme::ACCENT).add_modifier(Modifier::BOLD)),
         ]))
         .render(Rect::new(lx, y, lw, 1), buf);
         y += 2;
+
+        if matches!(self.spotify_status, SpotifyAuthStatus::Connecting) {
+            if y < area.bottom() {
+                Paragraph::new(Line::from(vec![
+                    Span::styled(spin_frame(), Style::default().fg(theme::ACCENT)),
+                    Span::styled(format!("  {}", t("integrations.spotify.web.waiting")), Style::default().fg(theme::MUTED)),
+                ]))
+                .render(Rect::new(lx, y, lw, 1), buf);
+                y += 1;
+            }
+            if y < area.bottom() {
+                Paragraph::new(Span::styled(t("integrations.spotify.web.waiting2"), Style::default().fg(theme::DIM)))
+                    .render(Rect::new(lx, y, lw, 1), buf);
+            }
+            return;
+        }
 
         let lines = [
             t("integrations.spotify.web.line1"),
