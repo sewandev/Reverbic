@@ -71,11 +71,7 @@ pub async fn deezer_preview(raw: &str) -> Option<(String, String)> {
         strip_version_info(clean)
     };
 
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(10))
-        .user_agent("reverbic/0.1")
-        .build()
-        .ok()?;
+    let client = crate::http::http_client()?;
 
     let search_resp = client
         .get("https://api.deezer.com/search")

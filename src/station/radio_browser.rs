@@ -192,6 +192,10 @@ pub struct StationDetails {
     pub bitrate:    u32,
 }
 
+fn json_str(obj: &serde_json::Value, key: &str) -> String {
+    obj[key].as_str().unwrap_or("").to_string()
+}
+
 fn parse_details(s: &serde_json::Value) -> StationDetails {
     let tags = s["tags"].as_str().unwrap_or("")
         .split(',')
@@ -200,25 +204,17 @@ fn parse_details(s: &serde_json::Value) -> StationDetails {
         .take(4)
         .collect();
     StationDetails {
-        homepage: s["homepage"].as_str().unwrap_or("").to_string(),
-        country:  s["country"].as_str().unwrap_or("").to_string(),
-        language: s["language"].as_str().unwrap_or("").to_string(),
+        homepage: json_str(s, "homepage"),
+        country:  json_str(s, "country"),
+        language: json_str(s, "language"),
         tags,
-        codec:    s["codec"].as_str().unwrap_or("").to_string(),
+        codec:    json_str(s, "codec"),
         bitrate:  s["bitrate"].as_u64().unwrap_or(0) as u32,
     }
 }
 
-fn build_http_client() -> Option<reqwest::Client> {
-    reqwest::Client::builder()
-        .user_agent("reverbic/0.1")
-        .timeout(std::time::Duration::from_secs(10))
-        .build()
-        .ok()
-}
-
 async fn fetch_first(url_path: &str) -> Option<StationDetails> {
-    let client = build_http_client()?;
+    let client = crate::http::http_client()?;
     for server in RADIO_BROWSER_SERVERS {
         let url = format!("{server}{url_path}");
         let Ok(resp) = client.get(&url).send().await else { continue };
@@ -272,7 +268,7 @@ async fn fetch(param: &str, value: &str, limit: u32) -> Option<Vec<DynamicStatio
         return Some(Vec::new());
     }
 
-    let client = build_http_client()?;
+    let client = crate::http::http_client()?;
 
     let limit_str = limit.to_string();
     let params = [

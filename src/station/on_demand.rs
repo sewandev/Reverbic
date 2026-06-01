@@ -68,11 +68,7 @@ pub async fn fetch_shows_for_playlist(playlist_id: &str) -> Option<Vec<OnDemandS
         "https://api.omny.fm/orgs/{ORG_ID}/playlists/{playlist_id}/clips/v2?pageSize=20"
     );
 
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(15))
-        .user_agent("reverbic/0.1")
-        .build()
-        .ok()?;
+    let client = crate::http::http_client_timeout(15)?;
 
     let resp = client.get(&url).send().await.ok()?;
     if !resp.status().is_success() {

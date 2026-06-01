@@ -21,12 +21,9 @@ pub struct RecentTracksWidget<'a> {
 }
 
 fn tag_style(is_sel: bool, normal: Style) -> Style {
-    if is_sel { Style::new().fg(Color::Black).bg(theme::ACCENT).add_modifier(Modifier::BOLD) } else { normal }
+    if is_sel { theme::CURSOR_STYLE } else { normal }
 }
 
-const NOW_PLAYING_STYLE:  Style = Style::new().fg(theme::PLAYING).add_modifier(Modifier::BOLD);
-const CURSOR_STYLE:       Style = Style::new().fg(Color::Black).bg(theme::ACCENT).add_modifier(Modifier::BOLD);
-const NORMAL_STYLE:       Style = Style::new().fg(theme::MUTED);
 const UNAVAILABLE_STYLE:  Style = Style::new().fg(Color::Yellow);
 const PREVIEW_PLAY_STYLE: Style = Style::new().fg(theme::PLAYING).add_modifier(Modifier::BOLD);
 const SPINNER_STYLE:      Style = Style::new().fg(theme::FESTIVAL_ACCENT);
@@ -86,11 +83,11 @@ impl<'a> Widget for RecentTracksWidget<'a> {
                 let is_unavail   = self.preview_unavailable.contains(track);
 
                 let row_style = if is_sel {
-                    CURSOR_STYLE
+                    theme::CURSOR_STYLE
                 } else if is_playing {
-                    NOW_PLAYING_STYLE
+                    theme::PLAYING_STYLE
                 } else {
-                    NORMAL_STYLE
+                    theme::NORMAL_STYLE
                 };
 
                 let mut spans = vec![

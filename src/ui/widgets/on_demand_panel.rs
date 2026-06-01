@@ -1,7 +1,7 @@
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
-    style::{Color, Modifier, Style},
+    style::{Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, List, ListItem, Paragraph, Widget},
 };
@@ -17,17 +17,6 @@ pub struct OnDemandPanelWidget<'a> {
     pub playing_id:   Option<&'a str>,
     pub program_name: &'a str,
 }
-
-const CURSOR_STYLE: Style = Style::new()
-    .fg(Color::Black)
-    .bg(theme::ACCENT)
-    .add_modifier(Modifier::BOLD);
-
-const PLAYING_STYLE: Style = Style::new()
-    .fg(theme::PLAYING)
-    .add_modifier(Modifier::BOLD);
-
-const NORMAL_STYLE: Style = Style::new().fg(theme::MUTED);
 
 impl<'a> Widget for OnDemandPanelWidget<'a> {
     fn render(self, area: Rect, buf: &mut Buffer) {
@@ -90,11 +79,11 @@ impl<'a> Widget for OnDemandPanelWidget<'a> {
                 let is_playing = self.playing_id == Some(show.id.as_str());
 
                 let (prefix, style) = if is_sel {
-                    (if is_playing { ">> " } else { "   " }, CURSOR_STYLE)
+                    (if is_playing { ">> " } else { "   " }, theme::CURSOR_STYLE)
                 } else if is_playing {
-                    (">> ", PLAYING_STYLE)
+                    (">> ", theme::PLAYING_STYLE)
                 } else {
-                    ("   ", NORMAL_STYLE)
+                    ("   ", theme::NORMAL_STYLE)
                 };
 
                 let date_style = if is_sel { style } else { Style::new().fg(theme::MUTED) };
