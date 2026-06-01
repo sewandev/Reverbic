@@ -74,12 +74,7 @@ fn percent_encode(s: &str) -> String {
 }
 
 fn open_browser(url: &str) {
-    #[cfg(target_os = "windows")]
-    let _ = std::process::Command::new("cmd")
-        .args(["/c", "start", "", url])
-        .spawn();
-    #[cfg(not(target_os = "windows"))]
-    let _ = std::process::Command::new("xdg-open").arg(url).spawn();
+    crate::shell::open_url(url);
 }
 
 async fn wait_for_callback(listener: TcpListener) -> Result<String, String> {

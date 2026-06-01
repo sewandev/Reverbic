@@ -618,10 +618,7 @@ impl App {
             if key == KeyCode::Char('o') || key == KeyCode::Char('O') {
                 if let Some(ref d) = self.station_details {
                     if !d.homepage.is_empty() {
-                        #[cfg(target_os = "windows")]
-                        let _ = std::process::Command::new("cmd")
-                            .args(["/c", "start", "", &d.homepage])
-                            .spawn();
+                        crate::shell::open_url(&d.homepage);
                     }
                 }
                 return;

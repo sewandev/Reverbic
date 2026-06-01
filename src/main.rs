@@ -10,6 +10,7 @@ use tracing_subscriber::{fmt, fmt::time::ChronoLocal, EnvFilter};
 
 mod app;
 mod audio;
+mod shell;
 mod game_detect;
 mod integrations;
 mod config;
