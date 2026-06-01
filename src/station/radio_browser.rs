@@ -313,8 +313,4 @@ async fn fetch(param: &str, value: &str, limit: u32) -> Option<Vec<DynamicStatio
     None
 }
 
-pub fn is_duplicate(url: &str, existing_urls: &[&str]) -> bool {
-    let normalized = url.to_lowercase();
-    existing_urls.iter().any(|u| u.to_lowercase() == normalized)
-}
 

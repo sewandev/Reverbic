@@ -20,6 +20,10 @@ pub struct RecentTracksWidget<'a> {
     pub preview_unavailable:   &'a HashSet<String>,
 }
 
+fn tag_style(is_sel: bool, normal: Style) -> Style {
+    if is_sel { Style::new().fg(Color::Black).bg(theme::ACCENT).add_modifier(Modifier::BOLD) } else { normal }
+}
+
 const NOW_PLAYING_STYLE:  Style = Style::new().fg(theme::PLAYING).add_modifier(Modifier::BOLD);
 const CURSOR_STYLE:       Style = Style::new().fg(Color::Black).bg(theme::ACCENT).add_modifier(Modifier::BOLD);
 const NORMAL_STYLE:       Style = Style::new().fg(theme::MUTED);
@@ -67,7 +71,7 @@ impl<'a> Widget for RecentTracksWidget<'a> {
         let total     = self.tracks.len();
         let height    = list_area.height as usize;
         let selected  = self.selected.min(total.saturating_sub(1));
-        let offset    = if selected >= height { selected + 1 - height } else { 0 };
+        let offset    = super::scroll_offset(selected, height);
         let spinner   = super::spinner_frame();
 
         let items: Vec<ListItem> = self.tracks[offset..(offset + height).min(total)]
@@ -95,14 +99,11 @@ impl<'a> Widget for RecentTracksWidget<'a> {
                 ];
 
                 if is_loading {
-                    let s = if is_sel { Style::new().fg(Color::Black).bg(theme::ACCENT).add_modifier(Modifier::BOLD) } else { SPINNER_STYLE };
-                    spans.push(Span::styled(format!("  {spinner}"), s));
+                    spans.push(Span::styled(format!("  {spinner}"), tag_style(is_sel, SPINNER_STYLE)));
                 } else if is_previewing {
-                    let s = if is_sel { Style::new().fg(Color::Black).bg(theme::ACCENT).add_modifier(Modifier::BOLD) } else { PREVIEW_PLAY_STYLE };
-                    spans.push(Span::styled("  >> preview", s));
+                    spans.push(Span::styled("  >> preview", tag_style(is_sel, PREVIEW_PLAY_STYLE)));
                 } else if is_unavail {
-                    let s = if is_sel { Style::new().fg(Color::Black).bg(theme::ACCENT) } else { UNAVAILABLE_STYLE };
-                    spans.push(Span::styled("  no disponible", s));
+                    spans.push(Span::styled("  no disponible", tag_style(is_sel, UNAVAILABLE_STYLE)));
                 }
 
                 ListItem::new(Line::from(spans))

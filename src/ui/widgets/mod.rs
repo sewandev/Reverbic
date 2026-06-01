@@ -10,6 +10,10 @@ pub mod vu_meter;
 const SPINNER_FRAMES: &[&str] = &["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 const SPINNER_FRAME_MS: u128 = 120;
 
+pub(crate) fn scroll_offset(selected: usize, visible: usize) -> usize {
+    if selected >= visible { selected + 1 - visible } else { 0 }
+}
+
 pub(crate) fn spinner_frame() -> &'static str {
     let ms = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)

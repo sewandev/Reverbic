@@ -289,11 +289,7 @@ impl SearchModalWidget<'_> {
         let list_w    = content_w.saturating_sub(2);
         let list_area = Rect::new(list_x, list_body.y, list_w, list_body.height);
         let visible_n = list_area.height.saturating_sub(1) as usize;
-        let offset    = if self.genre_selected >= visible_n {
-            self.genre_selected - visible_n + 1
-        } else {
-            0
-        };
+        let offset    = super::scroll_offset(self.genre_selected, visible_n);
 
         if filtered.is_empty() {
             Paragraph::new(Span::styled(t("modal.empty.no_match"), Style::default().fg(theme::MUTED)))
@@ -352,7 +348,7 @@ impl SearchModalWidget<'_> {
             return;
         }
 
-        let offset = if self.selected >= visible_n { self.selected - visible_n + 1 } else { 0 };
+        let offset = super::scroll_offset(self.selected, visible_n);
 
         let items: Vec<ListItem> = self
             .results
@@ -575,7 +571,7 @@ impl SearchModalWidget<'_> {
         let list_w    = content_w.saturating_sub(2);
         let list_area = Rect::new(list_x, list_body.y, list_w, list_body.height);
         let visible_n = list_area.height.saturating_sub(1) as usize;
-        let offset    = if self.country_selected >= visible_n { self.country_selected - visible_n + 1 } else { 0 };
+        let offset    = super::scroll_offset(self.country_selected, visible_n);
 
         if filtered.is_empty() {
             Paragraph::new(Span::styled(t("modal.empty.no_match"), Style::default().fg(theme::MUTED)))

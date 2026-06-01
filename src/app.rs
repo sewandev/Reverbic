@@ -11,7 +11,7 @@ use crate::preview::{deezer_preview, parse_seek_input};
 use crate::schedule::poll_metadata_loop;
 use crate::station::on_demand::OnDemandShow;
 use crate::i18n::{self, t};
-use crate::station::{enrich, fetch_station_details, fetch_station_details_by_name, is_uuid, find_enrichment, is_duplicate, on_demand, search_stations, search_stations_by_tag, search_stations_by_country, filter_items, DynamicStation, Station, StationDetails, GENRES, COUNTRIES};
+use crate::station::{enrich, fetch_station_details, fetch_station_details_by_name, is_uuid, find_enrichment, on_demand, search_stations, search_stations_by_tag, search_stations_by_country, filter_items, DynamicStation, Station, StationDetails, GENRES, COUNTRIES};
 
 fn cycle_prev(sel: usize, len: usize) -> usize {
     if len == 0 { 0 } else { sel.checked_sub(1).unwrap_or(len - 1) }
@@ -1001,16 +1001,16 @@ impl App {
         self.search_result_rx = None;
         self.search_loading = true;
 
-        let existing_urls: Vec<String> = self.stations.iter().map(|s| s.url.clone()).collect();
+        let existing_urls: std::collections::HashSet<String> =
+            self.stations.iter().map(|s| s.url.clone()).collect();
         let (tx, rx) = std::sync::mpsc::channel();
         self.search_result_rx = Some(rx);
 
         self.search_task = Some(tokio::spawn(async move {
-            let results = build().await.unwrap_or_default();
-            let refs: Vec<&str> = existing_urls.iter().map(|s| s.as_str()).collect();
-            let filtered: Vec<DynamicStation> = results
+            let filtered: Vec<DynamicStation> = build().await
+                .unwrap_or_default()
                 .into_iter()
-                .filter(|s| !is_duplicate(&s.url, &refs))
+                .filter(|s| !existing_urls.contains(&s.url))
                 .collect();
             let _ = tx.send(filtered);
         }));
