@@ -29,7 +29,7 @@ fn last_sunday_of_month(year: i32, month: u32) -> u32 {
     let (nm, ny) = if month == 12 { (1, year + 1) } else { (month + 1, year) };
     let last = NaiveDate::from_ymd_opt(ny, nm, 1)
         .and_then(|d| d.pred_opt())
-        .expect("fecha válida");
+        .unwrap_or_else(|| panic!("fecha inválida: year={ny}, month={nm}"));
     last.day().saturating_sub(last.weekday().num_days_from_sunday())
 }
 
@@ -50,9 +50,13 @@ pub fn brussels_hhmm_to_local(hhmm: &str) -> String {
 }
 
 pub fn utc_to_local_hhmm(utc_str: &str) -> String {
-    DateTime::parse_from_rfc3339(utc_str)
-        .map(|dt| dt.with_timezone(&Local).format("%H:%M").to_string())
-        .unwrap_or_else(|_| "??:??".to_string())
+    match DateTime::parse_from_rfc3339(utc_str) {
+        Ok(dt)  => dt.with_timezone(&Local).format("%H:%M").to_string(),
+        Err(e)  => {
+            tracing::warn!("Timestamp RFC3339 inválido '{utc_str}': {e}");
+            "??:??".to_string()
+        }
+    }
 }
 
 pub async fn fetch_schedule(client: &reqwest::Client, url: &str) -> Option<serde_json::Value> {
@@ -148,15 +152,9 @@ pub async fn poll_metadata_loop(
     schedule_url: Option<String>,
     cmd_tx: mpsc::Sender<PlayerCommand>,
 ) {
-    let client = match reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(10))
-        .build()
-    {
-        Ok(c)  => c,
-        Err(e) => {
-            tracing::error!("No se pudo crear cliente HTTP para metadata: {e}");
-            return;
-        }
+    let Some(client) = crate::http::http_client() else {
+        tracing::error!("No se pudo crear cliente HTTP para metadata");
+        return;
     };
     let schedule = if let Some(ref s_url) = schedule_url {
         let s = fetch_schedule(&client, s_url).await;

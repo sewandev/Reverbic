@@ -34,7 +34,13 @@ impl FavoriteStation {
 
 pub fn load() -> Vec<FavoriteStation> {
     match std::fs::read_to_string(path()) {
-        Ok(data) => serde_json::from_str(&data).unwrap_or_default(),
+        Ok(data) => match serde_json::from_str(&data) {
+            Ok(favs) => favs,
+            Err(e) => {
+                tracing::warn!("Archivo de favoritos corrupto, usando lista vacía: {e}");
+                Vec::new()
+            }
+        },
         Err(_)   => Vec::new(),
     }
 }
