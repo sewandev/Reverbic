@@ -12,7 +12,6 @@ mod app;
 mod audio;
 mod game_detect;
 mod config;
-mod integrations;
 mod error;
 mod favorites;
 mod i18n;
@@ -134,12 +133,6 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
                 app.poll_search_results();
                 app.poll_on_demand_results();
                 app.poll_station_details();
-                {
-                    use crate::integrations::{GameIntegration, dota2::Dota2Integration};
-                    if app.dota2_needs_restart && Dota2Integration::get().is_some() {
-                        app.dota2_needs_restart = false;
-                    }
-                }
             }
             maybe_event = events.next() => {
                 let now = Instant::now();

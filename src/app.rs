@@ -35,8 +35,6 @@ pub(crate) enum SettingItem {
     TrayIcon,
     Notifications,
     Language,
-    GameIntegrations,
-    IntegrationDota2,
 }
 
 impl SettingItem {
@@ -52,12 +50,10 @@ impl SettingItem {
             Self::Screensaver     => t("config.setting.screensaver"),
             Self::DuckEnabled     => t("config.setting.duck"),
             Self::DuckVolume      => t("config.setting.duck_volume"),
-            Self::MediaKeys          => t("config.setting.media_keys"),
-            Self::TrayIcon           => t("config.setting.tray"),
-            Self::Notifications      => t("config.setting.notifications"),
-            Self::Language           => t("config.setting.language"),
-            Self::GameIntegrations   => t("config.setting.game_integrations"),
-            Self::IntegrationDota2   => t("config.setting.integration_dota2"),
+            Self::MediaKeys     => t("config.setting.media_keys"),
+            Self::TrayIcon      => t("config.setting.tray"),
+            Self::Notifications => t("config.setting.notifications"),
+            Self::Language      => t("config.setting.language"),
         }
     }
 
@@ -73,13 +69,11 @@ impl SettingItem {
                 => "config.group.system",
             Self::Language
                 => "config.group.appearance",
-            Self::GameIntegrations | Self::IntegrationDota2
-                => "config.group.integrations",
         }
     }
 }
 
-pub(crate) fn settings_items(duck_enabled: bool, integrations_enabled: bool) -> Vec<SettingItem> {
+pub(crate) fn settings_items(duck_enabled: bool) -> Vec<SettingItem> {
     let mut items = vec![
         SettingItem::Autoplay,
         SettingItem::RestoreVolume,
@@ -98,11 +92,7 @@ pub(crate) fn settings_items(duck_enabled: bool, integrations_enabled: bool) -> 
         SettingItem::TrayIcon,
         SettingItem::Notifications,
         SettingItem::Language,
-        SettingItem::GameIntegrations,
     ]);
-    if integrations_enabled {
-        items.push(SettingItem::IntegrationDota2);
-    }
     items
 }
 
@@ -157,8 +147,6 @@ pub struct App {
     on_demand_rx:            Option<std::sync::mpsc::Receiver<Vec<OnDemandShow>>>,
     station_details_rx:      Option<std::sync::mpsc::Receiver<StationDetails>>,
     last_details_uuid:       Option<String>,
-    dota2_task:              Option<tokio::task::JoinHandle<()>>,
-    pub dota2_needs_restart: bool,
 }
 
 impl App {
@@ -213,8 +201,6 @@ impl App {
             on_demand_rx:       None,
             station_details_rx: None,
             last_details_uuid:  None,
-            dota2_task:         None,
-            dota2_needs_restart: false,
         }
     }
 
@@ -315,33 +301,7 @@ impl App {
         self.config.save();
     }
 
-    pub fn init_integrations(&mut self) {
-        if self.config.game_integrations.enabled && self.config.game_integrations.dota2 {
-            self.start_dota2_integration();
-        }
-    }
-
-    fn start_dota2_integration(&mut self) {
-        use crate::integrations::{GameIntegration, dota2::{self, Dota2Integration}};
-        self.dota2_needs_restart = match dota2::install_gsi_config() {
-            dota2::InstallResult::Installed { needs_restart } => {
-                tracing::info!("Dota2 GSI: config instalada");
-                needs_restart
-            }
-            dota2::InstallResult::AlreadyInstalled => { tracing::info!("Dota2 GSI: config ya existia"); false }
-            dota2::InstallResult::SteamNotFound    => { tracing::warn!("Dota2 GSI: Steam no encontrado"); false }
-            dota2::InstallResult::Dota2NotFound    => { tracing::warn!("Dota2 GSI: Dota 2 no encontrado"); false }
-            dota2::InstallResult::WriteError(e)    => { tracing::error!("Dota2 GSI: {e}"); false }
-        };
-        self.dota2_task = Some(Dota2Integration::spawn_server());
-    }
-
-    fn stop_dota2_integration(&mut self) {
-        use crate::integrations::{GameIntegration, dota2::Dota2Integration};
-        if let Some(task) = self.dota2_task.take() { task.abort(); }
-        Dota2Integration::reset();
-        self.dota2_needs_restart = false;
-    }
+    pub fn init_integrations(&mut self) {}
 
     async fn adjust_volume(&mut self, delta: f32) {
         let new_vol = (self.player.state().volume + delta).clamp(0.0, 1.0);
@@ -560,8 +520,11 @@ impl App {
                             .spawn();
                     }
                 }
+                return;
             }
-            return;
+            if !matches!(key, KeyCode::Enter | KeyCode::Up | KeyCode::Down) {
+                return;
+            }
         }
         self.last_activity = Instant::now();
         if self.show_search_modal {
@@ -904,7 +867,7 @@ impl App {
     }
 
     fn on_key_modal_settings(&mut self, key: KeyCode) {
-        let count = settings_items(self.config.duck_enabled, self.config.game_integrations.enabled).len();
+        let count = settings_items(self.config.duck_enabled).len();
         match key {
             KeyCode::Esc => {
                 self.modal_mode = SearchMode::Name;
@@ -1224,7 +1187,7 @@ impl App {
             } else if self.search_results.is_empty() && matches!(self.modal_mode, SearchMode::Country) {
                 (Self::filter_countries(&self.country_filter).len(), &mut self.country_selected)
             } else if matches!(self.modal_mode, SearchMode::Settings) {
-                let count = settings_items(self.config.duck_enabled, self.config.game_integrations.enabled).len();
+                let count = settings_items(self.config.duck_enabled).len();
                 (count, &mut self.settings_selected)
             } else {
                 (self.search_results.len(), &mut self.modal_selected)
@@ -1389,7 +1352,7 @@ impl App {
     }
 
     fn apply_settings_toggle(&mut self, idx: usize) {
-        let Some(&item) = settings_items(self.config.duck_enabled, self.config.game_integrations.enabled).get(idx) else { return };
+        let Some(&item) = settings_items(self.config.duck_enabled).get(idx) else { return };
         match item {
             SettingItem::Autoplay        => self.config.autoplay_last  = !self.config.autoplay_last,
             SettingItem::RestoreVolume   => self.config.restore_volume = !self.config.restore_volume,
@@ -1422,24 +1385,9 @@ impl App {
             SettingItem::MediaKeys       => self.config.media_keys    = !self.config.media_keys,
             SettingItem::TrayIcon        => self.config.tray_icon     = !self.config.tray_icon,
             SettingItem::Notifications   => self.config.notifications = !self.config.notifications,
-            SettingItem::Language        => {
+            SettingItem::Language => {
                 self.config.language = self.config.language.next();
                 i18n::set_language(self.config.language);
-            }
-            SettingItem::GameIntegrations => {
-                self.config.game_integrations.enabled = !self.config.game_integrations.enabled;
-                if !self.config.game_integrations.enabled {
-                    self.stop_dota2_integration();
-                    self.config.game_integrations.dota2 = false;
-                }
-            }
-            SettingItem::IntegrationDota2 => {
-                self.config.game_integrations.dota2 = !self.config.game_integrations.dota2;
-                if self.config.game_integrations.dota2 {
-                    self.start_dota2_integration();
-                } else {
-                    self.stop_dota2_integration();
-                }
             }
         }
         self.save_config();

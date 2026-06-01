@@ -80,8 +80,6 @@ impl Dota2State {
             _         => "",
         }
     }
-
-    /// Partes para mostrar separadas por  ·  según la fase actual.
     pub fn display_parts(&self) -> Vec<String> {
         match self.phase {
             DotaPhase::None => vec![],
