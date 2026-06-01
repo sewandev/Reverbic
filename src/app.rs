@@ -11,7 +11,27 @@ use crate::preview::{deezer_preview, parse_seek_input};
 use crate::schedule::poll_metadata_loop;
 use crate::station::on_demand::OnDemandShow;
 use crate::i18n::{self, t};
-use crate::station::{enrich, fetch_station_details, fetch_station_details_by_name, is_uuid, find_enrichment, is_duplicate, on_demand, search_stations, search_stations_by_tag, search_stations_by_country, DynamicStation, Station, StationDetails};
+use crate::station::{enrich, fetch_station_details, fetch_station_details_by_name, is_uuid, find_enrichment, is_duplicate, on_demand, search_stations, search_stations_by_tag, search_stations_by_country, filter_items, DynamicStation, Station, StationDetails, GENRES, COUNTRIES};
+
+fn cycle_prev(sel: usize, len: usize) -> usize {
+    if len == 0 { 0 } else { sel.checked_sub(1).unwrap_or(len - 1) }
+}
+
+fn cycle_next(sel: usize, len: usize) -> usize {
+    if len == 0 { 0 } else { (sel + 1) % len }
+}
+
+fn abort_task(task: &mut Option<tokio::task::JoinHandle<()>>) {
+    if let Some(h) = task.take() { h.abort(); }
+}
+
+fn scroll_by(sel: usize, delta: i32, len: usize) -> usize {
+    if delta > 0 {
+        (sel + delta as usize).min(len.saturating_sub(1))
+    } else {
+        sel.saturating_sub((-delta) as usize)
+    }
+}
 
 pub enum SearchMode {
     Name,
@@ -311,15 +331,11 @@ impl App {
     }
 
     fn stop_metadata_polling(&mut self) {
-        if let Some(handle) = self.metadata_task.take() {
-            handle.abort();
-        }
+        abort_task(&mut self.metadata_task);
     }
 
     fn start_on_demand_fetch(&mut self) {
-        if let Some(t) = self.on_demand_task.take() {
-            t.abort();
-        }
+        abort_task(&mut self.on_demand_task);
         self.on_demand_rx = None;
         self.on_demand_loading = true;
         self.on_demand_shows.clear();
@@ -401,12 +417,12 @@ impl App {
 
     async fn play_dynamic_station(&mut self, index: usize) {
         if index >= self.search_results.len() { return; }
-        let ds = self.search_results[index].clone();
+        let ds = &self.search_results[index];
 
         let mut station = Station {
-            key:              ds.key,
+            key:              ds.key.clone(),
             name:             ds.name.clone(),
-            url:              ds.url,
+            url:              ds.url.clone(),
             metadata_api_url: None,
             history_api_url:  None,
             schedule_url:     None,
@@ -414,7 +430,7 @@ impl App {
             bitrate_kbps:     ds.bitrate_kbps,
         };
 
-        if let Some(enrichment) = find_enrichment(&ds.name) {
+        if let Some(enrichment) = find_enrichment(&station.name) {
             enrich(&mut station, enrichment);
             tracing::info!("Enriquecimiento activado para '{}'", station.name);
         }
@@ -636,7 +652,7 @@ impl App {
             self.genre_selected = 0;
             self.country_filter.clear();
             self.country_selected = 0;
-            if let Some(t) = self.search_task.take() { t.abort(); }
+            abort_task(&mut self.search_task);
             self.search_loading = false;
             return;
         }
@@ -671,12 +687,10 @@ impl App {
                 }
             }
             KeyCode::Up => {
-                let n = self.search_results.len();
-                if n > 0 { self.modal_selected = self.modal_selected.checked_sub(1).unwrap_or(n - 1); }
+                self.modal_selected = cycle_prev(self.modal_selected, self.search_results.len());
             }
             KeyCode::Down => {
-                let n = self.search_results.len();
-                if n > 0 { self.modal_selected = (self.modal_selected + 1) % n; }
+                self.modal_selected = cycle_next(self.modal_selected, self.search_results.len());
             }
             KeyCode::Backspace => {
                 self.search_query.pop();
@@ -701,54 +715,53 @@ impl App {
         Some((ms as usize) % self.search_results.len())
     }
 
-    async fn on_key_modal_genre(&mut self, key: KeyCode) {
-        if !self.search_results.is_empty() {
-            match key {
-                KeyCode::Esc => {
-                    self.search_results.clear();
-                    self.genre_query.clear();
-                    self.modal_selected = 0;
-                }
-                KeyCode::Enter => {
-                    let idx = self.modal_selected.min(self.search_results.len() - 1);
+    async fn on_key_modal_results(&mut self, key: KeyCode) {
+        match key {
+            KeyCode::Esc => {
+                self.search_results.clear();
+                self.genre_query.clear();
+                self.modal_selected = 0;
+            }
+            KeyCode::Enter => {
+                let idx = self.modal_selected.min(self.search_results.len() - 1);
+                self.play_dynamic_station(idx).await;
+            }
+            KeyCode::Char('R') => {
+                if let Some(idx) = self.play_random_result() {
                     self.play_dynamic_station(idx).await;
                 }
-                KeyCode::Char('R') => {
-                    if let Some(idx) = self.play_random_result() {
-                        self.play_dynamic_station(idx).await;
-                    }
-                }
-                KeyCode::Up | KeyCode::Char('k') => {
-                    let n = self.search_results.len();
-                    if n > 0 { self.modal_selected = self.modal_selected.checked_sub(1).unwrap_or(n - 1); }
-                }
-                KeyCode::Down | KeyCode::Char('j') => {
-                    let n = self.search_results.len();
-                    if n > 0 { self.modal_selected = (self.modal_selected + 1) % n; }
-                }
-                _ => {}
             }
+            KeyCode::Up | KeyCode::Char('k') => {
+                self.modal_selected = cycle_prev(self.modal_selected, self.search_results.len());
+            }
+            KeyCode::Down | KeyCode::Char('j') => {
+                self.modal_selected = cycle_next(self.modal_selected, self.search_results.len());
+            }
+            _ => {}
+        }
+    }
+
+    async fn on_key_modal_genre(&mut self, key: KeyCode) {
+        if !self.search_results.is_empty() {
+            self.on_key_modal_results(key).await;
             return;
         }
 
-        let filtered = Self::filter_genres(&self.genre_filter);
+        let filtered = filter_items(GENRES, &self.genre_filter);
         match key {
             KeyCode::Esc => {
                 if !self.genre_filter.is_empty() {
                     self.genre_filter.clear();
-                    self.genre_selected = 0;
                 } else {
                     self.modal_mode = SearchMode::Name;
-                    self.genre_selected = 0;
                 }
+                self.genre_selected = 0;
             }
             KeyCode::Up => {
-                let n = filtered.len();
-                if n > 0 { self.genre_selected = self.genre_selected.checked_sub(1).unwrap_or(n - 1); }
+                self.genre_selected = cycle_prev(self.genre_selected, filtered.len());
             }
             KeyCode::Down => {
-                let n = filtered.len();
-                if n > 0 { self.genre_selected = (self.genre_selected + 1) % n; }
+                self.genre_selected = cycle_next(self.genre_selected, filtered.len());
             }
             KeyCode::Enter => {
                 if let Some(&(tag, label)) = filtered.get(self.genre_selected) {
@@ -769,30 +782,6 @@ impl App {
         }
     }
 
-    fn filter_genres(filter: &str) -> Vec<(&'static str, &'static str)> {
-        use crate::station::GENRES;
-        if filter.is_empty() {
-            return GENRES.iter().map(|&(t, l)| (t, l)).collect();
-        }
-        let f = filter.to_lowercase();
-        GENRES.iter()
-            .filter(|(_, label)| label.to_lowercase().contains(&f))
-            .map(|&(t, l)| (t, l))
-            .collect()
-    }
-
-    fn filter_countries(filter: &str) -> Vec<(&'static str, &'static str)> {
-        use crate::station::COUNTRIES;
-        if filter.is_empty() {
-            return COUNTRIES.iter().map(|&(t, l)| (t, l)).collect();
-        }
-        let f = filter.to_lowercase();
-        COUNTRIES.iter()
-            .filter(|(_, label)| label.to_lowercase().contains(&f))
-            .map(|&(t, l)| (t, l))
-            .collect()
-    }
-
     fn perform_country_search(&mut self, country: &str) {
         let c = country.to_string();
         self.spawn_search(move || async move { search_stations_by_country(&c, 30).await });
@@ -800,52 +789,25 @@ impl App {
 
     async fn on_key_modal_country(&mut self, key: KeyCode) {
         if !self.search_results.is_empty() {
-            match key {
-                KeyCode::Esc => {
-                    self.search_results.clear();
-                    self.genre_query.clear();
-                    self.modal_selected = 0;
-                }
-                KeyCode::Enter => {
-                    let idx = self.modal_selected.min(self.search_results.len() - 1);
-                    self.play_dynamic_station(idx).await;
-                }
-                KeyCode::Char('R') => {
-                    if let Some(idx) = self.play_random_result() {
-                        self.play_dynamic_station(idx).await;
-                    }
-                }
-                KeyCode::Up | KeyCode::Char('k') => {
-                    let n = self.search_results.len();
-                    if n > 0 { self.modal_selected = self.modal_selected.checked_sub(1).unwrap_or(n - 1); }
-                }
-                KeyCode::Down | KeyCode::Char('j') => {
-                    let n = self.search_results.len();
-                    if n > 0 { self.modal_selected = (self.modal_selected + 1) % n; }
-                }
-                _ => {}
-            }
+            self.on_key_modal_results(key).await;
             return;
         }
 
-        let filtered = Self::filter_countries(&self.country_filter);
+        let filtered = filter_items(COUNTRIES, &self.country_filter);
         match key {
             KeyCode::Esc => {
                 if !self.country_filter.is_empty() {
                     self.country_filter.clear();
-                    self.country_selected = 0;
                 } else {
                     self.modal_mode = SearchMode::Name;
-                    self.country_selected = 0;
                 }
+                self.country_selected = 0;
             }
             KeyCode::Up => {
-                let n = filtered.len();
-                if n > 0 { self.country_selected = self.country_selected.checked_sub(1).unwrap_or(n - 1); }
+                self.country_selected = cycle_prev(self.country_selected, filtered.len());
             }
             KeyCode::Down => {
-                let n = filtered.len();
-                if n > 0 { self.country_selected = (self.country_selected + 1) % n; }
+                self.country_selected = cycle_next(self.country_selected, filtered.len());
             }
             KeyCode::Enter => {
                 if let Some(&(tag, label)) = filtered.get(self.country_selected) {
@@ -873,10 +835,10 @@ impl App {
                 self.modal_mode = SearchMode::Name;
             }
             KeyCode::Up | KeyCode::Char('k') => {
-                if count > 0 { self.settings_selected = self.settings_selected.checked_sub(1).unwrap_or(count - 1); }
+                self.settings_selected = cycle_prev(self.settings_selected, count);
             }
             KeyCode::Down | KeyCode::Char('j') => {
-                if count > 0 { self.settings_selected = (self.settings_selected + 1) % count; }
+                self.settings_selected = cycle_next(self.settings_selected, count);
             }
             KeyCode::Enter | KeyCode::Char(' ') => {
                 self.apply_settings_toggle(self.settings_selected);
@@ -1035,7 +997,7 @@ impl App {
         F: FnOnce() -> Fut + Send + 'static,
         Fut: std::future::Future<Output = Option<Vec<DynamicStation>>> + Send + 'static,
     {
-        if let Some(t) = self.search_task.take() { t.abort(); }
+        abort_task(&mut self.search_task);
         self.search_result_rx = None;
         self.search_loading = true;
 
@@ -1183,54 +1145,32 @@ impl App {
     pub async fn on_mouse_scroll(&mut self, delta: i32) {
         if self.show_search_modal {
             let (len, sel) = if self.search_results.is_empty() && matches!(self.modal_mode, SearchMode::Genre) {
-                (Self::filter_genres(&self.genre_filter).len(), &mut self.genre_selected)
+                (filter_items(GENRES, &self.genre_filter).len(), &mut self.genre_selected)
             } else if self.search_results.is_empty() && matches!(self.modal_mode, SearchMode::Country) {
-                (Self::filter_countries(&self.country_filter).len(), &mut self.country_selected)
+                (filter_items(COUNTRIES, &self.country_filter).len(), &mut self.country_selected)
             } else if matches!(self.modal_mode, SearchMode::Settings) {
-                let count = settings_items(self.config.duck_enabled).len();
-                (count, &mut self.settings_selected)
+                (settings_items(self.config.duck_enabled).len(), &mut self.settings_selected)
             } else {
                 (self.search_results.len(), &mut self.modal_selected)
             };
             if len == 0 { return; }
-            if delta > 0 {
-                *sel = (*sel + delta as usize).min(len - 1);
-            } else {
-                *sel = sel.saturating_sub((-delta) as usize);
-            }
+            *sel = scroll_by(*sel, delta, len);
             return;
         }
 
         match self.focus {
             AppFocus::RecentTracks => {
-                let titles = self.player.state().recent_titles;
-                let len = titles.len();
-                if len == 0 {
-                    return;
-                }
-                if delta > 0 {
-                    self.recent_selected = (self.recent_selected + delta as usize).min(len - 1);
-                } else {
-                    self.recent_selected = self.recent_selected.saturating_sub((-delta) as usize);
-                }
+                let len = self.player.state().recent_titles.len();
+                if len == 0 { return; }
+                self.recent_selected = scroll_by(self.recent_selected, delta, len);
             }
             AppFocus::OnDemandList => {
                 let len = self.on_demand_shows.len();
-                if len == 0 {
-                    return;
-                }
-                if delta > 0 {
-                    self.on_demand_selected = (self.on_demand_selected + delta as usize).min(len - 1);
-                } else {
-                    self.on_demand_selected = self.on_demand_selected.saturating_sub((-delta) as usize);
-                }
+                if len == 0 { return; }
+                self.on_demand_selected = scroll_by(self.on_demand_selected, delta, len);
             }
             AppFocus::Stations | AppFocus::StationSearch => {
-                if delta > 0 {
-                    self.selected = (self.selected + delta as usize).min(self.total_stations().saturating_sub(1));
-                } else {
-                    self.selected = self.selected.saturating_sub((-delta) as usize);
-                }
+                self.selected = scroll_by(self.selected, delta, self.total_stations());
             }
         }
     }
