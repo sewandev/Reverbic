@@ -57,7 +57,8 @@
 
   "config.value.on": "ON",
   "config.value.off": "OFF",
-  "config.value.restart_dota": "Restart Dota 2",
+  "config.value.restart_dota":    "Restart Dota 2",
+  "config.value.missing_gsi_flag": "Missing -gamestateintegration",
   "dota.phase.loading": "Loading match",
   "dota.phase.hero_selection": "Hero selection",
   "dota.phase.strategy": "Strategy time",
@@ -95,6 +96,7 @@
 
   "screensaver.prompt": "Press any key to return",
   "screensaver.recent_tracks": "RECENTLY PLAYED",
+  "screensaver.now_live":      "now live",
 
   "status.connecting": "Connecting…",
   "status.search_placeholder": "search stations",

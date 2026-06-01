@@ -57,7 +57,8 @@
 
   "config.value.on": "ON",
   "config.value.off": "OFF",
-  "config.value.restart_dota": "Reinicia Dota 2",
+  "config.value.restart_dota":    "Reinicia Dota 2",
+  "config.value.missing_gsi_flag": "Falta -gamestateintegration",
   "dota.phase.loading": "Cargando partida",
   "dota.phase.hero_selection": "Seleccionando heroe",
   "dota.phase.strategy": "Tiempo de estrategia",
@@ -95,6 +96,7 @@
 
   "screensaver.prompt": "Presiona cualquier tecla para volver",
   "screensaver.recent_tracks": "ÚLTIMAS CANCIONES",
+  "screensaver.now_live":      "en vivo",
 
   "status.connecting": "Conectando…",
   "status.search_placeholder": "buscar estaciones",

@@ -218,9 +218,6 @@ pub fn render(frame: &mut Frame, app: &App) {
                 duck_volume:               app.config.duck_volume,
                 overlay_alpha:             app.config.overlay_alpha,
                 screensaver_secs:          app.config.screensaver_secs,
-                game_integrations_enabled: app.config.game_integrations.enabled,
-                integration_dota2:         app.config.game_integrations.dota2,
-                dota2_needs_restart:       app.dota2_needs_restart,
             },
             full_area,
         );
@@ -513,7 +510,6 @@ fn render_screensaver(
     details: Option<&crate::station::StationDetails>,
 ) {
     use ratatui::{layout::Alignment, style::Color, widgets::{Block, BorderType, Borders, Clear}};
-    use crate::ui::widgets;
     const OVERLAY: Color = Color::Rgb(5, 5, 5);
     const BG:      Color = Color::Rgb(13, 13, 13);
 
@@ -526,8 +522,9 @@ fn render_screensaver(
 
     let has_details  = details.is_some();
     let has_game     = crate::game_detect::get().is_some();
-    let n_recent     = state.recent_titles.len().saturating_sub(1).min(5) as u16;
-    let has_recent   = n_recent > 0;
+    let has_recent   = !state.recent_titles.is_empty();
+    let n_prev       = state.recent_titles.len().saturating_sub(1).min(5) as u16;
+    let n_recent_rows = if has_recent { 1 + n_prev } else { 0 };
     let ph = 2u16                                        // bordes
         + 2                                              // station + title
         + 1 + 1                                          // empty + visualizer
@@ -535,11 +532,11 @@ fn render_screensaver(
         + if has_details { 3 } else { 0 }               // metadata + tags + url
         + if has_details && has_game { 1 } else { 0 }   // empty entre detalles y juego
         + if has_game { 1 } else { 0 }                  // juego
-        + if has_recent { 2 + n_recent } else { 0 }     // sep + header + tracks
+        + if has_recent { 2 + n_recent_rows } else { 0 } // sep + header + now live + prev
         + 1                                              // empty + prompt
         + 1;                                             // prompt
 
-    let pw    = area.width.min(62).max(44);
+    let pw    = area.width.min(72).max(50);
     let px    = area.x + area.width.saturating_sub(pw) / 2;
     let py    = area.y + area.height.saturating_sub(ph) / 2;
     let panel = Rect::new(px, py, pw, ph.min(area.height));
@@ -619,28 +616,9 @@ fn render_screensaver(
     }
 
     if let Some((ref name, ref genre)) = crate::game_detect::get() {
-        let line = match crate::integrations::dota2::get() {
-            Some(ref d) if !d.display_parts().is_empty() => {
-                let parts = d.display_parts();
-                let mut spans = vec![Span::styled(format!("🎮 {name}  ·  "), Style::default().fg(theme::DIM))];
-                for (i, part) in parts.iter().enumerate() {
-                    if i > 0 { spans.push(Span::styled("  ·  ", Style::default().fg(theme::DIM))); }
-                    let style = if i == 0 && !d.hero.is_empty() {
-                        Style::default().fg(theme::HIGHLIGHT)
-                    } else {
-                        Style::default().fg(theme::MUTED)
-                    };
-                    spans.push(Span::styled(part.clone(), style));
-                }
-                Line::from(spans)
-            }
-            _ => {
-                let text = if genre.is_empty() { format!("🎮 {name}") }
-                           else { format!("🎮 {name}  ·  {genre}") };
-                Line::from(Span::styled(text, Style::default().fg(theme::DIM)))
-            }
-        };
-        put!(line);
+        let text = if genre.is_empty() { format!("🎮 {name}") }
+                   else { format!("🎮 {name}  ·  {genre}") };
+        put!(Line::from(Span::styled(text, Style::default().fg(theme::DIM))));
     }
 
     if has_recent {
@@ -650,10 +628,25 @@ fn render_screensaver(
             t("screensaver.recent_tracks"),
             Style::default().fg(theme::MUTED),
         )));
-        let max_title = cw.saturating_sub(5) as usize;
+        let now_live = t("screensaver.now_live");
+        let label_w  = now_live.chars().count() + 3;
+        let max_title = cw.saturating_sub(5 + label_w as u16) as usize;
+        if let Some(current) = state.recent_titles.first() {
+            let display = if current.chars().count() > max_title {
+                format!("{}…", current.chars().take(max_title.saturating_sub(1)).collect::<String>())
+            } else {
+                current.clone()
+            };
+            put!(Line::from(vec![
+                Span::styled("  ▶  ", Style::default().fg(theme::ACCENT)),
+                Span::styled(display, Style::default().fg(theme::HIGHLIGHT).add_modifier(Modifier::BOLD)),
+                Span::styled(format!("  {now_live}"), Style::default().fg(theme::ACCENT)),
+            ]));
+        }
+        let max_prev = cw.saturating_sub(5) as usize;
         for track in state.recent_titles.iter().skip(1).take(5) {
-            let display = if track.chars().count() > max_title {
-                format!("{}…", track.chars().take(max_title - 1).collect::<String>())
+            let display = if track.chars().count() > max_prev {
+                format!("{}…", track.chars().take(max_prev.saturating_sub(1)).collect::<String>())
             } else {
                 track.clone()
             };
@@ -665,18 +658,19 @@ fn render_screensaver(
     }
 
     row += 1;
-    let spinner   = widgets::spinner_frame();
     let vol_pct   = (state.volume.clamp(0.0, 1.0) * 100.0).round() as u32;
     let vol_color = if state.volume > 0.85 { theme::WARNING } else { theme::ACCENT };
+    let time_str  = Local::now().format("%H:%M").to_string();
     frame.render_widget(
-        Paragraph::new(Line::from(vec![
-            Span::styled(format!("{spinner}  "), Style::default().fg(theme::ACCENT)),
-            Span::styled(t("screensaver.prompt"), Style::default().fg(theme::MUTED)),
-        ])).style(Style::default().bg(BG)),
+        Paragraph::new(Span::styled(t("screensaver.prompt"), Style::default().fg(theme::MUTED)))
+            .style(Style::default().bg(BG)),
         Rect::new(cx, row, cw, 1),
     );
     frame.render_widget(
-        Paragraph::new(Span::styled(format!("{vol_pct:>3}%"), Style::default().fg(vol_color)))
+        Paragraph::new(Line::from(vec![
+            Span::styled(time_str, Style::default().fg(theme::MUTED)),
+            Span::styled(format!("  {vol_pct:>3}%"), Style::default().fg(vol_color)),
+        ]))
             .alignment(Alignment::Right)
             .style(Style::default().bg(BG)),
         Rect::new(cx, row, cw, 1),
@@ -720,17 +714,7 @@ fn render_game_inline(frame: &mut Frame, area: Rect, name: &str, genre: &str) {
         Span::styled(format!("  {label}  "), Style::default().fg(theme::MUTED)),
         Span::styled(name.to_owned(), theme::PLAYING_STYLE),
     ];
-    if let Some(ref d) = crate::integrations::dota2::get() {
-        for (i, part) in d.display_parts().into_iter().enumerate() {
-            spans.push(Span::styled("  ·  ", Style::default().fg(theme::MUTED)));
-            let style = if i == 0 && !d.hero.is_empty() {
-                Style::default().fg(theme::HIGHLIGHT)
-            } else {
-                Style::default().fg(theme::DIM)
-            };
-            spans.push(Span::styled(part, style));
-        }
-    } else if !genre.is_empty() {
+    if !genre.is_empty() {
         spans.push(Span::styled("  ·  ", Style::default().fg(theme::MUTED)));
         spans.push(Span::styled(genre.to_owned(), Style::default().fg(theme::DIM)));
     }
@@ -762,17 +746,7 @@ fn render_game_strip(frame: &mut Frame, area: Rect, name: &str, genre: &str) {
     let mut spans: Vec<Span<'static>> = vec![
         Span::styled(name.to_owned(), theme::PLAYING_STYLE),
     ];
-    if let Some(ref d) = crate::integrations::dota2::get() {
-        for (i, part) in d.display_parts().into_iter().enumerate() {
-            spans.push(Span::styled("  ·  ", Style::default().fg(theme::MUTED)));
-            let style = if i == 0 && !d.hero.is_empty() {
-                Style::default().fg(theme::HIGHLIGHT)
-            } else {
-                Style::default().fg(theme::DIM)
-            };
-            spans.push(Span::styled(part, style));
-        }
-    } else if !genre.is_empty() {
+    if !genre.is_empty() {
         spans.push(Span::styled("  ·  ", Style::default().fg(theme::MUTED)));
         spans.push(Span::styled(genre.to_owned(), Style::default().fg(theme::DIM)));
     }
