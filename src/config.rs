@@ -237,31 +237,27 @@ impl Config {
     }
     pub fn save(&self) {
         let path = Self::path();
-        let Some(dir) = path.parent() else { return };
-
-        if std::fs::create_dir_all(dir).is_err() {
-            tracing::error!("No se pudo crear directorio de config: {:?}", dir);
-            return;
-        }
-
-        let tmp = path.with_extension("tmp");
-        match serde_json::to_string_pretty(self) {
-            Ok(json) => {
-                if std::fs::write(&tmp, &json).is_ok() {
-                    if let Err(e) = std::fs::rename(&tmp, &path) {
-                        tracing::error!("No se pudo guardar config: {e}");
-                    } else {
-                        tracing::info!("Config guardada en {:?}", path);
-                    }
-                }
-            }
-            Err(e) => tracing::error!("Error serializando config: {e}"),
+        match save_json_atomic(&path, self) {
+            Ok(())  => tracing::info!("Config guardada en {:?}", path),
+            Err(e)  => tracing::error!("No se pudo guardar config: {e}"),
         }
     }
 
     fn path() -> PathBuf {
         reverbic_dir().join("config.json")
     }
+}
+
+pub fn save_json_atomic<T: Serialize + ?Sized>(path: &std::path::Path, data: &T) -> std::io::Result<()> {
+    let dir = path.parent().ok_or_else(|| std::io::Error::new(
+        std::io::ErrorKind::InvalidInput, "no parent directory",
+    ))?;
+    std::fs::create_dir_all(dir)?;
+    let tmp = path.with_extension("tmp");
+    let json = serde_json::to_string_pretty(data)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+    std::fs::write(&tmp, &json)?;
+    std::fs::rename(&tmp, path)
 }
 
 pub(crate) fn reverbic_dir() -> PathBuf {

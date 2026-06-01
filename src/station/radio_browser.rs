@@ -209,12 +209,16 @@ fn parse_details(s: &serde_json::Value) -> StationDetails {
     }
 }
 
-async fn fetch_first(url_path: &str) -> Option<StationDetails> {
-    let client = reqwest::Client::builder()
+fn build_http_client() -> Option<reqwest::Client> {
+    reqwest::Client::builder()
         .user_agent("reverbic/0.1")
         .timeout(std::time::Duration::from_secs(10))
         .build()
-        .ok()?;
+        .ok()
+}
+
+async fn fetch_first(url_path: &str) -> Option<StationDetails> {
+    let client = build_http_client()?;
     for server in RADIO_BROWSER_SERVERS {
         let url = format!("{server}{url_path}");
         let Ok(resp) = client.get(&url).send().await else { continue };
@@ -268,11 +272,7 @@ async fn fetch(param: &str, value: &str, limit: u32) -> Option<Vec<DynamicStatio
         return Some(Vec::new());
     }
 
-    let client = reqwest::Client::builder()
-        .user_agent("reverbic/0.1")
-        .timeout(std::time::Duration::from_secs(10))
-        .build()
-        .ok()?;
+    let client = build_http_client()?;
 
     let limit_str = limit.to_string();
     let params = [

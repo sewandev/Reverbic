@@ -40,15 +40,7 @@ pub fn load() -> Vec<FavoriteStation> {
 }
 
 pub fn save(favorites: &[FavoriteStation]) {
-    let p = path();
-    let Some(dir) = p.parent() else { return };
-    if std::fs::create_dir_all(dir).is_err() { return; }
-    let tmp = p.with_extension("tmp");
-    if let Ok(json) = serde_json::to_string_pretty(favorites) {
-        if std::fs::write(&tmp, &json).is_ok() {
-            let _ = std::fs::rename(&tmp, &p);
-        }
-    }
+    let _ = crate::config::save_json_atomic(&path(), favorites);
 }
 pub fn toggle(favorites: &mut Vec<FavoriteStation>, fav: FavoriteStation) -> bool {
     if let Some(i) = favorites.iter().position(|f| f.url == fav.url) {

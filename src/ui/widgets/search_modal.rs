@@ -8,11 +8,11 @@ use ratatui::{
 
 use crate::app::{SearchMode, SettingItem, settings_items};
 use crate::i18n::{t, current_language, Language};
-use crate::station::{DynamicStation, GENRES, COUNTRIES};
+use crate::station::{filter_items, DynamicStation, GENRES, COUNTRIES};
 use crate::ui::theme;
 
-const BG: Color = Color::Rgb(13, 13, 13);
-const OVERLAY_BG: Color = Color::Rgb(5, 5, 5);
+const BG:         Color = theme::PANEL_BG;
+const OVERLAY_BG: Color = theme::OVERLAY_COLOR;
 
 const EXAMPLES: &[&str] = &[
     "The Jazz Radio",
@@ -284,7 +284,7 @@ impl SearchModalWidget<'_> {
             return;
         }
 
-        let filtered = filtered_genres(self.genre_filter);
+        let filtered = filter_items(GENRES, self.genre_filter);
         let list_x    = content_x + 2;
         let list_w    = content_w.saturating_sub(2);
         let list_area = Rect::new(list_x, list_body.y, list_w, list_body.height);
@@ -570,7 +570,7 @@ impl SearchModalWidget<'_> {
             return;
         }
 
-        let filtered  = filtered_countries(self.country_filter);
+        let filtered  = filter_items(COUNTRIES, self.country_filter);
         let list_x    = content_x + 2;
         let list_w    = content_w.saturating_sub(2);
         let list_area = Rect::new(list_x, list_body.y, list_w, list_body.height);
@@ -608,28 +608,6 @@ impl SearchModalWidget<'_> {
             self.render_scrollbar(list_area, filtered.len(), self.country_selected, buf);
         }
     }
-}
-
-fn filtered_genres(filter: &str) -> Vec<(&'static str, &'static str)> {
-    if filter.is_empty() {
-        return GENRES.iter().map(|&(t, l)| (t, l)).collect();
-    }
-    let f = filter.to_lowercase();
-    GENRES.iter()
-        .filter(|(_, label)| label.to_lowercase().contains(&f))
-        .map(|&(t, l)| (t, l))
-        .collect()
-}
-
-fn filtered_countries(filter: &str) -> Vec<(&'static str, &'static str)> {
-    if filter.is_empty() {
-        return COUNTRIES.iter().map(|&(t, l)| (t, l)).collect();
-    }
-    let f = filter.to_lowercase();
-    COUNTRIES.iter()
-        .filter(|(_, label)| label.to_lowercase().contains(&f))
-        .map(|&(t, l)| (t, l))
-        .collect()
 }
 
 fn screensaver_display(secs: u16) -> String {

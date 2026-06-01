@@ -489,7 +489,7 @@ fn render_rename_overlay(frame: &mut Frame, input: &str) {
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(theme::ACCENT))
-        .style(Style::default().bg(ratatui::style::Color::Rgb(13, 13, 13)));
+        .style(Style::default().bg(theme::PANEL_BG));
 
     let inner = block.inner(panel);
     frame.render_widget(block, panel);
@@ -509,9 +509,9 @@ fn render_screensaver(
     state:   &PlayerState,
     details: Option<&crate::station::StationDetails>,
 ) {
-    use ratatui::{layout::Alignment, style::Color, widgets::{Block, BorderType, Borders, Clear}};
-    const OVERLAY: Color = Color::Rgb(5, 5, 5);
-    const BG:      Color = Color::Rgb(13, 13, 13);
+    use ratatui::{layout::Alignment, widgets::{Block, BorderType, Borders, Clear}};
+    const OVERLAY: ratatui::style::Color = theme::OVERLAY_COLOR;
+    const BG:      ratatui::style::Color = theme::PANEL_BG;
 
     frame.render_widget(Clear, area);
     for y in area.top()..area.bottom() {

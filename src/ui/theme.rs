@@ -11,3 +11,6 @@ pub const FESTIVAL_ACCENT: Color = Color::Yellow;
 pub const SELECTED_STYLE: Style = Style::new().fg(HIGHLIGHT).add_modifier(Modifier::BOLD);
 pub const PLAYING_STYLE:  Style = Style::new().fg(PLAYING).add_modifier(Modifier::BOLD);
 pub const BORDER_STYLE:   Style = Style::new().fg(MUTED);
+
+pub const PANEL_BG:      Color = Color::Rgb(13, 13, 13);
+pub const OVERLAY_COLOR: Color = Color::Rgb(5,  5,  5);
