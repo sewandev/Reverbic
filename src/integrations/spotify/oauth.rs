@@ -142,10 +142,14 @@ async fn exchange_code(code: &str, verifier: &str, redirect_uri: &str) -> Result
         .await
         .map_err(|e| format!("Error de red al obtener token: {e}"))?;
 
-    let json: serde_json::Value = response
-        .json()
-        .await
-        .map_err(|e| format!("Respuesta inválida del servidor: {e}"))?;
+    let status = response.status();
+    let body = response.text().await
+        .map_err(|e| format!("Error leyendo respuesta del token: {e}"))?;
+
+    tracing::debug!("spotify token exchange — status={status} body={body}");
+
+    let json: serde_json::Value = serde_json::from_str(&body)
+        .map_err(|e| format!("JSON inválido en respuesta del token ({status}): {e}"))?;
 
     if let Some(token) = json["access_token"].as_str() {
         return Ok(token.to_string());
@@ -154,7 +158,7 @@ async fn exchange_code(code: &str, verifier: &str, redirect_uri: &str) -> Result
         .as_str()
         .or_else(|| json["error"].as_str())
         .unwrap_or("Error desconocido al obtener token");
-    Err(desc.to_string())
+    Err(format!("Spotify ({status}): {desc}"))
 }
 
 async fn fetch_username(access_token: &str) -> Result<String, String> {
@@ -166,14 +170,30 @@ async fn fetch_username(access_token: &str) -> Result<String, String> {
         .await
         .map_err(|e| format!("Error al obtener perfil: {e}"))?;
 
-    let json: serde_json::Value = response
-        .json()
-        .await
-        .map_err(|e| format!("Perfil inválido: {e}"))?;
+    let status = response.status();
+    let body = response.text().await
+        .map_err(|e| format!("Error leyendo perfil: {e}"))?;
+
+    tracing::debug!("spotify /v1/me — status={status} body={}", &body[..body.len().min(300)]);
+
+    if !status.is_success() {
+        let msg = serde_json::from_str::<serde_json::Value>(&body)
+            .ok()
+            .and_then(|j| {
+                j["error"]["message"].as_str()
+                    .or_else(|| j["error_description"].as_str())
+                    .map(str::to_string)
+            })
+            .unwrap_or_else(|| body.chars().take(120).collect());
+        return Err(format!("Spotify ({status}): {msg}"));
+    }
+
+    let json: serde_json::Value = serde_json::from_str(&body)
+        .map_err(|e| format!("JSON inválido del perfil: {e}"))?;
 
     json["display_name"]
         .as_str()
-        .filter(|s| !s.is_empty())
+        .filter(|s: &&str| !s.is_empty())
         .or_else(|| json["id"].as_str())
         .map(str::to_string)
         .ok_or_else(|| "No se pudo obtener el nombre de usuario".to_string())
