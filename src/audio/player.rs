@@ -33,6 +33,7 @@ pub enum PlayerCommand {
     SetPreviewSearching(bool),
     SetPreviewLoadingTrack(Option<String>),
     MarkPreviewUnavailable(String),
+    SetPrebuffer(f32),
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -338,6 +339,7 @@ struct AudioLoopState {
     stream_last_chunk:    Option<Arc<AtomicU64>>,
     stream_download_done: Option<Arc<AtomicBool>>,
     crossfade_out:        Option<CrossfadeOut>,
+    pre_buffer_secs:      f32,
 }
 
 impl AudioLoopState {
@@ -359,6 +361,7 @@ impl AudioLoopState {
             stream_last_chunk:    None,
             stream_download_done: None,
             crossfade_out:        None,
+            pre_buffer_secs:      30.0,
         }
     }
 }
@@ -378,7 +381,6 @@ const BASE_RETRY_DELAY_SECS: u64     = 2;
 const BASE_RECONNECT_DELAY_SECS: u64 = 1;
 const MAX_RETRY_DELAY_SECS: u64      = 30;
 const ONDEMAND_BYTES_PER_SEC: f32    = 16_000.0;
-const PRE_BUFFER_SECS: f32           = 30.0;
 
 fn update_state(tx: &watch::Sender<PlayerState>, f: impl FnOnce(&mut PlayerState)) {
     let mut s = tx.borrow().clone();
@@ -477,7 +479,7 @@ fn open_stream(
             volume:  st.current_volume,
             ..Default::default()
         });
-        let target = (PRE_BUFFER_SECS * ONDEMAND_BYTES_PER_SEC) as usize;
+        let target = (st.pre_buffer_secs * ONDEMAND_BYTES_PER_SEC) as usize;
         stream_reader.pre_buffer(target, |pct| {
             update_state(state_tx, |s| s.status = PlayerStatus::Buffering(pct));
         });
@@ -504,6 +506,7 @@ fn schedule_retry(
     station:   Station,
     state_tx:  &watch::Sender<PlayerState>,
 ) {
+    if let Some(cf) = st.crossfade_out.take() { cf.player.stop(); }
     st.title_rx = None;
     let retry_count = st.stream_retry_at.take().map(|(count, _)| count + 1).unwrap_or(1);
     if retry_count <= MAX_STREAM_RETRIES {
@@ -683,7 +686,7 @@ fn handle_seek_cmd(
     st.title_rx             = Some(new_title_rx);
     st.stream_last_chunk    = Some(stream_reader.last_chunk_arc());
     st.stream_download_done = Some(stream_reader.download_done_arc());
-    let target = (PRE_BUFFER_SECS * ONDEMAND_BYTES_PER_SEC) as usize;
+    let target = (st.pre_buffer_secs * ONDEMAND_BYTES_PER_SEC) as usize;
     stream_reader.pre_buffer(target, |pct| {
         update_state(state_tx, |s| s.status = PlayerStatus::Buffering(pct));
     });
@@ -733,7 +736,9 @@ fn audio_loop(
         check_stream_stall(&mut st);
 
         let mut is_auto_reconnect = false;
-        let cmd = if st.reconnect_at.map(|t| std::time::Instant::now() >= t).unwrap_or(false) {
+        let cmd = if let Ok(user_cmd) = cmd_rx.try_recv() {
+            Some(user_cmd)
+        } else if st.reconnect_at.map(|t| std::time::Instant::now() >= t).unwrap_or(false) {
             st.reconnect_at = None;
             is_auto_reconnect = true;
             if st.od.active { Some(PlayerCommand::Seek(st.od.current_pos())) }
@@ -841,6 +846,10 @@ fn audio_loop(
 
             PlayerCommand::MarkPreviewUnavailable(track) => {
                 update_state(&state_tx, |s| { s.preview_unavailable.insert(track); });
+            }
+
+            PlayerCommand::SetPrebuffer(secs) => {
+                st.pre_buffer_secs = secs;
             }
 
             PlayerCommand::Stop => {

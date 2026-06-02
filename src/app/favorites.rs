@@ -21,6 +21,25 @@ impl App {
         }
     }
 
+    pub(super) fn toggle_modal_favorite(&mut self) {
+        if let Some(station) = self.search_results.get(self.modal_selected) {
+            let fav = crate::favorites::FavoriteStation {
+                key:          station.key.clone(),
+                name:         station.name.clone(),
+                url:          station.url.clone(),
+                bitrate_kbps: station.bitrate_kbps,
+            };
+            let added = crate::favorites::toggle(&mut self.favorites, fav);
+            crate::favorites::save(&self.favorites);
+            self.save_notice_is_dup = false;
+            self.save_notice = Some(if added {
+                t("notice.fav_added")
+            } else {
+                t("notice.fav_removed")
+            });
+        }
+    }
+
     pub(super) fn on_key_rename(&mut self, key: KeyCode) {
         match key {
             KeyCode::Esc => {

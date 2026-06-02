@@ -5,7 +5,31 @@ mod screensaver;
 
 pub use layout::now_playing_rect;
 
-use ratatui::Frame;
+use ratatui::{layout::Rect, Frame};
+
+pub fn spotify_screensaver_progress_rect(
+    area:         Rect,
+    profile_rows: u16,
+) -> Option<Rect> {
+    let pw = (area.width * 85 / 100).clamp(60, 110);
+
+    let ph_base: u16 = 2 + 1 + 5 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1;
+    let ph = ph_base + if profile_rows > 0 { 1 + profile_rows } else { 0 };
+
+    let px = area.x + area.width.saturating_sub(pw) / 2;
+    let py = area.y + area.height.saturating_sub(ph) / 2;
+
+    let inner_x = px + 1;
+    let inner_y = py + 1;
+    let inner_w = pw.saturating_sub(2);
+    let cx      = inner_x + 2;
+    let cw      = inner_w.saturating_sub(4);
+
+    let progress_y = inner_y + 14;
+
+    if progress_y >= area.bottom() { return None; }
+    Some(Rect::new(cx, progress_y, cw, 1))
+}
 
 use crate::app::{App, AppFocus};
 use crate::audio::PlayerStatus;
@@ -22,7 +46,7 @@ use crate::ui::widgets::{
 use components::{render_header, render_help, render_sep};
 use layout::compute_layout;
 use overlays::{render_game_inline, render_game_strip, render_modal_np_strip, render_rename_overlay};
-use screensaver::render_screensaver;
+use screensaver::{render_screensaver, render_spotify_screensaver};
 
 pub fn render(frame: &mut Frame, app: &App) {
     let player_state = app.player_state();
@@ -176,10 +200,24 @@ pub fn render(frame: &mut Frame, app: &App) {
     );
 
     if app.show_search_modal && app.screensaver_active() {
+        if let Some(ref playback) = app.spotify.playback {
+            render_spotify_screensaver(
+                frame, frame.area(), playback,
+                app.config.spotify.display_name.as_deref(),
+                app.config.spotify.country.as_deref(),
+                app.config.spotify.followers,
+                app.spotify.is_premium,
+            );
+            return;
+        }
         let is_fav = player_state.station.as_ref()
             .map(|s| app.favorites.iter().any(|f| f.url == s.url))
             .unwrap_or(false);
-        render_screensaver(frame, frame.area(), &player_state, app.station_details.as_ref(), is_fav);
+        render_screensaver(
+            frame, frame.area(), &player_state, app.station_details.as_ref(), is_fav,
+            app.config.spotify.display_name.as_deref(),
+            app.spotify.is_premium,
+        );
         return;
     }
 
@@ -187,40 +225,12 @@ pub fn render(frame: &mut Frame, app: &App) {
         use crate::ui::widgets::search_modal::SearchModalWidget;
         let full_area = frame.area();
         frame.render_widget(
-            SearchModalWidget {
-                query:             &app.search_query,
-                results:           &app.search_results,
-                loading:           app.search_loading,
-                selected:          app.modal_selected,
-                mode:              &app.modal_mode,
-                genre_selected:    app.genre_selected,
-                genre_filter:      &app.genre_filter,
-                genre_query:       &app.genre_query,
-                country_selected:  app.country_selected,
-                country_filter:    &app.country_filter,
-                settings_selected:  app.settings_selected,
-                autoplay_last:      app.config.autoplay_last,
-                overlay_mode:       app.config.overlay_mode.display(),
-                overlay_position:   app.config.overlay_position.display(),
-                crossfade:          app.config.crossfade_display(),
-                media_keys:         app.config.media_keys,
-                tray_icon:          app.config.tray_icon,
-                notifications:      app.config.notifications,
-                restore_volume:     app.config.restore_volume,
-                duck_enabled:       app.config.duck_enabled,
-                duck_volume:               app.config.duck_volume,
-                overlay_alpha:             app.config.overlay_alpha,
-                screensaver_secs:          app.config.screensaver_secs,
-                integration_view:          app.integration_view,
-                integration_selected:      app.integration_selected,
-                spotify_status:            &app.spotify_status,
-                spotify_saved:             app.config.spotify.display_name.as_deref(),
-            },
+            SearchModalWidget::from(app),
             full_area,
         );
 
-        let modal_w = full_area.width.clamp(44, 72);
-        let modal_h = full_area.height.clamp(10, 14);
+        let modal_w = (full_area.width * 78 / 100).clamp(52, 120);
+        let modal_h = (full_area.height * 75 / 100).clamp(14, 30);
         let modal_x = full_area.x + full_area.width.saturating_sub(modal_w) / 2;
         let modal_y = full_area.y + full_area.height.saturating_sub(modal_h) / 2;
         if let Some((ref name, ref genre)) = crate::game_detect::get() {

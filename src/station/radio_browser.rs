@@ -214,7 +214,7 @@ fn parse_details(s: &serde_json::Value) -> StationDetails {
 }
 
 async fn fetch_first(url_path: &str) -> Option<StationDetails> {
-    let client = crate::http::http_client()?;
+    let client = crate::http::http_client_timeout(5)?;
     for server in RADIO_BROWSER_SERVERS {
         let url = format!("{server}{url_path}");
         let Ok(resp) = client.get(&url).send().await else { continue };
@@ -268,7 +268,7 @@ async fn fetch(param: &str, value: &str, limit: u32) -> Option<Vec<DynamicStatio
         return Some(Vec::new());
     }
 
-    let client = crate::http::http_client()?;
+    let client = crate::http::http_client_timeout(8)?;
 
     let limit_str = limit.to_string();
     let params = [

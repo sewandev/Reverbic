@@ -85,7 +85,19 @@ impl OverlayPosition {
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct SpotifyConfig {
     #[serde(default)]
-    pub display_name: Option<String>,
+    pub display_name:  Option<String>,
+    #[serde(default)]
+    pub search_token:  Option<String>,
+    #[serde(default)]
+    pub refresh_token: Option<String>,
+    #[serde(default)]
+    pub is_premium:    Option<bool>,
+    #[serde(default)]
+    pub country:       Option<String>,
+    #[serde(default)]
+    pub followers:     Option<u32>,
+    #[serde(default)]
+    pub stop_on_quit:  bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -126,12 +138,18 @@ pub struct Config {
     pub game_integrations:    GameIntegrationsConfig,
     #[serde(default)]
     pub spotify:              SpotifyConfig,
+    #[serde(default = "default_volume_step")]
+    pub volume_step:          u8,
+    #[serde(default = "default_prebuffer_secs")]
+    pub prebuffer_secs:       u8,
 }
 
 fn default_true() -> bool { true }
 fn default_duck_volume() -> u8 { 40 }
 fn default_overlay_alpha() -> u8 { 90 }
 fn default_screensaver_secs() -> u16 { 10 }
+fn default_volume_step() -> u8 { 5 }
+fn default_prebuffer_secs() -> u8 { 30 }
 
 impl Config {
     pub fn screensaver_next(&mut self) {
@@ -169,6 +187,8 @@ impl Default for Config {
             screensaver_secs:  10,
             game_integrations: GameIntegrationsConfig::default(),
             spotify:           SpotifyConfig::default(),
+            volume_step:       5,
+            prebuffer_secs:    30,
         }
     }
 }
@@ -190,6 +210,25 @@ impl Config {
             1 => 2,
             2 => 3,
             _ => 0,
+        };
+    }
+}
+
+impl Config {
+    pub fn volume_step_next(&mut self) {
+        self.volume_step = match self.volume_step {
+            1 => 2,
+            2 => 5,
+            5 => 10,
+            _ => 1,
+        };
+    }
+
+    pub fn prebuffer_next(&mut self) {
+        self.prebuffer_secs = match self.prebuffer_secs {
+            10 => 30,
+            30 => 60,
+            _  => 10,
         };
     }
 }

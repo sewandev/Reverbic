@@ -35,6 +35,12 @@ impl Widget for VuMeterWidget {
 fn build_lvl_vol_line(level_db: f32, volume: f32, width: u16) -> Line<'static> {
     let w = width as usize;
     const FIXED: usize = 23;
+    if w <= FIXED {
+        return Line::from(vec![Span::styled(
+            format!("{:.0}%", volume * 100.0),
+            Style::default().fg(theme::ACCENT),
+        )]);
+    }
     let bars = w.saturating_sub(FIXED);
     let bar_lvl_w = bars * 3 / 5;
     let bar_vol_w = bars.saturating_sub(bar_lvl_w);

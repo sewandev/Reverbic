@@ -6,11 +6,13 @@ mod on_demand;
 mod favorites;
 mod integrations;
 mod input;
+mod spotify_state;
 
 pub use modal::{
-    AppFocus, IntegrationView, SearchMode, SettingItem, SpotifyAuthStatus,
+    AppFocus, IntegrationView, SearchMode, SettingItem, SpotifyAuthStatus, SpotifyPlayerStatus,
     settings_items,
 };
+pub use spotify_state::SpotifyState;
 
 use std::time::Instant;
 
@@ -96,16 +98,15 @@ pub struct App {
     pub config:              Config,
     pub integration_view:       IntegrationView,
     pub integration_selected:   usize,
-    pub spotify_status:         SpotifyAuthStatus,
+    pub spotify:             SpotifyState,
     metadata_task:           Option<tokio::task::JoinHandle<()>>,
-    spotify_auth_task:       Option<tokio::task::JoinHandle<()>>,
-    spotify_auth_rx:         Option<std::sync::mpsc::Receiver<crate::integrations::spotify::AuthResult>>,
     search_task:             Option<tokio::task::JoinHandle<()>>,
     search_result_rx:        Option<std::sync::mpsc::Receiver<Vec<DynamicStation>>>,
     on_demand_task:          Option<tokio::task::JoinHandle<()>>,
     on_demand_rx:            Option<std::sync::mpsc::Receiver<Vec<OnDemandShow>>>,
     station_details_rx:      Option<std::sync::mpsc::Receiver<StationDetails>>,
     last_details_uuid:       Option<String>,
+    pub notice_until:        Option<std::time::Instant>,
 }
 
 impl App {
@@ -114,6 +115,7 @@ impl App {
         let player = AudioPlayer::spawn();
         let initial_vol = if config.restore_volume { config.volume } else { 1.0 };
         player.send(crate::audio::PlayerCommand::SetVolume(initial_vol)).await;
+        player.send(crate::audio::PlayerCommand::SetPrebuffer(config.prebuffer_secs as f32)).await;
 
         let favorites = fav_store::load();
         Self {
@@ -154,16 +156,15 @@ impl App {
             config,
             integration_view:       IntegrationView::ServiceList,
             integration_selected:   0,
-            spotify_status:         SpotifyAuthStatus::Idle,
+            spotify:            SpotifyState::default(),
             metadata_task:      None,
-            spotify_auth_task:  None,
-            spotify_auth_rx:    None,
             search_task:        None,
             search_result_rx:   None,
             on_demand_task:     None,
             on_demand_rx:       None,
             station_details_rx: None,
             last_details_uuid:  None,
+            notice_until:       None,
         }
     }
 
@@ -235,5 +236,12 @@ impl App {
 
     pub fn player_state(&self) -> PlayerState {
         self.player.state()
+    }
+
+    pub fn abort_all_tasks(&mut self) {
+        abort_task(&mut self.metadata_task);
+        abort_task(&mut self.search_task);
+        abort_task(&mut self.on_demand_task);
+        self.spotify.cleanup();
     }
 }

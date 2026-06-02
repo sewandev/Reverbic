@@ -18,10 +18,16 @@ impl App {
         self.on_demand_rx = Some(rx);
 
         let handle = tokio::spawn(async move {
-            let shows = on_demand::fetch_shows_for_playlist(playlist_id)
-                .await
-                .unwrap_or_default();
-            let _ = tx.send(shows);
+            match tokio::time::timeout(
+                std::time::Duration::from_secs(8),
+                on_demand::fetch_shows_for_playlist(playlist_id),
+            ).await {
+                Ok(result) => { let _ = tx.send(result.unwrap_or_default()); }
+                Err(_) => {
+                    tracing::warn!("on_demand fetch timeout para playlist {playlist_id}");
+                    let _ = tx.send(Vec::new());
+                }
+            }
         });
         self.on_demand_task = Some(handle);
     }

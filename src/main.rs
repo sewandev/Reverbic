@@ -125,6 +125,15 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
         app.poll_on_demand_results();
         app.poll_station_details();
         app.poll_spotify_auth();
+        app.poll_spotify_search();
+        app.poll_spotify_search_more();
+        app.poll_spotify_player_events();
+        app.poll_spotify_devices();
+        app.poll_remote_playback();
+        if app.notice_until.map(|t| std::time::Instant::now() >= t).unwrap_or(false) {
+            app.save_notice  = None;
+            app.notice_until = None;
+        }
         let mut last_area = app.terminal_area;
         tui.draw(|frame| {
             last_area = frame.area();
@@ -162,6 +171,16 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
         }
     }
 
+    if app.config.spotify.stop_on_quit {
+        if let (Some(token), Some(device_id)) = (
+            app.spotify.access_token.as_deref(),
+            app.spotify.active_device_id.as_deref(),
+        ) {
+            let _ = crate::integrations::spotify::devices::pause_device(token, device_id).await;
+        }
+    }
+
+    app.abort_all_tasks();
     Ok(())
 }
 

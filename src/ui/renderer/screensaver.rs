@@ -3,21 +3,24 @@ use ratatui::{
     layout::{Alignment, Rect},
     style::{Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, BorderType, Borders, Clear, Paragraph},
+    widgets::{Block, BorderType, Borders, Clear, Paragraph, Wrap},
     Frame,
 };
 
 use crate::audio::{PlayerState, PlayerStatus};
 use crate::i18n::t;
 use crate::station::StationDetails;
+use crate::ui::strings;
 use crate::ui::theme;
 
 pub(super) fn render_screensaver(
-    frame:       &mut Frame,
-    area:        Rect,
-    state:       &PlayerState,
-    details:     Option<&StationDetails>,
-    is_favorite: bool,
+    frame:           &mut Frame,
+    area:            Rect,
+    state:           &PlayerState,
+    details:         Option<&StationDetails>,
+    is_favorite:     bool,
+    spotify_name:    Option<&str>,
+    spotify_premium: bool,
 ) {
     const OVERLAY: ratatui::style::Color = theme::OVERLAY_COLOR;
     const BG:      ratatui::style::Color = theme::PANEL_BG;
@@ -29,9 +32,9 @@ pub(super) fn render_screensaver(
         }
     }
 
-    let has_game    = crate::game_detect::get().is_some();
-    let has_recent  = !state.recent_titles.is_empty();
-    let n_prev      = state.recent_titles.len().saturating_sub(1).min(4) as u16;
+    let has_game   = crate::game_detect::get().is_some();
+    let has_recent = !state.recent_titles.is_empty();
+    let n_recent   = state.recent_titles.len().min(5) as u16;
 
     let (has_meta, has_tags, has_url) = details.map(|d| (
         !d.country.is_empty() || !d.language.is_empty() || !d.codec.is_empty(),
@@ -40,31 +43,40 @@ pub(super) fn render_screensaver(
     )).unwrap_or((false, false, false));
 
     let detail_rows: u16 = u16::from(has_meta) + u16::from(has_tags) + u16::from(has_url) + u16::from(has_game);
-    let recent_rows: u16 = if has_recent { 2 + n_prev } else { 0 };
-    let two_col_rows     = detail_rows.max(recent_rows);
-    let has_two_col      = two_col_rows > 0;
+    let has_details = detail_rows > 0;
 
-    let ph = 2u16
-        + 5 + 1
-        + 1
-        + 1
-        + 1
-        + 1
-        + 1
-        + if has_two_col { 1 + two_col_rows } else { 0 }
-        + 1
-        + 1;
+    // Panel: 85% del terminal, mín 74, máx 120
+    let pw     = (area.width * 85 / 100).clamp(74, 120);
+    let cw_est = pw.saturating_sub(6);
+    let title  = state.title.as_deref().unwrap_or("—");
+    let title_rows: u16 = if title.chars().count() > cw_est as usize { 2 } else { 1 };
 
-    let pw    = area.width.clamp(50, 72);
+    // Sección de recientes: encabezado + canción actual + hasta 4 previas
+    let recent_rows: u16 = if has_recent { 1 + n_recent } else { 0 };
+
+    let ph = 2u16                                           // bordes
+        + 1                                                 // margen superior
+        + 5 + 1                                             // reloj + gap
+        + 1                                                 // nombre estación
+        + title_rows                                        // título canción
+        + u16::from(spotify_name.is_some())                 // spotify
+        + 1                                                 // gap
+        + 1                                                 // visualizador
+        + 1                                                 // gap
+        + if has_details { 1 + detail_rows } else { 0 }    // sep + detalles
+        + if has_recent  { 1 + recent_rows } else { 0 }    // sep + recientes
+        + 1                                                 // gap
+        + 1;                                                // barra inferior
+
     let px    = area.x + area.width.saturating_sub(pw) / 2;
     let py    = area.y + area.height.saturating_sub(ph) / 2;
     let panel = Rect::new(px, py, pw, ph.min(area.height));
 
     let border_color = match &state.status {
-        PlayerStatus::Playing                             => theme::ACCENT,
-        PlayerStatus::Paused                              => theme::WARNING,
+        PlayerStatus::Playing                                      => theme::ACCENT,
+        PlayerStatus::Paused                                       => theme::WARNING,
         PlayerStatus::Buffering(_) | PlayerStatus::Reconnecting(_) => ratatui::style::Color::Rgb(80, 80, 80),
-        _                                                 => theme::MUTED,
+        _                                                          => theme::MUTED,
     };
 
     let block = Block::default()
@@ -77,9 +89,9 @@ pub(super) fn render_screensaver(
 
     let cx      = inner.x + 2;
     let cw      = inner.width.saturating_sub(4);
-    let mut row = inner.y;
+    let mut row = inner.y + 1;
 
-
+    // ── Reloj ──────────────────────────────────────────────────────
     let now_t    = Local::now();
     let h1       = (now_t.hour()   / 10) as u8;
     let h2       = (now_t.hour()   % 10) as u8;
@@ -98,9 +110,10 @@ pub(super) fn render_screensaver(
     }
     row += 1;
 
+    // ── Nombre de estación ─────────────────────────────────────────
     let raw_name    = state.station.as_ref().map(|s| s.name.as_str()).unwrap_or("—");
     let prefix      = if is_favorite { "★  " } else { "" };
-    let station_str = format!("{prefix}{}", raw_name.to_uppercase());
+    let station_str = strings::truncate(&format!("{prefix}{}", raw_name.to_uppercase()), cw as usize);
     frame.render_widget(
         Paragraph::new(Line::from(Span::styled(
             station_str,
@@ -112,18 +125,37 @@ pub(super) fn render_screensaver(
     );
     row += 1;
 
-    let title = state.title.as_deref().unwrap_or("—");
+    // ── Título de canción (con wrap a 2 líneas si es largo) ────────
     frame.render_widget(
-        Paragraph::new(Line::from(Span::styled(
-            title.to_owned(),
-            Style::default().fg(theme::HIGHLIGHT),
-        )))
-        .alignment(Alignment::Center)
-        .style(Style::default().bg(BG)),
-        Rect::new(cx, row, cw, 1),
+        Paragraph::new(Span::styled(title.to_owned(), Style::default().fg(theme::HIGHLIGHT)))
+            .alignment(Alignment::Center)
+            .wrap(Wrap { trim: true })
+            .style(Style::default().bg(BG)),
+        Rect::new(cx, row, cw, title_rows),
     );
-    row += 1;
+    row += title_rows;
 
+    // ── Perfil Spotify ─────────────────────────────────────────────
+    if let Some(name) = spotify_name {
+        let name_tc = strings::title_case(name);
+        let label = if spotify_premium {
+            format!("★  {}  ·  Spotify Premium", name_tc)
+        } else {
+            name_tc
+        };
+        frame.render_widget(
+            Paragraph::new(Line::from(Span::styled(
+                label,
+                Style::default().fg(theme::ACCENT).add_modifier(Modifier::BOLD),
+            )))
+            .alignment(Alignment::Center)
+            .style(Style::default().bg(BG)),
+            Rect::new(cx, row, cw, 1),
+        );
+        row += 1;
+    }
+
+    // ── Visualizador ───────────────────────────────────────────────
     row += 1;
     frame.render_widget(
         Paragraph::new(visualizer_line(state.level_db, cw as usize, BG))
@@ -133,7 +165,8 @@ pub(super) fn render_screensaver(
     row += 1;
     row += 1;
 
-    if has_two_col {
+    // ── Metadatos de estación (ancho completo) ─────────────────────
+    if has_details {
         let sep = "─".repeat(cw as usize);
         frame.render_widget(
             Paragraph::new(Line::from(Span::styled(sep, Style::default().fg(theme::DIM))))
@@ -142,127 +175,142 @@ pub(super) fn render_screensaver(
         );
         row += 1;
 
-        let left_w  = cw.saturating_sub(2) / 2;
-        let right_w = cw.saturating_sub(left_w + 2);
-        let right_x = cx + left_w + 2;
-        let col_top = row;
-        let mut left_row  = col_top;
-        let mut right_row = col_top;
-
         if let Some(d) = details {
             if has_meta {
                 let mut spans: Vec<Span<'static>> = Vec::new();
                 for val in [&d.country, &d.language] {
                     if !val.is_empty() {
-                        if !spans.is_empty() { spans.push(Span::styled("  ·  ", Style::default().fg(theme::MUTED))); }
+                        if !spans.is_empty() {
+                            spans.push(Span::styled("  ·  ", Style::default().fg(theme::MUTED)));
+                        }
                         spans.push(Span::styled(val.clone(), Style::default().fg(theme::DIM)));
                     }
                 }
                 if !d.codec.is_empty() {
-                    if !spans.is_empty() { spans.push(Span::styled("  ·  ", Style::default().fg(theme::MUTED))); }
-                    let s = if d.bitrate > 0 { format!("{}  {}k", d.codec, d.bitrate) } else { d.codec.clone() };
+                    if !spans.is_empty() {
+                        spans.push(Span::styled("  ·  ", Style::default().fg(theme::MUTED)));
+                    }
+                    let s = if d.bitrate > 0 {
+                        format!("{}  {}k", d.codec, d.bitrate)
+                    } else {
+                        d.codec.clone()
+                    };
                     spans.push(Span::styled(s, Style::default().fg(theme::DIM)));
                 }
                 frame.render_widget(
                     Paragraph::new(Line::from(spans)).style(Style::default().bg(BG)),
-                    Rect::new(cx, left_row, left_w, 1),
+                    Rect::new(cx, row, cw, 1),
                 );
-                left_row += 1;
+                row += 1;
             }
             if has_tags && !d.tags.is_empty() {
-                let raw = d.tags.join("  ·  ");
-                let display = truncate_str(&raw, left_w as usize);
+                let raw     = d.tags.join("  ·  ");
+                let display = strings::truncate(&raw, cw as usize);
                 frame.render_widget(
                     Paragraph::new(Span::styled(display, Style::default().fg(theme::MUTED)))
                         .style(Style::default().bg(BG)),
-                    Rect::new(cx, left_row, left_w, 1),
+                    Rect::new(cx, row, cw, 1),
                 );
-                left_row += 1;
+                row += 1;
             }
             if has_url && !d.homepage.is_empty() {
-                let url = truncate_str(d.homepage.trim_end_matches('/'), left_w.saturating_sub(5) as usize);
+                let url = strings::truncate(d.homepage.trim_end_matches('/'), cw.saturating_sub(5) as usize);
                 frame.render_widget(
                     Paragraph::new(Line::from(vec![
                         Span::styled("[o]  ", Style::default().fg(theme::ACCENT)),
                         Span::styled(url, Style::default().fg(theme::MUTED).add_modifier(Modifier::UNDERLINED)),
                     ])).style(Style::default().bg(BG)),
-                    Rect::new(cx, left_row, left_w, 1),
+                    Rect::new(cx, row, cw, 1),
                 );
-                left_row += 1;
+                row += 1;
             }
         }
         if let Some((ref name, ref genre)) = crate::game_detect::get() {
-            let text = if genre.is_empty() { format!("  {name}") } else { format!("  {name}  ·  {genre}") };
-            let display = truncate_str(&text, left_w as usize);
+            let text    = if genre.is_empty() { name.clone() } else { format!("{name}  ·  {genre}") };
+            let display = strings::truncate(&text, cw as usize);
             frame.render_widget(
                 Paragraph::new(Span::styled(display, Style::default().fg(theme::DIM)))
                     .style(Style::default().bg(BG)),
-                Rect::new(cx, left_row, left_w, 1),
+                Rect::new(cx, row, cw, 1),
             );
-            left_row += 1;
+            row += 1;
         }
-
-        if has_recent {
-            frame.render_widget(
-                Paragraph::new(Span::styled(
-                    t("screensaver.recent_tracks"),
-                    Style::default().fg(theme::MUTED),
-                )).style(Style::default().bg(BG)),
-                Rect::new(right_x, right_row, right_w, 1),
-            );
-            right_row += 1;
-
-            let now_live  = t("screensaver.now_live");
-            let label_w   = now_live.chars().count() + 3;
-            let max_cur   = right_w.saturating_sub(5 + label_w as u16) as usize;
-            if let Some(current) = state.recent_titles.first() {
-                let display = truncate_str(current, max_cur);
-                frame.render_widget(
-                    Paragraph::new(Line::from(vec![
-                        Span::styled("▶  ", Style::default().fg(theme::ACCENT)),
-                        Span::styled(display, Style::default().fg(theme::HIGHLIGHT).add_modifier(Modifier::BOLD)),
-                        Span::styled(format!("  {now_live}"), Style::default().fg(theme::ACCENT)),
-                    ])).style(Style::default().bg(BG)),
-                    Rect::new(right_x, right_row, right_w, 1),
-                );
-                right_row += 1;
-            }
-
-            let max_prev = right_w.saturating_sub(4) as usize;
-            for track in state.recent_titles.iter().skip(1).take(4) {
-                let display = truncate_str(track, max_prev);
-                frame.render_widget(
-                    Paragraph::new(Line::from(vec![
-                        Span::styled("↳  ", Style::default().fg(theme::DIM)),
-                        Span::styled(display, Style::default().fg(theme::HIGHLIGHT)),
-                    ])).style(Style::default().bg(BG)),
-                    Rect::new(right_x, right_row, right_w, 1),
-                );
-                right_row += 1;
-            }
-        }
-
-        row = left_row.max(right_row);
     }
 
-    row += 1;
-    let vol_pct   = (state.volume.clamp(0.0, 1.0) * 100.0).round() as u32;
-    let vol_color = if state.volume > 0.85 { theme::WARNING } else { theme::ACCENT };
-    let vol_bar   = volume_bar(state.volume, 10);
-    let time_str  = now_t.format("%H:%M").to_string();
-    let right_str = format!("{}  {}  {:>3}%", time_str, vol_bar, vol_pct);
+    // ── Últimas canciones (ancho completo, al fondo) ───────────────
+    if has_recent {
+        let sep = "─".repeat(cw as usize);
+        frame.render_widget(
+            Paragraph::new(Line::from(Span::styled(sep, Style::default().fg(theme::DIM))))
+                .style(Style::default().bg(BG)),
+            Rect::new(cx, row, cw, 1),
+        );
+        row += 1;
 
-    frame.render_widget(
-        Paragraph::new(Span::styled(t("screensaver.prompt"), Style::default().fg(theme::MUTED)))
+        frame.render_widget(
+            Paragraph::new(Span::styled(
+                t("screensaver.recent_tracks"),
+                Style::default().fg(theme::MUTED),
+            ))
             .style(Style::default().bg(BG)),
-        Rect::new(cx, row, cw, 1),
-    );
-    frame.render_widget(
-        Paragraph::new(Line::from(Span::styled(right_str, Style::default().fg(vol_color))))
-            .alignment(Alignment::Right)
-            .style(Style::default().bg(BG)),
-        Rect::new(cx, row, cw, 1),
-    );
+            Rect::new(cx, row, cw, 1),
+        );
+        row += 1;
+
+        let now_live = t("screensaver.now_live");
+        let badge_w  = now_live.chars().count() as u16 + 4;
+        let max_cur  = cw.saturating_sub(3 + badge_w) as usize;
+
+        if let Some(current) = state.recent_titles.first() {
+            let display = strings::truncate(current, max_cur);
+            frame.render_widget(
+                Paragraph::new(Line::from(vec![
+                    Span::styled("▶  ", Style::default().fg(theme::ACCENT)),
+                    Span::styled(display, Style::default().fg(theme::HIGHLIGHT).add_modifier(Modifier::BOLD)),
+                    Span::styled(format!("  {now_live}"), Style::default().fg(theme::ACCENT)),
+                ]))
+                .style(Style::default().bg(BG)),
+                Rect::new(cx, row, cw, 1),
+            );
+            row += 1;
+        }
+
+        let max_prev = cw.saturating_sub(4) as usize;
+        for track in state.recent_titles.iter().skip(1).take(4) {
+            let display = strings::truncate(track, max_prev);
+            frame.render_widget(
+                Paragraph::new(Line::from(vec![
+                    Span::styled("↳  ", Style::default().fg(theme::DIM)),
+                    Span::styled(display, Style::default().fg(theme::HIGHLIGHT)),
+                ]))
+                .style(Style::default().bg(BG)),
+                Rect::new(cx, row, cw, 1),
+            );
+            row += 1;
+        }
+    }
+
+    // ── Barra inferior ─────────────────────────────────────────────
+    row += 1;
+    if row < inner.bottom() {
+        let vol_pct   = (state.volume.clamp(0.0, 1.0) * 100.0).round() as u32;
+        let vol_color = if state.volume > 0.85 { theme::WARNING } else { theme::ACCENT };
+        let vol_bar   = volume_bar(state.volume, 12);
+        let time_str  = now_t.format("%H:%M").to_string();
+        let right_str = format!("{}  {}  {:>3}%", time_str, vol_bar, vol_pct);
+
+        frame.render_widget(
+            Paragraph::new(Span::styled(t("screensaver.prompt"), Style::default().fg(theme::MUTED)))
+                .style(Style::default().bg(BG)),
+            Rect::new(cx, row, cw, 1),
+        );
+        frame.render_widget(
+            Paragraph::new(Line::from(Span::styled(right_str, Style::default().fg(vol_color))))
+                .alignment(Alignment::Right)
+                .style(Style::default().bg(BG)),
+            Rect::new(cx, row, cw, 1),
+        );
+    }
 }
 
 fn big_digit_rows(d: u8) -> [&'static str; 5] {
@@ -340,10 +388,246 @@ fn volume_bar(vol: f32, bar_width: usize) -> String {
     format!("{}{}", "█".repeat(filled), "░".repeat(bar_width - filled))
 }
 
-fn truncate_str(s: &str, max: usize) -> String {
-    if s.chars().count() <= max {
-        s.to_owned()
-    } else {
-        format!("{}…", s.chars().take(max.saturating_sub(1)).collect::<String>())
+pub(super) fn render_spotify_screensaver(
+    frame:        &mut Frame,
+    area:         Rect,
+    playback:     &crate::integrations::spotify::SpotifyPlaybackState,
+    profile_name: Option<&str>,
+    country:      Option<&str>,
+    followers:    Option<u32>,
+    is_premium:   bool,
+) {
+    const OVERLAY: ratatui::style::Color = theme::OVERLAY_COLOR;
+    const BG:      ratatui::style::Color = theme::PANEL_BG;
+    const GREEN:   ratatui::style::Color = theme::PLAYING;
+
+    frame.render_widget(Clear, area);
+    for y in area.top()..area.bottom() {
+        for x in area.left()..area.right() {
+            frame.buffer_mut()[(x, y)].set_bg(OVERLAY);
+        }
     }
+
+    let has_name_row = profile_name.is_some() || country.is_some();
+    let has_plan_row = is_premium || followers.is_some();
+    let profile_rows = u16::from(has_name_row) + u16::from(has_plan_row);
+    let has_profile  = profile_rows > 0;
+
+    let pw = (area.width * 85 / 100).clamp(60, 110);
+
+    // ph fijo sin perfil para garantizar que la barra de progreso siempre sea visible.
+    // El perfil se renderiza solo si hay filas libres debajo de los elementos obligatorios.
+    let ph_base: u16 = 2 + 1 + 5 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1;
+    let ph_with_profile = ph_base + 1 + profile_rows;
+    let ph = if has_profile && ph_with_profile <= area.height {
+        ph_with_profile
+    } else {
+        ph_base
+    };
+    let show_profile = has_profile && ph == ph_with_profile;
+
+    let px    = area.x + area.width.saturating_sub(pw) / 2;
+    let py    = area.y + area.height.saturating_sub(ph) / 2;
+    let panel = Rect::new(px, py, pw, ph.min(area.height));
+
+    let border_color = if playback.is_playing { GREEN } else { theme::WARNING };
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(border_color))
+        .style(Style::default().bg(BG));
+    let inner = block.inner(panel);
+    frame.render_widget(block, panel);
+
+    let cx      = inner.x + 2;
+    let cw      = inner.width.saturating_sub(4);
+    let mut row = inner.y + 1;
+
+    let now_t    = Local::now();
+    let h1       = (now_t.hour()   / 10) as u8;
+    let h2       = (now_t.hour()   % 10) as u8;
+    let m1       = (now_t.minute() / 10) as u8;
+    let m2       = (now_t.minute() % 10) as u8;
+    let colon_on = now_t.second().is_multiple_of(2);
+    let clock_w: u16 = 19;
+    let clock_x      = cx + cw.saturating_sub(clock_w) / 2;
+    for r in 0..5usize {
+        frame.render_widget(
+            Paragraph::new(build_clock_row(r, h1, h2, m1, m2, colon_on, border_color, BG))
+                .style(Style::default().bg(BG)),
+            Rect::new(clock_x, row, clock_w, 1),
+        );
+        row += 1;
+    }
+    row += 1;
+
+    frame.render_widget(
+        Paragraph::new(Span::styled(
+            "SPOTIFY",
+            Style::default().fg(GREEN).add_modifier(Modifier::BOLD),
+        ))
+        .alignment(Alignment::Center)
+        .style(Style::default().bg(BG)),
+        Rect::new(cx, row, cw, 1),
+    );
+    row += 1;
+
+    frame.render_widget(
+        Paragraph::new(Span::styled(
+            strings::truncate(&playback.device_name, cw as usize),
+            Style::default().fg(theme::DIM),
+        ))
+        .alignment(Alignment::Center)
+        .style(Style::default().bg(BG)),
+        Rect::new(cx, row, cw, 1),
+    );
+    row += 1;
+    row += 1;
+
+    frame.render_widget(
+        Paragraph::new(Span::styled(
+            strings::truncate(&playback.artist, cw as usize),
+            Style::default().fg(theme::MUTED),
+        ))
+        .alignment(Alignment::Center)
+        .style(Style::default().bg(BG)),
+        Rect::new(cx, row, cw, 1),
+    );
+    row += 1;
+
+    frame.render_widget(
+        Paragraph::new(Span::styled(
+            strings::truncate(&playback.track_name, cw as usize),
+            Style::default().fg(theme::HIGHLIGHT).add_modifier(Modifier::BOLD),
+        ))
+        .alignment(Alignment::Center)
+        .style(Style::default().bg(BG)),
+        Rect::new(cx, row, cw, 1),
+    );
+    row += 1;
+
+    frame.render_widget(
+        Paragraph::new(Span::styled(
+            strings::truncate(&playback.album, cw as usize),
+            Style::default().fg(theme::DIM),
+        ))
+        .alignment(Alignment::Center)
+        .style(Style::default().bg(BG)),
+        Rect::new(cx, row, cw, 1),
+    );
+    row += 1;
+    row += 1;
+
+    let progress_ratio = if playback.duration_ms > 0 {
+        (playback.progress_ms as f32 / playback.duration_ms as f32).clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+    let time_cur = fmt_ms(playback.progress_ms);
+    let time_tot = fmt_ms(playback.duration_ms);
+    let vol_str  = format!("vol {}%", playback.volume_pct);
+
+    let time_prefix = format!("{} ", time_cur);
+    let time_suffix = format!(" {} {}", time_tot, vol_str);
+    let bar_w = cw.saturating_sub(time_prefix.len() as u16 + time_suffix.len() as u16);
+    let filled = (progress_ratio * bar_w as f32).round() as usize;
+    let empty  = bar_w as usize - filled;
+    let bar    = format!("{}{}", "█".repeat(filled), "░".repeat(empty));
+
+    frame.render_widget(
+        Paragraph::new(Line::from(vec![
+            Span::styled(time_prefix, Style::default().fg(theme::MUTED)),
+            Span::styled(bar,         Style::default().fg(GREEN)),
+            Span::styled(time_suffix, Style::default().fg(theme::MUTED)),
+        ]))
+        .style(Style::default().bg(BG)),
+        Rect::new(cx, row, cw, 1),
+    );
+    row += 1;
+
+    frame.render_widget(
+        Paragraph::new(visualizer_line(-60.0, cw as usize, BG))
+            .style(Style::default().bg(BG)),
+        Rect::new(cx, row, cw, 1),
+    );
+    row += 1;
+
+    if show_profile {
+        let sep = "─".repeat(cw as usize);
+        frame.render_widget(
+            Paragraph::new(Span::styled(sep, Style::default().fg(theme::DIM)))
+                .style(Style::default().bg(BG)),
+            Rect::new(cx, row, cw, 1),
+        );
+        row += 1;
+
+        if has_name_row {
+            let name_tc = profile_name.map(|n| strings::title_case(n));
+            let country_str = country.unwrap_or("");
+            let mut spans: Vec<Span<'static>> = Vec::new();
+            if let Some(name) = name_tc {
+                spans.push(Span::styled(name, Style::default().fg(theme::HIGHLIGHT).add_modifier(Modifier::BOLD)));
+            }
+            if !country_str.is_empty() {
+                let used = spans.iter().map(|s| s.content.chars().count() as u16).sum::<u16>();
+                let pad  = cw.saturating_sub(used + country_str.chars().count() as u16);
+                spans.push(Span::styled(" ".repeat(pad as usize), Style::default()));
+                spans.push(Span::styled(country_str.to_string(), Style::default().fg(theme::MUTED)));
+            }
+            if !spans.is_empty() {
+                frame.render_widget(
+                    Paragraph::new(Line::from(spans)).style(Style::default().bg(BG)),
+                    Rect::new(cx, row, cw, 1),
+                );
+                row += 1;
+            }
+        }
+
+        if has_plan_row {
+            let plan_str   = if is_premium { "Spotify Premium" } else { "" };
+            let follow_str = followers.map(|f| format!("{f} seguidores")).unwrap_or_default();
+            let mut spans: Vec<Span<'static>> = Vec::new();
+            if !plan_str.is_empty() {
+                spans.push(Span::styled(plan_str, Style::default().fg(GREEN).add_modifier(Modifier::BOLD)));
+            }
+            if !follow_str.is_empty() {
+                let used = spans.iter().map(|s| s.content.chars().count() as u16).sum::<u16>();
+                let pad  = cw.saturating_sub(used + follow_str.chars().count() as u16);
+                spans.push(Span::styled(" ".repeat(pad as usize), Style::default()));
+                spans.push(Span::styled(follow_str, Style::default().fg(theme::MUTED)));
+            }
+            if !spans.is_empty() {
+                frame.render_widget(
+                    Paragraph::new(Line::from(spans)).style(Style::default().bg(BG)),
+                    Rect::new(cx, row, cw, 1),
+                );
+                row += 1;
+            }
+        }
+    }
+
+    row += 1;
+
+    if row < inner.bottom() {
+        let time_str  = now_t.format("%H:%M").to_string();
+        let state_str = if playback.is_playing { ">" } else { "||" };
+        let right_str = format!("{}  {}", time_str, state_str);
+        frame.render_widget(
+            Paragraph::new(Span::styled(t("screensaver.prompt"), Style::default().fg(theme::MUTED)))
+                .style(Style::default().bg(BG)),
+            Rect::new(cx, row, cw, 1),
+        );
+        frame.render_widget(
+            Paragraph::new(Line::from(Span::styled(right_str, Style::default().fg(GREEN))))
+                .alignment(Alignment::Right)
+                .style(Style::default().bg(BG)),
+            Rect::new(cx, row, cw, 1),
+        );
+    }
+}
+
+fn fmt_ms(ms: u32) -> String {
+    let secs = ms / 1000;
+    format!("{}:{:02}", secs / 60, secs % 60)
 }

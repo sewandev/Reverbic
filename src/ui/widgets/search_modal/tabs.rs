@@ -8,10 +8,11 @@ use ratatui::{
 
 use crate::app::SearchMode;
 use crate::i18n::t;
-use crate::station::{filter_items, COUNTRIES, GENRES};
+use crate::station::{COUNTRIES, GENRES};
+use crate::ui::strings;
 use crate::ui::theme;
 
-use super::helpers::{placeholder_example, render_filter_input, spin_frame};
+use super::helpers::{placeholder_example, render_filter_list_body, spin_frame};
 use super::{BG, SearchModalWidget};
 
 impl<'a> SearchModalWidget<'a> {
@@ -19,25 +20,22 @@ impl<'a> SearchModalWidget<'a> {
         let tab_area = Rect::new(content_x, area.y, content_w, 1);
         let active   = Style::default().fg(theme::ACCENT).add_modifier(Modifier::BOLD);
         let inactive = Style::default().fg(theme::MUTED);
-        let (ns, gs, cs, ss, is) = match self.mode {
-            SearchMode::Name         => (active, inactive, inactive, inactive, inactive),
-            SearchMode::Genre        => (inactive, active, inactive, inactive, inactive),
-            SearchMode::Country      => (inactive, inactive, active, inactive, inactive),
-            SearchMode::Settings     => (inactive, inactive, inactive, active, inactive),
-            SearchMode::Integrations => (inactive, inactive, inactive, inactive, active),
+
+        let radio_st = match self.mode {
+            SearchMode::Name | SearchMode::Genre | SearchMode::Country => active,
+            _ => inactive,
         };
-        let line = Line::from(vec![
-            Span::styled(t("modal.tab.name"),         ns),
-            Span::styled("  ",                        Style::default()),
-            Span::styled(t("modal.tab.genre"),        gs),
-            Span::styled("  ",                        Style::default()),
-            Span::styled(t("modal.tab.country"),      cs),
-            Span::styled("  ",                        Style::default()),
-            Span::styled(t("modal.tab.config"),       ss),
-            Span::styled("  ",                        Style::default()),
-            Span::styled(t("modal.tab.integrations"), is),
-        ]);
-        Paragraph::new(line).render(tab_area, buf);
+        let spotify_st = match self.mode {
+            SearchMode::Spotify => active,
+            _ => inactive,
+        };
+
+        let mut spans = vec![
+            Span::styled(t("modal.tab.radio"), radio_st),
+        ];
+        spans.push(Span::styled("  ", Style::default()));
+        spans.push(Span::styled(t("modal.tab.spotify"), spotify_st));
+        Paragraph::new(Line::from(spans)).render(tab_area, buf);
     }
 
     pub(super) fn render_name_body(&self, area: Rect, content_x: u16, content_w: u16, buf: &mut Buffer) {
@@ -102,72 +100,21 @@ impl<'a> SearchModalWidget<'a> {
             return;
         }
 
-        let [_gap, input_row, cap_row, list_body] = Layout::vertical([
-            Constraint::Length(1),
-            Constraint::Length(1),
-            Constraint::Length(1),
-            Constraint::Fill(1),
-        ])
-        .areas(area);
+        let (needs_scroll, list_area, total) = render_filter_list_body(
+            self.genre_filter,
+            &t("modal.genre.placeholder"),
+            GENRES,
+            self.genre_selected,
+            self.loading,
+            &t("modal.loading.genre"),
+            area,
+            content_x,
+            content_w,
+            buf,
+        );
 
-        buf[(content_x, input_row.y)]
-            .set_symbol("┃").set_fg(theme::ACCENT).set_bg(BG);
-
-        let text_x    = content_x + 2;
-        let text_w    = content_w.saturating_sub(2);
-        let text_area = Rect::new(text_x, input_row.y, text_w, 1);
-
-        render_filter_input(self.genre_filter, &t("modal.genre.placeholder"), text_area, buf);
-
-        buf[(content_x, cap_row.y)]
-            .set_symbol("╹").set_fg(theme::ACCENT).set_bg(BG);
-
-        if self.loading {
-            let area = Rect::new(text_x, list_body.y, text_w, 1);
-            Paragraph::new(Span::styled(
-                format!("{}  {}", spin_frame(), t("modal.loading.genre")),
-                Style::default().fg(theme::MUTED),
-            ))
-            .render(area, buf);
-            return;
-        }
-
-        let filtered = filter_items(GENRES, self.genre_filter);
-        let list_x    = content_x + 2;
-        let list_w    = content_w.saturating_sub(2);
-        let list_area = Rect::new(list_x, list_body.y, list_w, list_body.height);
-        let visible_n = list_area.height.saturating_sub(1) as usize;
-        let offset    = super::super::scroll_offset(self.genre_selected, visible_n);
-
-        if filtered.is_empty() {
-            Paragraph::new(Span::styled(t("modal.empty.no_match"), Style::default().fg(theme::MUTED)))
-                .render(list_area, buf);
-            return;
-        }
-
-        let items: Vec<ListItem> = filtered
-            .iter()
-            .enumerate()
-            .skip(offset)
-            .take(visible_n)
-            .map(|(i, (_, label))| {
-                let active = i == self.genre_selected;
-                let (prefix, style) = if active {
-                    ("▶  ", Style::default().fg(theme::PLAYING).add_modifier(Modifier::BOLD))
-                } else {
-                    ("   ", Style::default().fg(theme::HIGHLIGHT))
-                };
-                ListItem::new(Line::from(vec![
-                    Span::styled(prefix, style),
-                    Span::styled(*label, style),
-                ]))
-            })
-            .collect();
-
-        List::new(items).render(list_area, buf);
-
-        if filtered.len() > visible_n {
-            self.render_scrollbar(list_area, filtered.len(), self.genre_selected, buf);
+        if needs_scroll {
+            self.render_scrollbar(list_area, total, self.genre_selected, buf);
         }
     }
 
@@ -189,71 +136,21 @@ impl<'a> SearchModalWidget<'a> {
             return;
         }
 
-        let [_gap, input_row, cap_row, list_body] = Layout::vertical([
-            Constraint::Length(1),
-            Constraint::Length(1),
-            Constraint::Length(1),
-            Constraint::Fill(1),
-        ])
-        .areas(area);
+        let (needs_scroll, list_area, total) = render_filter_list_body(
+            self.country_filter,
+            &t("modal.country.placeholder"),
+            COUNTRIES,
+            self.country_selected,
+            self.loading,
+            &t("modal.loading.country"),
+            area,
+            content_x,
+            content_w,
+            buf,
+        );
 
-        buf[(content_x, input_row.y)]
-            .set_symbol("┃").set_fg(theme::ACCENT).set_bg(BG);
-
-        let text_x    = content_x + 2;
-        let text_w    = content_w.saturating_sub(2);
-        let text_area = Rect::new(text_x, input_row.y, text_w, 1);
-
-        render_filter_input(self.country_filter, &t("modal.country.placeholder"), text_area, buf);
-
-        buf[(content_x, cap_row.y)]
-            .set_symbol("╹").set_fg(theme::ACCENT).set_bg(BG);
-
-        if self.loading {
-            Paragraph::new(Span::styled(
-                format!("{}  {}", spin_frame(), t("modal.loading.country")),
-                Style::default().fg(theme::MUTED),
-            ))
-            .render(Rect::new(text_x, list_body.y, text_w, 1), buf);
-            return;
-        }
-
-        let filtered  = filter_items(COUNTRIES, self.country_filter);
-        let list_x    = content_x + 2;
-        let list_w    = content_w.saturating_sub(2);
-        let list_area = Rect::new(list_x, list_body.y, list_w, list_body.height);
-        let visible_n = list_area.height.saturating_sub(1) as usize;
-        let offset    = super::super::scroll_offset(self.country_selected, visible_n);
-
-        if filtered.is_empty() {
-            Paragraph::new(Span::styled(t("modal.empty.no_match"), Style::default().fg(theme::MUTED)))
-                .render(list_area, buf);
-            return;
-        }
-
-        let items: Vec<ListItem> = filtered
-            .iter()
-            .enumerate()
-            .skip(offset)
-            .take(visible_n)
-            .map(|(i, (_, label))| {
-                let active = i == self.country_selected;
-                let (prefix, style) = if active {
-                    ("▶  ", Style::default().fg(theme::PLAYING).add_modifier(Modifier::BOLD))
-                } else {
-                    ("   ", Style::default().fg(theme::HIGHLIGHT))
-                };
-                ListItem::new(Line::from(vec![
-                    Span::styled(prefix, style),
-                    Span::styled(*label, style),
-                ]))
-            })
-            .collect();
-
-        List::new(items).render(list_area, buf);
-
-        if filtered.len() > visible_n {
-            self.render_scrollbar(list_area, filtered.len(), self.country_selected, buf);
+        if needs_scroll {
+            self.render_scrollbar(list_area, total, self.country_selected, buf);
         }
     }
 
@@ -293,10 +190,9 @@ impl<'a> SearchModalWidget<'a> {
             .map(|(i, s)| {
                 let active  = i == self.selected;
                 let prefix  = if active { "▶  " } else { "   " };
-                let name: String = if s.name.chars().count() > name_w {
-                    s.name.chars().take(name_w.saturating_sub(1)).collect::<String>() + "…"
-                } else {
-                    format!("{:<width$}", s.name, width = name_w)
+                let name: String = {
+                    let t = strings::truncate(&s.name, name_w);
+                    format!("{:<width$}", t, width = name_w)
                 };
                 let bitrate = s.bitrate_kbps
                     .map(|b| format!("{b:>4}k"))
@@ -324,6 +220,14 @@ impl<'a> SearchModalWidget<'a> {
 
         if needs_scroll {
             self.render_scrollbar(items_area, self.results.len(), self.selected, buf);
+        }
+    }
+
+    pub(super) fn render_radio_body(&self, area: Rect, content_x: u16, content_w: u16, buf: &mut Buffer) {
+        match self.mode {
+            SearchMode::Genre   => self.render_genre_body(area, content_x, content_w, buf),
+            SearchMode::Country => self.render_country_body(area, content_x, content_w, buf),
+            _                   => self.render_name_body(area, content_x, content_w, buf),
         }
     }
 

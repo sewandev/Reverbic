@@ -8,6 +8,7 @@ use ratatui::{
 
 use crate::app::{IntegrationView, SpotifyAuthStatus};
 use crate::i18n::t;
+use crate::ui::strings;
 use crate::ui::theme;
 
 use super::helpers::{key, sep_s, spin_frame};
@@ -73,19 +74,30 @@ impl<'a> SearchModalWidget<'a> {
                 .render(Rect::new(lx, y, lw, 1), buf);
             y += 1;
             if y >= area.bottom() { return; }
-            let name = self.spotify_saved.unwrap_or("Spotify");
+            let raw_name = self.spotify_saved.unwrap_or("Spotify");
+            let name = strings::title_case(raw_name);
             Paragraph::new(Line::from(vec![
                 Span::styled("▶  ", Style::default().fg(theme::PLAYING).add_modifier(Modifier::BOLD)),
-                Span::styled(name,   Style::default().fg(theme::PLAYING).add_modifier(Modifier::BOLD)),
+                Span::styled(name,  Style::default().fg(theme::PLAYING).add_modifier(Modifier::BOLD)),
             ]))
             .render(Rect::new(lx, y, lw, 1), buf);
-            y += 2;
-            if y >= area.bottom() { return; }
-            Paragraph::new(Line::from(vec![
-                key("[D]"),
-                sep_s(format!(" {}", t("integrations.spotify.logout_action"))),
-            ]))
-            .render(Rect::new(lx, y, lw, 1), buf);
+            y += 1;
+            if self.spotify_is_premium && y < area.bottom() {
+                Paragraph::new(Line::from(vec![
+                    Span::styled("   ", Style::default()),
+                    Span::styled("★ Spotify Premium", Style::default().fg(theme::ACCENT).add_modifier(Modifier::BOLD)),
+                ]))
+                .render(Rect::new(lx, y, lw, 1), buf);
+                y += 1;
+            }
+            y += 1;
+            if y < area.bottom() {
+                Paragraph::new(Line::from(vec![
+                    key("[D]"),
+                    sep_s(format!(" {}", t("integrations.spotify.logout_action"))),
+                ]))
+                .render(Rect::new(lx, y, lw, 1), buf);
+            }
             return;
         }
 
@@ -138,12 +150,7 @@ impl<'a> SearchModalWidget<'a> {
         }
 
         if let SpotifyAuthStatus::Error(msg) = self.spotify_status {
-            let max = lw as usize;
-            let display: String = if msg.chars().count() > max {
-                msg.chars().take(max.saturating_sub(1)).collect::<String>() + "…"
-            } else {
-                msg.clone()
-            };
+            let display = strings::truncate(msg, lw as usize);
             if y < area.bottom() {
                 Paragraph::new(Span::styled(display, Style::default().fg(theme::WARNING)))
                     .render(Rect::new(lx, y, lw, 1), buf);
@@ -177,3 +184,4 @@ impl<'a> SearchModalWidget<'a> {
         }
     }
 }
+

@@ -50,13 +50,17 @@ impl App {
             let (tx, rx) = std::sync::mpsc::channel();
             self.station_details_rx = Some(rx);
             tokio::spawn(async move {
-                let details = if is_uuid(&key) {
-                    fetch_station_details(&key).await
-                } else {
-                    fetch_station_details_by_name(&station_name).await
+                let fetch_fut = async {
+                    if is_uuid(&key) {
+                        fetch_station_details(&key).await
+                    } else {
+                        fetch_station_details_by_name(&station_name).await
+                    }
                 };
-                if let Some(d) = details {
-                    let _ = tx.send(d);
+                match tokio::time::timeout(std::time::Duration::from_secs(10), fetch_fut).await {
+                    Ok(Some(d)) => { let _ = tx.send(d); }
+                    Ok(None)    => {}
+                    Err(_)      => { tracing::warn!("station_details fetch timeout para {key}"); }
                 }
             });
         }

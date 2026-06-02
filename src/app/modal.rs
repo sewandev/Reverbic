@@ -1,17 +1,28 @@
 use crate::i18n::t;
 
+#[derive(Clone, Copy)]
 pub enum SearchMode {
     Name,
     Genre,
     Country,
     Settings,
     Integrations,
+    Spotify,
 }
 
 pub enum SpotifyAuthStatus {
     Idle,
     Connecting,
     LoggedIn,
+    Error(String),
+}
+
+#[derive(PartialEq)]
+pub enum SpotifyPlayerStatus {
+    Idle,
+    Loading,
+    Playing,
+    Paused,
     Error(String),
 }
 
@@ -27,6 +38,8 @@ pub enum SettingItem {
     Autoplay,
     RestoreVolume,
     Crossfade,
+    VolumeStep,
+    Prebuffer,
     OverlayMode,
     OverlayAlpha,
     OverlayPosition,
@@ -45,6 +58,8 @@ impl SettingItem {
             Self::Autoplay        => t("config.setting.autoplay"),
             Self::RestoreVolume   => t("config.setting.restore_volume"),
             Self::Crossfade       => t("config.setting.crossfade"),
+            Self::VolumeStep      => t("config.setting.volume_step"),
+            Self::Prebuffer       => t("config.setting.prebuffer"),
             Self::OverlayMode     => t("config.setting.overlay"),
             Self::OverlayAlpha    => t("config.setting.overlay_alpha"),
             Self::OverlayPosition => t("config.setting.overlay_position"),
@@ -63,6 +78,8 @@ impl SettingItem {
             Self::Autoplay        => "config.tooltip.autoplay",
             Self::RestoreVolume   => "config.tooltip.restore_volume",
             Self::Crossfade       => "config.tooltip.crossfade",
+            Self::VolumeStep      => "config.tooltip.volume_step",
+            Self::Prebuffer       => "config.tooltip.prebuffer",
             Self::OverlayMode     => "config.tooltip.overlay",
             Self::OverlayAlpha    => "config.tooltip.overlay_alpha",
             Self::OverlayPosition => "config.tooltip.overlay_position",
@@ -78,7 +95,7 @@ impl SettingItem {
 
     pub fn group_key(self) -> &'static str {
         match self {
-            Self::Autoplay | Self::RestoreVolume | Self::Crossfade
+            Self::Autoplay | Self::RestoreVolume | Self::Crossfade | Self::VolumeStep | Self::Prebuffer
                 => "config.group.playback",
             Self::OverlayMode | Self::OverlayAlpha | Self::OverlayPosition | Self::Screensaver
                 => "config.group.overlay",
@@ -97,6 +114,8 @@ pub fn settings_items(duck_enabled: bool) -> Vec<SettingItem> {
         SettingItem::Autoplay,
         SettingItem::RestoreVolume,
         SettingItem::Crossfade,
+        SettingItem::VolumeStep,
+        SettingItem::Prebuffer,
         SettingItem::OverlayMode,
         SettingItem::OverlayAlpha,
         SettingItem::OverlayPosition,

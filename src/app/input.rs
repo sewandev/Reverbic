@@ -1,4 +1,4 @@
-use std::time::Instant;
+﻿use std::time::Instant;
 
 use crossterm::event::KeyCode;
 
@@ -9,7 +9,7 @@ use crate::preview::{deezer_preview, parse_seek_input};
 use crate::station::{filter_items, Station, COUNTRIES, GENRES};
 
 use super::{abort_task, cycle_next, cycle_prev, scroll_by, App};
-use super::modal::{AppFocus, IntegrationView, SearchMode};
+use super::modal::{AppFocus, IntegrationView, SearchMode, SpotifyAuthStatus, SpotifyPlayerStatus};
 use super::modal::settings_items;
 
 impl App {
@@ -44,34 +44,73 @@ impl App {
             return;
         }
 
+        if event.modifiers.contains(KeyModifiers::ALT) {
+            self.handle_alt_key(event.code).await;
+            return;
+        }
+
         self.on_key(event.code).await;
     }
 
-    pub fn on_paste(&mut self, text: String) {
-        if self.show_search_modal {
-            match self.modal_mode {
-                SearchMode::Name => {
-                    for c in text.chars().filter(|c| !c.is_control()) {
-                        self.search_query.push(c);
-                    }
-                    self.modal_selected = 0;
-                    self.perform_search();
-                }
-                SearchMode::Genre => {
-                    for c in text.chars().filter(|c| !c.is_control()) {
-                        self.genre_filter.push(c);
-                    }
-                    self.genre_selected = 0;
-                }
-                SearchMode::Country => {
-                    for c in text.chars().filter(|c| !c.is_control()) {
-                        self.country_filter.push(c);
-                    }
-                    self.country_selected = 0;
-                }
-                SearchMode::Settings     => {}
-                SearchMode::Integrations => {}
+    async fn handle_alt_key(&mut self, key: KeyCode) {
+        match key {
+            KeyCode::Char('o') | KeyCode::Char('O') => {
+                self.show_search_modal = true;
+                self.modal_mode        = SearchMode::Settings;
+                self.settings_selected = 0;
             }
+            KeyCode::Char('g') | KeyCode::Char('G') if self.show_search_modal => {
+                self.modal_mode     = SearchMode::Genre;
+                self.genre_filter.clear();
+                self.genre_selected = 0;
+            }
+            KeyCode::Char('c') | KeyCode::Char('C') if self.show_search_modal => {
+                self.modal_mode       = SearchMode::Country;
+                self.country_filter.clear();
+                self.country_selected = 0;
+            }
+            KeyCode::Char('i') | KeyCode::Char('I') if self.show_search_modal => {
+                self.modal_mode       = SearchMode::Integrations;
+                self.integration_view = IntegrationView::ServiceList;
+            }
+            KeyCode::Char('d') | KeyCode::Char('D')
+                if self.show_search_modal
+                && matches!(self.modal_mode, SearchMode::Spotify)
+                && matches!(self.spotify.status, SpotifyAuthStatus::LoggedIn) =>
+            {
+                self.spotify_logout();
+                self.modal_mode = SearchMode::Name;
+            }
+            KeyCode::Char('r') | KeyCode::Char('R')
+                if self.show_search_modal
+                && matches!(self.modal_mode, SearchMode::Spotify)
+                && matches!(self.spotify.status, SpotifyAuthStatus::LoggedIn) =>
+            {
+                self.fetch_spotify_devices();
+            }
+            _ => {}
+        }
+    }
+
+    pub fn on_paste(&mut self, text: String) {
+        if !self.show_search_modal { return; }
+        let filtered: String = text.chars().filter(|c| !c.is_control()).collect();
+        if filtered.is_empty() { return; }
+        match self.modal_mode {
+            SearchMode::Name => {
+                self.search_query.push_str(&filtered);
+                self.modal_selected = 0;
+                self.perform_search();
+            }
+            SearchMode::Genre => {
+                self.genre_filter.push_str(&filtered);
+                self.genre_selected = 0;
+            }
+            SearchMode::Country => {
+                self.country_filter.push_str(&filtered);
+                self.country_selected = 0;
+            }
+            _ => {}
         }
     }
 
@@ -79,11 +118,19 @@ impl App {
         if self.screensaver_active() {
             match key {
                 KeyCode::Char('+') | KeyCode::Char('=') => {
-                    self.adjust_volume(0.05).await;
+                    if self.spotify.playback.is_some() && self.spotify.active_device_id.is_some() {
+                        self.adjust_spotify_volume(5).await;
+                    } else {
+                        self.adjust_volume(self.config.volume_step as f32 / 100.0).await;
+                    }
                     return;
                 }
                 KeyCode::Char('-') => {
-                    self.adjust_volume(-0.05).await;
+                    if self.spotify.playback.is_some() && self.spotify.active_device_id.is_some() {
+                        self.adjust_spotify_volume(-5).await;
+                    } else {
+                        self.adjust_volume(-(self.config.volume_step as f32 / 100.0)).await;
+                    }
                     return;
                 }
                 _ => {}
@@ -118,11 +165,11 @@ impl App {
                 return;
             }
             KeyCode::Char('+') | KeyCode::Char('=') => {
-                self.adjust_volume(0.05).await;
+                self.adjust_volume(self.config.volume_step as f32 / 100.0).await;
                 return;
             }
             KeyCode::Char('-') => {
-                self.adjust_volume(-0.05).await;
+                self.adjust_volume(-(self.config.volume_step as f32 / 100.0)).await;
                 return;
             }
             KeyCode::Char('q') => {
@@ -131,12 +178,6 @@ impl App {
                 self.stop_metadata_polling();
                 self.player.send(PlayerCommand::Stop).await;
                 self.should_quit = true;
-                return;
-            }
-            KeyCode::Char('o') if !matches!(self.focus, AppFocus::StationSearch) => {
-                self.show_search_modal = true;
-                self.modal_mode = SearchMode::Settings;
-                self.settings_selected = 0;
                 return;
             }
             KeyCode::Tab => {
@@ -181,23 +222,33 @@ impl App {
     async fn on_key_search_modal(&mut self, key: KeyCode) {
         match key {
             KeyCode::Char('+') | KeyCode::Char('=') => {
-                self.adjust_volume(0.05).await;
+                if matches!(self.modal_mode, SearchMode::Spotify)
+                    && self.spotify.active_device_id.is_some()
+                {
+                    self.adjust_spotify_volume(5).await;
+                } else {
+                    self.adjust_volume(self.config.volume_step as f32 / 100.0).await;
+                }
                 return;
             }
             KeyCode::Char('-') => {
-                self.adjust_volume(-0.05).await;
+                if matches!(self.modal_mode, SearchMode::Spotify)
+                    && self.spotify.active_device_id.is_some()
+                {
+                    self.adjust_spotify_volume(-5).await;
+                } else {
+                    self.adjust_volume(-(self.config.volume_step as f32 / 100.0)).await;
+                }
                 return;
             }
             _ => {}
         }
 
         if key == KeyCode::Tab {
-            self.modal_mode = match self.modal_mode {
-                SearchMode::Name         => SearchMode::Genre,
-                SearchMode::Genre        => SearchMode::Country,
-                SearchMode::Country      => SearchMode::Settings,
-                SearchMode::Settings     => SearchMode::Integrations,
-                SearchMode::Integrations => SearchMode::Name,
+            self.modal_mode = match &self.modal_mode {
+                SearchMode::Name | SearchMode::Genre | SearchMode::Country => SearchMode::Spotify,
+                SearchMode::Spotify => SearchMode::Name,
+                other => *other,
             };
             self.modal_selected = 0;
             self.search_results.clear();
@@ -210,6 +261,18 @@ impl App {
             abort_task(&mut self.search_task);
             self.search_loading = false;
             self.integration_view = IntegrationView::ServiceList;
+            self.spotify.search_query.clear();
+            self.spotify.search_results.clear();
+            self.spotify.search_selected = 0;
+            abort_task(&mut self.spotify.search_task);
+            self.spotify.search_loading = false;
+            if matches!(self.modal_mode, SearchMode::Spotify)
+                && matches!(self.spotify.status, SpotifyAuthStatus::LoggedIn)
+                && self.spotify.devices.is_empty()
+                && !self.spotify.devices_loading
+            {
+                self.fetch_spotify_devices();
+            }
             return;
         }
 
@@ -219,6 +282,7 @@ impl App {
             SearchMode::Country      => self.on_key_modal_country(key).await,
             SearchMode::Settings     => self.on_key_modal_settings(key),
             SearchMode::Integrations => self.on_key_modal_integrations(key),
+            SearchMode::Spotify      => self.on_key_modal_spotify(key).await,
         }
     }
 
@@ -232,6 +296,9 @@ impl App {
                     self.search_results.clear();
                     self.modal_selected = 0;
                 }
+            }
+            KeyCode::Char('F') if !self.search_results.is_empty() => {
+                self.toggle_modal_favorite();
             }
             KeyCode::Enter => {
                 if !self.search_results.is_empty() {
@@ -278,6 +345,9 @@ impl App {
                 if let Some(idx) = self.play_random_result() {
                     self.play_dynamic_station(idx).await;
                 }
+            }
+            KeyCode::Char('F') => {
+                self.toggle_modal_favorite();
             }
             KeyCode::Up | KeyCode::Char('k') => {
                 self.modal_selected = cycle_prev(self.modal_selected, self.search_results.len());
@@ -408,6 +478,9 @@ impl App {
                     self.search_query.clear();
                     self.search_results.clear();
                     self.selected = self.selected.min(self.stations.len().saturating_sub(1));
+                } else if matches!(self.player.state().status, PlayerStatus::Error(_) | PlayerStatus::Reconnecting(_)) {
+                    self.stop_metadata_polling();
+                    self.player.send(PlayerCommand::Stop).await;
                 } else {
                     self.config.last_selected = self.selected.min(self.stations.len().saturating_sub(1));
                     self.save_config();
@@ -478,6 +551,53 @@ impl App {
     }
 
     pub async fn on_click(&mut self, col: u16, row: u16) {
+        if self.screensaver_active() {
+            if let Some(ref playback) = self.spotify.playback.clone() {
+                if playback.duration_ms > 0 {
+                    let has_name = self.config.spotify.display_name.is_some();
+                    let has_plan = self.spotify.is_premium || self.config.spotify.followers.is_some();
+                    let profile_rows = u16::from(has_name || self.config.spotify.country.is_some())
+                        + u16::from(has_plan);
+                    if let Some(prog) = crate::ui::renderer::spotify_screensaver_progress_rect(
+                        self.terminal_area, profile_rows,
+                    ) {
+                        if row == prog.y && col >= prog.x && col < prog.x + prog.width {
+                            let time_cur = {
+                                let s = playback.progress_ms / 1000;
+                                format!("{}:{:02}", s / 60, s % 60)
+                            };
+                            let time_tot = {
+                                let s = playback.duration_ms / 1000;
+                                format!("{}:{:02}", s / 60, s % 60)
+                            };
+                            let vol_str    = format!("vol {}%", playback.volume_pct);
+                            let prefix_len = (time_cur.len() + 1) as u16;
+                            let suffix_len = (format!(" {} {}", time_tot, vol_str).len()) as u16;
+                            let bar_start  = prog.x + prefix_len;
+                            let bar_w      = prog.width.saturating_sub(prefix_len + suffix_len);
+                            if bar_w > 0 && col >= bar_start {
+                                let fill_col = col.saturating_sub(bar_start);
+                                let ratio    = (fill_col as f32 / bar_w as f32).clamp(0.0, 1.0);
+                                let pos_ms   = (ratio * playback.duration_ms as f32) as u32;
+                                if let Some(ref mut p) = self.spotify.playback {
+                                    p.progress_ms = pos_ms;
+                                }
+                                let token     = self.spotify.access_token.clone().unwrap_or_default();
+                                let device_id = self.spotify.active_device_id.clone().unwrap_or_default();
+                                tokio::spawn(async move {
+                                    let _ = crate::integrations::spotify::devices::seek_playback(
+                                        &token, &device_id, pos_ms,
+                                    ).await;
+                                });
+                            }
+                            return;
+                        }
+                    }
+                }
+            }
+            return;
+        }
+
         let player_state = self.player.state();
         if let Some(duration) = player_state.playback_duration_secs {
             let has_recent    = !player_state.recent_titles.is_empty();
@@ -673,6 +793,15 @@ impl App {
             super::modal::SettingItem::Autoplay        => self.config.autoplay_last  = !self.config.autoplay_last,
             super::modal::SettingItem::RestoreVolume   => self.config.restore_volume = !self.config.restore_volume,
             super::modal::SettingItem::Crossfade       => self.config.crossfade_next(),
+            super::modal::SettingItem::VolumeStep      => self.config.volume_step_next(),
+            super::modal::SettingItem::Prebuffer       => {
+                self.config.prebuffer_next();
+                let secs = self.config.prebuffer_secs as f32;
+                let cmd_tx = self.player.clone_sender();
+                tokio::spawn(async move {
+                    let _ = cmd_tx.send(crate::audio::PlayerCommand::SetPrebuffer(secs)).await;
+                });
+            }
             super::modal::SettingItem::OverlayMode     => self.config.overlay_mode     = self.config.overlay_mode.next(),
             super::modal::SettingItem::OverlayAlpha    => {
                 self.config.overlay_alpha = match self.config.overlay_alpha {
@@ -709,6 +838,176 @@ impl App {
         self.save_config();
         if let Some(ref tx) = self.windows_tx {
             let _ = tx.send(self.config.clone());
+        }
+    }
+
+    async fn on_key_modal_spotify(&mut self, key: KeyCode) {
+        if !matches!(self.spotify.status, SpotifyAuthStatus::LoggedIn) {
+            self.on_key_spotify_auth(key);
+            return;
+        }
+
+        match key {
+            KeyCode::Esc => {
+                if !self.spotify.search_query.is_empty() {
+                    self.spotify.search_query.clear();
+                    self.spotify.search_results.clear();
+                    self.spotify.search_selected = 0;
+                } else {
+                    self.should_quit = true;
+                }
+            }
+            _ if self.spotify.search_query.is_empty() && self.spotify.search_results.is_empty() => {
+                self.on_key_spotify_devices(key).await;
+            }
+            _ => {
+                self.on_key_spotify_search(key).await;
+            }
+        }
+    }
+
+    fn on_key_spotify_auth(&mut self, key: KeyCode) {
+        match key {
+            KeyCode::Enter if !matches!(self.spotify.status, SpotifyAuthStatus::Connecting) => {
+                self.start_oauth_flow();
+            }
+            KeyCode::Esc => {
+                if matches!(self.spotify.status, SpotifyAuthStatus::Connecting) {
+                    abort_task(&mut self.spotify.auth_task);
+                    self.spotify.auth_rx = None;
+                    self.spotify.status  = SpotifyAuthStatus::Idle;
+                } else {
+                    self.should_quit = true;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    async fn on_key_spotify_devices(&mut self, key: KeyCode) {
+        match key {
+            KeyCode::Up => {
+                if self.spotify.devices_selected > 0 {
+                    self.spotify.devices_selected -= 1;
+                }
+            }
+            KeyCode::Down => {
+                let max = self.spotify.devices.len();
+                if self.spotify.devices_selected < max {
+                    self.spotify.devices_selected += 1;
+                }
+            }
+            KeyCode::Enter => {
+                if self.spotify.devices_selected >= self.spotify.devices.len() {
+                    self.config.spotify.stop_on_quit = !self.config.spotify.stop_on_quit;
+                    self.config.save();
+                } else if let Some(device) = self.spotify.devices.get(self.spotify.devices_selected) {
+                    if let Some(id) = device.id.clone() {
+                        self.transfer_to_spotify_device(id).await;
+                    }
+                }
+            }
+            KeyCode::Char(' ') if self.spotify.devices_selected >= self.spotify.devices.len() => {
+                self.config.spotify.stop_on_quit = !self.config.spotify.stop_on_quit;
+                self.config.save();
+            }
+            KeyCode::Char(' ') => {
+                if let Some(device_id) = self.spotify.active_device_id.clone() {
+                    let token = self.spotify.access_token.clone().unwrap_or_default();
+                    match self.spotify.player_status {
+                        SpotifyPlayerStatus::Playing => {
+                            self.spotify.player_status = SpotifyPlayerStatus::Paused;
+                            tokio::spawn(async move {
+                                if let Err(e) = crate::integrations::spotify::devices::pause_device(&token, &device_id).await {
+                                    tracing::warn!("spotify pause error: {e}");
+                                }
+                            });
+                        }
+                        SpotifyPlayerStatus::Paused => {
+                            self.spotify.player_status = SpotifyPlayerStatus::Playing;
+                            tokio::spawn(async move {
+                                if let Err(e) = crate::integrations::spotify::devices::resume_device(&token, &device_id).await {
+                                    tracing::warn!("spotify resume error: {e}");
+                                }
+                            });
+                        }
+                        _ => {}
+                    }
+                } else if let Some(handle) = &self.spotify.player_tx {
+                    match self.spotify.player_status {
+                        SpotifyPlayerStatus::Playing => handle.pause(),
+                        SpotifyPlayerStatus::Paused  => handle.resume(),
+                        _ => {}
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    async fn on_key_spotify_search(&mut self, key: KeyCode) {
+        match key {
+            KeyCode::Up => {
+                if !self.spotify.search_results.is_empty() {
+                    self.spotify.search_selected = cycle_prev(
+                        self.spotify.search_selected,
+                        self.spotify.search_results.len(),
+                    );
+                }
+            }
+            KeyCode::Down => {
+                if !self.spotify.search_results.is_empty() {
+                    let last = self.spotify.search_results.len() - 1;
+                    if self.spotify.search_selected >= last && self.spotify.search_has_more {
+                        self.load_more_spotify_results();
+                    } else {
+                        self.spotify.search_selected = cycle_next(
+                            self.spotify.search_selected,
+                            self.spotify.search_results.len(),
+                        );
+                    }
+                }
+            }
+            KeyCode::Enter => {
+                if let Some(track) = self.spotify.search_results.get(self.spotify.search_selected).cloned() {
+                    self.player.send(PlayerCommand::Stop).await;
+                    self.save_notice        = Some(t("notice.spotify_radio_stopped"));
+                    self.save_notice_is_dup = false;
+                    self.notice_until       = Some(std::time::Instant::now() + std::time::Duration::from_secs(5));
+                    if let Some(device_id) = self.spotify.active_device_id.clone() {
+                        let token = self.spotify.access_token.clone().unwrap_or_default();
+                        let uri   = track.uri.clone();
+                        self.spotify.now_playing   = Some(track);
+                        self.spotify.player_status = SpotifyPlayerStatus::Loading;
+                        tokio::spawn(async move {
+                            match crate::integrations::spotify::devices::play_on_device(&token, &device_id, &uri).await {
+                                Ok(()) => tracing::info!("spotify: reproduciendo en dispositivo remoto"),
+                                Err(e) => tracing::warn!("spotify play_on_device error: {e}"),
+                            }
+                        });
+                        self.spotify.player_status = SpotifyPlayerStatus::Playing;
+                    } else if let Some(handle) = &self.spotify.player_tx {
+                        handle.play(track.clone());
+                        self.spotify.now_playing   = Some(track);
+                        self.spotify.player_status = SpotifyPlayerStatus::Loading;
+                    } else {
+                        self.spotify.player_status = SpotifyPlayerStatus::Error(
+                            "Player no inicializado. Reconecta Spotify.".to_string(),
+                        );
+                    }
+                }
+            }
+            KeyCode::Backspace => {
+                self.spotify.search_query.pop();
+                self.spotify.search_selected = 0;
+                self.perform_spotify_search();
+            }
+            KeyCode::Char(c) if !c.is_control() => {
+                self.spotify.search_query.push(c);
+                self.spotify.search_selected = 0;
+                self.perform_spotify_search();
+            }
+            _ => {}
         }
     }
 

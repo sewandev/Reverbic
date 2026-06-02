@@ -188,11 +188,21 @@ async fn download_stream(
 
     let client = reqwest::Client::builder()
         .default_headers(req_headers)
-        .connect_timeout(std::time::Duration::from_secs(15))
+        .connect_timeout(std::time::Duration::from_secs(5))
         .tcp_keepalive(std::time::Duration::from_secs(30))
         .build()?;
 
-    let resp = client.get(&url).send().await?;
+    let resp = match tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        client.get(&url).send(),
+    ).await {
+        Ok(Ok(r)) => r,
+        Ok(Err(e)) => return Err(e),
+        Err(_) => {
+            tracing::warn!("Timeout al conectar a {url} (5s sin respuesta)");
+            return Ok(());
+        }
+    };
 
     log_response_diagnostics(&url, &resp);
 
@@ -211,7 +221,10 @@ async fn download_stream(
     let mut first_chunk_logged = false;
 
     use futures_util::StreamExt;
-    while let Some(chunk) = stream.next().await {
+    while let Ok(Some(chunk)) = tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        stream.next(),
+    ).await {
         match chunk {
             Ok(raw_bytes) => {
                 if !first_chunk_logged {

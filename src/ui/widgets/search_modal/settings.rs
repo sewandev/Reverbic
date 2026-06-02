@@ -21,6 +21,8 @@ impl<'a> SearchModalWidget<'a> {
             SettingItem::Autoplay        => if self.autoplay_last  { on } else { off },
             SettingItem::RestoreVolume   => if self.restore_volume { on } else { off },
             SettingItem::Crossfade       => self.crossfade.clone(),
+            SettingItem::VolumeStep      => format!("{}%", self.volume_step),
+            SettingItem::Prebuffer       => format!("{}s", self.prebuffer_secs),
             SettingItem::OverlayMode     => self.overlay_mode.clone(),
             SettingItem::OverlayAlpha    => format!("{}%", self.overlay_alpha),
             SettingItem::OverlayPosition => self.overlay_position.clone(),
