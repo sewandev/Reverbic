@@ -11,6 +11,7 @@ use tracing_subscriber::{fmt, fmt::time::ChronoLocal, EnvFilter};
 mod app;
 mod audio;
 mod http;
+mod install;
 mod shell;
 mod game_detect;
 mod integrations;
@@ -39,6 +40,7 @@ async fn main() -> Result<()> {
         terminal::restore();
         original_hook(info);
     }));
+    install::maybe_self_install();
     let _log_guard = init_logging();
     i18n::init(config::Config::load().language);
     game_detect::init_game_db();

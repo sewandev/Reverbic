@@ -77,21 +77,11 @@
 - Windows 10 or 11
 - [Rust](https://rustup.rs/) (latest stable)
 
-### Quick install (adds `reverbic` to PATH)
-
-Open PowerShell and run:
-
-```powershell
-irm https://raw.githubusercontent.com/sewandev/Reverbic/main/scripts/install.ps1 | iex
-```
-
-After it finishes, open a new terminal and type `reverbic`.
-
-### Manual download
+### Download
 
 Pre-built binaries are available on the [Releases page](https://github.com/sewandev/Reverbic/releases/latest).
 
-Download `reverbic-v1.0.0-x86_64-windows.exe`, place it anywhere and run it from a terminal.
+Download `reverbic-v1.0.0-x86_64-windows.exe` and run it once from any terminal. On first launch, it automatically copies itself to `%LOCALAPPDATA%\Programs\reverbic\` and adds that folder to your user PATH. After that, open a new terminal and type `reverbic` from anywhere.
 
 > **Windows SmartScreen** may show a warning for unsigned binaries. Click "More info" → "Run anyway".
 
