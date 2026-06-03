@@ -5,13 +5,12 @@ use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::TcpListener};
 
 use super::AuthResult;
 
-const DEV_CLIENT_ID:   &str = env!("SPOTIFY_CLIENT_ID", "Falta SPOTIFY_CLIENT_ID en .env");
 const LIBRE_CLIENT_ID: &str = "65b708073fc0480ea92a077233ca87bd";
 const SCOPES:          &str = "user-read-private user-read-playback-state user-modify-playback-state streaming";
 
-pub async fn start_flow() -> AuthResult {
+pub async fn start_flow(client_id: &str) -> AuthResult {
     let (search_token, refresh_token, userid) =
-        match pkce_flow(DEV_CLIENT_ID, 8888, "/callback").await {
+        match pkce_flow(client_id, 8888, "/callback").await {
             Ok(t)  => t,
             Err(e) => return AuthResult::Failure(e),
         };
@@ -24,13 +23,13 @@ pub async fn start_flow() -> AuthResult {
 
     AuthResult::Success { username, search_token, refresh_token, audio_token, is_premium, country, followers }
 }
-pub async fn refresh_search_token(refresh_token: &str) -> Result<(String, String), String> {
+pub async fn refresh_search_token(client_id: &str, refresh_token: &str) -> Result<(String, String), String> {
     let client = crate::http::http_client_timeout(8)
         .ok_or_else(|| "No se pudo crear cliente HTTP".to_string())?;
     let resp = client
         .post("https://accounts.spotify.com/api/token")
         .form(&[
-            ("client_id",     DEV_CLIENT_ID),
+            ("client_id",     client_id),
             ("grant_type",    "refresh_token"),
             ("refresh_token", refresh_token),
         ])

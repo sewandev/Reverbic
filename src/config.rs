@@ -85,6 +85,8 @@ impl OverlayPosition {
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct SpotifyConfig {
     #[serde(default)]
+    pub client_id:     String,
+    #[serde(default)]
     pub display_name:  Option<String>,
     #[serde(default)]
     pub search_token:  Option<String>,

@@ -47,6 +47,43 @@ pub(super) fn render_rename_overlay(frame: &mut Frame, input: &str) {
     );
 }
 
+pub(super) fn render_client_id_overlay(frame: &mut Frame, input: &str) {
+    let area  = frame.area();
+    let w     = area.width.clamp(40, 60);
+    let h: u16 = 5;
+    let x     = area.width.saturating_sub(w) / 2;
+    let y     = area.height.saturating_sub(h) / 2;
+    let panel = ratatui::layout::Rect::new(x, y, w, h);
+
+    frame.render_widget(Clear, panel);
+
+    let block = Block::default()
+        .title_top(Line::from(Span::styled(
+            t("modal.client_id.title"),
+            Style::default().fg(theme::HIGHLIGHT).add_modifier(Modifier::BOLD),
+        )).alignment(ratatui::layout::Alignment::Center))
+        .title_bottom(Line::from(Span::styled(
+            t("modal.client_id.hint"),
+            Style::default().fg(theme::MUTED),
+        )).alignment(ratatui::layout::Alignment::Center))
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(theme::ACCENT))
+        .style(Style::default().bg(theme::PANEL_BG));
+
+    let inner = block.inner(panel);
+    frame.render_widget(block, panel);
+
+    let text_area = ratatui::layout::Rect::new(inner.x + 1, inner.y + 1, inner.width.saturating_sub(2), 1);
+    frame.render_widget(
+        Paragraph::new(Line::from(vec![
+            Span::styled(input.to_owned(), Style::default().fg(theme::HIGHLIGHT)),
+            Span::styled("_", Style::default().fg(theme::ACCENT).add_modifier(Modifier::BOLD)),
+        ])),
+        text_area,
+    );
+}
+
 pub(super) fn render_game_inline(frame: &mut Frame, area: Rect, name: &str, genre: &str) {
     let label = t("overlay.playing_game");
     let mut spans = vec![

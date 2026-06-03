@@ -51,6 +51,7 @@ pub enum SettingItem {
     Language,
     SpotifyStopOnQuit,
     SpotifyStartOnSpotify,
+    SpotifyClientId,
 }
 
 impl SettingItem {
@@ -73,6 +74,7 @@ impl SettingItem {
             Self::Language           => t("config.setting.language"),
             Self::SpotifyStopOnQuit     => t("config.setting.spotify_stop_on_quit"),
             Self::SpotifyStartOnSpotify => t("config.setting.spotify_start_on_spotify"),
+            Self::SpotifyClientId       => t("config.setting.spotify_client_id"),
         }
     }
 
@@ -95,6 +97,7 @@ impl SettingItem {
             Self::Language           => "config.tooltip.language",
             Self::SpotifyStopOnQuit     => "config.tooltip.spotify_stop_on_quit",
             Self::SpotifyStartOnSpotify => "config.tooltip.spotify_start_on_spotify",
+            Self::SpotifyClientId       => "config.tooltip.spotify_client_id",
         }
     }
 
@@ -110,7 +113,7 @@ impl SettingItem {
                 => "config.group.system",
             Self::Language
                 => "config.group.appearance",
-            Self::SpotifyStopOnQuit | Self::SpotifyStartOnSpotify
+            Self::SpotifyStopOnQuit | Self::SpotifyStartOnSpotify | Self::SpotifyClientId
                 => "config.group.integrations",
         }
     }
@@ -139,6 +142,7 @@ pub fn settings_items(duck_enabled: bool) -> Vec<SettingItem> {
         SettingItem::Language,
         SettingItem::SpotifyStopOnQuit,
         SettingItem::SpotifyStartOnSpotify,
+        SettingItem::SpotifyClientId,
     ]);
     items
 }

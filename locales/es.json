@@ -187,5 +187,11 @@
   "help.shortcut.change_value": "Cambiar valor",
   "help.shortcut.nav_options": "Navegar opciones",
   "help.shortcut.confirm": "Confirmar",
-  "modal.spotify.rate_limit_countdown": "! Rate limit — espera"
+  "modal.spotify.rate_limit_countdown": "! Rate limit — espera",
+  "config.setting.spotify_client_id": "Spotify Client ID",
+  "config.tooltip.spotify_client_id": "Tu Client ID de la app en developer.spotify.com. Requerido para conectar. Presiona Espacio para editar.",
+  "config.spotify.not_set": "(sin configurar)",
+  "config.spotify.no_client_id": "No hay Client ID configurado. Configúralo en Ajustes > Spotify Client ID.",
+  "modal.client_id.title": " Spotify Client ID ",
+  "modal.client_id.hint": " [↵] Guardar  [Esc] Cancelar "
 }

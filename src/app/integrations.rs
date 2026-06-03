@@ -9,6 +9,7 @@ impl App {
         self.spotify.is_premium = self.config.spotify.is_premium.unwrap_or(false);
 
         let refresh_token     = self.config.spotify.refresh_token.clone().expect("checked above");
+        let client_id         = self.config.spotify.client_id.clone();
         let is_premium_cached = self.config.spotify.is_premium.unwrap_or(false);
         let country_cached    = self.config.spotify.country.clone();
         let followers_cached  = self.config.spotify.followers;
@@ -16,7 +17,7 @@ impl App {
         self.spotify.auth_rx = Some(rx);
         self.spotify.status  = SpotifyAuthStatus::Connecting;
         let handle = tokio::spawn(async move {
-            let result = crate::integrations::spotify::oauth::refresh_search_token(&refresh_token).await;
+            let result = crate::integrations::spotify::oauth::refresh_search_token(&client_id, &refresh_token).await;
             let auth = match result {
                 Ok((access, new_refresh)) => {
                     let username = crate::integrations::spotify::oauth::fetch_username_from_token(&access)
@@ -40,11 +41,18 @@ impl App {
     }
 
     pub(super) fn start_oauth_flow(&mut self) {
+        if self.config.spotify.client_id.is_empty() {
+            self.spotify.status = SpotifyAuthStatus::Error(
+                crate::i18n::t("config.spotify.no_client_id")
+            );
+            return;
+        }
+        let client_id = self.config.spotify.client_id.clone();
         let (tx, rx) = std::sync::mpsc::channel();
         self.spotify.auth_rx = Some(rx);
         self.spotify.status  = SpotifyAuthStatus::Connecting;
         let handle = tokio::spawn(async move {
-            let result = crate::integrations::spotify::oauth::start_flow().await;
+            let result = crate::integrations::spotify::oauth::start_flow(&client_id).await;
             let _ = tx.send(result);
         });
         self.spotify.auth_task = Some(handle);

@@ -62,6 +62,7 @@ pub struct SearchModalWidget<'a> {
     pub spotify_rate_limited_secs:   u64,
     pub spotify_sub_tab:             crate::app::SpotifySubTab,
     pub spotify_loading_more:        bool,
+    pub spotify_client_id:           &'a str,
 }
 
 impl Widget for SearchModalWidget<'_> {
@@ -163,6 +164,7 @@ impl<'a> From<&'a crate::app::App> for SearchModalWidget<'a> {
                 .unwrap_or(0),
             spotify_sub_tab:      sp.sub_tab,
             spotify_loading_more: sp.search_loading_more,
+            spotify_client_id:    &app.config.spotify.client_id,
         }
     }
 }

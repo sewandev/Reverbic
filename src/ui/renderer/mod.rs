@@ -45,7 +45,7 @@ use crate::ui::widgets::{
 
 use components::{render_header, render_help, render_sep};
 use layout::compute_layout;
-use overlays::{render_game_inline, render_game_strip, render_help_overlay, render_modal_np_strip, render_modal_spotify_strip, render_rename_overlay};
+use overlays::{render_client_id_overlay, render_game_inline, render_game_strip, render_help_overlay, render_modal_np_strip, render_modal_spotify_strip, render_rename_overlay};
 use screensaver::{render_screensaver, render_spotify_screensaver, ScreensaverCtx};
 
 const MIN_WIDTH:  u16 = 52;
@@ -279,6 +279,10 @@ pub fn render(frame: &mut Frame, app: &App) {
 
     if app.renaming_favorite.is_some() {
         render_rename_overlay(frame, &app.rename_input);
+    }
+
+    if app.editing_client_id {
+        render_client_id_overlay(frame, &app.client_id_input);
     }
 
     if app.show_search_modal && app.show_help {

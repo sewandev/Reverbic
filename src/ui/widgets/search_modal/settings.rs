@@ -38,6 +38,14 @@ impl<'a> SearchModalWidget<'a> {
             },
             SettingItem::SpotifyStopOnQuit     => if self.spotify_stop_on_quit     { on } else { off },
             SettingItem::SpotifyStartOnSpotify => if self.spotify_start_on_spotify { on } else { off },
+            SettingItem::SpotifyClientId => {
+                if self.spotify_client_id.is_empty() {
+                    t("config.spotify.not_set")
+                } else {
+                    let preview: String = self.spotify_client_id.chars().take(8).collect();
+                    format!("{}...", preview)
+                }
+            }
         }
     }
 

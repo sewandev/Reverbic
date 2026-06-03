@@ -44,6 +44,11 @@ impl App {
             return;
         }
 
+        if self.editing_client_id {
+            self.on_key_client_id_input(event.code);
+            return;
+        }
+
         if event.modifiers.contains(KeyModifiers::ALT) {
             self.handle_alt_key(event.code).await;
             return;
@@ -418,8 +423,32 @@ impl App {
                 self.settings_selected = cycle_next(self.settings_selected, count);
             }
             KeyCode::Enter | KeyCode::Char(' ') => {
-                self.apply_settings_toggle(self.settings_selected);
+                let items = settings_items(self.config.duck_enabled);
+                if let Some(&super::modal::SettingItem::SpotifyClientId) = items.get(self.settings_selected) {
+                    self.client_id_input = self.config.spotify.client_id.clone();
+                    self.editing_client_id = true;
+                } else {
+                    self.apply_settings_toggle(self.settings_selected);
+                }
             }
+            _ => {}
+        }
+    }
+
+    fn on_key_client_id_input(&mut self, key: KeyCode) {
+        match key {
+            KeyCode::Esc => {
+                self.client_id_input.clear();
+                self.editing_client_id = false;
+            }
+            KeyCode::Enter => {
+                self.config.spotify.client_id = self.client_id_input.trim().to_string();
+                self.save_config();
+                self.client_id_input.clear();
+                self.editing_client_id = false;
+            }
+            KeyCode::Backspace => { self.client_id_input.pop(); }
+            KeyCode::Char(c) if !c.is_control() => { self.client_id_input.push(c); }
             _ => {}
         }
     }
@@ -852,6 +881,7 @@ impl App {
             super::modal::SettingItem::SpotifyStartOnSpotify => {
                 self.config.spotify.start_on_spotify = !self.config.spotify.start_on_spotify;
             }
+            super::modal::SettingItem::SpotifyClientId => {}
         }
         self.save_config();
         if let Some(ref tx) = self.windows_tx {
