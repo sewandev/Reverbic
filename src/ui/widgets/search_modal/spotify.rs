@@ -6,7 +6,7 @@ use ratatui::{
     widgets::{List, ListItem, Paragraph, Widget, Wrap},
 };
 
-use crate::app::{SpotifyAuthStatus, SpotifyPlayerStatus};
+use crate::app::SpotifyAuthStatus;
 use crate::i18n::t;
 use crate::ui::strings;
 use crate::ui::theme;
@@ -32,14 +32,11 @@ impl<'a> SearchModalWidget<'a> {
     }
 
     fn render_spotify_logged_in(&self, area: Rect, content_x: u16, content_w: u16, buf: &mut Buffer) {
-        let has_now_playing = self.spotify_now_playing.is_some();
-
-        let [_gap, input_row, cap_row, list_area, now_playing_row] = Layout::vertical([
+        let [_gap, input_row, cap_row, list_area] = Layout::vertical([
             Constraint::Length(1),
             Constraint::Length(1),
             Constraint::Length(1),
             Constraint::Fill(1),
-            Constraint::Length(if has_now_playing { 1 } else { 0 }),
         ])
         .areas(area);
 
@@ -74,41 +71,47 @@ impl<'a> SearchModalWidget<'a> {
             self.render_spotify_list(list_area, text_x, text_w, buf);
         }
 
-        if let (Some(track), true) = (self.spotify_now_playing, has_now_playing) {
-            self.render_now_playing_strip(now_playing_row, content_x, content_w, track, buf);
-        }
     }
 
     fn render_spotify_connect(&self, area: Rect, lx: u16, lw: u16, buf: &mut Buffer) {
-        let mut y = area.y + 2;
+        let mut y = area.y + 1;
         if y >= area.bottom() { return; }
-
-        Paragraph::new(Line::from(vec![
-            Span::styled("▶  ", Style::default().fg(theme::ACCENT).add_modifier(Modifier::BOLD)),
-            Span::styled(t("modal.spotify.connect_action"), Style::default().fg(theme::ACCENT).add_modifier(Modifier::BOLD)),
-        ]))
+        Paragraph::new(Span::styled(
+            "SPOTIFY",
+            Style::default().fg(theme::PLAYING).add_modifier(Modifier::BOLD),
+        ))
+        .alignment(ratatui::layout::Alignment::Center)
         .render(Rect::new(lx, y, lw, 1), buf);
-
         y += 2;
         if y >= area.bottom() { return; }
-
-        Paragraph::new(Line::from(vec![
-            Span::styled(">>  ", Style::default().fg(theme::ACCENT)),
-            Span::styled(t("modal.spotify.remote_feature"), Style::default().fg(theme::HIGHLIGHT).add_modifier(Modifier::BOLD)),
-        ]))
+        Paragraph::new(Span::styled(
+            t("modal.spotify.remote_feature"),
+            Style::default().fg(theme::HIGHLIGHT).add_modifier(Modifier::BOLD),
+        ))
         .render(Rect::new(lx, y, lw, 1), buf);
-
         y += 1;
-        if y >= area.bottom() { return; }
 
+        if y >= area.bottom() { return; }
         Paragraph::new(Span::styled(t("modal.spotify.remote_subtitle"), Style::default().fg(theme::MUTED)))
             .wrap(Wrap { trim: true })
             .render(Rect::new(lx, y, lw, 2.min(area.bottom().saturating_sub(y))), buf);
-
         y += 3;
         if y >= area.bottom() { return; }
-
-        Paragraph::new(Span::styled(t("modal.spotify.experimental"), Style::default().fg(theme::DIM)))
+        Paragraph::new(Span::styled(
+            "─".repeat(lw as usize),
+            Style::default().fg(theme::DIM),
+        ))
+        .render(Rect::new(lx, y, lw, 1), buf);
+        y += 1;
+        if y >= area.bottom() { return; }
+        Paragraph::new(Line::from(vec![
+            Span::styled("[↵]  ", Style::default().fg(theme::ACCENT).add_modifier(Modifier::BOLD)),
+            Span::styled(t("modal.spotify.connect_action"), Style::default().fg(theme::HIGHLIGHT).add_modifier(Modifier::BOLD)),
+        ]))
+        .render(Rect::new(lx, y, lw, 1), buf);
+        y += 2;
+        if y >= area.bottom() { return; }
+        Paragraph::new(Span::styled(t("modal.spotify.experimental"), Style::default().fg(theme::CAUTION)))
             .wrap(Wrap { trim: true })
             .render(Rect::new(lx, y, lw, area.bottom().saturating_sub(y)), buf);
     }
@@ -137,8 +140,8 @@ impl<'a> SearchModalWidget<'a> {
         y += 2;
         if y < area.bottom() {
             Paragraph::new(Line::from(vec![
-                Span::styled("▶  ", Style::default().fg(theme::ACCENT).add_modifier(Modifier::BOLD)),
-                Span::styled(t("modal.spotify.connect_action"), Style::default().fg(theme::ACCENT).add_modifier(Modifier::BOLD)),
+                Span::styled("[↵]  ", Style::default().fg(theme::ACCENT).add_modifier(Modifier::BOLD)),
+                Span::styled(t("modal.spotify.connect_action"), Style::default().fg(theme::HIGHLIGHT).add_modifier(Modifier::BOLD)),
             ]))
             .render(Rect::new(lx, y, lw, 1), buf);
         }
@@ -368,10 +371,8 @@ impl<'a> SearchModalWidget<'a> {
                 .render(Rect::new(list_x, config_y + 1, list_w, 1), buf);
             }
 
-            if config_y + 2 < area.bottom() {
-                let setting_selected = self.spotify_devices_selected >= self.spotify_devices.len();
-                let val = if self.spotify_stop_on_quit { "ON" } else { "OFF" };
-                let (prefix, label_st, val_st) = if setting_selected {
+            let render_toggle = |y: u16, label: String, val: bool, selected: bool, buf: &mut Buffer| {
+                let (prefix, label_st, val_st) = if selected {
                     (
                         "▶  ",
                         Style::default().fg(theme::PLAYING).add_modifier(Modifier::BOLD),
@@ -384,52 +385,28 @@ impl<'a> SearchModalWidget<'a> {
                         Style::default().fg(theme::MUTED),
                     )
                 };
-                let label = t("modal.spotify.stop_on_quit");
-                let val_w = val.len() as u16 + 4;
-                let lbl_w = list_w.saturating_sub(3 + val_w);
-                let lbl   = strings::truncate(&label, lbl_w as usize);
+                let val_str = if val { "ON" } else { "OFF" };
+                let val_w   = val_str.len() as u16 + 4;
+                let lbl_w   = list_w.saturating_sub(3 + val_w);
+                let lbl     = strings::truncate(&label, lbl_w as usize);
                 Paragraph::new(Line::from(vec![
-                    Span::styled(prefix,                   label_st),
-                    Span::styled(lbl,                      label_st),
-                    Span::styled(format!("  [ {} ]", val), val_st),
+                    Span::styled(prefix,                       label_st),
+                    Span::styled(lbl,                          label_st),
+                    Span::styled(format!("  [ {} ]", val_str), val_st),
                 ]))
-                .render(Rect::new(list_x, config_y + 2, list_w, 1), buf);
+                .render(Rect::new(list_x, y, list_w, 1), buf);
+            };
+
+            let stop_sel  = self.spotify_devices_selected == self.spotify_devices.len();
+            let start_sel = self.spotify_devices_selected == self.spotify_devices.len() + 1;
+
+            if config_y + 2 < area.bottom() {
+                render_toggle(config_y + 2, t("modal.spotify.stop_on_quit"), self.spotify_stop_on_quit, stop_sel, buf);
+            }
+            if config_y + 3 < area.bottom() {
+                render_toggle(config_y + 3, t("modal.spotify.start_on_spotify"), self.spotify_start_on_spotify, start_sel, buf);
             }
         }
     }
 
-    fn render_now_playing_strip(
-        &self,
-        area: Rect,
-        content_x: u16,
-        content_w: u16,
-        track: &crate::integrations::spotify::SpotifyTrack,
-        buf: &mut Buffer,
-    ) {
-        let lx = content_x + 2;
-        let lw = content_w.saturating_sub(2) as usize;
-
-        let status_label = match self.spotify_player_status {
-            SpotifyPlayerStatus::Playing  => t("modal.spotify.status.playing"),
-            SpotifyPlayerStatus::Paused   => t("modal.spotify.status.paused"),
-            SpotifyPlayerStatus::Loading  => t("modal.spotify.status.loading"),
-            SpotifyPlayerStatus::Idle     => return,
-            SpotifyPlayerStatus::Error(_) => return,
-        };
-
-        let now_playing_label = t("modal.spotify.now_playing");
-        let prefix = format!("{}: ", now_playing_label);
-        let suffix = format!(" [{}]", status_label);
-        let meta_raw = format!("{} / {}", track.name, track.artist);
-
-        let available = lw.saturating_sub(prefix.len() + suffix.len());
-        let meta      = strings::truncate(&meta_raw, available);
-
-        Paragraph::new(Line::from(vec![
-            Span::styled(prefix, Style::default().fg(theme::MUTED)),
-            Span::styled(meta,   Style::default().fg(theme::ACCENT).add_modifier(Modifier::BOLD)),
-            Span::styled(suffix, Style::default().fg(theme::MUTED)),
-        ]))
-        .render(Rect::new(lx, area.y, content_w, 1), buf);
-    }
 }

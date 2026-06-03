@@ -1,3 +1,4 @@
+use crate::metadata::track_enrichment::enrich;
 use crate::schedule::poll_metadata_loop;
 use crate::station::{fetch_station_details, fetch_station_details_by_name, is_uuid};
 
@@ -22,6 +23,35 @@ impl App {
 
     pub(super) fn stop_metadata_polling(&mut self) {
         abort_task(&mut self.metadata_task);
+    }
+
+    pub fn trigger_track_enrichment(&mut self, icy_title: String) {
+        if self.radio_enriched_for.as_deref() == Some(&icy_title) {
+            return;
+        }
+        self.radio_enriched_for   = Some(icy_title.clone());
+        self.radio_enriched_track = None;
+        abort_task(&mut self.radio_enrichment_task);
+        let (tx, rx) = std::sync::mpsc::channel();
+        self.radio_enrichment_rx   = Some(rx);
+        self.radio_enrichment_task = Some(tokio::spawn(async move {
+            let result = enrich(&icy_title).await;
+            let _ = tx.send(result);
+        }));
+    }
+
+    pub fn poll_track_enrichment(&mut self) {
+        if let Some(rx) = self.radio_enrichment_rx.take() {
+            match rx.try_recv() {
+                Ok(result) => {
+                    self.radio_enriched_track = result;
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => {
+                    self.radio_enrichment_rx = Some(rx);
+                }
+                Err(_) => {}
+            }
+        }
     }
 
     pub fn poll_station_details(&mut self) {

@@ -67,11 +67,36 @@ impl<'a> Widget for StationListWidget<'a> {
             .bg(theme::ACCENT)
             .add_modifier(Modifier::BOLD);
 
+        let (header_area, list_area) = if !self.favorites.is_empty() {
+            let h = Rect::new(list_area.x, list_area.y, list_area.width, 1);
+            let l = Rect::new(
+                list_area.x,
+                list_area.y + 1,
+                list_area.width,
+                list_area.height.saturating_sub(1),
+            );
+            (Some(h), l)
+        } else {
+            (None, list_area)
+        };
+
+        if let Some(h) = header_area {
+            Paragraph::new(Line::from(vec![
+                Span::styled("★ ", Style::default().fg(theme::ACCENT)),
+                Span::styled("Favoritas", Style::default().fg(theme::MUTED)),
+                Span::styled(
+                    format!(" {}", "─".repeat(h.width.saturating_sub(12) as usize)),
+                    Style::default().fg(theme::DIM),
+                ),
+            ]))
+            .style(Style::default().bg(theme::PANEL_BG))
+            .render(h, buf);
+        }
+
         let fav_items = self.favorites.iter().enumerate().map(|(i, fav)| {
             let is_sel     = i == self.selected;
             let is_playing = self.playing_favorite_index == Some(i);
             let is_flash   = self.flash_index == Some(i);
-            let star       = if is_sel || is_flash { "▶" } else { "★" };
             let style      = if is_flash {
                 FLASH_STYLE
             } else if is_sel {
@@ -79,11 +104,19 @@ impl<'a> Widget for StationListWidget<'a> {
             } else if is_playing {
                 theme::PLAYING_STYLE
             } else {
-                Style::new().fg(theme::ACCENT)
+                Style::new().fg(theme::HIGHLIGHT)
+            };
+            let (star, star_style, name_style) = if is_sel || is_flash {
+                ("▶", style, style)
+            } else if is_playing {
+                ("▶", theme::PLAYING_STYLE, theme::PLAYING_STYLE)
+            } else {
+                ("★", Style::new().fg(theme::ACCENT), Style::new().fg(theme::HIGHLIGHT))
             };
             let status_tag = if is_playing { status_span(self.player_status) } else { Span::raw("") };
             ListItem::new(Line::from(vec![
-                Span::styled(format!("{star} {}", fav.name), style),
+                Span::styled(format!("{star} "), star_style),
+                Span::styled(fav.name.clone(), name_style),
                 status_tag,
             ]))
         });

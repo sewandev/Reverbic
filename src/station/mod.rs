@@ -65,14 +65,12 @@ mod tests {
 
     #[test]
     fn fuzzy_subsequence_matches_classical() {
-        // "cls" no está contenido en "classical" — substring falla, nucleo lo resuelve
         let results = filter_items(SAMPLE, "cls");
         assert!(results.contains(&("classical", "Classical")));
     }
 
     #[test]
     fn fuzzy_acronym_matches_drum_and_bass() {
-        // "dnb" no está en "Drum and Bass" como substring
         let results = filter_items(SAMPLE, "dnb");
         assert!(results.contains(&("dnb", "Drum and Bass")));
     }
@@ -85,7 +83,6 @@ mod tests {
 
     #[test]
     fn best_match_is_first() {
-        // "jazz" debería tener mayor score que cualquier match parcial
         let results = filter_items(SAMPLE, "jazz");
         assert_eq!(results.first(), Some(&("jazz", "Jazz")));
     }

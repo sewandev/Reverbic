@@ -50,20 +50,14 @@ async fn run_player(
     mut cmd_rx: UnboundedReceiver<SpotifyPlayerCmd>,
     event_tx: SyncSender<SpotifyPlayerEvent>,
 ) {
-    // Mismo SessionConfig que usa spotatui — client_id del Spotify web player.
     let session_config = SessionConfig {
         client_id: "65b708073fc0480ea92a077233ca87bd".to_string(),
         ..Default::default()
     };
-
-    // Cache de credenciales: después del primer login exitoso guarda stored credentials.
-    // En sesiones posteriores usa AUTHENTICATION_STORED_SPOTIFY_CREDENTIALS (streaming rights completos).
     let cache_dir = std::env::var("APPDATA")
         .map(|p| std::path::PathBuf::from(p).join(".reverbic").join("librespot"))
         .unwrap_or_else(|_| std::path::PathBuf::from(".reverbic").join("librespot"));
     let cache = Cache::new(Some(&cache_dir), None::<&std::path::PathBuf>, None::<&std::path::PathBuf>, None).ok();
-
-    // Si hay credenciales cacheadas, úsalas en vez del OAuth token.
     let credentials = match cache.as_ref().and_then(|c| c.credentials()) {
         Some(cached) => {
             tracing::info!("librespot: usando credenciales cacheadas");
@@ -133,8 +127,6 @@ async fn run_player(
     };
 
     tokio::spawn(spirc_task);
-
-    // Activa Reverbic como dispositivo Spotify Connect actual.
     let _ = spirc.activate();
 
     loop {

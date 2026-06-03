@@ -6,7 +6,7 @@ use ratatui::{
     widgets::{Block, BorderType, Borders, Clear, Widget},
 };
 
-use crate::app::{IntegrationView, SearchMode, SpotifyAuthStatus, SpotifyPlayerStatus};
+use crate::app::{SearchMode, SpotifyAuthStatus};
 use crate::i18n::t;
 use crate::station::DynamicStation;
 use crate::ui::theme;
@@ -14,7 +14,6 @@ use crate::ui::theme;
 use helpers::{key, sep, sep_s};
 
 mod helpers;
-mod integrations;
 mod settings;
 mod spotify;
 mod tabs;
@@ -48,21 +47,17 @@ pub struct SearchModalWidget<'a> {
     pub screensaver_secs:          u16,
     pub volume_step:               u8,
     pub prebuffer_secs:            u8,
-    pub integration_view:          IntegrationView,
-    pub integration_selected:      usize,
     pub spotify_status:            &'a SpotifyAuthStatus,
-    pub spotify_saved:             Option<&'a str>,
     pub spotify_query:             &'a str,
     pub spotify_results:           &'a [crate::integrations::spotify::SpotifyTrack],
     pub spotify_loading:           bool,
     pub spotify_selected:          usize,
-    pub spotify_player_status:     &'a SpotifyPlayerStatus,
-    pub spotify_now_playing:       Option<&'a crate::integrations::spotify::SpotifyTrack>,
     pub spotify_is_premium:        bool,
     pub spotify_devices:          &'a [crate::integrations::spotify::devices::SpotifyDevice],
     pub spotify_devices_selected: usize,
     pub spotify_devices_loading:  bool,
-    pub spotify_stop_on_quit:     bool,
+    pub spotify_stop_on_quit:      bool,
+    pub spotify_start_on_spotify:  bool,
     pub spotify_search_has_more:     bool,
     pub spotify_search_rate_limited: bool,
     pub spotify_rate_limited_secs:   u64,
@@ -113,9 +108,10 @@ impl Widget for SearchModalWidget<'_> {
         match self.mode {
             SearchMode::Name | SearchMode::Genre | SearchMode::Country =>
                 self.render_radio_body(body_area, content_x, content_w, buf),
-            SearchMode::Settings     => self.render_settings_body(body_area, content_x, content_w, buf),
-            SearchMode::Integrations => self.render_integrations_body(body_area, content_x, content_w, buf),
-            SearchMode::Spotify      => self.render_spotify_body(body_area, content_x, content_w, buf),
+            SearchMode::Settings =>
+                self.render_settings_body(body_area, content_x, content_w, buf),
+            SearchMode::Spotify =>
+                self.render_spotify_body(body_area, content_x, content_w, buf),
         }
     }
 }
@@ -149,21 +145,17 @@ impl<'a> From<&'a crate::app::App> for SearchModalWidget<'a> {
             screensaver_secs:          app.config.screensaver_secs,
             volume_step:               app.config.volume_step,
             prebuffer_secs:            app.config.prebuffer_secs,
-            integration_view:          app.integration_view,
-            integration_selected:      app.integration_selected,
             spotify_status:            &sp.status,
-            spotify_saved:             app.config.spotify.display_name.as_deref(),
             spotify_query:             &sp.search_query,
             spotify_results:           &sp.search_results,
             spotify_loading:           sp.search_loading,
             spotify_selected:          sp.search_selected,
-            spotify_player_status:     &sp.player_status,
-            spotify_now_playing:       sp.now_playing.as_ref(),
             spotify_is_premium:        sp.is_premium,
             spotify_devices:          &sp.devices,
             spotify_devices_selected: sp.devices_selected,
             spotify_devices_loading:  sp.devices_loading,
-            spotify_stop_on_quit:     app.config.spotify.stop_on_quit,
+            spotify_stop_on_quit:      app.config.spotify.stop_on_quit,
+            spotify_start_on_spotify:  app.config.spotify.start_on_spotify,
             spotify_search_has_more:   sp.search_has_more,
             spotify_search_rate_limited: sp.search_rate_limited,
             spotify_rate_limited_secs:   sp.rate_limited_until
@@ -179,93 +171,47 @@ impl SearchModalWidget<'_> {
         if showing {
             return vec![
                 Span::raw(" "),
-                key("[↵]"),    sep_s(format!(" {}  ", t("hint.play"))),
-                key("[R]"),    sep_s(format!(" {}  ", t("hint.random"))),
-                key("[F]"),    sep(" *  "),
-                key("[↑↓]"),  sep_s(format!(" {}  ", t("hint.nav"))),
-                key("[Esc]"),  sep_s(format!(" {} ",  t("hint.back"))),
+                key("[↵]"),   sep_s(format!(" {}  ", t("hint.play"))),
+                key("[F]"),   sep(" *  "),
+                key("[↑↓]"), sep_s(format!(" {}  ", t("hint.nav"))),
+                key("[?]"),   sep(" Ayuda "),
             ];
         }
         match self.mode {
             SearchMode::Name => {
-                if self.results.is_empty() && self.query.is_empty() {
+                if self.query.is_empty() {
                     vec![
                         Span::raw(" "),
-                        key("[Alt+G]"), sep_s(format!(" {}  ", t("modal.tab.genre"))),
-                        key("[Alt+C]"), sep_s(format!(" {}  ", t("modal.tab.country"))),
-                        key("[Alt+O]"), sep_s(format!(" {}  ", t("modal.tab.config"))),
+                        key("[Alt+G]"), sep(" Genero  "),
+                        key("[Alt+C]"), sep(" Pais  "),
+                        key("[Alt+O]"), sep(" Config  "),
                         key("[Tab]"),   sep_s(format!(" {}  ", t("hint.next_tab"))),
-                        key("[Esc]"),   sep_s(format!(" {} ",  t("hint.close"))),
+                        key("[?]"),     sep(" Ayuda "),
                     ]
                 } else {
                     vec![
                         Span::raw(" "),
-                        key("[↵]"),    sep(" Play  "),
-                        key("[↑↓]"),  sep_s(format!(" {}  ", t("hint.nav"))),
-                        key("[Tab]"),  sep_s(format!(" {}  ", t("hint.next_tab"))),
-                        key("[Esc]"),  sep_s(format!(" {} ",  t("hint.close"))),
+                        key("[↵]"),   sep(" Play  "),
+                        key("[↑↓]"), sep_s(format!(" {}  ", t("hint.nav"))),
+                        key("[Esc]"), sep(" Borrar  "),
+                        key("[?]"),   sep(" Ayuda "),
                     ]
                 }
             }
             SearchMode::Genre | SearchMode::Country => vec![
                 Span::raw(" "),
-                key("[↵]"),    sep_s(format!(" {}  ", t("hint.search"))),
-                key("[↑↓]"),  sep_s(format!(" {}  ", t("hint.nav"))),
-                key("[Esc]"),  sep_s(format!(" {} ",  t("hint.back"))),
+                key("[↵]"),   sep_s(format!(" {}  ", t("hint.search"))),
+                key("[↑↓]"), sep_s(format!(" {}  ", t("hint.nav"))),
+                key("[Esc]"), sep_s(format!(" {}  ", t("hint.back"))),
+                key("[?]"),   sep(" Ayuda "),
             ],
             SearchMode::Settings => vec![
                 Span::raw(" "),
-                key("[Space]"),  sep_s(format!(" {}  ", t("hint.change"))),
-                key("[Alt+I]"), sep_s(format!(" {}  ", t("modal.tab.integrations"))),
+                key("[Space]"), sep_s(format!(" {}  ", t("hint.change"))),
                 key("[↑↓]"),   sep_s(format!(" {}  ", t("hint.nav"))),
-                key("[Esc]"),   sep_s(format!(" {} ",  t("hint.close"))),
+                key("[Esc]"),   sep_s(format!(" {}  ", t("hint.close"))),
+                key("[?]"),     sep(" Ayuda "),
             ],
-            SearchMode::Integrations => match self.integration_view {
-                IntegrationView::ServiceList => vec![
-                    Span::raw(" "),
-                    key("[↵]"),   sep_s(format!(" {}  ", t("hint.open"))),
-                    key("[↑↓]"),  sep_s(format!(" {}  ", t("hint.nav"))),
-                    key("[Esc]"), sep_s(format!(" {} ",  t("hint.close"))),
-                ],
-                IntegrationView::SpotifyDetail => {
-                    if matches!(self.spotify_status, SpotifyAuthStatus::LoggedIn) {
-                        vec![
-                            Span::raw(" "),
-                            key("[D]"),   sep_s(format!(" {}  ", t("integrations.spotify.hint_disconnect"))),
-                            key("[Esc]"), sep_s(format!(" {} ",  t("hint.back"))),
-                        ]
-                    } else {
-                        let mut h = vec![
-                            Span::raw(" "),
-                            key("[↵]"),   sep_s(format!(" {}  ", t("hint.play"))),
-                        ];
-                        if self.spotify_saved.is_some() {
-                            h.push(key("[D]"));
-                            h.push(sep_s(format!(" {}  ", t("integrations.spotify.hint_disconnect"))));
-                        }
-                        h.push(key("[Esc]"));
-                        h.push(sep_s(format!(" {} ", t("hint.back"))));
-                        h
-                    }
-                }
-                IntegrationView::SpotifyWebBrowser => {
-                    match self.spotify_status {
-                        SpotifyAuthStatus::Connecting => vec![
-                            Span::raw(" "),
-                            key("[Esc]"), sep_s(format!(" {} ", t("hint.back"))),
-                        ],
-                        SpotifyAuthStatus::Error(_) => vec![
-                            Span::raw(" "),
-                            key("[Esc]"), sep_s(format!(" {} ", t("hint.back"))),
-                        ],
-                        _ => vec![
-                            Span::raw(" "),
-                            key("[↵]"),   sep_s(format!(" {}  ", t("integrations.spotify.web.open_short"))),
-                            key("[Esc]"), sep_s(format!(" {} ",  t("hint.back"))),
-                        ],
-                    }
-                }
-            },
             SearchMode::Spotify => {
                 use crate::app::SpotifyAuthStatus;
                 match self.spotify_status {
@@ -279,25 +225,24 @@ impl SearchModalWidget<'_> {
                                 Span::raw(" "),
                                 key("[↵]"),     sep(" Play  "),
                                 key("[↑↓]"),   sep_s(format!(" {}  ", t("hint.nav"))),
-                                key("[Alt+D]"), sep_s(format!(" {}  ", t("integrations.spotify.hint_disconnect"))),
-                                key("[Esc]"),   sep_s(format!(" {} ", t("hint.back"))),
+                                key("[Alt+D]"), sep(" Desconectar  "),
+                                key("[?]"),     sep(" Ayuda "),
                             ]
                         } else {
                             vec![
                                 Span::raw(" "),
-                                key("[↵]"),     sep_s(format!(" {}  ", t("hint.play"))),
+                                key("[↵]"),     sep(" Transferir  "),
                                 key("[↑↓]"),   sep_s(format!(" {}  ", t("hint.nav"))),
-                                key("[Alt+R]"), sep_s(format!(" {}  ", t("hint.reload"))),
-                                key("[Alt+D]"), sep_s(format!(" {}  ", t("integrations.spotify.hint_disconnect"))),
-                                key("[Esc]"),   sep_s(format!(" {} ", t("hint.close"))),
+                                key("[Alt+R]"), sep(" Recargar  "),
+                                key("[?]"),     sep(" Ayuda "),
                             ]
                         }
                     }
                     _ => vec![
                         Span::raw(" "),
-                        key("[↵]"),   sep_s(format!(" {}  ", t("modal.spotify.connect_action"))),
-                        key("[Tab]"),  sep_s(format!(" {}  ", t("hint.next_tab"))),
-                        key("[Esc]"),  sep_s(format!(" {} ", t("hint.close"))),
+                        key("[↵]"),  sep_s(format!(" {}  ", t("modal.spotify.connect_action"))),
+                        key("[Tab]"), sep_s(format!(" {}  ", t("hint.next_tab"))),
+                        key("[?]"),  sep(" Ayuda "),
                     ],
                 }
             },

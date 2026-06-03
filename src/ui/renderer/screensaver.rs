@@ -21,6 +21,7 @@ pub(super) fn render_screensaver(
     is_favorite:     bool,
     spotify_name:    Option<&str>,
     spotify_premium: bool,
+    enriched_track:  Option<&crate::metadata::EnrichedTrack>,
 ) {
     const OVERLAY: ratatui::style::Color = theme::OVERLAY_COLOR;
     const BG:      ratatui::style::Color = theme::PANEL_BG;
@@ -44,21 +45,19 @@ pub(super) fn render_screensaver(
 
     let detail_rows: u16 = u16::from(has_meta) + u16::from(has_tags) + u16::from(has_url) + u16::from(has_game);
     let has_details = detail_rows > 0;
-
-    // Panel: 85% del terminal, mín 74, máx 120
     let pw     = (area.width * 85 / 100).clamp(74, 120);
     let cw_est = pw.saturating_sub(6);
     let title  = state.title.as_deref().unwrap_or("—");
     let title_rows: u16 = if title.chars().count() > cw_est as usize { 2 } else { 1 };
 
-    // Sección de recientes: encabezado + canción actual + hasta 4 previas
+    let title_block_h: u16 = if enriched_track.is_some() { 3 } else { title_rows };
     let recent_rows: u16 = if has_recent { 1 + n_recent } else { 0 };
 
     let ph = 2u16                                           // bordes
         + 1                                                 // margen superior
         + 5 + 1                                             // reloj + gap
         + 1                                                 // nombre estación
-        + title_rows                                        // título canción
+        + title_block_h                                     // título canción (o artista+título+álbum)
         + u16::from(spotify_name.is_some())                 // spotify
         + 1                                                 // gap
         + 1                                                 // visualizador
@@ -90,8 +89,6 @@ pub(super) fn render_screensaver(
     let cx      = inner.x + 2;
     let cw      = inner.width.saturating_sub(4);
     let mut row = inner.y + 1;
-
-    // ── Reloj ──────────────────────────────────────────────────────
     let now_t    = Local::now();
     let h1       = (now_t.hour()   / 10) as u8;
     let h2       = (now_t.hour()   % 10) as u8;
@@ -109,8 +106,6 @@ pub(super) fn render_screensaver(
         row += 1;
     }
     row += 1;
-
-    // ── Nombre de estación ─────────────────────────────────────────
     let raw_name    = state.station.as_ref().map(|s| s.name.as_str()).unwrap_or("—");
     let prefix      = if is_favorite { "★  " } else { "" };
     let station_str = strings::truncate(&format!("{prefix}{}", raw_name.to_uppercase()), cw as usize);
@@ -124,18 +119,58 @@ pub(super) fn render_screensaver(
         Rect::new(cx, row, cw, 1),
     );
     row += 1;
-
-    // ── Título de canción (con wrap a 2 líneas si es largo) ────────
-    frame.render_widget(
-        Paragraph::new(Span::styled(title.to_owned(), Style::default().fg(theme::HIGHLIGHT)))
+    if let Some(et) = enriched_track {
+        frame.render_widget(
+            Paragraph::new(Span::styled(
+                strings::truncate(&et.artist, cw as usize),
+                Style::default().fg(theme::MUTED),
+            ))
             .alignment(Alignment::Center)
-            .wrap(Wrap { trim: true })
             .style(Style::default().bg(BG)),
-        Rect::new(cx, row, cw, title_rows),
-    );
-    row += title_rows;
-
-    // ── Perfil Spotify ─────────────────────────────────────────────
+            Rect::new(cx, row, cw, 1),
+        );
+        row += 1;
+        frame.render_widget(
+            Paragraph::new(Span::styled(
+                strings::truncate(&et.title, cw as usize),
+                Style::default().fg(theme::HIGHLIGHT).add_modifier(Modifier::BOLD),
+            ))
+            .alignment(Alignment::Center)
+            .style(Style::default().bg(BG)),
+            Rect::new(cx, row, cw, 1),
+        );
+        row += 1;
+        let duration_str = if et.duration_secs > 0 {
+            format!("{}:{:02}", et.duration_secs / 60, et.duration_secs % 60)
+        } else {
+            String::new()
+        };
+        let album_line = match (et.year, duration_str.is_empty()) {
+            (Some(y), false) => format!("{}  ·  {}  ·  {}", et.album, y, duration_str),
+            (Some(y), true)  => format!("{}  ·  {}", et.album, y),
+            (None,    false) => format!("{}  ·  {}", et.album, duration_str),
+            (None,    true)  => et.album.clone(),
+        };
+        frame.render_widget(
+            Paragraph::new(Span::styled(
+                strings::truncate(&album_line, cw as usize),
+                Style::default().fg(theme::DIM),
+            ))
+            .alignment(Alignment::Center)
+            .style(Style::default().bg(BG)),
+            Rect::new(cx, row, cw, 1),
+        );
+        row += 1;
+    } else {
+        frame.render_widget(
+            Paragraph::new(Span::styled(title.to_owned(), Style::default().fg(theme::HIGHLIGHT)))
+                .alignment(Alignment::Center)
+                .wrap(Wrap { trim: true })
+                .style(Style::default().bg(BG)),
+            Rect::new(cx, row, cw, title_rows),
+        );
+        row += title_rows;
+    }
     if let Some(name) = spotify_name {
         let name_tc = strings::title_case(name);
         let label = if spotify_premium {
@@ -154,8 +189,6 @@ pub(super) fn render_screensaver(
         );
         row += 1;
     }
-
-    // ── Visualizador ───────────────────────────────────────────────
     row += 1;
     frame.render_widget(
         Paragraph::new(visualizer_line(state.level_db, cw as usize, BG))
@@ -164,8 +197,6 @@ pub(super) fn render_screensaver(
     );
     row += 1;
     row += 1;
-
-    // ── Metadatos de estación (ancho completo) ─────────────────────
     if has_details {
         let sep = "─".repeat(cw as usize);
         frame.render_widget(
@@ -236,8 +267,6 @@ pub(super) fn render_screensaver(
             row += 1;
         }
     }
-
-    // ── Últimas canciones (ancho completo, al fondo) ───────────────
     if has_recent {
         let sep = "─".repeat(cw as usize);
         frame.render_widget(
@@ -289,8 +318,6 @@ pub(super) fn render_screensaver(
             row += 1;
         }
     }
-
-    // ── Barra inferior ─────────────────────────────────────────────
     row += 1;
     if row < inner.bottom() {
         let vol_pct   = (state.volume.clamp(0.0, 1.0) * 100.0).round() as u32;
@@ -414,9 +441,6 @@ pub(super) fn render_spotify_screensaver(
     let has_profile  = profile_rows > 0;
 
     let pw = (area.width * 85 / 100).clamp(60, 110);
-
-    // ph fijo sin perfil para garantizar que la barra de progreso siempre sea visible.
-    // El perfil se renderiza solo si hay filas libres debajo de los elementos obligatorios.
     let ph_base: u16 = 2 + 1 + 5 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1;
     let ph_with_profile = ph_base + 1 + profile_rows;
     let ph = if has_profile && ph_with_profile <= area.height {

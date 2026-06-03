@@ -24,8 +24,6 @@ pub async fn start_flow() -> AuthResult {
 
     AuthResult::Success { username, search_token, refresh_token, audio_token, is_premium, country, followers }
 }
-
-/// Renueva el access_token usando el refresh_token guardado — sin abrir navegador.
 pub async fn refresh_search_token(refresh_token: &str) -> Result<(String, String), String> {
     let client = crate::http::http_client_timeout(8)
         .ok_or_else(|| "No se pudo crear cliente HTTP".to_string())?;
@@ -55,8 +53,6 @@ pub async fn refresh_search_token(refresh_token: &str) -> Result<(String, String
 
     Ok((access, refresh))
 }
-
-// Retorna (access_token, refresh_token, user_id).
 async fn pkce_flow(client_id: &str, port: u16, path: &str) -> Result<(String, String, String), String> {
     let verifier  = generate_verifier();
     let challenge = sha256_base64url(&verifier);
@@ -146,8 +142,6 @@ async fn wait_for_callback(listener: TcpListener) -> Result<String, String> {
     ).await;
     Ok(code)
 }
-
-// Retorna (access_token, refresh_token, user_id).
 async fn exchange_code(
     client_id: &str, code: &str, verifier: &str, redirect: &str,
 ) -> Result<(String, String, String), String> {

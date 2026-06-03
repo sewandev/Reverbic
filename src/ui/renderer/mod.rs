@@ -13,7 +13,7 @@ pub fn spotify_screensaver_progress_rect(
 ) -> Option<Rect> {
     let pw = (area.width * 85 / 100).clamp(60, 110);
 
-    let ph_base: u16 = 2 + 1 + 5 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1;
+    let ph_base: u16 = 2 + 1 + 5 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1;
     let ph = ph_base + if profile_rows > 0 { 1 + profile_rows } else { 0 };
 
     let px = area.x + area.width.saturating_sub(pw) / 2;
@@ -45,7 +45,7 @@ use crate::ui::widgets::{
 
 use components::{render_header, render_help, render_sep};
 use layout::compute_layout;
-use overlays::{render_game_inline, render_game_strip, render_modal_np_strip, render_rename_overlay};
+use overlays::{render_game_inline, render_game_strip, render_help_overlay, render_modal_np_strip, render_modal_spotify_strip, render_rename_overlay};
 use screensaver::{render_screensaver, render_spotify_screensaver};
 
 pub fn render(frame: &mut Frame, app: &App) {
@@ -217,6 +217,7 @@ pub fn render(frame: &mut Frame, app: &App) {
             frame, frame.area(), &player_state, app.station_details.as_ref(), is_fav,
             app.config.spotify.display_name.as_deref(),
             app.spotify.is_premium,
+            app.radio_enriched_track.as_ref(),
         );
         return;
     }
@@ -243,11 +244,28 @@ pub fn render(frame: &mut Frame, app: &App) {
         let remaining_h = full_area.bottom().saturating_sub(strip_y);
         if remaining_h >= 3 {
             let strip = ratatui::layout::Rect::new(modal_x, strip_y, modal_w, remaining_h);
-            render_modal_np_strip(frame, strip, &player_state);
+            if matches!(app.modal_mode, crate::app::SearchMode::Spotify)
+                && (app.spotify.playback.is_some() || app.spotify.now_playing.is_some())
+            {
+                render_modal_spotify_strip(
+                    frame, strip,
+                    app.spotify.playback.as_ref(),
+                    app.spotify.now_playing.as_ref(),
+                    &app.spotify.player_status,
+                );
+            } else {
+                render_modal_np_strip(frame, strip, &player_state);
+            }
         }
     }
 
     if app.renaming_favorite.is_some() {
         render_rename_overlay(frame, &app.rename_input);
+    }
+
+    if app.show_search_modal && app.show_help {
+        use crate::app::SpotifyAuthStatus;
+        let spotify_logged_in = matches!(app.spotify.status, SpotifyAuthStatus::LoggedIn);
+        render_help_overlay(frame, &app.modal_mode, spotify_logged_in);
     }
 }

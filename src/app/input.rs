@@ -9,7 +9,7 @@ use crate::preview::{deezer_preview, parse_seek_input};
 use crate::station::{filter_items, Station, COUNTRIES, GENRES};
 
 use super::{abort_task, cycle_next, cycle_prev, scroll_by, App};
-use super::modal::{AppFocus, IntegrationView, SearchMode, SpotifyAuthStatus, SpotifyPlayerStatus};
+use super::modal::{AppFocus, SearchMode, SpotifyAuthStatus, SpotifyPlayerStatus};
 use super::modal::settings_items;
 
 impl App {
@@ -68,10 +68,6 @@ impl App {
                 self.modal_mode       = SearchMode::Country;
                 self.country_filter.clear();
                 self.country_selected = 0;
-            }
-            KeyCode::Char('i') | KeyCode::Char('I') if self.show_search_modal => {
-                self.modal_mode       = SearchMode::Integrations;
-                self.integration_view = IntegrationView::ServiceList;
             }
             KeyCode::Char('d') | KeyCode::Char('D')
                 if self.show_search_modal
@@ -220,7 +216,15 @@ impl App {
     }
 
     async fn on_key_search_modal(&mut self, key: KeyCode) {
+        if self.show_help {
+            self.show_help = false;
+            return;
+        }
         match key {
+            KeyCode::Char('?') => {
+                self.show_help = true;
+                return;
+            }
             KeyCode::Char('+') | KeyCode::Char('=') => {
                 if matches!(self.modal_mode, SearchMode::Spotify)
                     && self.spotify.active_device_id.is_some()
@@ -260,7 +264,6 @@ impl App {
             self.country_selected = 0;
             abort_task(&mut self.search_task);
             self.search_loading = false;
-            self.integration_view = IntegrationView::ServiceList;
             self.spotify.search_query.clear();
             self.spotify.search_results.clear();
             self.spotify.search_selected = 0;
@@ -281,7 +284,6 @@ impl App {
             SearchMode::Genre        => self.on_key_modal_genre(key).await,
             SearchMode::Country      => self.on_key_modal_country(key).await,
             SearchMode::Settings     => self.on_key_modal_settings(key),
-            SearchMode::Integrations => self.on_key_modal_integrations(key),
             SearchMode::Spotify      => self.on_key_modal_spotify(key).await,
         }
     }
@@ -289,6 +291,7 @@ impl App {
     async fn on_key_modal_name(&mut self, key: KeyCode) {
         match key {
             KeyCode::Esc => {
+                self.show_help = false;
                 if self.search_query.is_empty() && self.search_results.is_empty() {
                     self.should_quit = true;
                 } else {
@@ -333,6 +336,7 @@ impl App {
     async fn on_key_modal_results(&mut self, key: KeyCode) {
         match key {
             KeyCode::Esc => {
+                self.show_help = false;
                 self.search_results.clear();
                 self.genre_query.clear();
                 self.modal_selected = 0;
@@ -403,6 +407,7 @@ impl App {
         let count = settings_items(self.config.duck_enabled).len();
         match key {
             KeyCode::Esc => {
+                self.show_help = false;
                 self.modal_mode = SearchMode::Name;
             }
             KeyCode::Up | KeyCode::Char('k') => {
@@ -582,13 +587,16 @@ impl App {
                                 if let Some(ref mut p) = self.spotify.playback {
                                     p.progress_ms = pos_ms;
                                 }
-                                let token     = self.spotify.access_token.clone().unwrap_or_default();
-                                let device_id = self.spotify.active_device_id.clone().unwrap_or_default();
-                                tokio::spawn(async move {
-                                    let _ = crate::integrations::spotify::devices::seek_playback(
-                                        &token, &device_id, pos_ms,
-                                    ).await;
-                                });
+                                if let Some(token) = self.spotify.access_token.clone() {
+                                    let device_id = self.spotify.active_device_id.clone().unwrap_or_default();
+                                    tokio::spawn(async move {
+                                        if let Err(e) = crate::integrations::spotify::devices::seek_playback(
+                                            &token, &device_id, pos_ms,
+                                        ).await {
+                                            tracing::warn!("spotify seek error: {e}");
+                                        }
+                                    });
+                                }
                             }
                             return;
                         }
@@ -849,6 +857,7 @@ impl App {
 
         match key {
             KeyCode::Esc => {
+                self.show_help = false;
                 if !self.spotify.search_query.is_empty() {
                     self.spotify.search_query.clear();
                     self.spotify.search_results.clear();
@@ -856,6 +865,12 @@ impl App {
                 } else {
                     self.should_quit = true;
                 }
+            }
+            KeyCode::Char(c) if !c.is_control() => {
+                self.on_key_spotify_search(key).await;
+            }
+            KeyCode::Backspace => {
+                self.on_key_spotify_search(key).await;
             }
             _ if self.spotify.search_query.is_empty() && self.spotify.search_results.is_empty() => {
                 self.on_key_spotify_devices(key).await;
@@ -872,6 +887,7 @@ impl App {
                 self.start_oauth_flow();
             }
             KeyCode::Esc => {
+                self.show_help = false;
                 if matches!(self.spotify.status, SpotifyAuthStatus::Connecting) {
                     abort_task(&mut self.spotify.auth_task);
                     self.spotify.auth_rx = None;
@@ -892,14 +908,17 @@ impl App {
                 }
             }
             KeyCode::Down => {
-                let max = self.spotify.devices.len();
+                let max = self.spotify.devices.len() + 1;
                 if self.spotify.devices_selected < max {
                     self.spotify.devices_selected += 1;
                 }
             }
             KeyCode::Enter => {
-                if self.spotify.devices_selected >= self.spotify.devices.len() {
+                if self.spotify.devices_selected == self.spotify.devices.len() {
                     self.config.spotify.stop_on_quit = !self.config.spotify.stop_on_quit;
+                    self.config.save();
+                } else if self.spotify.devices_selected == self.spotify.devices.len() + 1 {
+                    self.config.spotify.start_on_spotify = !self.config.spotify.start_on_spotify;
                     self.config.save();
                 } else if let Some(device) = self.spotify.devices.get(self.spotify.devices_selected) {
                     if let Some(id) = device.id.clone() {
@@ -907,8 +926,12 @@ impl App {
                     }
                 }
             }
-            KeyCode::Char(' ') if self.spotify.devices_selected >= self.spotify.devices.len() => {
+            KeyCode::Char(' ') if self.spotify.devices_selected == self.spotify.devices.len() => {
                 self.config.spotify.stop_on_quit = !self.config.spotify.stop_on_quit;
+                self.config.save();
+            }
+            KeyCode::Char(' ') if self.spotify.devices_selected == self.spotify.devices.len() + 1 => {
+                self.config.spotify.start_on_spotify = !self.config.spotify.start_on_spotify;
                 self.config.save();
             }
             KeyCode::Char(' ') => {
@@ -986,6 +1009,7 @@ impl App {
                             }
                         });
                         self.spotify.player_status = SpotifyPlayerStatus::Playing;
+                        self.start_playback_polling();
                     } else if let Some(handle) = &self.spotify.player_tx {
                         handle.play(track.clone());
                         self.spotify.now_playing   = Some(track);

@@ -6,7 +6,6 @@ pub enum SearchMode {
     Genre,
     Country,
     Settings,
-    Integrations,
     Spotify,
 }
 
@@ -24,13 +23,6 @@ pub enum SpotifyPlayerStatus {
     Playing,
     Paused,
     Error(String),
-}
-
-#[derive(Clone, Copy, PartialEq)]
-pub enum IntegrationView {
-    ServiceList,
-    SpotifyDetail,
-    SpotifyWebBrowser,
 }
 
 #[derive(Clone, Copy, PartialEq)]

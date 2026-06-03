@@ -39,6 +39,10 @@ impl<'a> SearchModalWidget<'a> {
         }
     }
 
+    fn is_on_value(value: &str) -> bool {
+        value == t("config.value.on").as_str()
+    }
+
     pub(super) fn render_settings_body(&self, area: Rect, content_x: u16, content_w: u16, buf: &mut Buffer) {
         let mut rows: Vec<(String, Option<String>)> = Vec::new();
         let mut last_group = "";
@@ -50,6 +54,7 @@ impl<'a> SearchModalWidget<'a> {
             }
             rows.push((item.label(), Some(self.item_value(item))));
         }
+
         let mut item_idx = 0usize;
         let mut selected_row = 0usize;
         for (ri, (_, val)) in rows.iter().enumerate() {
@@ -61,6 +66,7 @@ impl<'a> SearchModalWidget<'a> {
 
         let list_x = content_x + 2;
         let list_w = content_w.saturating_sub(2);
+
         let [_gap, items_area, tooltip_area] = Layout::vertical([
             Constraint::Length(1),
             Constraint::Fill(1),
@@ -69,6 +75,8 @@ impl<'a> SearchModalWidget<'a> {
 
         let visible_n = items_area.height.saturating_sub(1) as usize;
         let offset    = super::super::scroll_offset(selected_row, visible_n);
+        let val_col_w: u16 = 16;
+        let lbl_col_w: u16 = list_w.saturating_sub(3 + val_col_w);
 
         item_idx = 0;
         for (ri, (label, val_opt)) in rows.iter().enumerate() {
@@ -81,35 +89,59 @@ impl<'a> SearchModalWidget<'a> {
 
             if let Some(value) = val_opt {
                 let active = item_idx == self.settings_selected;
-                let (label_st, val_st) = if active {
-                    (Style::default().fg(theme::ACCENT).add_modifier(Modifier::BOLD),
-                     Style::default().fg(theme::PLAYING).add_modifier(Modifier::BOLD))
-                } else {
-                    (Style::default().fg(theme::HIGHLIGHT),
-                     Style::default().fg(theme::MUTED))
-                };
+
                 let prefix = if active { "▶  " } else { "   " };
+
+                let label_str = crate::ui::strings::truncate(label, lbl_col_w as usize);
+                let label_chars = label_str.chars().count() as u16;
+                let padding = lbl_col_w.saturating_sub(label_chars) as usize;
+                let label_st = if active {
+                    Style::default().fg(theme::RADIO_ACCENT).add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default().fg(theme::HIGHLIGHT)
+                };
+                let is_on  = Self::is_on_value(value);
+                let is_off = value == t("config.value.off").as_str();
+                let val_st = if active {
+                    Style::default().fg(theme::PLAYING).add_modifier(Modifier::BOLD)
+                } else if is_on {
+                    Style::default().fg(theme::PLAYING)
+                } else if is_off {
+                    Style::default().fg(theme::MUTED)
+                } else {
+                    Style::default().fg(theme::ACCENT)
+                };
+
                 Paragraph::new(Line::from(vec![
-                    Span::styled(prefix,        label_st),
-                    Span::styled(label.clone(), label_st),
-                    Span::styled("  [",         Style::default().fg(theme::MUTED)),
-                    Span::styled(value.clone(), val_st),
-                    Span::styled("]",           Style::default().fg(theme::MUTED)),
-                ])).render(Rect::new(list_x, y, list_w, 1), buf);
+                    Span::styled(prefix,                   label_st),
+                    Span::styled(label_str,                label_st),
+                    Span::styled(" ".repeat(padding),      Style::default()),
+                    Span::styled(value.clone(),            val_st),
+                ]))
+                .render(Rect::new(list_x, y, list_w, 1), buf);
                 item_idx += 1;
             } else {
-                Paragraph::new(Span::styled(
-                    format!("── {} ", label),
-                    Style::default().fg(theme::MUTED),
-                )).render(Rect::new(list_x, y, list_w, 1), buf);
+                let label_upper = label.to_uppercase();
+                let label_chars = label_upper.chars().count() as u16;
+                let right_dashes = list_w
+                    .saturating_sub(3 + label_chars + 1)
+                    as usize;
+                Paragraph::new(Line::from(vec![
+                    Span::styled("── ", Style::default().fg(theme::DIM)),
+                    Span::styled(label_upper, Style::default().fg(theme::MUTED).add_modifier(Modifier::BOLD)),
+                    Span::styled(
+                        format!(" {}", "─".repeat(right_dashes)),
+                        Style::default().fg(theme::DIM),
+                    ),
+                ]))
+                .render(Rect::new(list_x, y, list_w, 1), buf);
             }
         }
-        let total_rows = rows.len();
-        if total_rows > visible_n {
-            let scroll_area = Rect::new(list_x, items_area.y, list_w, items_area.height);
-            self.render_scrollbar(scroll_area, total_rows, selected_row, buf);
-        }
 
+        if rows.len() > visible_n {
+            let scroll_area = Rect::new(list_x, items_area.y, list_w, items_area.height);
+            self.render_scrollbar(scroll_area, rows.len(), selected_row, buf);
+        }
         let sep = "─".repeat(content_w as usize);
         Paragraph::new(Span::styled(sep, Style::default().fg(theme::DIM)))
             .render(Rect::new(content_x, tooltip_area.y, content_w, 1), buf);
@@ -120,7 +152,7 @@ impl<'a> SearchModalWidget<'a> {
             .unwrap_or_default();
         Paragraph::new(tooltip)
             .wrap(Wrap { trim: true })
-            .style(Style::default().fg(theme::MUTED))
+            .style(Style::default().fg(theme::DIM))
             .render(Rect::new(list_x, tooltip_area.y + 1, list_w, 2), buf);
     }
 }

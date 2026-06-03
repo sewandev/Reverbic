@@ -31,14 +31,19 @@ pub async fn search_tracks(
         .await
         .map_err(|e| SpotifyError::Network(e.to_string()))?;
 
-    let status = response.status();
-    let body   = response.text().await.map_err(|e| SpotifyError::Network(e.to_string()))?;
+    let status      = response.status();
+    let retry_after = response.headers()
+        .get("Retry-After")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.parse::<u64>().ok())
+        .unwrap_or(60);
+    let body = response.text().await.map_err(|e| SpotifyError::Network(e.to_string()))?;
 
     tracing::debug!("spotify /v1/search — status={status} body={}", &body[..body.len().min(400)]);
 
     if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
-        tracing::warn!("spotify search: rate limit activo, intenta de nuevo en unos minutos");
-        return Err(SpotifyError::RateLimit);
+        tracing::warn!("spotify search: rate limit activo, reintenta en {retry_after}s");
+        return Err(SpotifyError::RateLimit(retry_after));
     }
 
     if !status.is_success() {

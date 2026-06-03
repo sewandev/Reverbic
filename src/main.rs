@@ -124,6 +124,7 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
         app.poll_search_results();
         app.poll_on_demand_results();
         app.poll_station_details();
+        app.poll_track_enrichment();
         app.poll_spotify_auth();
         app.poll_spotify_search();
         app.poll_spotify_search_more();
@@ -133,6 +134,11 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
         if app.notice_until.map(|t| std::time::Instant::now() >= t).unwrap_or(false) {
             app.save_notice  = None;
             app.notice_until = None;
+        }
+        if let Some(title) = app.player.state().title.clone() {
+            if app.radio_enriched_for.as_deref() != Some(title.as_str()) {
+                app.trigger_track_enrichment(title);
+            }
         }
         let mut last_area = app.terminal_area;
         tui.draw(|frame| {

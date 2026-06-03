@@ -18,15 +18,16 @@ use super::{BG, SearchModalWidget};
 impl<'a> SearchModalWidget<'a> {
     pub(super) fn render_tabs(&self, area: Rect, content_x: u16, content_w: u16, buf: &mut Buffer) {
         let tab_area = Rect::new(content_x, area.y, content_w, 1);
-        let active   = Style::default().fg(theme::ACCENT).add_modifier(Modifier::BOLD);
-        let inactive = Style::default().fg(theme::MUTED);
+        let radio_active   = Style::default().fg(theme::RADIO_ACCENT).add_modifier(Modifier::BOLD);
+        let spotify_active = Style::default().fg(theme::PLAYING).add_modifier(Modifier::BOLD);
+        let inactive       = Style::default().fg(theme::MUTED);
 
         let radio_st = match self.mode {
-            SearchMode::Name | SearchMode::Genre | SearchMode::Country => active,
+            SearchMode::Name | SearchMode::Genre | SearchMode::Country => radio_active,
             _ => inactive,
         };
         let spotify_st = match self.mode {
-            SearchMode::Spotify => active,
+            SearchMode::Spotify => spotify_active,
             _ => inactive,
         };
 

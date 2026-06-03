@@ -76,25 +76,27 @@ fn build_line(state: &PlayerState, width: u16) -> Line<'static> {
         ]),
 
         PlayerStatus::Playing | PlayerStatus::Paused => {
-            let icon    = if matches!(state.status, PlayerStatus::Paused) { " ⏸  " } else { " >>  " };
-            let show    = state.api_show.clone().unwrap_or_default();
-            let title   = state.title.clone().unwrap_or_else(|| "—".to_owned());
-            let bitrate = state.station.as_ref()
+            let is_playing = matches!(state.status, PlayerStatus::Playing);
+            let icon       = if is_playing { " ▶  " } else { " ⏸  " };
+            let st_style   = if is_playing { theme::PLAYING_STYLE } else { Style::default().fg(theme::ACCENT) };
+            let show       = state.api_show.clone().unwrap_or_default();
+            let title      = state.title.clone().unwrap_or_else(|| "—".to_owned());
+            let bitrate    = state.station.as_ref()
                 .and_then(|s| s.bitrate_kbps)
-                .map(|b| format!("  {b}k"))
+                .map(|b| format!(" {b}k"))
                 .unwrap_or_default();
 
             let mut spans: Vec<Span<'static>> = vec![
                 Span::styled(icon, Style::default().fg(theme::ACCENT)),
-                Span::styled(station, theme::PLAYING_STYLE),
-                Span::styled(bitrate, Style::default().fg(theme::MUTED)),
+                Span::styled(station, st_style),
+                Span::styled(bitrate, Style::default().fg(theme::DIM)),
+                Span::styled("  │  ", Style::default().fg(theme::MUTED)),
+                Span::styled(title, Style::default().fg(theme::HIGHLIGHT)),
             ];
             if !show.is_empty() {
-                spans.push(Span::styled("  ·  ", Style::default().fg(theme::MUTED)));
+                spans.push(Span::styled("  ·  ", Style::default().fg(theme::DIM)));
                 spans.push(Span::styled(show, Style::default().fg(theme::DIM)));
             }
-            spans.push(Span::styled("  ·  ", Style::default().fg(theme::MUTED)));
-            spans.push(Span::styled(title, Style::default().fg(theme::HIGHLIGHT)));
             Line::from(spans)
         }
 

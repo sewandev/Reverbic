@@ -1,11 +1,8 @@
-﻿use crossterm::event::KeyCode;
-
-use super::{abort_task, App};
-use super::modal::{IntegrationView, SearchMode, SpotifyAuthStatus, SpotifyPlayerStatus};
+﻿use super::{abort_task, App};
+use super::modal::{SearchMode, SpotifyAuthStatus, SpotifyPlayerStatus};
 
 impl App {
     pub fn init_integrations(&mut self) {
-        // Si hay refresh_token y display_name guardados, restaura la sesión automáticamente.
         let has_session = self.config.spotify.display_name.is_some()
             && self.config.spotify.refresh_token.is_some();
         if !has_session { return; }
@@ -40,75 +37,6 @@ impl App {
             let _ = tx.send(auth);
         });
         self.spotify.auth_task = Some(handle);
-    }
-
-    pub(super) fn on_key_modal_integrations(&mut self, key: KeyCode) {
-        match self.integration_view {
-            IntegrationView::ServiceList       => self.on_key_integration_list(key),
-            IntegrationView::SpotifyDetail     => self.on_key_integration_spotify_detail(key),
-            IntegrationView::SpotifyWebBrowser => self.on_key_integration_spotify_web(key),
-        }
-    }
-
-    fn on_key_integration_list(&mut self, key: KeyCode) {
-        use super::cycle_next;
-        use super::cycle_prev;
-        match key {
-            KeyCode::Esc => self.modal_mode = SearchMode::Name,
-            KeyCode::Up  => self.integration_selected = cycle_prev(self.integration_selected, 1),
-            KeyCode::Down => self.integration_selected = cycle_next(self.integration_selected, 1),
-            KeyCode::Enter if self.integration_selected == 0 => {
-                self.integration_view = IntegrationView::SpotifyDetail;
-            }
-            _ => {}
-        }
-    }
-
-    fn on_key_integration_spotify_detail(&mut self, key: KeyCode) {
-        if matches!(self.spotify.status, SpotifyAuthStatus::Connecting) {
-            if key == KeyCode::Esc {
-                abort_task(&mut self.spotify.auth_task);
-                self.spotify.auth_rx = None;
-                self.spotify.status  = SpotifyAuthStatus::Idle;
-            }
-            return;
-        }
-
-        if matches!(self.spotify.status, SpotifyAuthStatus::LoggedIn) {
-            match key {
-                KeyCode::Char('d') | KeyCode::Char('D') => self.spotify_logout(),
-                KeyCode::Esc => self.integration_view = IntegrationView::ServiceList,
-                _ => {}
-            }
-            return;
-        }
-
-        match key {
-            KeyCode::Esc => self.integration_view = IntegrationView::ServiceList,
-            KeyCode::Char('d') | KeyCode::Char('D')
-                if self.config.spotify.display_name.is_some() =>
-            {
-                self.spotify_logout();
-            }
-            KeyCode::Enter => self.integration_view = IntegrationView::SpotifyWebBrowser,
-            _ => {}
-        }
-    }
-
-    fn on_key_integration_spotify_web(&mut self, key: KeyCode) {
-        if matches!(self.spotify.status, SpotifyAuthStatus::Connecting) {
-            if key == KeyCode::Esc {
-                abort_task(&mut self.spotify.auth_task);
-                self.spotify.auth_rx = None;
-                self.spotify.status  = SpotifyAuthStatus::Idle;
-            }
-            return;
-        }
-        match key {
-            KeyCode::Enter => self.start_oauth_flow(),
-            KeyCode::Esc   => self.integration_view = IntegrationView::SpotifyDetail,
-            _ => {}
-        }
     }
 
     pub(super) fn start_oauth_flow(&mut self) {
@@ -155,9 +83,12 @@ impl App {
                     self.config.spotify.followers     = followers;
                     self.config.save();
                     self.spotify.status       = SpotifyAuthStatus::LoggedIn;
-                    self.modal_mode           = SearchMode::Spotify;
+                    if self.config.spotify.start_on_spotify {
+                        self.modal_mode = SearchMode::Spotify;
+                    }
                     self.spotify.access_token = Some(search_token);
                     self.fetch_spotify_devices();
+                    self.start_playback_polling();
                     {
                         let (evt_tx, evt_rx) = std::sync::mpsc::sync_channel(32);
                         let handle = crate::integrations::spotify::player::spawn_player(audio_token, evt_tx);
@@ -234,12 +165,12 @@ impl App {
         self.spotify.search_loading = true;
         let handle = tokio::spawn(async move {
             tokio::time::sleep(std::time::Duration::from_millis(300)).await;
-            let (results, rate_limited) = match search_tracks(&query, &token, 0).await {
-                Ok((r, limited))             => (r, limited),
-                Err(SpotifyError::RateLimit) => (vec![], true),
-                Err(e)                       => { tracing::warn!("spotify search: {e}"); (vec![], false) }
+            let (results, has_more, rate_limit_secs) = match search_tracks(&query, &token, 0).await {
+                Ok((r, more))                      => (r, more, None),
+                Err(SpotifyError::RateLimit(secs)) => (vec![], false, Some(secs)),
+                Err(e)                             => { tracing::warn!("spotify search: {e}"); (vec![], false, None) }
             };
-            let _ = tx.send((results, rate_limited));
+            let _ = tx.send((results, has_more, rate_limit_secs));
         });
         self.spotify.search_task = Some(handle);
     }
@@ -287,7 +218,7 @@ impl App {
                 Ok(Err(e)) => {
                     tracing::warn!("spotify devices: {e}");
                     self.spotify.devices_loading = false;
-                    if !matches!(e, SpotifyError::RateLimit) {
+                    if !matches!(e, SpotifyError::RateLimit(_)) {
                         self.save_notice = Some(format!("Dispositivos Spotify: {e}"));
                     }
                 }
@@ -308,6 +239,9 @@ impl App {
         let current = self.spotify.playback.as_ref().map(|p| p.volume_pct).unwrap_or(50);
         let new_vol = (current as i16 + delta as i16).clamp(0, 100) as u8;
         if let Some(ref mut p) = self.spotify.playback { p.volume_pct = new_vol; }
+        self.spotify.volume_pending_until = Some(
+            std::time::Instant::now() + std::time::Duration::from_secs(4)
+        );
         tokio::spawn(async move {
             if let Err(e) = set_volume(&token, &device_id, new_vol).await {
                 tracing::warn!("spotify set_volume error: {e}");
@@ -337,18 +271,19 @@ impl App {
     pub fn poll_spotify_search(&mut self) {
         if let Some(rx) = self.spotify.search_rx.take() {
             match rx.try_recv() {
-                Ok((results, rate_limited)) => {
+                Ok((results, has_more, rate_limit_secs)) => {
+                    let rate_limited = rate_limit_secs.is_some();
                     self.spotify.search_rate_limited = rate_limited;
-                    if rate_limited {
+                    if let Some(secs) = rate_limit_secs {
                         self.spotify.rate_limited_until = Some(
-                            std::time::Instant::now() + std::time::Duration::from_secs(300)
+                            std::time::Instant::now() + std::time::Duration::from_secs(secs)
                         );
                     }
-                    self.spotify.search_has_more     = !rate_limited && results.len() == 10;
-                    self.spotify.search_results      = results;
-                    self.spotify.search_loading      = false;
-                    self.spotify.search_selected     = 0;
-                    self.spotify.search_offset       = 0;
+                    self.spotify.search_has_more = !rate_limited && has_more;
+                    self.spotify.search_results  = results;
+                    self.spotify.search_loading  = false;
+                    self.spotify.search_selected = 0;
+                    self.spotify.search_offset   = 0;
                 }
                 Err(std::sync::mpsc::TryRecvError::Empty) => {
                     self.spotify.search_rx = Some(rx);
@@ -372,8 +307,8 @@ impl App {
         self.spotify.search_has_more = false;
         let handle = tokio::spawn(async move {
             let result = match search_tracks(&query, &token, offset).await {
-                Ok(r)  => r,
-                Err(e) => { tracing::warn!("spotify load_more failed: {e}"); (vec![], false) }
+                Ok((r, more)) => (r, more, None),
+                Err(e)        => { tracing::warn!("spotify load_more failed: {e}"); (vec![], false, None) }
             };
             let _ = tx.send(result);
         });
@@ -383,9 +318,9 @@ impl App {
     pub fn poll_spotify_search_more(&mut self) {
         if let Some(rx) = self.spotify.search_more_rx.take() {
             match rx.try_recv() {
-                Ok((more, has_more)) => {
+                Ok((more, has_more, _)) => {
                     self.spotify.search_offset  += 10;
-                    self.spotify.search_has_more = has_more || more.len() == 10;
+                    self.spotify.search_has_more = has_more;
                     self.spotify.search_results.extend(more);
                 }
                 Err(std::sync::mpsc::TryRecvError::Empty) => {
@@ -411,7 +346,7 @@ impl App {
                         delay_secs = 2;
                         if tx.send(state).is_err() { break; }
                     }
-                    Err(crate::integrations::spotify::SpotifyError::RateLimit) => {
+                    Err(crate::integrations::spotify::SpotifyError::RateLimit(_)) => {
                         delay_secs = (delay_secs * 2).min(300);
                         tracing::debug!("playback poll: rate limited, backoff {}s", delay_secs);
                     }
@@ -432,7 +367,23 @@ impl App {
         if let Some(rx) = &self.spotify.playback_rx {
             loop {
                 match rx.try_recv() {
-                    Ok(state)  => { self.spotify.playback = state; }
+                    Ok(new_state) => {
+                        self.spotify.playback = match new_state {
+                            None => None,
+                            Some(mut state) => {
+                                if let Some(until) = self.spotify.volume_pending_until {
+                                    if std::time::Instant::now() < until {
+                                        if let Some(ref current) = self.spotify.playback {
+                                            state.volume_pct = current.volume_pct;
+                                        }
+                                    } else {
+                                        self.spotify.volume_pending_until = None;
+                                    }
+                                }
+                                Some(state)
+                            }
+                        };
+                    }
                     Err(std::sync::mpsc::TryRecvError::Empty)        => break,
                     Err(std::sync::mpsc::TryRecvError::Disconnected) => {
                         self.spotify.playback_rx = None;

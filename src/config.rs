@@ -97,7 +97,9 @@ pub struct SpotifyConfig {
     #[serde(default)]
     pub followers:     Option<u32>,
     #[serde(default)]
-    pub stop_on_quit:  bool,
+    pub stop_on_quit:      bool,
+    #[serde(default)]
+    pub start_on_spotify:  bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -175,6 +175,192 @@ pub(super) fn build_modal_station_line(state: &PlayerState) -> Line<'static> {
     }
 }
 
+pub(super) fn render_modal_spotify_strip(
+    frame:         &mut Frame,
+    strip:         Rect,
+    playback:      Option<&crate::integrations::spotify::SpotifyPlaybackState>,
+    now_playing:   Option<&crate::integrations::spotify::SpotifyTrack>,
+    player_status: &crate::app::SpotifyPlayerStatus,
+) {
+    use ratatui::style::Color;
+    use crate::app::SpotifyPlayerStatus;
+    const STRIP_BG: Color = Color::Rgb(13, 13, 13);
+    const H_PAD:    u16   = 2;
+
+    let is_playing = matches!(player_status, SpotifyPlayerStatus::Playing);
+    let is_paused  = matches!(player_status, SpotifyPlayerStatus::Paused);
+    if !is_playing && !is_paused { return; }
+
+    let (artist, track_name, album, volume_pct) = if let Some(pb) = playback {
+        (pb.artist.as_str(), pb.track_name.as_str(), pb.album.as_str(), Some(pb.volume_pct))
+    } else if let Some(np) = now_playing {
+        (np.artist.as_str(), np.name.as_str(), np.album.as_str(), None)
+    } else {
+        return;
+    };
+
+    if artist.is_empty() && track_name.is_empty() { return; }
+
+    let content_w = strip.width.saturating_sub(2 + H_PAD * 2) as usize;
+    if content_w == 0 { return; }
+
+    let track_meta = if album.is_empty() {
+        track_name.to_owned()
+    } else {
+        format!("{track_name} · {album}")
+    };
+    let title_lines = wrap_into_lines(&track_meta, content_w, 2);
+
+    let panel_h = 2 + 1 + title_lines.len() as u16;
+    if panel_h > strip.height { return; }
+
+    let panel = Rect::new(strip.x, strip.y, strip.width, panel_h);
+
+    let vol_str = volume_pct
+        .map(|v| format!(" {v}% "))
+        .unwrap_or_default();
+
+    let block = Block::default()
+        .title_top(
+            Line::from(Span::styled(vol_str, Style::default().fg(theme::ACCENT)))
+                .alignment(Alignment::Right),
+        )
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(theme::MUTED))
+        .style(Style::default().bg(STRIP_BG));
+
+    let inner = block.inner(panel);
+    frame.render_widget(block, panel);
+
+    let cx   = inner.x + H_PAD;
+    let cw   = inner.width.saturating_sub(H_PAD * 2);
+    let icon = if is_playing { "▶  " } else { "⏸  " };
+
+    let artist_display = crate::ui::strings::truncate(artist, cw.saturating_sub(3) as usize);
+    frame.render_widget(
+        Paragraph::new(Line::from(vec![
+            Span::styled(icon,           Style::default().fg(theme::PLAYING)),
+            Span::styled(artist_display, theme::PLAYING_STYLE),
+        ])).style(Style::default().bg(STRIP_BG)),
+        Rect::new(cx, inner.y, cw, 1),
+    );
+
+    for (i, tline) in title_lines.into_iter().enumerate() {
+        let row_y = inner.y + 1 + i as u16;
+        if row_y < inner.bottom() {
+            frame.render_widget(
+                Paragraph::new(tline).style(Style::default().bg(STRIP_BG)),
+                Rect::new(cx, row_y, cw, 1),
+            );
+        }
+    }
+}
+
+pub(super) fn render_help_overlay(frame: &mut Frame, mode: &crate::app::SearchMode, spotify_logged_in: bool) {
+    use crate::app::SearchMode;
+
+    let lines: &[(&str, &str)] = match mode {
+        SearchMode::Name => &[
+            ("[↵]",     "Reproducir estacion"),
+            ("[↑↓]",   "Navegar lista"),
+            ("[F]",     "Guardar en favoritas"),
+            ("[R]",     "Estacion aleatoria"),
+            ("[Tab]",   "Ir a Spotify"),
+            ("[Alt+G]", "Buscar por Genero"),
+            ("[Alt+C]", "Buscar por Pais"),
+            ("[Alt+O]", "Abrir Configuracion"),
+            ("[Esc]",   "Cerrar / Salir"),
+        ],
+        SearchMode::Spotify => {
+            if spotify_logged_in {
+                &[
+                    ("[↵]",     "Reproducir en dispositivo"),
+                    ("[↑↓]",   "Navegar"),
+                    ("[Alt+D]", "Desconectar Spotify"),
+                    ("[Alt+R]", "Recargar dispositivos"),
+                    ("[Space]", "Pausar / Reanudar"),
+                    ("[Esc]",   "Cerrar"),
+                ]
+            } else {
+                &[
+                    ("[↵]",   "Conectar Spotify"),
+                    ("[Tab]", "Ir a Radio"),
+                    ("[Esc]", "Cerrar"),
+                ]
+            }
+        }
+        SearchMode::Settings => &[
+            ("[Space]", "Cambiar valor"),
+            ("[↑↓]",   "Navegar opciones"),
+            ("[Alt+I]", "Ir a Integraciones"),
+            ("[Esc]",   "Volver"),
+        ],
+        _ => &[
+            ("[↑↓]",  "Navegar"),
+            ("[↵]",   "Confirmar"),
+            ("[Esc]", "Volver"),
+        ],
+    };
+
+    const CREDITS: &[&str] = &[
+        "Esteban Jaramillo — Chile",
+        "github.com/sewandev/Reverbic",
+    ];
+
+    let area    = frame.area();
+    let w       = 46u16.min(area.width);
+    let h       = (lines.len() as u16 + 3 + CREDITS.len() as u16 + 2).min(area.height);
+    let x       = area.x + area.width.saturating_sub(w) / 2;
+    let y       = area.y + area.height.saturating_sub(h) / 2;
+    let rect    = ratatui::layout::Rect::new(x, y, w, h);
+
+    frame.render_widget(Clear, rect);
+    let block = Block::default()
+        .title(" Atajos ")
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(theme::ACCENT))
+        .style(Style::default().bg(theme::PANEL_BG));
+    let inner = block.inner(rect);
+    frame.render_widget(block, rect);
+
+    for (i, (key_str, desc)) in lines.iter().enumerate() {
+        let row_y = inner.y + i as u16;
+        if row_y >= inner.bottom() { break; }
+        frame.render_widget(
+            Paragraph::new(Line::from(vec![
+                Span::styled(
+                    format!("  {:9}", key_str),
+                    Style::default().fg(theme::ACCENT).add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(*desc, Style::default().fg(theme::HIGHLIGHT)),
+            ]))
+            .style(Style::default().bg(theme::PANEL_BG)),
+            ratatui::layout::Rect::new(inner.x, row_y, inner.width, 1),
+        );
+    }
+    let sep_y = inner.y + lines.len() as u16 + 1;
+    if sep_y < inner.bottom() {
+        let sep = "─".repeat(inner.width as usize);
+        frame.render_widget(
+            Paragraph::new(Span::styled(sep, Style::default().fg(theme::DIM)))
+                .style(Style::default().bg(theme::PANEL_BG)),
+            ratatui::layout::Rect::new(inner.x, sep_y, inner.width, 1),
+        );
+    }
+
+    for (i, line) in CREDITS.iter().enumerate() {
+        let row_y = sep_y + 1 + i as u16;
+        if row_y >= inner.bottom() { break; }
+        frame.render_widget(
+            Paragraph::new(Span::styled(*line, Style::default().fg(theme::MUTED)))
+                .style(Style::default().bg(theme::PANEL_BG)),
+            ratatui::layout::Rect::new(inner.x + 2, row_y, inner.width.saturating_sub(2), 1),
+        );
+    }
+}
+
 pub(super) fn wrap_into_lines(text: &str, width: usize, max_lines: usize) -> Vec<Line<'static>> {
     if text.is_empty() || width == 0 { return vec![]; }
     let chars: Vec<char> = text.chars().collect();

@@ -2,13 +2,8 @@ pub fn open_url(url: &str) {
     #[cfg(target_os = "windows")]
     {
         use std::process::{Command, Stdio};
-        let result = Command::new("powershell")
-            .args([
-                "-NoProfile",
-                "-NonInteractive",
-                "-Command",
-                &format!("Start-Process \"{}\"", url.replace('"', "`\"")),
-            ])
+        let result = Command::new("rundll32.exe")
+            .args(["url.dll,FileProtocolHandler", url])
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .spawn();

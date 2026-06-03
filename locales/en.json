@@ -36,6 +36,7 @@
   "modal.spotify.device_active": "active",
   "modal.spotify.config_header": "Spotify Settings",
   "modal.spotify.stop_on_quit": "Stop playback when closing Reverbic",
+  "modal.spotify.start_on_spotify": "Go to Spotify tab on connect",
   "modal.spotify.devices": "DEVICES",
   "modal.spotify.no_devices": "No active devices",
   "modal.spotify.devices_loading": "Looking for devices…",

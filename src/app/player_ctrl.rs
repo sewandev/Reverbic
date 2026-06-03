@@ -14,6 +14,7 @@ impl App {
     }
 
     pub(super) async fn play_station(&mut self, station: Station) {
+        self.stop_playback_polling();
         self.config.last_station = Some(LastStation {
             key:          station.key.clone(),
             name:         station.name.clone(),

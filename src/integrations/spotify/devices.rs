@@ -118,11 +118,16 @@ pub async fn resume_device(token: &str, device_id: &str) -> Result<(), SpotifyEr
 pub async fn set_volume(token: &str, device_id: &str, volume_pct: u8) -> Result<(), SpotifyError> {
     let client = spotify_client(8)?;
     let pct = volume_pct.min(100);
+    let url = if device_id.is_empty() {
+        format!("https://api.spotify.com/v1/me/player/volume?volume_percent={pct}")
+    } else {
+        format!("https://api.spotify.com/v1/me/player/volume?volume_percent={pct}&device_id={device_id}")
+    };
     tracing::info!("spotify set_volume: device_id={device_id} pct={pct}");
     let resp = client
-        .put(format!("https://api.spotify.com/v1/me/player/volume?volume_percent={pct}&device_id={device_id}"))
+        .put(url)
         .bearer_auth(token)
-        .body("")
+        .header("Content-Length", "0")
         .send().await
         .map_err(|e| SpotifyError::Network(e.to_string()))?;
     let status = resp.status();
@@ -158,10 +163,13 @@ pub async fn transfer_playback(token: &str, device_id: &str) -> Result<(), Spoti
 
 pub async fn seek_playback(token: &str, device_id: &str, position_ms: u32) -> Result<(), SpotifyError> {
     let client = spotify_client(8)?;
+    let url = if device_id.is_empty() {
+        format!("https://api.spotify.com/v1/me/player/seek?position_ms={position_ms}")
+    } else {
+        format!("https://api.spotify.com/v1/me/player/seek?position_ms={position_ms}&device_id={device_id}")
+    };
     let resp = client
-        .put(format!(
-            "https://api.spotify.com/v1/me/player/seek?position_ms={position_ms}&device_id={device_id}"
-        ))
+        .put(url)
         .bearer_auth(token)
         .header("Content-Length", "0")
         .send().await

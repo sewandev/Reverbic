@@ -5,8 +5,8 @@ pub enum SpotifyError {
     #[error("Error de red: {0}")]
     Network(String),
 
-    #[error("Limite de requests alcanzado. Espera unos minutos.")]
-    RateLimit,
+    #[error("Limite de requests alcanzado. Reintenta en {0}s.")]
+    RateLimit(u64),
 
     #[error("No autorizado. Reconecta tu cuenta de Spotify.")]
     Unauthorized,
@@ -27,7 +27,7 @@ pub enum SpotifyError {
 impl SpotifyError {
     pub fn from_status(status: reqwest::StatusCode, body: &str) -> Self {
         match status.as_u16() {
-            429 => Self::RateLimit,
+            429 => Self::RateLimit(60),
             401 => Self::Unauthorized,
             403 => {
                 if body.contains("PREMIUM") || body.contains("premium") {
