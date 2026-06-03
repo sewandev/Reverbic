@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [develop]
+
+jobs:
+  check:
+    name: Check & lint
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: cargo check
+        run: cargo check --all-features
+
+      - name: cargo clippy
+        run: cargo clippy --all-features -- -D warnings
+
+      - name: cargo fmt
+        run: cargo fmt --check
