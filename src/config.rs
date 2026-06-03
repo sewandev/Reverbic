@@ -90,7 +90,7 @@ pub struct SpotifyConfig {
     pub display_name:  Option<String>,
     #[serde(default)]
     pub search_token:  Option<String>,
-    #[serde(default)]
+    #[serde(skip_serializing, default)]
     pub refresh_token: Option<String>,
     #[serde(default)]
     pub is_premium:    Option<bool>,
@@ -274,7 +274,7 @@ impl Config {
         let Ok(data) = std::fs::read_to_string(&path) else {
             return Self::default();
         };
-        match serde_json::from_str::<Self>(&data) {
+        let mut config = match serde_json::from_str::<Self>(&data) {
             Ok(c) => {
                 tracing::info!("Config cargada desde {:?}", path);
                 c
@@ -283,9 +283,23 @@ impl Config {
                 tracing::warn!("Config inválida ({e}), usando defaults");
                 Self::default()
             }
+        };
+        if let Ok(entry) = keyring::Entry::new("reverbic", "spotify_refresh_token") {
+            match entry.get_password() {
+                Ok(token) => config.spotify.refresh_token = Some(token),
+                Err(_) => {}
+            }
         }
+        config
     }
+
     pub fn save(&self) {
+        if let Ok(entry) = keyring::Entry::new("reverbic", "spotify_refresh_token") {
+            match &self.spotify.refresh_token {
+                Some(token) => { let _ = entry.set_password(token); }
+                None        => { let _ = entry.delete_credential(); }
+            }
+        }
         let path = Self::path();
         match save_json_atomic(&path, self) {
             Ok(())  => tracing::info!("Config guardada en {:?}", path),

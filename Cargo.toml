@@ -26,6 +26,7 @@ librespot-playback = { version = "0.8", default-features = false, features = ["r
 librespot-audio    = { version = "0.8", default-features = false, features = ["rustls-tls-native-roots"] }
 librespot-connect  = { version = "0.8", default-features = false, features = ["rustls-tls-native-roots"] }
 nucleo-matcher     = "0.3"
+keyring            = "3"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows = { version = "0.58", features = [

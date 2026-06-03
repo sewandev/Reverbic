@@ -16,7 +16,7 @@
   <a href="README.es.md">Español</a>
 </p>
 
-[![Reverbic preview](assets/preview.png)](https://github.com/sewandev/Reverbic)
+<video src="assets/reverbic.mp4" controls width="100%"></video>
 
 ---
 
@@ -76,6 +76,24 @@
 
 - Windows 10 or 11
 - [Rust](https://rustup.rs/) (latest stable)
+
+### Quick install (adds `reverbic` to PATH)
+
+Open PowerShell and run:
+
+```powershell
+irm https://raw.githubusercontent.com/sewandev/Reverbic/main/scripts/install.ps1 | iex
+```
+
+After it finishes, open a new terminal and type `reverbic`.
+
+### Manual download
+
+Pre-built binaries are available on the [Releases page](https://github.com/sewandev/Reverbic/releases/latest).
+
+Download `reverbic-v1.0.0-x86_64-windows.exe`, place it anywhere and run it from a terminal.
+
+> **Windows SmartScreen** may show a warning for unsigned binaries. Click "More info" → "Run anyway".
 
 ### Build from source
 
