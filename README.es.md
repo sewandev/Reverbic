@@ -61,7 +61,7 @@
 | CPU en reposo | < 1 % | 3–8 % |
 | Tiempo de inicio | < 1 s | 3–8 s |
 | Espacio en disco | ~8 MB | 500 MB+ |
-| Corre en segundo plano | Si — queda en la bandeja | Necesita una ventana abierta |
+| Corre en segundo plano | La terminal debe quedar abierta | Necesita una ventana abierta |
 | Teclas multimedia | Soporte nativo | Depende del sitio |
 | Audio ducking | Integrado | No disponible |
 | Publicidad / rastreo | Ninguno | Presente en la mayoria de sitios |

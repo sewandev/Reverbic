@@ -61,7 +61,7 @@
 | CPU at idle | < 1 % | 3–8 % |
 | Startup time | < 1 s | 3–8 s |
 | Disk footprint | ~8 MB | 500 MB+ |
-| Runs in background | Yes — stays in tray | Needs a window open |
+| Runs in background | Terminal window must stay open | Needs a window open |
 | Media keys | Native support | Depends on the site |
 | Audio ducking | Built-in | Not available |
 | Ads / tracking | None | Present on most sites |
