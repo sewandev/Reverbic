@@ -162,9 +162,22 @@ impl<'a> SearchModalWidget<'a> {
     fn render_spotify_error(&self, area: Rect, lx: u16, lw: u16, buf: &mut Buffer, msg: &str) {
         let mut y = area.y + 2;
         if y >= area.bottom() { return; }
-        let display = strings::truncate(msg, lw as usize);
-        Paragraph::new(Span::styled(display, Style::default().fg(theme::WARNING)))
+
+        Paragraph::new(Span::styled(
+            strings::truncate(msg, lw as usize),
+            Style::default().fg(theme::WARNING),
+        ))
+        .render(Rect::new(lx, y, lw, 1), buf);
+
+        y += 1;
+        if y < area.bottom() {
+            Paragraph::new(Span::styled(
+                t("integrations.spotify.error.hint"),
+                Style::default().fg(theme::DIM),
+            ))
             .render(Rect::new(lx, y, lw, 1), buf);
+        }
+
         y += 2;
         if y < area.bottom() {
             Paragraph::new(Line::from(vec![

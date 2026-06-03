@@ -1,6 +1,17 @@
 ﻿use super::{abort_task, App};
 use super::modal::{SearchMode, SpotifyAuthStatus, SpotifyPlayerStatus};
 
+fn friendly_spotify_error(raw: &str, client_id: &str) -> String {
+    let is_invalid_client = raw.contains("invalid_client")
+        || raw.contains("invalid client")
+        || raw.contains("access_token");
+    if client_id.is_empty() || is_invalid_client {
+        crate::i18n::t("integrations.spotify.error.invalid_client")
+    } else {
+        crate::i18n::t("integrations.spotify.error.generic")
+    }
+}
+
 impl App {
     pub fn init_integrations(&mut self) {
         let has_session = self.config.spotify.display_name.is_some()
@@ -110,13 +121,15 @@ impl App {
                         self.config.spotify.search_token  = None;
                         self.config.save();
                     }
-                    self.spotify.status = SpotifyAuthStatus::Error(msg);
+                    self.spotify.status = SpotifyAuthStatus::Error(friendly_spotify_error(&msg, &self.config.spotify.client_id));
                 }
                 Err(std::sync::mpsc::TryRecvError::Empty) => {
                     self.spotify.auth_rx = Some(rx);
                 }
                 Err(std::sync::mpsc::TryRecvError::Disconnected) => {
-                    self.spotify.status = SpotifyAuthStatus::Error("La conexión con Spotify falló inesperadamente.".to_string());
+                    self.spotify.status = SpotifyAuthStatus::Error(
+                        crate::i18n::t("integrations.spotify.error.generic")
+                    );
                 }
             }
         }

@@ -122,9 +122,3 @@ Todos los ajustes son accesibles desde la aplicación con `Alt+O`. No es necesar
 
 La configuración se guarda en `%APPDATA%\reverbic\config.json`.
 
----
-
-## Autor
-
-**Esteban Jaramillo** — Chile  
-[github.com/sewandev/Reverbic](https://github.com/sewandev/Reverbic)

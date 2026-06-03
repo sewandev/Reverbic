@@ -122,9 +122,3 @@ All settings are accessible inside the app via `Alt+O`. No config file editing r
 
 Config is stored at `%APPDATA%\reverbic\config.json`.
 
----
-
-## Author
-
-**Esteban Jaramillo** — Chile  
-[github.com/sewandev/Reverbic](https://github.com/sewandev/Reverbic)
