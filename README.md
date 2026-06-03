@@ -116,6 +116,22 @@ cargo build --release
 .\target\release\reverbic.exe
 ```
 
+### Spotify setup
+
+Spotify integration requires a client ID from the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard).
+
+1. Create an app in the dashboard
+2. Add `http://localhost:8888/callback` and `http://localhost:8898/login` as Redirect URIs
+3. Create a `.env` file in the project root:
+
+```env
+SPOTIFY_CLIENT_ID=your_client_id_here
+```
+
+4. Build the project — the client ID is embedded at compile time
+
+> Spotify playback requires a **Premium** account. Free accounts can use search and device listing only.
+
 ---
 
 ## Configuration

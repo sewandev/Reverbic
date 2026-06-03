@@ -12,7 +12,7 @@ use crate::station::{COUNTRIES, GENRES};
 use crate::ui::strings;
 use crate::ui::theme;
 
-use super::helpers::{placeholder_example, render_filter_list_body, spin_frame};
+use super::helpers::{placeholder_example, render_filter_list_body, spin_frame, FilterListParams};
 use super::{BG, SearchModalWidget};
 
 impl<'a> SearchModalWidget<'a> {
@@ -102,16 +102,15 @@ impl<'a> SearchModalWidget<'a> {
         }
 
         let (needs_scroll, list_area, total) = render_filter_list_body(
-            self.genre_filter,
-            &t("modal.genre.placeholder"),
-            GENRES,
-            self.genre_selected,
-            self.loading,
-            &t("modal.loading.genre"),
-            area,
-            content_x,
-            content_w,
-            buf,
+            FilterListParams {
+                filter:       self.genre_filter,
+                placeholder:  &t("modal.genre.placeholder"),
+                items:        GENRES,
+                selected:     self.genre_selected,
+                loading:      self.loading,
+                loading_text: &t("modal.loading.genre"),
+            },
+            area, content_x, content_w, buf,
         );
 
         if needs_scroll {
@@ -138,16 +137,15 @@ impl<'a> SearchModalWidget<'a> {
         }
 
         let (needs_scroll, list_area, total) = render_filter_list_body(
-            self.country_filter,
-            &t("modal.country.placeholder"),
-            COUNTRIES,
-            self.country_selected,
-            self.loading,
-            &t("modal.loading.country"),
-            area,
-            content_x,
-            content_w,
-            buf,
+            FilterListParams {
+                filter:       self.country_filter,
+                placeholder:  &t("modal.country.placeholder"),
+                items:        COUNTRIES,
+                selected:     self.country_selected,
+                loading:      self.loading,
+                loading_text: &t("modal.loading.country"),
+            },
+            area, content_x, content_w, buf,
         );
 
         if needs_scroll {

@@ -16,7 +16,7 @@ pub async fn start_flow() -> AuthResult {
             Err(e) => return AuthResult::Failure(e),
         };
     let (username, is_premium, country, followers) = fetch_user_profile(&search_token).await
-        .unwrap_or_else(|_| (userid, false, None, None));
+        .unwrap_or((userid, false, None, None));
 
     let audio_token = pkce_flow(LIBRE_CLIENT_ID, 8898, "/login").await
         .map(|(t, _, _)| t)

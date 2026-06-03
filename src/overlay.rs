@@ -323,7 +323,7 @@ unsafe fn run(
                         let current_vol = rx.borrow().volume;
                         if current_vol > duck_target + 0.01 {
                             pre_duck_vol = current_vol;
-                            let _ = cmd_tx.blocking_send(PlayerCommand::SetVolume(duck_target));
+                            let _ = cmd_tx.try_send(PlayerCommand::SetVolume(duck_target));
                             is_ducked = true;
                         }
                     }
@@ -331,7 +331,7 @@ unsafe fn run(
                     match quiet_since {
                         None => quiet_since = Some(Instant::now()),
                         Some(t) if t.elapsed().as_millis() >= UNDUCK_DELAY_MS => {
-                            let _ = cmd_tx.blocking_send(PlayerCommand::SetVolume(pre_duck_vol));
+                            let _ = cmd_tx.try_send(PlayerCommand::SetVolume(pre_duck_vol));
                             is_ducked    = false;
                             quiet_since  = None;
                         }
@@ -628,10 +628,19 @@ unsafe fn is_fullscreen_foreground(overlay_hwnd: HWND) -> bool {
     if GetWindowRect(fg, &mut r).is_err() {
         return false;
     }
-    let sw = GetSystemMetrics(SM_CXSCREEN);
-    let sh = GetSystemMetrics(SM_CYSCREEN);
-    let w  = r.right - r.left;
-    let h  = r.bottom - r.top;
+    let monitor = MonitorFromWindow(fg, MONITOR_DEFAULTTONEAREST);
+    let mut info = MONITORINFO {
+        cbSize: std::mem::size_of::<MONITORINFO>() as u32,
+        ..Default::default()
+    };
+    let (sw, sh) = if GetMonitorInfoW(monitor, &mut info).as_bool() {
+        let mr = info.rcMonitor;
+        (mr.right - mr.left, mr.bottom - mr.top)
+    } else {
+        (GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN))
+    };
+    let w = r.right - r.left;
+    let h = r.bottom - r.top;
     w >= sw && h >= sh
 }
 

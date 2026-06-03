@@ -46,7 +46,7 @@ use crate::ui::widgets::{
 use components::{render_header, render_help, render_sep};
 use layout::compute_layout;
 use overlays::{render_game_inline, render_game_strip, render_help_overlay, render_modal_np_strip, render_modal_spotify_strip, render_rename_overlay};
-use screensaver::{render_screensaver, render_spotify_screensaver};
+use screensaver::{render_screensaver, render_spotify_screensaver, ScreensaverCtx};
 
 const MIN_WIDTH:  u16 = 52;
 const MIN_HEIGHT: u16 = 5;
@@ -229,12 +229,14 @@ pub fn render(frame: &mut Frame, app: &App) {
         let is_fav = player_state.station.as_ref()
             .map(|s| app.favorites.iter().any(|f| f.url == s.url))
             .unwrap_or(false);
-        render_screensaver(
-            frame, frame.area(), &player_state, app.station_details.as_ref(), is_fav,
-            app.config.spotify.display_name.as_deref(),
-            app.spotify.is_premium,
-            app.radio_enriched_track.as_ref(),
-        );
+        render_screensaver(frame, frame.area(), ScreensaverCtx {
+            state:           &player_state,
+            details:         app.station_details.as_ref(),
+            is_favorite:     is_fav,
+            spotify_name:    app.config.spotify.display_name.as_deref(),
+            spotify_premium: app.spotify.is_premium,
+            enriched_track:  app.radio_enriched_track.as_ref(),
+        });
         return;
     }
 

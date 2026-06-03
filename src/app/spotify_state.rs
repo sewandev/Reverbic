@@ -6,6 +6,8 @@ use crate::integrations::spotify::{
 };
 use super::modal::{SpotifyAuthStatus, SpotifyPlayerStatus, SpotifySubTab};
 
+type SearchPageRx = std::sync::mpsc::Receiver<(Vec<SpotifyTrack>, bool, Option<u64>)>;
+
 pub struct SpotifyState {
     pub status:               SpotifyAuthStatus,
     pub is_premium:           bool,
@@ -38,9 +40,9 @@ pub struct SpotifyState {
     pub(super) auth_task:        Option<tokio::task::JoinHandle<()>>,
     pub(super) auth_rx:          Option<std::sync::mpsc::Receiver<AuthResult>>,
     pub(super) search_task:      Option<tokio::task::JoinHandle<()>>,
-    pub(super) search_rx:        Option<std::sync::mpsc::Receiver<(Vec<SpotifyTrack>, bool, Option<u64>)>>,
+    pub(super) search_rx:        Option<SearchPageRx>,
     pub(super) search_more_task: Option<tokio::task::JoinHandle<()>>,
-    pub(super) search_more_rx:   Option<std::sync::mpsc::Receiver<(Vec<SpotifyTrack>, bool, Option<u64>)>>,
+    pub(super) search_more_rx:   Option<SearchPageRx>,
     pub(super) devices_task:     Option<tokio::task::JoinHandle<()>>,
     pub(super) devices_rx:       Option<std::sync::mpsc::Receiver<Result<Vec<SpotifyDevice>, SpotifyError>>>,
     pub(super) playback_task:    Option<tokio::task::JoinHandle<()>>,

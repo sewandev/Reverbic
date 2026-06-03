@@ -62,18 +62,23 @@ pub(super) fn sep_s(s: String) -> Span<'static> {
     Span::styled(s, Style::default().fg(theme::MUTED))
 }
 
+pub(super) struct FilterListParams<'a> {
+    pub filter:       &'a str,
+    pub placeholder:  &'a str,
+    pub items:        &'a [(&'static str, &'static str)],
+    pub selected:     usize,
+    pub loading:      bool,
+    pub loading_text: &'a str,
+}
+
 pub(super) fn render_filter_list_body(
-    filter: &str,
-    placeholder: &str,
-    items: &[(&'static str, &'static str)],
-    selected: usize,
-    loading: bool,
-    loading_text: &str,
+    p: FilterListParams<'_>,
     area: Rect,
     content_x: u16,
     content_w: u16,
     buf: &mut Buffer,
 ) -> (bool, Rect, usize) {
+    let FilterListParams { filter, placeholder, items, selected, loading, loading_text } = p;
     let [_gap, input_row, cap_row, list_body] = Layout::vertical([
         Constraint::Length(1),
         Constraint::Length(1),

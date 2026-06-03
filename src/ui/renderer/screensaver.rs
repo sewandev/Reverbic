@@ -13,16 +13,17 @@ use crate::station::StationDetails;
 use crate::ui::strings;
 use crate::ui::theme;
 
-pub(super) fn render_screensaver(
-    frame:           &mut Frame,
-    area:            Rect,
-    state:           &PlayerState,
-    details:         Option<&StationDetails>,
-    is_favorite:     bool,
-    spotify_name:    Option<&str>,
-    spotify_premium: bool,
-    enriched_track:  Option<&crate::metadata::EnrichedTrack>,
-) {
+pub(super) struct ScreensaverCtx<'a> {
+    pub state:           &'a PlayerState,
+    pub details:         Option<&'a StationDetails>,
+    pub is_favorite:     bool,
+    pub spotify_name:    Option<&'a str>,
+    pub spotify_premium: bool,
+    pub enriched_track:  Option<&'a crate::metadata::EnrichedTrack>,
+}
+
+pub(super) fn render_screensaver(frame: &mut Frame, area: Rect, ctx: ScreensaverCtx<'_>) {
+    let ScreensaverCtx { state, details, is_favorite, spotify_name, spotify_premium, enriched_track } = ctx;
     const OVERLAY: ratatui::style::Color = theme::OVERLAY_COLOR;
     const BG:      ratatui::style::Color = theme::PANEL_BG;
 
@@ -587,7 +588,7 @@ pub(super) fn render_spotify_screensaver(
         row += 1;
 
         if has_name_row {
-            let name_tc = profile_name.map(|n| strings::title_case(n));
+            let name_tc = profile_name.map(strings::title_case);
             let country_str = country.unwrap_or("");
             let mut spans: Vec<Span<'static>> = Vec::new();
             if let Some(name) = name_tc {
