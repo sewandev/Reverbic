@@ -250,7 +250,12 @@ impl App {
 
     pub(super) fn save_config(&mut self) {
         self.config.volume = self.player.state().volume;
-        self.config.save();
+        let config = self.config.clone();
+        tokio::spawn(async move {
+            tokio::task::spawn_blocking(move || config.save())
+                .await
+                .ok();
+        });
     }
 
     pub fn player_state(&self) -> PlayerState {

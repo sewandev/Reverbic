@@ -72,13 +72,14 @@ enum OStatus {
 }
 
 struct State {
-    station:    String,
-    show:       String,
-    title:      String,
-    level_db:   f32,
-    ostatus:    OStatus,
-    peak_ratio: f32,
-    game:       String,
+    station:          String,
+    show:             String,
+    title:            String,
+    level_db:         f32,
+    ostatus:          OStatus,
+    peak_ratio:       f32,
+    game:             String,
+    overlay_position: crate::config::OverlayPosition,
 }
 static MEDIA_VK_TX: std::sync::OnceLock<std::sync::mpsc::SyncSender<u32>> = std::sync::OnceLock::new();
 static GAME_STATE:  std::sync::OnceLock<Arc<Mutex<String>>>               = std::sync::OnceLock::new();
@@ -129,13 +130,14 @@ unsafe fn run(
     let class     = w!("ReverbicOverlay");
 
     let shared = Arc::new(Mutex::new(State {
-        station:    String::new(),
-        show:       String::new(),
-        title:      String::new(),
-        level_db:   -60.0,
-        ostatus:    OStatus::Playing,
-        peak_ratio: 0.0,
-        game:       String::new(),
+        station:          String::new(),
+        show:             String::new(),
+        title:            String::new(),
+        level_db:         -60.0,
+        ostatus:          OStatus::Playing,
+        peak_ratio:       0.0,
+        game:             String::new(),
+        overlay_position: config_rx.borrow().overlay_position,
     }));
     let raw = Arc::into_raw(Arc::clone(&shared));
 
@@ -148,7 +150,7 @@ unsafe fn run(
     };
     RegisterClassExW(&wc);
 
-    let (init_x, init_y) = overlay_coords(config_rx.borrow().overlay_position);
+    let (init_x, init_y) = overlay_coords(GetConsoleWindow(), config_rx.borrow().overlay_position);
     let hwnd = CreateWindowExW(
         WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW,
         class,
@@ -235,8 +237,11 @@ unsafe fn run(
             let _ = SetLayeredWindowAttributes(hwnd, COLORREF(0), new_alpha, LWA_ALPHA);
             if cfg.overlay_position != prev_position {
                 prev_position = cfg.overlay_position;
-                let (x, y) = overlay_coords(cfg.overlay_position);
+                let (x, y) = overlay_coords(hwnd, cfg.overlay_position);
                 let _ = SetWindowPos(hwnd, HWND_TOPMOST, x, y, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE);
+            }
+            if let Ok(mut s) = shared.lock() {
+                s.overlay_position = cfg.overlay_position;
             }
         }
 
@@ -367,6 +372,16 @@ unsafe extern "system" fn wnd_proc(
             let cs = &*(lparam.0 as *const CREATESTRUCTW);
             SetWindowLongPtrW(hwnd, GWLP_USERDATA, cs.lpCreateParams as isize);
             DefWindowProcW(hwnd, msg, wparam, lparam)
+        }
+        WM_DISPLAYCHANGE => {
+            let ptr = GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *const Mutex<State>;
+            if !ptr.is_null() {
+                if let Ok(s) = (*ptr).lock() {
+                    let (x, y) = overlay_coords(hwnd, s.overlay_position);
+                    let _ = SetWindowPos(hwnd, HWND_TOPMOST, x, y, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE);
+                }
+            }
+            LRESULT(0)
         }
         WM_ERASEBKGND => LRESULT(1),
         WM_PAINT => {
@@ -620,15 +635,24 @@ unsafe fn is_fullscreen_foreground(overlay_hwnd: HWND) -> bool {
     w >= sw && h >= sh
 }
 
-unsafe fn overlay_coords(pos: OverlayPosition) -> (i32, i32) {
-    let sw = GetSystemMetrics(SM_CXSCREEN);
-    let sh = GetSystemMetrics(SM_CYSCREEN);
+unsafe fn overlay_coords(hwnd: HWND, pos: OverlayPosition) -> (i32, i32) {
     const MARGIN: i32 = 16;
+    let monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+    let mut info = MONITORINFO {
+        cbSize: std::mem::size_of::<MONITORINFO>() as u32,
+        ..Default::default()
+    };
+    let (sw, sh, ox, oy) = if GetMonitorInfoW(monitor, &mut info).as_bool() {
+        let r = info.rcMonitor;
+        (r.right - r.left, r.bottom - r.top, r.left, r.top)
+    } else {
+        (GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN), 0, 0)
+    };
     match pos {
-        OverlayPosition::TopLeft     => (MARGIN, MARGIN),
-        OverlayPosition::TopRight    => (sw - OW - MARGIN, MARGIN),
-        OverlayPosition::BottomLeft  => (MARGIN, sh - OH - MARGIN),
-        OverlayPosition::BottomRight => (sw - OW - MARGIN, sh - OH - MARGIN),
+        OverlayPosition::TopLeft     => (ox + MARGIN,           oy + MARGIN),
+        OverlayPosition::TopRight    => (ox + sw - OW - MARGIN, oy + MARGIN),
+        OverlayPosition::BottomLeft  => (ox + MARGIN,           oy + sh - OH - MARGIN),
+        OverlayPosition::BottomRight => (ox + sw - OW - MARGIN, oy + sh - OH - MARGIN),
     }
 }
 

@@ -45,7 +45,7 @@ pub(super) fn render_screensaver(
 
     let detail_rows: u16 = u16::from(has_meta) + u16::from(has_tags) + u16::from(has_url) + u16::from(has_game);
     let has_details = detail_rows > 0;
-    let pw     = (area.width * 85 / 100).clamp(74, 120);
+    let pw     = (area.width * 85 / 100).clamp(74, 120).min(area.width);
     let cw_est = pw.saturating_sub(6);
     let title  = state.title.as_deref().unwrap_or("—");
     let title_rows: u16 = if title.chars().count() > cw_est as usize { 2 } else { 1 };

@@ -11,7 +11,7 @@ pub fn spotify_screensaver_progress_rect(
     area:         Rect,
     profile_rows: u16,
 ) -> Option<Rect> {
-    let pw = (area.width * 85 / 100).clamp(60, 110);
+    let pw = (area.width * 85 / 100).clamp(60, 110).min(area.width);
 
     let ph_base: u16 = 2 + 1 + 5 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1;
     let ph = ph_base + if profile_rows > 0 { 1 + profile_rows } else { 0 };
@@ -48,7 +48,21 @@ use layout::compute_layout;
 use overlays::{render_game_inline, render_game_strip, render_help_overlay, render_modal_np_strip, render_modal_spotify_strip, render_rename_overlay};
 use screensaver::{render_screensaver, render_spotify_screensaver};
 
+const MIN_WIDTH:  u16 = 52;
+const MIN_HEIGHT: u16 = 5;
+
 pub fn render(frame: &mut Frame, app: &App) {
+    let area = frame.area();
+    if area.width < MIN_WIDTH || area.height < MIN_HEIGHT {
+        use ratatui::{style::{Color, Style}, text::{Line, Span}, widgets::Paragraph};
+        let msg = Paragraph::new(Line::from(Span::styled(
+            "[ terminal too small ]",
+            Style::default().fg(Color::DarkGray),
+        )));
+        frame.render_widget(msg, area);
+        return;
+    }
+
     let player_state = app.player_state();
 
     let playing_index = player_state
