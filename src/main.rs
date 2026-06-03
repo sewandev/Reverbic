@@ -135,6 +135,9 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
             app.save_notice  = None;
             app.notice_until = None;
         }
+        if app.click_flash.map(|(_, t)| t.elapsed() >= std::time::Duration::from_millis(300)).unwrap_or(false) {
+            app.click_flash = None;
+        }
         if let Some(title) = app.player.state().title.clone() {
             if app.radio_enriched_for.as_deref() != Some(title.as_str()) {
                 app.trigger_track_enrichment(title);

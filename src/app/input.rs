@@ -114,7 +114,7 @@ impl App {
         if self.screensaver_active() {
             match key {
                 KeyCode::Char('+') | KeyCode::Char('=') => {
-                    if self.spotify.playback.is_some() && self.spotify.active_device_id.is_some() {
+                    if self.active_source_is_spotify() {
                         self.adjust_spotify_volume(5).await;
                     } else {
                         self.adjust_volume(self.config.volume_step as f32 / 100.0).await;
@@ -122,7 +122,7 @@ impl App {
                     return;
                 }
                 KeyCode::Char('-') => {
-                    if self.spotify.playback.is_some() && self.spotify.active_device_id.is_some() {
+                    if self.active_source_is_spotify() {
                         self.adjust_spotify_volume(-5).await;
                     } else {
                         self.adjust_volume(-(self.config.volume_step as f32 / 100.0)).await;
@@ -226,9 +226,7 @@ impl App {
                 return;
             }
             KeyCode::Char('+') | KeyCode::Char('=') => {
-                if matches!(self.modal_mode, SearchMode::Spotify)
-                    && self.spotify.active_device_id.is_some()
-                {
+                if matches!(self.modal_mode, SearchMode::Spotify) && self.active_source_is_spotify() {
                     self.adjust_spotify_volume(5).await;
                 } else {
                     self.adjust_volume(self.config.volume_step as f32 / 100.0).await;
@@ -236,9 +234,7 @@ impl App {
                 return;
             }
             KeyCode::Char('-') => {
-                if matches!(self.modal_mode, SearchMode::Spotify)
-                    && self.spotify.active_device_id.is_some()
-                {
+                if matches!(self.modal_mode, SearchMode::Spotify) && self.active_source_is_spotify() {
                     self.adjust_spotify_volume(-5).await;
                 } else {
                     self.adjust_volume(-(self.config.volume_step as f32 / 100.0)).await;
@@ -302,6 +298,11 @@ impl App {
             }
             KeyCode::Char('F') if !self.search_results.is_empty() => {
                 self.toggle_modal_favorite();
+            }
+            KeyCode::Char('R') if !self.search_results.is_empty() => {
+                if let Some(idx) = self.play_random_result() {
+                    self.play_dynamic_station(idx).await;
+                }
             }
             KeyCode::Enter => {
                 if !self.search_results.is_empty() {
@@ -556,6 +557,7 @@ impl App {
     }
 
     pub async fn on_click(&mut self, col: u16, row: u16) {
+        self.last_activity = Instant::now();
         if self.screensaver_active() {
             if let Some(ref playback) = self.spotify.playback.clone() {
                 if playback.duration_ms > 0 {
@@ -669,6 +671,7 @@ impl App {
     }
 
     pub async fn on_mouse_scroll(&mut self, delta: i32) {
+        self.last_activity = Instant::now();
         if self.show_search_modal {
             let (len, sel) = if self.search_results.is_empty() && matches!(self.modal_mode, SearchMode::Genre) {
                 (filter_items(GENRES, &self.genre_filter).len(), &mut self.genre_selected)
@@ -702,6 +705,7 @@ impl App {
     }
 
     pub async fn on_double_click(&mut self) {
+        self.last_activity = Instant::now();
         match self.focus {
             AppFocus::Stations | AppFocus::StationSearch => {
                 self.click_flash = Some((self.selected, Instant::now()));
@@ -842,6 +846,12 @@ impl App {
                 self.config.language = self.config.language.next();
                 i18n::set_language(self.config.language);
             }
+            super::modal::SettingItem::SpotifyStopOnQuit => {
+                self.config.spotify.stop_on_quit = !self.config.spotify.stop_on_quit;
+            }
+            super::modal::SettingItem::SpotifyStartOnSpotify => {
+                self.config.spotify.start_on_spotify = !self.config.spotify.start_on_spotify;
+            }
         }
         self.save_config();
         if let Some(ref tx) = self.windows_tx {
@@ -866,17 +876,24 @@ impl App {
                     self.should_quit = true;
                 }
             }
-            KeyCode::Char(c) if !c.is_control() => {
-                self.on_key_spotify_search(key).await;
-            }
-            KeyCode::Backspace => {
-                self.on_key_spotify_search(key).await;
-            }
-            _ if self.spotify.search_query.is_empty() && self.spotify.search_results.is_empty() => {
-                self.on_key_spotify_devices(key).await;
+            KeyCode::Left | KeyCode::Right => {
+                use super::modal::SpotifySubTab;
+                self.spotify.sub_tab = match self.spotify.sub_tab {
+                    SpotifySubTab::Search => {
+                        if self.spotify.devices.is_empty() && !self.spotify.devices_loading {
+                            self.fetch_spotify_devices();
+                        }
+                        SpotifySubTab::Devices
+                    }
+                    SpotifySubTab::Devices => SpotifySubTab::Search,
+                };
             }
             _ => {
-                self.on_key_spotify_search(key).await;
+                use super::modal::SpotifySubTab;
+                match self.spotify.sub_tab {
+                    SpotifySubTab::Search  => self.on_key_spotify_search(key).await,
+                    SpotifySubTab::Devices => self.on_key_spotify_devices(key).await,
+                }
             }
         }
     }
@@ -908,31 +925,16 @@ impl App {
                 }
             }
             KeyCode::Down => {
-                let max = self.spotify.devices.len() + 1;
-                if self.spotify.devices_selected < max {
+                if self.spotify.devices_selected + 1 < self.spotify.devices.len() {
                     self.spotify.devices_selected += 1;
                 }
             }
             KeyCode::Enter => {
-                if self.spotify.devices_selected == self.spotify.devices.len() {
-                    self.config.spotify.stop_on_quit = !self.config.spotify.stop_on_quit;
-                    self.config.save();
-                } else if self.spotify.devices_selected == self.spotify.devices.len() + 1 {
-                    self.config.spotify.start_on_spotify = !self.config.spotify.start_on_spotify;
-                    self.config.save();
-                } else if let Some(device) = self.spotify.devices.get(self.spotify.devices_selected) {
+                if let Some(device) = self.spotify.devices.get(self.spotify.devices_selected) {
                     if let Some(id) = device.id.clone() {
                         self.transfer_to_spotify_device(id).await;
                     }
                 }
-            }
-            KeyCode::Char(' ') if self.spotify.devices_selected == self.spotify.devices.len() => {
-                self.config.spotify.stop_on_quit = !self.config.spotify.stop_on_quit;
-                self.config.save();
-            }
-            KeyCode::Char(' ') if self.spotify.devices_selected == self.spotify.devices.len() + 1 => {
-                self.config.spotify.start_on_spotify = !self.config.spotify.start_on_spotify;
-                self.config.save();
             }
             KeyCode::Char(' ') => {
                 if let Some(device_id) = self.spotify.active_device_id.clone() {

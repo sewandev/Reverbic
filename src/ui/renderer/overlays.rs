@@ -187,8 +187,14 @@ pub(super) fn render_modal_spotify_strip(
     const STRIP_BG: Color = Color::Rgb(13, 13, 13);
     const H_PAD:    u16   = 2;
 
-    let is_playing = matches!(player_status, SpotifyPlayerStatus::Playing);
-    let is_paused  = matches!(player_status, SpotifyPlayerStatus::Paused);
+    let (is_playing, is_paused) = if let Some(pb) = playback {
+        (pb.is_playing, !pb.is_playing)
+    } else {
+        (
+            matches!(player_status, SpotifyPlayerStatus::Playing),
+            matches!(player_status, SpotifyPlayerStatus::Paused),
+        )
+    };
     if !is_playing && !is_paused { return; }
 
     let (artist, track_name, album, volume_pct) = if let Some(pb) = playback {
@@ -275,11 +281,13 @@ pub(super) fn render_help_overlay(frame: &mut Frame, mode: &crate::app::SearchMo
         SearchMode::Spotify => {
             if spotify_logged_in {
                 &[
-                    ("[↵]",     "Reproducir en dispositivo"),
+                    ("[←→]",   "Cambiar sub-tab"),
+                    ("[↵]",     "Transferir / Play"),
                     ("[↑↓]",   "Navegar"),
-                    ("[Alt+D]", "Desconectar Spotify"),
-                    ("[Alt+R]", "Recargar dispositivos"),
                     ("[Space]", "Pausar / Reanudar"),
+                    ("[Alt+O]", "Configuracion"),
+                    ("[Alt+D]", "Desconectar"),
+                    ("[Alt+R]", "Recargar dispositivos"),
                     ("[Esc]",   "Cerrar"),
                 ]
             } else {
@@ -293,7 +301,6 @@ pub(super) fn render_help_overlay(frame: &mut Frame, mode: &crate::app::SearchMo
         SearchMode::Settings => &[
             ("[Space]", "Cambiar valor"),
             ("[↑↓]",   "Navegar opciones"),
-            ("[Alt+I]", "Ir a Integraciones"),
             ("[Esc]",   "Volver"),
         ],
         _ => &[

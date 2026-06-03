@@ -556,7 +556,7 @@ pub(super) fn render_spotify_screensaver(
     let time_suffix = format!(" {} {}", time_tot, vol_str);
     let bar_w = cw.saturating_sub(time_prefix.len() as u16 + time_suffix.len() as u16);
     let filled = (progress_ratio * bar_w as f32).round() as usize;
-    let empty  = bar_w as usize - filled;
+    let empty  = (bar_w as usize).saturating_sub(filled);
     let bar    = format!("{}{}", "█".repeat(filled), "░".repeat(empty));
 
     frame.render_widget(

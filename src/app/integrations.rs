@@ -148,7 +148,8 @@ impl App {
             self.spotify.rate_limited_until  = None;
             self.spotify.search_rate_limited = false;
         }
-        self.spotify.search_rate_limited = false;
+        self.spotify.search_rate_limited  = false;
+        self.spotify.search_loading_more  = false;
         abort_task(&mut self.spotify.search_task);
         let query = self.spotify.search_query.clone();
         let Some(token) = self.spotify.access_token.clone() else {
@@ -303,8 +304,9 @@ impl App {
         if query.is_empty() || !self.spotify.search_has_more { return }
         let offset = self.spotify.search_offset + 10;
         let (tx, rx) = std::sync::mpsc::channel();
-        self.spotify.search_more_rx  = Some(rx);
-        self.spotify.search_has_more = false;
+        self.spotify.search_more_rx     = Some(rx);
+        self.spotify.search_has_more    = false;
+        self.spotify.search_loading_more = true;
         let handle = tokio::spawn(async move {
             let result = match search_tracks(&query, &token, offset).await {
                 Ok((r, more)) => (r, more, None),
@@ -319,14 +321,17 @@ impl App {
         if let Some(rx) = self.spotify.search_more_rx.take() {
             match rx.try_recv() {
                 Ok((more, has_more, _)) => {
-                    self.spotify.search_offset  += 10;
-                    self.spotify.search_has_more = has_more;
+                    self.spotify.search_offset       += 10;
+                    self.spotify.search_has_more      = has_more;
+                    self.spotify.search_loading_more  = false;
                     self.spotify.search_results.extend(more);
                 }
                 Err(std::sync::mpsc::TryRecvError::Empty) => {
                     self.spotify.search_more_rx = Some(rx);
                 }
-                Err(std::sync::mpsc::TryRecvError::Disconnected) => {}
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    self.spotify.search_loading_more = false;
+                }
             }
         }
     }

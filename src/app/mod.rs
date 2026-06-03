@@ -9,7 +9,7 @@ mod input;
 mod spotify_state;
 
 pub use modal::{
-    AppFocus, SearchMode, SettingItem, SpotifyAuthStatus, SpotifyPlayerStatus,
+    AppFocus, SearchMode, SettingItem, SpotifyAuthStatus, SpotifyPlayerStatus, SpotifySubTab,
     settings_items,
 };
 pub use spotify_state::SpotifyState;
@@ -181,6 +181,19 @@ impl App {
             && self.last_activity.elapsed().as_secs() >= secs as u64
     }
 
+    /// Determina si la fuente activa es Spotify (vs radio u otro).
+    /// Radio tiene prioridad: si está sonando, esta función devuelve false
+    /// sin importar el estado de Spotify.
+    pub fn active_source_is_spotify(&self) -> bool {
+        use crate::audio::PlayerStatus;
+        let radio_active = matches!(
+            self.player.state().status,
+            PlayerStatus::Playing | PlayerStatus::Paused
+                | PlayerStatus::Buffering(_) | PlayerStatus::Reconnecting(_)
+        );
+        !radio_active && self.spotify.playback.is_some()
+    }
+
     pub(super) fn total_stations(&self) -> usize {
         self.favorites.len() + self.stations.len() + self.search_results.len()
     }
@@ -248,6 +261,7 @@ impl App {
         abort_task(&mut self.metadata_task);
         abort_task(&mut self.search_task);
         abort_task(&mut self.on_demand_task);
+        abort_task(&mut self.radio_enrichment_task);
         self.spotify.cleanup();
     }
 }

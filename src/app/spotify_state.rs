@@ -4,7 +4,7 @@ use crate::integrations::spotify::{
     player::SpotifyPlayerHandle,
     SpotifyPlayerEvent, AuthResult,
 };
-use super::modal::{SpotifyAuthStatus, SpotifyPlayerStatus};
+use super::modal::{SpotifyAuthStatus, SpotifyPlayerStatus, SpotifySubTab};
 
 pub struct SpotifyState {
     pub status:               SpotifyAuthStatus,
@@ -14,9 +14,12 @@ pub struct SpotifyState {
     pub player_status:        SpotifyPlayerStatus,
     pub active_device_id:     Option<String>,
 
+    pub sub_tab:              SpotifySubTab,
+
     pub search_query:         String,
     pub search_results:       Vec<SpotifyTrack>,
     pub search_loading:       bool,
+    pub search_loading_more:  bool,
     pub search_selected:      usize,
     pub search_offset:        usize,
     pub search_has_more:      bool,
@@ -66,9 +69,11 @@ impl Default for SpotifyState {
             now_playing:         None,
             player_status:       SpotifyPlayerStatus::Idle,
             active_device_id:    None,
+            sub_tab:             SpotifySubTab::default(),
             search_query:        String::new(),
             search_results:      Vec::new(),
             search_loading:      false,
+            search_loading_more: false,
             search_selected:     0,
             search_offset:       0,
             search_has_more:     false,

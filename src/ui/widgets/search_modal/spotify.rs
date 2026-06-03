@@ -32,45 +32,73 @@ impl<'a> SearchModalWidget<'a> {
     }
 
     fn render_spotify_logged_in(&self, area: Rect, content_x: u16, content_w: u16, buf: &mut Buffer) {
-        let [_gap, input_row, cap_row, list_area] = Layout::vertical([
-            Constraint::Length(1),
+        use crate::app::SpotifySubTab;
+
+        let [_gap, subtab_row, body] = Layout::vertical([
             Constraint::Length(1),
             Constraint::Length(1),
             Constraint::Fill(1),
         ])
         .areas(area);
 
-        buf[(content_x, input_row.y)]
-            .set_symbol("┃").set_fg(theme::ACCENT).set_bg(BG);
+        let text_x = content_x + 2;
+        let text_w = content_w.saturating_sub(2);
 
-        let text_x    = content_x + 2;
-        let text_w    = content_w.saturating_sub(2);
-        let text_area = Rect::new(text_x, input_row.y, text_w, 1);
-
-        render_filter_input(self.spotify_query, &t("modal.spotify.placeholder"), text_area, buf);
-
-        if self.spotify_is_premium {
-            let badge = format!("★ {}", t("integrations.spotify.premium"));
-            let badge_len = badge.chars().count() as u16;
-            if badge_len + 4 < text_w {
-                let bx = text_x + text_w.saturating_sub(badge_len);
-                Paragraph::new(Span::styled(
-                    badge,
+        {
+            let (search_st, devices_st) = match self.spotify_sub_tab {
+                SpotifySubTab::Search  => (
                     Style::default().fg(theme::ACCENT).add_modifier(Modifier::BOLD),
-                ))
-                .render(Rect::new(bx, input_row.y, badge_len, 1), buf);
+                    Style::default().fg(theme::DIM),
+                ),
+                SpotifySubTab::Devices => (
+                    Style::default().fg(theme::DIM),
+                    Style::default().fg(theme::ACCENT).add_modifier(Modifier::BOLD),
+                ),
+            };
+            Paragraph::new(Line::from(vec![
+                Span::styled(t("modal.spotify.subtab.search"),  search_st),
+                Span::styled("  ", Style::default()),
+                Span::styled(t("modal.spotify.subtab.devices"), devices_st),
+            ]))
+            .render(Rect::new(text_x, subtab_row.y, text_w, 1), buf);
+        }
+
+        match self.spotify_sub_tab {
+            SpotifySubTab::Search => {
+                let [input_row, cap_row, list_area] = Layout::vertical([
+                    Constraint::Length(1),
+                    Constraint::Length(1),
+                    Constraint::Fill(1),
+                ])
+                .areas(body);
+
+                buf[(content_x, input_row.y)]
+                    .set_symbol("┃").set_fg(theme::ACCENT).set_bg(BG);
+                let text_area = Rect::new(text_x, input_row.y, text_w, 1);
+                render_filter_input(self.spotify_query, &t("modal.spotify.placeholder"), text_area, buf);
+
+                if self.spotify_is_premium {
+                    let badge = format!("★ {}", t("integrations.spotify.premium"));
+                    let badge_len = badge.chars().count() as u16;
+                    if badge_len + 4 < text_w {
+                        let bx = text_x + text_w.saturating_sub(badge_len);
+                        Paragraph::new(Span::styled(
+                            badge,
+                            Style::default().fg(theme::ACCENT).add_modifier(Modifier::BOLD),
+                        ))
+                        .render(Rect::new(bx, input_row.y, badge_len, 1), buf);
+                    }
+                }
+
+                buf[(content_x, cap_row.y)]
+                    .set_symbol("╹").set_fg(theme::ACCENT).set_bg(BG);
+
+                self.render_spotify_list(list_area, text_x, text_w, buf);
+            }
+            SpotifySubTab::Devices => {
+                self.render_spotify_devices(body, text_x, text_w, buf);
             }
         }
-
-        buf[(content_x, cap_row.y)]
-            .set_symbol("╹").set_fg(theme::ACCENT).set_bg(BG);
-
-        if self.spotify_query.is_empty() && self.spotify_results.is_empty() {
-            self.render_spotify_devices(list_area, text_x, text_w, buf);
-        } else {
-            self.render_spotify_list(list_area, text_x, text_w, buf);
-        }
-
     }
 
     fn render_spotify_connect(&self, area: Rect, lx: u16, lw: u16, buf: &mut Buffer) {
@@ -256,7 +284,7 @@ impl<'a> SearchModalWidget<'a> {
             self.render_scrollbar(list_area, self.spotify_results.len(), self.spotify_selected, buf);
         }
 
-        if self.spotify_search_has_more {
+        if self.spotify_loading_more {
             let indicator_y = list_area.bottom().saturating_sub(1);
             if indicator_y > list_area.y {
                 Paragraph::new(Span::styled(
@@ -355,58 +383,6 @@ impl<'a> SearchModalWidget<'a> {
             Rect::new(list_x, y, list_w, area.bottom().saturating_sub(y)),
             buf,
         );
-
-        let config_y = area.y + 1 + self.spotify_devices.len().min(visible_n) as u16;
-        if config_y + 2 < area.bottom() {
-            let sep = "─".repeat(list_w as usize);
-            Paragraph::new(Span::styled(sep, Style::default().fg(theme::DIM)))
-                .style(Style::default().bg(BG))
-                .render(Rect::new(list_x, config_y, list_w, 1), buf);
-
-            if config_y + 1 < area.bottom() {
-                Paragraph::new(Span::styled(
-                    t("modal.spotify.config_header"),
-                    Style::default().fg(theme::MUTED),
-                ))
-                .render(Rect::new(list_x, config_y + 1, list_w, 1), buf);
-            }
-
-            let render_toggle = |y: u16, label: String, val: bool, selected: bool, buf: &mut Buffer| {
-                let (prefix, label_st, val_st) = if selected {
-                    (
-                        "▶  ",
-                        Style::default().fg(theme::PLAYING).add_modifier(Modifier::BOLD),
-                        Style::default().fg(theme::ACCENT).add_modifier(Modifier::BOLD),
-                    )
-                } else {
-                    (
-                        "   ",
-                        Style::default().fg(theme::HIGHLIGHT),
-                        Style::default().fg(theme::MUTED),
-                    )
-                };
-                let val_str = if val { "ON" } else { "OFF" };
-                let val_w   = val_str.len() as u16 + 4;
-                let lbl_w   = list_w.saturating_sub(3 + val_w);
-                let lbl     = strings::truncate(&label, lbl_w as usize);
-                Paragraph::new(Line::from(vec![
-                    Span::styled(prefix,                       label_st),
-                    Span::styled(lbl,                          label_st),
-                    Span::styled(format!("  [ {} ]", val_str), val_st),
-                ]))
-                .render(Rect::new(list_x, y, list_w, 1), buf);
-            };
-
-            let stop_sel  = self.spotify_devices_selected == self.spotify_devices.len();
-            let start_sel = self.spotify_devices_selected == self.spotify_devices.len() + 1;
-
-            if config_y + 2 < area.bottom() {
-                render_toggle(config_y + 2, t("modal.spotify.stop_on_quit"), self.spotify_stop_on_quit, stop_sel, buf);
-            }
-            if config_y + 3 < area.bottom() {
-                render_toggle(config_y + 3, t("modal.spotify.start_on_spotify"), self.spotify_start_on_spotify, start_sel, buf);
-            }
-        }
     }
 
 }

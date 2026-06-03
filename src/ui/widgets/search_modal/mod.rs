@@ -56,11 +56,12 @@ pub struct SearchModalWidget<'a> {
     pub spotify_devices:          &'a [crate::integrations::spotify::devices::SpotifyDevice],
     pub spotify_devices_selected: usize,
     pub spotify_devices_loading:  bool,
-    pub spotify_stop_on_quit:      bool,
-    pub spotify_start_on_spotify:  bool,
-    pub spotify_search_has_more:     bool,
+    pub spotify_stop_on_quit:        bool,
+    pub spotify_start_on_spotify:    bool,
     pub spotify_search_rate_limited: bool,
     pub spotify_rate_limited_secs:   u64,
+    pub spotify_sub_tab:             crate::app::SpotifySubTab,
+    pub spotify_loading_more:        bool,
 }
 
 impl Widget for SearchModalWidget<'_> {
@@ -156,11 +157,12 @@ impl<'a> From<&'a crate::app::App> for SearchModalWidget<'a> {
             spotify_devices_loading:  sp.devices_loading,
             spotify_stop_on_quit:      app.config.spotify.stop_on_quit,
             spotify_start_on_spotify:  app.config.spotify.start_on_spotify,
-            spotify_search_has_more:   sp.search_has_more,
             spotify_search_rate_limited: sp.search_rate_limited,
             spotify_rate_limited_secs:   sp.rate_limited_until
                 .map(|u| u.saturating_duration_since(std::time::Instant::now()).as_secs())
                 .unwrap_or(0),
+            spotify_sub_tab:      sp.sub_tab,
+            spotify_loading_more: sp.search_loading_more,
         }
     }
 }
@@ -213,27 +215,37 @@ impl SearchModalWidget<'_> {
                 key("[?]"),     sep(" Ayuda "),
             ],
             SearchMode::Spotify => {
-                use crate::app::SpotifyAuthStatus;
+                use crate::app::{SpotifyAuthStatus, SpotifySubTab};
                 match self.spotify_status {
                     SpotifyAuthStatus::Connecting => vec![
                         Span::raw(" "),
                         key("[Esc]"), sep_s(format!(" {} ", t("hint.back"))),
                     ],
                     SpotifyAuthStatus::LoggedIn => {
-                        if !self.spotify_results.is_empty() {
+                        if matches!(self.spotify_sub_tab, SpotifySubTab::Devices) {
+                            vec![
+                                Span::raw(" "),
+                                key("[↵]"),     sep(" Transferir  "),
+                                key("[↑↓]"),   sep_s(format!(" {}  ", t("hint.nav"))),
+                                key("[←→]"),   sep(" Buscar  "),
+                                key("[Alt+R]"), sep(" Recargar  "),
+                                key("[?]"),     sep(" Ayuda "),
+                            ]
+                        } else if !self.spotify_results.is_empty() {
                             vec![
                                 Span::raw(" "),
                                 key("[↵]"),     sep(" Play  "),
                                 key("[↑↓]"),   sep_s(format!(" {}  ", t("hint.nav"))),
+                                key("[←→]"),   sep(" Tabs  "),
                                 key("[Alt+D]"), sep(" Desconectar  "),
                                 key("[?]"),     sep(" Ayuda "),
                             ]
                         } else {
                             vec![
                                 Span::raw(" "),
-                                key("[↵]"),     sep(" Transferir  "),
-                                key("[↑↓]"),   sep_s(format!(" {}  ", t("hint.nav"))),
-                                key("[Alt+R]"), sep(" Recargar  "),
+                                key("[←→]"),   sep(" Tabs  "),
+                                key("[Tab]"),   sep(" Radio  "),
+                                key("[Alt+D]"), sep(" Desconectar  "),
                                 key("[?]"),     sep(" Ayuda "),
                             ]
                         }

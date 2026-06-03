@@ -200,15 +200,17 @@ pub fn render(frame: &mut Frame, app: &App) {
     );
 
     if app.show_search_modal && app.screensaver_active() {
-        if let Some(ref playback) = app.spotify.playback {
-            render_spotify_screensaver(
-                frame, frame.area(), playback,
-                app.config.spotify.display_name.as_deref(),
-                app.config.spotify.country.as_deref(),
-                app.config.spotify.followers,
-                app.spotify.is_premium,
-            );
-            return;
+        if app.active_source_is_spotify() {
+            if let Some(ref playback) = app.spotify.playback {
+                render_spotify_screensaver(
+                    frame, frame.area(), playback,
+                    app.config.spotify.display_name.as_deref(),
+                    app.config.spotify.country.as_deref(),
+                    app.config.spotify.followers,
+                    app.spotify.is_premium,
+                );
+                return;
+            }
         }
         let is_fav = player_state.station.as_ref()
             .map(|s| app.favorites.iter().any(|f| f.url == s.url))

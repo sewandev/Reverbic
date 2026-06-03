@@ -25,6 +25,13 @@ pub enum SpotifyPlayerStatus {
     Error(String),
 }
 
+#[derive(Clone, Copy, PartialEq, Default)]
+pub enum SpotifySubTab {
+    #[default]
+    Search,
+    Devices,
+}
+
 #[derive(Clone, Copy, PartialEq)]
 pub enum SettingItem {
     Autoplay,
@@ -42,6 +49,8 @@ pub enum SettingItem {
     TrayIcon,
     Notifications,
     Language,
+    SpotifyStopOnQuit,
+    SpotifyStartOnSpotify,
 }
 
 impl SettingItem {
@@ -58,10 +67,12 @@ impl SettingItem {
             Self::Screensaver     => t("config.setting.screensaver"),
             Self::DuckEnabled     => t("config.setting.duck"),
             Self::DuckVolume      => t("config.setting.duck_volume"),
-            Self::MediaKeys       => t("config.setting.media_keys"),
-            Self::TrayIcon        => t("config.setting.tray"),
-            Self::Notifications   => t("config.setting.notifications"),
-            Self::Language        => t("config.setting.language"),
+            Self::MediaKeys          => t("config.setting.media_keys"),
+            Self::TrayIcon           => t("config.setting.tray"),
+            Self::Notifications      => t("config.setting.notifications"),
+            Self::Language           => t("config.setting.language"),
+            Self::SpotifyStopOnQuit     => t("config.setting.spotify_stop_on_quit"),
+            Self::SpotifyStartOnSpotify => t("config.setting.spotify_start_on_spotify"),
         }
     }
 
@@ -78,10 +89,12 @@ impl SettingItem {
             Self::Screensaver     => "config.tooltip.screensaver",
             Self::DuckEnabled     => "config.tooltip.duck",
             Self::DuckVolume      => "config.tooltip.duck_volume",
-            Self::MediaKeys       => "config.tooltip.media_keys",
-            Self::TrayIcon        => "config.tooltip.tray",
-            Self::Notifications   => "config.tooltip.notifications",
-            Self::Language        => "config.tooltip.language",
+            Self::MediaKeys          => "config.tooltip.media_keys",
+            Self::TrayIcon           => "config.tooltip.tray",
+            Self::Notifications      => "config.tooltip.notifications",
+            Self::Language           => "config.tooltip.language",
+            Self::SpotifyStopOnQuit     => "config.tooltip.spotify_stop_on_quit",
+            Self::SpotifyStartOnSpotify => "config.tooltip.spotify_start_on_spotify",
         }
     }
 
@@ -97,6 +110,8 @@ impl SettingItem {
                 => "config.group.system",
             Self::Language
                 => "config.group.appearance",
+            Self::SpotifyStopOnQuit | Self::SpotifyStartOnSpotify
+                => "config.group.integrations",
         }
     }
 }
@@ -122,6 +137,8 @@ pub fn settings_items(duck_enabled: bool) -> Vec<SettingItem> {
         SettingItem::TrayIcon,
         SettingItem::Notifications,
         SettingItem::Language,
+        SettingItem::SpotifyStopOnQuit,
+        SettingItem::SpotifyStartOnSpotify,
     ]);
     items
 }
