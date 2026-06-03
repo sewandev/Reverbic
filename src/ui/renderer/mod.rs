@@ -13,7 +13,7 @@ pub fn spotify_screensaver_progress_rect(
 ) -> Option<Rect> {
     let pw = (area.width * 85 / 100).clamp(60, 110).min(area.width);
 
-    let ph_base: u16 = 2 + 1 + 1 + 1 + 5 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1;
+    let ph_base: u16 = 2 + 1 + 5 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1;
     let ph = ph_base + if profile_rows > 0 { 1 + profile_rows } else { 0 };
 
     let px = area.x + area.width.saturating_sub(pw) / 2;
@@ -25,7 +25,7 @@ pub fn spotify_screensaver_progress_rect(
     let cx      = inner_x + 2;
     let cw      = inner_w.saturating_sub(4);
 
-    let progress_y = inner_y + 16;
+    let progress_y = inner_y + 14;
 
     if progress_y >= area.bottom() { return None; }
     Some(Rect::new(cx, progress_y, cw, 1))
@@ -46,7 +46,7 @@ use crate::ui::widgets::{
 use components::{render_header, render_help, render_sep};
 use layout::compute_layout;
 use overlays::{render_client_id_overlay, render_game_inline, render_game_strip, render_help_overlay, render_modal_np_strip, render_modal_spotify_strip, render_rename_overlay};
-use screensaver::{render_screensaver, render_spotify_screensaver, ScreensaverCtx};
+use screensaver::{render_logo_above, render_screensaver, render_spotify_screensaver, ScreensaverCtx, LOGO_W};
 
 const MIN_WIDTH:  u16 = 52;
 const MIN_HEIGHT: u16 = 5;
@@ -252,6 +252,10 @@ pub fn render(frame: &mut Frame, app: &App) {
         let modal_h = (full_area.height * 75 / 100).clamp(14, 30);
         let modal_x = full_area.x + full_area.width.saturating_sub(modal_w) / 2;
         let modal_y = full_area.y + full_area.height.saturating_sub(modal_h) / 2;
+
+        if modal_y >= 3 {
+            render_logo_above(frame, modal_x, modal_w.max(LOGO_W), modal_y - 1, crate::ui::theme::OVERLAY_COLOR);
+        }
         if let Some((ref name, ref genre)) = crate::game_detect::get() {
             let panel_h: u16 = 3;
             let game_y = modal_y.saturating_sub(panel_h);
