@@ -80,6 +80,15 @@ impl App {
         self.play_station(station).await;
     }
 
+    pub fn poll_dead_url(&mut self) {
+        let state = self.player.state();
+        if state.is_dead_url {
+            if let Some(station) = &state.station {
+                self.dead_urls.insert(station.url.clone());
+            }
+        }
+    }
+
     pub(super) fn play_random_result(&self) -> Option<usize> {
         if self.search_results.is_empty() { return None; }
         let ms = std::time::SystemTime::now()

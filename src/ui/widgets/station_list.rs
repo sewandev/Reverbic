@@ -25,6 +25,7 @@ pub struct StationListWidget<'a> {
     pub search_loading:         bool,
     pub is_searching:           bool,
     pub flash_index:            Option<usize>,
+    pub dead_urls:              &'a std::collections::HashSet<String>,
 }
 
 impl<'a> StationListWidget<'a> {
@@ -97,6 +98,7 @@ impl<'a> Widget for StationListWidget<'a> {
             let is_sel     = i == self.selected;
             let is_playing = self.playing_favorite_index == Some(i);
             let is_flash   = self.flash_index == Some(i);
+            let is_dead    = self.dead_urls.contains(&fav.url);
             let style      = if is_flash {
                 FLASH_STYLE
             } else if is_sel {
@@ -110,6 +112,8 @@ impl<'a> Widget for StationListWidget<'a> {
                 ("▶", style, style)
             } else if is_playing {
                 ("▶", theme::PLAYING_STYLE, theme::PLAYING_STYLE)
+            } else if is_dead {
+                ("!", Style::new().fg(theme::DANGER), Style::new().fg(theme::MUTED))
             } else {
                 ("★", Style::new().fg(theme::ACCENT), Style::new().fg(theme::HIGHLIGHT))
             };

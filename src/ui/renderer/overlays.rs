@@ -156,6 +156,13 @@ pub(super) fn render_modal_np_strip(frame: &mut Frame, strip: Rect, state: &Play
     let vol_pct   = (state.volume.clamp(0.0, 1.0) * 100.0).round() as u32;
     let vol_color = if state.volume > 0.85 { theme::WARNING } else { theme::ACCENT };
 
+    let border_color = match &state.status {
+        PlayerStatus::Playing                                        => theme::ACCENT,
+        PlayerStatus::Paused                                         => theme::WARNING,
+        PlayerStatus::Buffering(_) | PlayerStatus::Reconnecting(_)  => ratatui::style::Color::Rgb(80, 80, 80),
+        _                                                            => theme::MUTED,
+    };
+
     let block = Block::default()
         .title_top(
             Line::from(Span::styled(
@@ -166,7 +173,7 @@ pub(super) fn render_modal_np_strip(frame: &mut Frame, strip: Rect, state: &Play
         )
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
-        .border_style(Style::default().fg(theme::MUTED))
+        .border_style(Style::default().fg(border_color))
         .style(Style::default().bg(theme::PANEL_BG));
 
     let inner = block.inner(panel);
@@ -241,6 +248,11 @@ pub(super) fn render_modal_spotify_strip(
     let content_w = strip.width.saturating_sub(2 + H_PAD * 2) as usize;
     if content_w == 0 { return; }
 
+    let (progress_ms, duration_ms) = playback
+        .map(|pb| (pb.progress_ms, pb.duration_ms))
+        .unwrap_or((0, 0));
+    let has_progress = duration_ms > 0 && content_w >= 12;
+
     let track_meta = if album.is_empty() {
         track_name.to_owned()
     } else {
@@ -248,7 +260,7 @@ pub(super) fn render_modal_spotify_strip(
     };
     let title_lines = wrap_into_lines(&track_meta, content_w, 2);
 
-    let panel_h = 2 + 1 + title_lines.len() as u16;
+    let panel_h = 2 + 1 + title_lines.len() as u16 + u16::from(has_progress);
     if panel_h > strip.height { return; }
 
     let panel = Rect::new(strip.x, strip.y, strip.width, panel_h);
@@ -257,6 +269,8 @@ pub(super) fn render_modal_spotify_strip(
         .map(|v| format!(" {v}% "))
         .unwrap_or_default();
 
+    let border_color = if is_playing { theme::PLAYING } else { theme::WARNING };
+
     let block = Block::default()
         .title_top(
             Line::from(Span::styled(vol_str, Style::default().fg(theme::ACCENT)))
@@ -264,7 +278,7 @@ pub(super) fn render_modal_spotify_strip(
         )
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
-        .border_style(Style::default().fg(theme::MUTED))
+        .border_style(Style::default().fg(border_color))
         .style(Style::default().bg(theme::PANEL_BG));
 
     let inner = block.inner(panel);
@@ -283,12 +297,36 @@ pub(super) fn render_modal_spotify_strip(
         Rect::new(cx, inner.y, cw, 1),
     );
 
+    let mut last_row = inner.y;
     for (i, tline) in title_lines.into_iter().enumerate() {
         let row_y = inner.y + 1 + i as u16;
         if row_y < inner.bottom() {
             frame.render_widget(
                 Paragraph::new(tline).style(Style::default().bg(theme::PANEL_BG)),
                 Rect::new(cx, row_y, cw, 1),
+            );
+            last_row = row_y;
+        }
+    }
+
+    if has_progress {
+        let prog_y = last_row + 1;
+        if prog_y < inner.bottom() {
+            let ratio   = (progress_ms as f32 / duration_ms as f32).clamp(0.0, 1.0);
+            let fmt_ms  = |ms: u32| { let s = ms / 1000; format!("{}:{:02}", s / 60, s % 60) };
+            let prefix  = format!("{} ", fmt_ms(progress_ms));
+            let suffix  = format!(" {}", fmt_ms(duration_ms));
+            let bar_w   = (cw as usize).saturating_sub(prefix.len() + suffix.len());
+            let filled  = (ratio * bar_w as f32).round() as usize;
+            let empty   = bar_w.saturating_sub(filled);
+            frame.render_widget(
+                Paragraph::new(Line::from(vec![
+                    Span::styled(prefix,                    ratatui::style::Style::default().fg(theme::MUTED)),
+                    Span::styled("█".repeat(filled),        ratatui::style::Style::default().fg(border_color)),
+                    Span::styled("░".repeat(empty),         ratatui::style::Style::default().fg(theme::MUTED)),
+                    Span::styled(suffix,                    ratatui::style::Style::default().fg(theme::MUTED)),
+                ])).style(ratatui::style::Style::default().bg(theme::PANEL_BG)),
+                Rect::new(cx, prog_y, cw, 1),
             );
         }
     }
@@ -301,7 +339,7 @@ pub(super) fn render_help_overlay(frame: &mut Frame, mode: &crate::app::SearchMo
         SearchMode::Name => vec![
             ("[↵]",     t("help.shortcut.play_station")),
             ("[↑↓]",   t("help.shortcut.nav_list")),
-            ("[F]",     t("help.shortcut.save_fav")),
+            ("[Alt+F]", t("help.shortcut.save_fav")),
             ("[R]",     t("help.shortcut.random_station")),
             ("[Tab]",   t("help.shortcut.go_spotify")),
             ("[Alt+G]", t("help.shortcut.by_genre")),

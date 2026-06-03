@@ -47,6 +47,12 @@ pub struct SpotifyState {
     pub(super) devices_rx:       Option<std::sync::mpsc::Receiver<Result<Vec<SpotifyDevice>, SpotifyError>>>,
     pub(super) playback_task:    Option<tokio::task::JoinHandle<()>>,
     pub(super) playback_rx:      Option<std::sync::mpsc::Receiver<Option<SpotifyPlaybackState>>>,
+
+    pub(super) token_refreshed_at:  Option<std::time::Instant>,
+    pub(super) token_refresh_task:  Option<tokio::task::JoinHandle<()>>,
+    pub(super) token_refresh_rx:    Option<std::sync::mpsc::Receiver<Result<(String, String), String>>>,
+
+    pub(super) play_result_rx:   Option<std::sync::mpsc::Receiver<Result<(), SpotifyError>>>,
 }
 
 impl SpotifyState {
@@ -59,6 +65,7 @@ impl SpotifyState {
         abort(&mut self.search_more_task);
         abort(&mut self.devices_task);
         abort(&mut self.playback_task);
+        abort(&mut self.token_refresh_task);
     }
 }
 
@@ -98,6 +105,10 @@ impl Default for SpotifyState {
             devices_rx:          None,
             playback_task:       None,
             playback_rx:         None,
+            token_refreshed_at:  None,
+            token_refresh_task:  None,
+            token_refresh_rx:    None,
+            play_result_rx:      None,
         }
     }
 }

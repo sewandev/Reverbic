@@ -2,6 +2,7 @@
 #![deny(warnings)]
 
 use std::panic;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 use crossterm::event::{Event, EventStream, KeyEventKind, MouseEventKind};
@@ -32,6 +33,21 @@ mod ui;
 use app::App;
 use audio::PlayerCommand;
 use error::Result;
+
+static SHUTDOWN_REQUESTED: AtomicBool = AtomicBool::new(false);
+
+#[cfg(target_os = "windows")]
+unsafe extern "system" fn console_ctrl_handler(ctrl_type: u32) -> windows::Win32::Foundation::BOOL {
+    const CTRL_C_EVENT:     u32 = 0;
+    const CTRL_BREAK_EVENT: u32 = 1;
+    const CTRL_CLOSE_EVENT: u32 = 2;
+    if ctrl_type == CTRL_C_EVENT || ctrl_type == CTRL_BREAK_EVENT || ctrl_type == CTRL_CLOSE_EVENT {
+        SHUTDOWN_REQUESTED.store(true, Ordering::SeqCst);
+        windows::Win32::Foundation::BOOL(1)
+    } else {
+        windows::Win32::Foundation::BOOL(0)
+    }
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -90,6 +106,14 @@ fn init_logging() -> Option<tracing_appender::non_blocking::WorkerGuard> {
 async fn run(tui: &mut terminal::Tui) -> Result<()> {
     let mut app = App::new().await;
 
+    #[cfg(target_os = "windows")]
+    unsafe {
+        let _ = windows::Win32::System::Console::SetConsoleCtrlHandler(
+            Some(console_ctrl_handler),
+            windows::Win32::Foundation::BOOL(1),
+        );
+    }
+
     app.init_integrations();
 
     #[cfg(target_os = "windows")]
@@ -123,11 +147,14 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
     let mut click_count: u8 = 0;
 
     loop {
+        app.poll_dead_url();
         app.poll_search_results();
         app.poll_on_demand_results();
         app.poll_station_details();
         app.poll_track_enrichment();
         app.poll_spotify_auth();
+        app.poll_token_refresh();
+        app.poll_spotify_play_result();
         app.poll_spotify_search();
         app.poll_spotify_search_more();
         app.poll_spotify_player_events();
@@ -177,6 +204,9 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
             handle_event(&mut app, Some(maybe_event), click_count).await;
         }
 
+        if SHUTDOWN_REQUESTED.load(Ordering::Relaxed) {
+            app.should_quit = true;
+        }
         if app.should_quit {
             break;
         }

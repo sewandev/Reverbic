@@ -64,6 +64,7 @@ pub struct PlayerState {
     pub preview_unavailable:    HashSet<String>,
     pub playback_pos_secs:      Option<f32>,
     pub playback_duration_secs: Option<f32>,
+    pub is_dead_url:            bool,
 }
 
 impl Default for PlayerState {
@@ -83,6 +84,7 @@ impl Default for PlayerState {
             preview_unavailable:    HashSet::new(),
             playback_pos_secs:      None,
             playback_duration_secs: None,
+            is_dead_url:            false,
         }
     }
 }
@@ -464,13 +466,14 @@ fn open_stream(
     device_sink:   &MixerDeviceSink,
     state_tx:      &watch::Sender<PlayerState>,
     st:            &mut AudioLoopState,
-) -> Result<StreamConnection, String> {
+) -> Result<StreamConnection, Option<String>> {
     let is_on_demand = station.key.starts_with("ondemand_");
     let url          = station.url.to_string();
     let ch_size      = if is_on_demand { 4096 } else { 64 };
     let (mut stream_reader, title_rx) = StreamReader::connect(url, 0, ch_size, handle.clone());
     let last_chunk    = stream_reader.last_chunk_arc();
     let download_done = stream_reader.download_done_arc();
+    let dead_url_arc  = stream_reader.dead_url_arc();
 
     if is_on_demand {
         let _ = state_tx.send(PlayerState {
@@ -496,7 +499,20 @@ fn open_stream(
             st.od.start_playback(is_on_demand);
             Ok(StreamConnection { player, duration_secs, title_rx, last_chunk, download_done })
         }
-        Err(e) => Err(e.to_string()),
+        Err(e) => {
+            if dead_url_arc.load(Ordering::Acquire) {
+                let _ = state_tx.send(PlayerState {
+                    status:      PlayerStatus::Error(crate::i18n::t("status.dead_url")),
+                    station:     Some(station.clone()),
+                    volume:      st.current_volume,
+                    is_dead_url: true,
+                    ..Default::default()
+                });
+                Err(None)
+            } else {
+                Err(Some(e.to_string()))
+            }
+        }
     }
 }
 
@@ -570,7 +586,8 @@ fn handle_play_cmd(
             let _ = state_tx.send(playing_state(station, st.current_volume, st.od.active, conn.duration_secs));
             st.player = Some(conn.player);
         }
-        Err(e) => schedule_retry(st, &e, station, state_tx),
+        Err(None)     => {}
+        Err(Some(e))  => schedule_retry(st, &e, station, state_tx),
     }
 }
 
@@ -620,7 +637,10 @@ fn handle_crossfade_cmd(
             info!(station = %station.name, "Crossfade: reproducción iniciada");
             let _ = state_tx.send(playing_state(station, st.current_volume, st.od.active, conn.duration_secs));
         }
-        Err(e) => {
+        Err(None) => {
+            if let Some(out) = outgoing { out.stop(); }
+        }
+        Err(Some(e)) => {
             if let Some(out) = outgoing { out.stop(); }
             schedule_retry(st, &e, station, state_tx);
         }

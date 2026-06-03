@@ -20,6 +20,7 @@ impl<'a> SearchModalWidget<'a> {
         let tab_area = Rect::new(content_x, area.y, content_w, 1);
         let radio_active   = Style::default().fg(theme::RADIO_ACCENT).add_modifier(Modifier::BOLD);
         let spotify_active = Style::default().fg(theme::PLAYING).add_modifier(Modifier::BOLD);
+        let youtube_active = Style::default().fg(theme::DANGER).add_modifier(Modifier::BOLD);
         let inactive       = Style::default().fg(theme::MUTED);
 
         let radio_st = match self.mode {
@@ -30,13 +31,19 @@ impl<'a> SearchModalWidget<'a> {
             SearchMode::Spotify => spotify_active,
             _ => inactive,
         };
+        let youtube_st = match self.mode {
+            SearchMode::Youtube => youtube_active,
+            _ => inactive,
+        };
 
-        let mut spans = vec![
-            Span::styled(t("modal.tab.radio"), radio_st),
-        ];
-        spans.push(Span::styled("  ", Style::default()));
-        spans.push(Span::styled(t("modal.tab.spotify"), spotify_st));
-        Paragraph::new(Line::from(spans)).render(tab_area, buf);
+        Paragraph::new(Line::from(vec![
+            Span::styled(t("modal.tab.radio"),   radio_st),
+            Span::styled("  ",                   Style::default()),
+            Span::styled(t("modal.tab.spotify"), spotify_st),
+            Span::styled("  ",                   Style::default()),
+            Span::styled(t("modal.tab.youtube"), youtube_st),
+        ]))
+        .render(tab_area, buf);
     }
 
     pub(super) fn render_name_body(&self, area: Rect, content_x: u16, content_w: u16, buf: &mut Buffer) {

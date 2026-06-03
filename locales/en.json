@@ -6,6 +6,8 @@
   "modal.tab.country": "[ Country ]",
   "modal.tab.trending": "[ Trending ]",
   "modal.tab.spotify": "[ Spotify ]",
+  "modal.tab.youtube": "[ YouTube ]",
+  "modal.coming_soon": "Coming soon",
   "hint.play": "Play",
   "hint.vote": "Vote",
   "hint.random": "Random",
@@ -164,6 +166,7 @@
   "hint.tabs": "Tabs",
   "hint.disconnect": "Disconnect",
   "hint.radio": "Radio",
+  "hint.pause": "Pause/Resume",
   "station.favorites": "Favorites",
   "spotify.device.smartphone": "Mobile",
   "spotify.device.speaker": "Speaker",
@@ -191,10 +194,13 @@
   "help.shortcut.nav_options": "Navigate options",
   "help.shortcut.confirm": "Confirm",
   "modal.spotify.rate_limit_countdown": "! Rate limit — wait",
+  "config.setting.screensaver_clock": "Screensaver Clock",
+  "config.tooltip.screensaver_clock": "Show the big digital clock in the fullscreen screensaver.",
   "config.setting.spotify_client_id": "Spotify Client ID",
   "config.tooltip.spotify_client_id": "Your Spotify app Client ID from developer.spotify.com. Required to connect. Press Space to edit.",
   "config.spotify.not_set": "(not set)",
   "config.spotify.no_client_id": "No Client ID configured. Set it in Settings > Spotify Client ID.",
   "modal.client_id.title": " Spotify Client ID ",
-  "modal.client_id.hint": " [↵] Save  [Esc] Cancel "
+  "modal.client_id.hint": " [↵] Save  [Esc] Cancel ",
+  "status.dead_url": "URL not found (404)"
 }

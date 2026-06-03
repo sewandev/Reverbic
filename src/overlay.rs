@@ -215,7 +215,7 @@ unsafe fn run(
                 _ => None,
             };
             if let Some(c) = cmd {
-                let _ = cmd_tx.blocking_send(c);
+                let _ = cmd_tx.try_send(c);
             }
         }
         if config_rx.has_changed().unwrap_or(false) {
@@ -340,7 +340,7 @@ unsafe fn run(
                 }
             }
         } else if is_ducked {
-            let _ = cmd_tx.blocking_send(PlayerCommand::SetVolume(pre_duck_vol));
+            let _ = cmd_tx.try_send(PlayerCommand::SetVolume(pre_duck_vol));
             is_ducked   = false;
             quiet_since = None;
         }

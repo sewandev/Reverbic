@@ -14,6 +14,7 @@ pub use modal::{
 };
 pub use spotify_state::SpotifyState;
 
+use std::collections::HashSet;
 use std::time::Instant;
 
 use crossterm::event::KeyCode;
@@ -112,6 +113,7 @@ pub struct App {
     station_details_rx:      Option<std::sync::mpsc::Receiver<StationDetails>>,
     last_details_uuid:       Option<String>,
     pub notice_until:        Option<std::time::Instant>,
+    pub dead_urls:           HashSet<String>,
 }
 
 impl App {
@@ -175,6 +177,7 @@ impl App {
             station_details_rx: None,
             last_details_uuid:  None,
             notice_until:       None,
+            dead_urls:          HashSet::new(),
         }
     }
 

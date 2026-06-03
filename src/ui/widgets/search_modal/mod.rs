@@ -45,6 +45,7 @@ pub struct SearchModalWidget<'a> {
     pub duck_volume:               u8,
     pub overlay_alpha:             u8,
     pub screensaver_secs:          u16,
+    pub screensaver_clock:         bool,
     pub volume_step:               u8,
     pub prebuffer_secs:            u8,
     pub spotify_status:            &'a SpotifyAuthStatus,
@@ -114,6 +115,8 @@ impl Widget for SearchModalWidget<'_> {
                 self.render_settings_body(body_area, content_x, content_w, buf),
             SearchMode::Spotify =>
                 self.render_spotify_body(body_area, content_x, content_w, buf),
+            SearchMode::Youtube =>
+                self.render_coming_soon(body_area, buf),
         }
     }
 }
@@ -145,6 +148,7 @@ impl<'a> From<&'a crate::app::App> for SearchModalWidget<'a> {
             duck_volume:               app.config.duck_volume,
             overlay_alpha:             app.config.overlay_alpha,
             screensaver_secs:          app.config.screensaver_secs,
+            screensaver_clock:         app.config.screensaver_clock,
             volume_step:               app.config.volume_step,
             prebuffer_secs:            app.config.prebuffer_secs,
             spotify_status:            &sp.status,
@@ -170,13 +174,22 @@ impl<'a> From<&'a crate::app::App> for SearchModalWidget<'a> {
 }
 
 impl SearchModalWidget<'_> {
+    fn render_coming_soon(&self, area: Rect, buf: &mut Buffer) {
+        use ratatui::widgets::Paragraph;
+        let cy = area.y + area.height / 2;
+        Paragraph::new(t("modal.coming_soon"))
+            .alignment(Alignment::Center)
+            .style(Style::default().fg(theme::MUTED))
+            .render(Rect::new(area.x, cy, area.width, 1), buf);
+    }
+
     fn bottom_hint(&self) -> Vec<Span<'static>> {
         let showing = !self.results.is_empty();
         if showing {
             return vec![
                 Span::raw(" "),
                 key("[↵]"),   sep_s(format!(" {}  ", t("hint.play"))),
-                key("[F]"),   sep(" *  "),
+                key("[Alt+F]"), sep(" *  "),
                 key("[↑↓]"), sep_s(format!(" {}  ", t("hint.nav"))),
                 key("[?]"),   sep_s(format!(" {} ", t("hint.help"))),
             ];
@@ -216,6 +229,11 @@ impl SearchModalWidget<'_> {
                 key("[Esc]"),   sep_s(format!(" {}  ", t("hint.close"))),
                 key("[?]"),     sep_s(format!(" {} ", t("hint.help"))),
             ],
+            SearchMode::Youtube => vec![
+                Span::raw(" "),
+                key("[Tab]"), sep_s(format!(" {}  ", t("hint.next_tab"))),
+                key("[Esc]"), sep_s(format!(" {} ", t("hint.close"))),
+            ],
             SearchMode::Spotify => {
                 use crate::app::{SpotifyAuthStatus, SpotifySubTab};
                 match self.spotify_status {
@@ -237,9 +255,9 @@ impl SearchModalWidget<'_> {
                             vec![
                                 Span::raw(" "),
                                 key("[↵]"),     sep_s(format!(" {}  ", t("hint.play"))),
+                                key("[Space]"), sep_s(format!(" {}  ", t("hint.pause"))),
                                 key("[↑↓]"),   sep_s(format!(" {}  ", t("hint.nav"))),
                                 key("[←→]"),   sep_s(format!(" {}  ", t("hint.tabs"))),
-                                key("[Alt+D]"), sep_s(format!(" {}  ", t("hint.disconnect"))),
                                 key("[?]"),     sep_s(format!(" {} ", t("hint.help"))),
                             ]
                         } else {

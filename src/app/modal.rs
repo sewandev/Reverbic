@@ -7,6 +7,7 @@ pub enum SearchMode {
     Country,
     Settings,
     Spotify,
+    Youtube,
 }
 
 pub enum SpotifyAuthStatus {
@@ -49,6 +50,7 @@ pub enum SettingItem {
     TrayIcon,
     Notifications,
     Language,
+    ScreensaverClock,
     SpotifyStopOnQuit,
     SpotifyStartOnSpotify,
     SpotifyClientId,
@@ -72,6 +74,7 @@ impl SettingItem {
             Self::TrayIcon           => t("config.setting.tray"),
             Self::Notifications      => t("config.setting.notifications"),
             Self::Language           => t("config.setting.language"),
+            Self::ScreensaverClock      => t("config.setting.screensaver_clock"),
             Self::SpotifyStopOnQuit     => t("config.setting.spotify_stop_on_quit"),
             Self::SpotifyStartOnSpotify => t("config.setting.spotify_start_on_spotify"),
             Self::SpotifyClientId       => t("config.setting.spotify_client_id"),
@@ -95,6 +98,7 @@ impl SettingItem {
             Self::TrayIcon           => "config.tooltip.tray",
             Self::Notifications      => "config.tooltip.notifications",
             Self::Language           => "config.tooltip.language",
+            Self::ScreensaverClock      => "config.tooltip.screensaver_clock",
             Self::SpotifyStopOnQuit     => "config.tooltip.spotify_stop_on_quit",
             Self::SpotifyStartOnSpotify => "config.tooltip.spotify_start_on_spotify",
             Self::SpotifyClientId       => "config.tooltip.spotify_client_id",
@@ -105,7 +109,7 @@ impl SettingItem {
         match self {
             Self::Autoplay | Self::RestoreVolume | Self::Crossfade | Self::VolumeStep | Self::Prebuffer
                 => "config.group.playback",
-            Self::OverlayMode | Self::OverlayAlpha | Self::OverlayPosition | Self::Screensaver
+            Self::OverlayMode | Self::OverlayAlpha | Self::OverlayPosition | Self::Screensaver | Self::ScreensaverClock
                 => "config.group.overlay",
             Self::DuckEnabled | Self::DuckVolume
                 => "config.group.game",
@@ -130,6 +134,7 @@ pub fn settings_items(duck_enabled: bool) -> Vec<SettingItem> {
         SettingItem::OverlayAlpha,
         SettingItem::OverlayPosition,
         SettingItem::Screensaver,
+        SettingItem::ScreensaverClock,
         SettingItem::DuckEnabled,
     ];
     if duck_enabled {

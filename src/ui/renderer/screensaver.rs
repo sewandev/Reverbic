@@ -20,10 +20,11 @@ pub(super) struct ScreensaverCtx<'a> {
     pub spotify_name:    Option<&'a str>,
     pub spotify_premium: bool,
     pub enriched_track:  Option<&'a crate::metadata::EnrichedTrack>,
+    pub show_clock:      bool,
 }
 
 pub(super) fn render_screensaver(frame: &mut Frame, area: Rect, ctx: ScreensaverCtx<'_>) {
-    let ScreensaverCtx { state, details, is_favorite, spotify_name, spotify_premium, enriched_track } = ctx;
+    let ScreensaverCtx { state, details, is_favorite, spotify_name, spotify_premium, enriched_track, show_clock } = ctx;
     const OVERLAY: ratatui::style::Color = theme::OVERLAY_COLOR;
     const BG:      ratatui::style::Color = theme::PANEL_BG;
 
@@ -54,9 +55,10 @@ pub(super) fn render_screensaver(frame: &mut Frame, area: Rect, ctx: Screensaver
     let title_block_h: u16 = if enriched_track.is_some() { 3 } else { title_rows };
     let recent_rows: u16 = if has_recent { 1 + n_recent } else { 0 };
 
+    let clock_h: u16 = if show_clock { 5 + 1 } else { 0 };
     let ph = 2u16                                           // bordes
         + 1                                                 // margen superior
-        + 5 + 1                                             // reloj + gap
+        + clock_h                                           // reloj + gap
         + 1                                                 // nombre estación
         + title_block_h                                     // título canción (o artista+título+álbum)
         + u16::from(spotify_name.is_some())                 // spotify
@@ -95,23 +97,25 @@ pub(super) fn render_screensaver(frame: &mut Frame, area: Rect, ctx: Screensaver
     let cw      = inner.width.saturating_sub(4);
     let mut row = inner.y + 1;
 
-    let now_t    = Local::now();
-    let h1       = (now_t.hour()   / 10) as u8;
-    let h2       = (now_t.hour()   % 10) as u8;
-    let m1       = (now_t.minute() / 10) as u8;
-    let m2       = (now_t.minute() % 10) as u8;
-    let colon_on = now_t.second().is_multiple_of(2);
-    let clock_w: u16 = 19;
-    let clock_x      = cx + cw.saturating_sub(clock_w) / 2;
-    for r in 0..5usize {
-        frame.render_widget(
-            Paragraph::new(build_clock_row(r, h1, h2, m1, m2, colon_on, border_color, BG))
-                .style(Style::default().bg(BG)),
-            Rect::new(clock_x, row, clock_w, 1),
-        );
+    let now_t = Local::now();
+    if show_clock {
+        let h1       = (now_t.hour()   / 10) as u8;
+        let h2       = (now_t.hour()   % 10) as u8;
+        let m1       = (now_t.minute() / 10) as u8;
+        let m2       = (now_t.minute() % 10) as u8;
+        let colon_on = now_t.second().is_multiple_of(2);
+        let clock_w: u16 = 19;
+        let clock_x      = cx + cw.saturating_sub(clock_w) / 2;
+        for r in 0..5usize {
+            frame.render_widget(
+                Paragraph::new(build_clock_row(r, h1, h2, m1, m2, colon_on, border_color, BG))
+                    .style(Style::default().bg(BG)),
+                Rect::new(clock_x, row, clock_w, 1),
+            );
+            row += 1;
+        }
         row += 1;
     }
-    row += 1;
     let raw_name    = state.station.as_ref().map(|s| s.name.as_str()).unwrap_or("—");
     let prefix      = if is_favorite { "★  " } else { "" };
     let station_str = strings::truncate(&format!("{prefix}{}", raw_name.to_uppercase()), cw as usize);
@@ -447,7 +451,18 @@ fn build_clock_row(
 }
 
 fn visualizer_line(level_db: f32, width: usize, bg: ratatui::style::Color) -> Line<'static> {
+    use ratatui::style::Color::Rgb;
     const BLOCKS: &[char] = &['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
+    const SPECTRUM: [ratatui::style::Color; 8] = [
+        Rgb(0,   240, 255),
+        Rgb(40,  160, 255),
+        Rgb(75,  80,  255),
+        Rgb(112, 0,   255),
+        Rgb(160, 0,   200),
+        Rgb(200, 0,   140),
+        Rgb(235, 0,   100),
+        Rgb(255, 0,   85),
+    ];
     let base = ((level_db + 60.0) / 60.0).clamp(0.0, 1.0) as f64;
     let ms   = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -462,15 +477,8 @@ fn visualizer_line(level_db: f32, width: usize, bg: ratatui::style::Color) -> Li
         let wave  = (ms * freq + phase).sin() * 0.35 + 0.35;
         let h     = (base * 0.65 + wave * 0.35).clamp(0.0, 1.0);
         let idx   = ((h * 7.0) as usize).min(7);
-        let color = if h > 0.85 {
-            ratatui::style::Color::Red
-        } else if h > 0.6 {
-            theme::WARNING
-        } else if h > 0.3 {
-            theme::ACCENT
-        } else {
-            theme::MUTED
-        };
+        let pos_idx = (i * 7 / n_bars.saturating_sub(1).max(1)).min(7);
+        let color = if h < 0.05 { theme::MUTED } else { SPECTRUM[pos_idx] };
         spans.push(Span::styled(BLOCKS[idx].to_string(), Style::default().fg(color).bg(bg)));
         if i + 1 < n_bars {
             spans.push(Span::styled(" ", Style::default().bg(bg)));
@@ -484,6 +492,7 @@ fn volume_bar(vol: f32, bar_width: usize) -> String {
     format!("{}{}", "█".repeat(filled), "░".repeat(bar_width - filled))
 }
 
+#[expect(clippy::too_many_arguments)]
 pub(super) fn render_spotify_screensaver(
     frame:        &mut Frame,
     area:         Rect,
@@ -492,6 +501,7 @@ pub(super) fn render_spotify_screensaver(
     country:      Option<&str>,
     followers:    Option<u32>,
     is_premium:   bool,
+    show_clock:   bool,
 ) {
     const OVERLAY: ratatui::style::Color = theme::OVERLAY_COLOR;
     const BG:      ratatui::style::Color = theme::PANEL_BG;
@@ -510,7 +520,8 @@ pub(super) fn render_spotify_screensaver(
     let has_profile  = profile_rows > 0;
 
     let pw = (area.width * 85 / 100).clamp(60, 110);
-    let ph_base: u16 = 2 + 1 + 5 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1;
+    let clock_rows: u16 = if show_clock { 6 } else { 0 };
+    let ph_base: u16 = 2 + 1 + clock_rows + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1;
     let ph_with_profile = ph_base + 1 + profile_rows;
     let ph = if has_profile && ph_with_profile <= area.height {
         ph_with_profile
@@ -541,23 +552,25 @@ pub(super) fn render_spotify_screensaver(
     let cw      = inner.width.saturating_sub(4);
     let mut row = inner.y + 1;
 
-    let now_t    = Local::now();
-    let h1       = (now_t.hour()   / 10) as u8;
-    let h2       = (now_t.hour()   % 10) as u8;
-    let m1       = (now_t.minute() / 10) as u8;
-    let m2       = (now_t.minute() % 10) as u8;
-    let colon_on = now_t.second().is_multiple_of(2);
-    let clock_w: u16 = 19;
-    let clock_x      = cx + cw.saturating_sub(clock_w) / 2;
-    for r in 0..5usize {
-        frame.render_widget(
-            Paragraph::new(build_clock_row(r, h1, h2, m1, m2, colon_on, border_color, BG))
-                .style(Style::default().bg(BG)),
-            Rect::new(clock_x, row, clock_w, 1),
-        );
+    let now_t = Local::now();
+    if show_clock {
+        let h1       = (now_t.hour()   / 10) as u8;
+        let h2       = (now_t.hour()   % 10) as u8;
+        let m1       = (now_t.minute() / 10) as u8;
+        let m2       = (now_t.minute() % 10) as u8;
+        let colon_on = now_t.second().is_multiple_of(2);
+        let clock_w: u16 = 19;
+        let clock_x      = cx + cw.saturating_sub(clock_w) / 2;
+        for r in 0..5usize {
+            frame.render_widget(
+                Paragraph::new(build_clock_row(r, h1, h2, m1, m2, colon_on, border_color, BG))
+                    .style(Style::default().bg(BG)),
+                Rect::new(clock_x, row, clock_w, 1),
+            );
+            row += 1;
+        }
         row += 1;
     }
-    row += 1;
 
     frame.render_widget(
         Paragraph::new(Span::styled(

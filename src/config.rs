@@ -98,7 +98,7 @@ pub struct SpotifyConfig {
     pub country:       Option<String>,
     #[serde(default)]
     pub followers:     Option<u32>,
-    #[serde(default)]
+    #[serde(default = "default_true")]
     pub stop_on_quit:      bool,
     #[serde(default)]
     pub start_on_spotify:  bool,
@@ -146,6 +146,8 @@ pub struct Config {
     pub volume_step:          u8,
     #[serde(default = "default_prebuffer_secs")]
     pub prebuffer_secs:       u8,
+    #[serde(default = "default_true")]
+    pub screensaver_clock:    bool,
 }
 
 fn default_true() -> bool { true }
@@ -193,6 +195,7 @@ impl Default for Config {
             spotify:           SpotifyConfig::default(),
             volume_step:       5,
             prebuffer_secs:    30,
+            screensaver_clock: true,
         }
     }
 }
@@ -285,9 +288,8 @@ impl Config {
             }
         };
         if let Ok(entry) = keyring::Entry::new("reverbic", "spotify_refresh_token") {
-            match entry.get_password() {
-                Ok(token) => config.spotify.refresh_token = Some(token),
-                Err(_) => {}
+            if let Ok(token) = entry.get_password() {
+                config.spotify.refresh_token = Some(token);
             }
         }
         config

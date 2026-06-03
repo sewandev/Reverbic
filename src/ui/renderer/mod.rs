@@ -5,15 +5,17 @@ mod screensaver;
 
 pub use layout::now_playing_rect;
 
-use ratatui::{layout::Rect, Frame};
+use ratatui::{layout::Rect, style::Color, Frame};
 
 pub fn spotify_screensaver_progress_rect(
     area:         Rect,
     profile_rows: u16,
+    show_clock:   bool,
 ) -> Option<Rect> {
     let pw = (area.width * 85 / 100).clamp(60, 110).min(area.width);
 
-    let ph_base: u16 = 2 + 1 + 5 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1;
+    let clock_rows: u16 = if show_clock { 6 } else { 0 };
+    let ph_base: u16 = 2 + 1 + clock_rows + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1;
     let ph = ph_base + if profile_rows > 0 { 1 + profile_rows } else { 0 };
 
     let px = area.x + area.width.saturating_sub(pw) / 2;
@@ -25,7 +27,7 @@ pub fn spotify_screensaver_progress_rect(
     let cx      = inner_x + 2;
     let cw      = inner_w.saturating_sub(4);
 
-    let progress_y = inner_y + 14;
+    let progress_y = inner_y + 7 + clock_rows + 1;
 
     if progress_y >= area.bottom() { return None; }
     Some(Rect::new(cx, progress_y, cw, 1))
@@ -92,11 +94,24 @@ pub fn render(frame: &mut Frame, app: &App) {
 
     let layout = compute_layout(frame.area(), has_recent, has_saved, show_countdown, has_on_demand);
 
+    let sep_color = match &player_state.status {
+        PlayerStatus::Playing                                       => crate::ui::theme::ACCENT,
+        PlayerStatus::Paused                                        => crate::ui::theme::WARNING,
+        PlayerStatus::Buffering(_) | PlayerStatus::Reconnecting(_) => Color::Rgb(80, 80, 80),
+        _                                                           => crate::ui::theme::MUTED,
+    };
+
+    if let Some(logo_y) = layout.logo_y {
+        if !app.show_search_modal {
+            render_logo_above(frame, area.x, area.width, logo_y, Color::Reset);
+        }
+    }
+
     if let Some(h) = layout.header {
         render_header(frame, h);
     }
     if let Some(s) = layout.sep_header {
-        render_sep(frame, s);
+        render_sep(frame, s, sep_color);
     }
 
     frame.render_widget(
@@ -115,6 +130,7 @@ pub fn render(frame: &mut Frame, app: &App) {
             flash_index:            app.click_flash.and_then(|(i, t)| {
                 if t.elapsed().as_millis() < 300 { Some(i) } else { None }
             }),
+            dead_urls:              &app.dead_urls,
         },
         layout.stations,
     );
@@ -162,7 +178,7 @@ pub fn render(frame: &mut Frame, app: &App) {
     }
 
     if let Some(s) = layout.sep_body {
-        render_sep(frame, s);
+        render_sep(frame, s, sep_color);
     }
 
     if let Some(r) = layout.now_playing {
@@ -194,7 +210,7 @@ pub fn render(frame: &mut Frame, app: &App) {
     }
 
     if let Some(s) = layout.sep_footer {
-        render_sep(frame, s);
+        render_sep(frame, s, sep_color);
     }
 
     if let Some(r) = layout.countdown {
@@ -222,6 +238,7 @@ pub fn render(frame: &mut Frame, app: &App) {
                     app.config.spotify.country.as_deref(),
                     app.config.spotify.followers,
                     app.spotify.is_premium,
+                    app.config.screensaver_clock,
                 );
                 return;
             }
@@ -236,6 +253,7 @@ pub fn render(frame: &mut Frame, app: &App) {
             spotify_name:    app.config.spotify.display_name.as_deref(),
             spotify_premium: app.spotify.is_premium,
             enriched_track:  app.radio_enriched_track.as_ref(),
+            show_clock:      app.config.screensaver_clock,
         });
         return;
     }

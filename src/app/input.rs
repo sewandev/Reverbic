@@ -89,6 +89,12 @@ impl App {
             {
                 self.fetch_spotify_devices();
             }
+            KeyCode::Char('f') | KeyCode::Char('F') if self.show_search_modal && !self.search_results.is_empty() => {
+                self.toggle_modal_favorite();
+            }
+            KeyCode::Char('f') | KeyCode::Char('F') if !self.show_search_modal => {
+                self.toggle_selected_favorite();
+            }
             _ => {}
         }
     }
@@ -252,7 +258,8 @@ impl App {
         if key == KeyCode::Tab {
             self.modal_mode = match &self.modal_mode {
                 SearchMode::Name | SearchMode::Genre | SearchMode::Country => SearchMode::Spotify,
-                SearchMode::Spotify => SearchMode::Name,
+                SearchMode::Spotify => SearchMode::Youtube,
+                SearchMode::Youtube => SearchMode::Name,
                 other => *other,
             };
             self.modal_selected = 0;
@@ -286,6 +293,7 @@ impl App {
             SearchMode::Country      => self.on_key_modal_country(key).await,
             SearchMode::Settings     => self.on_key_modal_settings(key),
             SearchMode::Spotify      => self.on_key_modal_spotify(key).await,
+            SearchMode::Youtube      => {}
         }
     }
 
@@ -300,9 +308,6 @@ impl App {
                     self.search_results.clear();
                     self.modal_selected = 0;
                 }
-            }
-            KeyCode::Char('F') if !self.search_results.is_empty() => {
-                self.toggle_modal_favorite();
             }
             KeyCode::Char('R') if !self.search_results.is_empty() => {
                 if let Some(idx) = self.play_random_result() {
@@ -355,9 +360,6 @@ impl App {
                 if let Some(idx) = self.play_random_result() {
                     self.play_dynamic_station(idx).await;
                 }
-            }
-            KeyCode::Char('F') => {
-                self.toggle_modal_favorite();
             }
             KeyCode::Up | KeyCode::Char('k') => {
                 self.modal_selected = cycle_prev(self.modal_selected, self.search_results.len());
@@ -474,9 +476,6 @@ impl App {
                     let station = self.stations[idx].clone();
                     self.play_station(station).await;
                 }
-            }
-            KeyCode::Char('F') => {
-                self.toggle_selected_favorite();
             }
             KeyCode::Char('e') => {
                 if let Some(idx) = self.favorite_index() {
@@ -595,7 +594,7 @@ impl App {
                     let profile_rows = u16::from(has_name || self.config.spotify.country.is_some())
                         + u16::from(has_plan);
                     if let Some(prog) = crate::ui::renderer::spotify_screensaver_progress_rect(
-                        self.terminal_area, profile_rows,
+                        self.terminal_area, profile_rows, self.config.screensaver_clock,
                     ) {
                         if row == prog.y && col >= prog.x && col < prog.x + prog.width {
                             let time_cur = {
@@ -854,7 +853,8 @@ impl App {
                 };
             }
             super::modal::SettingItem::OverlayPosition => self.config.overlay_position = self.config.overlay_position.next(),
-            super::modal::SettingItem::Screensaver     => self.config.screensaver_next(),
+            super::modal::SettingItem::Screensaver      => self.config.screensaver_next(),
+            super::modal::SettingItem::ScreensaverClock => self.config.screensaver_clock = !self.config.screensaver_clock,
             super::modal::SettingItem::DuckEnabled     => self.config.duck_enabled = !self.config.duck_enabled,
             super::modal::SettingItem::DuckVolume      => {
                 self.config.duck_volume = match self.config.duck_volume {
@@ -1034,13 +1034,12 @@ impl App {
                         let uri   = track.uri.clone();
                         self.spotify.now_playing   = Some(track);
                         self.spotify.player_status = SpotifyPlayerStatus::Loading;
+                        let (tx, rx) = std::sync::mpsc::channel();
+                        self.spotify.play_result_rx = Some(rx);
                         tokio::spawn(async move {
-                            match crate::integrations::spotify::devices::play_on_device(&token, &device_id, &uri).await {
-                                Ok(()) => tracing::info!("spotify: reproduciendo en dispositivo remoto"),
-                                Err(e) => tracing::warn!("spotify play_on_device error: {e}"),
-                            }
+                            let result = crate::integrations::spotify::devices::play_on_device(&token, &device_id, &uri).await;
+                            let _ = tx.send(result);
                         });
-                        self.spotify.player_status = SpotifyPlayerStatus::Playing;
                         self.start_playback_polling();
                     } else if let Some(handle) = &self.spotify.player_tx {
                         handle.play(track.clone());

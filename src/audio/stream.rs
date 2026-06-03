@@ -15,6 +15,7 @@ pub struct StreamReader {
     buffered:      usize,
     last_chunk_at:   Arc<AtomicU64>,
     download_done:   Arc<AtomicBool>,
+    dead_url:        Arc<AtomicBool>,
 }
 
 impl StreamReader {
@@ -45,9 +46,11 @@ impl StreamReader {
 
         let download_done  = Arc::new(AtomicBool::new(false));
         let done_for_task  = Arc::clone(&download_done);
+        let dead_url       = Arc::new(AtomicBool::new(false));
+        let dead_for_task  = Arc::clone(&dead_url);
 
         handle.spawn(async move {
-            if let Err(e) = download_stream(url, start_byte, audio_tx, title_tx, done_for_task).await {
+            if let Err(e) = download_stream(url, start_byte, audio_tx, title_tx, done_for_task, dead_for_task).await {
                 tracing::error!("Stream download failed: {e}");
             }
         });
@@ -60,12 +63,17 @@ impl StreamReader {
             buffered: 0,
             last_chunk_at,
             download_done,
+            dead_url,
         };
         (reader, title_rx)
     }
 
     pub fn download_done_arc(&self) -> Arc<AtomicBool> {
         Arc::clone(&self.download_done)
+    }
+
+    pub fn dead_url_arc(&self) -> Arc<AtomicBool> {
+        Arc::clone(&self.dead_url)
     }
 
     pub fn connect_preview(url: String, handle: tokio::runtime::Handle) -> Self {
@@ -85,6 +93,7 @@ impl StreamReader {
             buffered: 0,
             last_chunk_at,
             download_done: Arc::new(AtomicBool::new(false)),
+            dead_url: Arc::new(AtomicBool::new(false)),
         }
     }
     pub fn pre_buffer(&mut self, target_bytes: usize, mut progress: impl FnMut(f32)) {
@@ -170,6 +179,7 @@ async fn download_stream(
     audio_tx: mpsc::SyncSender<Bytes>,
     title_tx: mpsc::SyncSender<String>,
     download_done: Arc<AtomicBool>,
+    dead_url: Arc<AtomicBool>,
 ) -> Result<(), reqwest::Error> {
     tracing::info!("Conectando a stream: {url} (start_byte={start_byte})");
 
@@ -209,6 +219,9 @@ async fn download_stream(
     let status = resp.status();
     if !status.is_success() {
         tracing::error!("HTTP error {status} para URL: {url}");
+        if status == reqwest::StatusCode::NOT_FOUND {
+            dead_url.store(true, Ordering::Release);
+        }
         return Ok(());
     }
 

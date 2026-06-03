@@ -4,6 +4,7 @@ pub(super) const HEIGHT_NORMAL:  u16 = 11;
 pub(super) const HEIGHT_COMPACT: u16 = 5;
 
 pub(super) struct AppLayout {
+    pub logo_y:        Option<u16>,
     pub header:        Option<Rect>,
     pub sep_header:    Option<Rect>,
     pub stations:      Rect,
@@ -37,7 +38,41 @@ pub(super) fn compute_layout(
 ) -> AppLayout {
     let countdown_h: u16 = u16::from(show_countdown);
 
-    if area.height >= HEIGHT_NORMAL + countdown_h {
+    if area.height >= HEIGHT_NORMAL + 2 + countdown_h {
+        let layout_area = Rect::new(area.x, area.y + 2, area.width, area.height - 2);
+        let rows = Layout::vertical([
+            Constraint::Length(1),
+            Constraint::Length(1),
+            Constraint::Fill(1),
+            Constraint::Length(1),
+            Constraint::Length(1),
+            Constraint::Length(1),
+            Constraint::Length(1),
+            Constraint::Length(countdown_h),
+            Constraint::Length(1),
+        ])
+        .split(layout_area);
+
+        let countdown = if show_countdown { Some(rows[7]) } else { None };
+        let (stations, on_demand, saved_tracks, recent_tracks) =
+            build_columns(rows[2], has_on_demand, has_recent, has_saved);
+
+        AppLayout {
+            logo_y:       Some(area.y + 2),
+            header:       Some(rows[0]),
+            sep_header:   Some(rows[1]),
+            stations,
+            on_demand,
+            saved_tracks,
+            recent_tracks,
+            sep_body:     Some(rows[3]),
+            now_playing:  Some(rows[4]),
+            vu:           Some(rows[5]),
+            sep_footer:   Some(rows[6]),
+            countdown,
+            help:         rows[8],
+        }
+    } else if area.height >= HEIGHT_NORMAL + countdown_h {
         let rows = Layout::vertical([
             Constraint::Length(1),
             Constraint::Length(1),
@@ -56,6 +91,7 @@ pub(super) fn compute_layout(
             build_columns(rows[2], has_on_demand, has_recent, has_saved);
 
         AppLayout {
+            logo_y:       None,
             header:       Some(rows[0]),
             sep_header:   Some(rows[1]),
             stations,
@@ -81,7 +117,7 @@ pub(super) fn compute_layout(
             build_columns(rows[0], has_on_demand, has_recent, has_saved);
 
         AppLayout {
-            header: None, sep_header: None,
+            logo_y: None, header: None, sep_header: None,
             stations, on_demand, saved_tracks, recent_tracks,
             sep_body: None,
             now_playing:  Some(rows[1]),
@@ -96,7 +132,7 @@ pub(super) fn compute_layout(
             build_columns(rows[0], false, false, false);
 
         AppLayout {
-            header: None, sep_header: None,
+            logo_y: None, header: None, sep_header: None,
             stations, on_demand, saved_tracks, recent_tracks,
             sep_body: None, now_playing: None, vu: None, sep_footer: None, countdown: None,
             help: rows[1],

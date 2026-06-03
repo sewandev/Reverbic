@@ -1,7 +1,7 @@
 use chrono::{Datelike, Local};
 use ratatui::{
     layout::Rect,
-    style::{Modifier, Style},
+    style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::Paragraph,
     Frame,
@@ -29,10 +29,10 @@ pub(super) fn render_header(frame: &mut Frame, area: Rect) {
     frame.render_widget(Paragraph::new(line), area);
 }
 
-pub(super) fn render_sep(frame: &mut Frame, area: Rect) {
+pub(super) fn render_sep(frame: &mut Frame, area: Rect, color: Color) {
     let line = "─".repeat(area.width as usize);
     frame.render_widget(
-        Paragraph::new(Span::styled(line, Style::default().fg(theme::MUTED))),
+        Paragraph::new(Span::styled(line, Style::default().fg(color))),
         area,
     );
 }

@@ -5,7 +5,7 @@
 <p align="center">Terminal radio player &amp; Spotify remote for Windows.</p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-1.0.0-blueviolet?style=flat-square" />
+  <img alt="Version" src="https://img.shields.io/badge/version-1.1.0-blueviolet?style=flat-square" />
   <img alt="Platform" src="https://img.shields.io/badge/platform-Windows-0078d4?style=flat-square" />
   <img alt="Built with Rust" src="https://img.shields.io/badge/built_with-Rust-CE422B?style=flat-square" />
   <img alt="License" src="https://img.shields.io/badge/license-MIT-green?style=flat-square" />
@@ -14,6 +14,11 @@
 <p align="center">
   <a href="README.md">English</a> |
   <a href="README.es.md">Español</a>
+</p>
+
+<p align="center">
+  <a href="CHANGELOG.md">Changelog</a> |
+  <a href="CHANGELOG.es.md">Registro de cambios</a>
 </p>
 
 <video src="https://github.com/user-attachments/assets/81e799be-0519-47f7-8a74-661b45b2a898" controls width="100%"></video>

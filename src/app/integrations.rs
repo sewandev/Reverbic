@@ -105,7 +105,8 @@ impl App {
                     if self.config.spotify.start_on_spotify {
                         self.modal_mode = SearchMode::Spotify;
                     }
-                    self.spotify.access_token = Some(search_token);
+                    self.spotify.access_token       = Some(search_token);
+                    self.spotify.token_refreshed_at = Some(std::time::Instant::now());
                     self.fetch_spotify_devices();
                     self.start_playback_polling();
                     {
@@ -286,6 +287,82 @@ impl App {
             Err(e) => {
                 tracing::warn!("transfer playback: {e}");
                 self.save_notice = Some(format!("Spotify: {e}"));
+            }
+        }
+    }
+
+    pub fn poll_token_refresh(&mut self) {
+        if self.spotify.token_refresh_rx.is_none() {
+            if let Some(refreshed_at) = self.spotify.token_refreshed_at {
+                if refreshed_at.elapsed() >= std::time::Duration::from_secs(55 * 60) {
+                    let Some(refresh_token) = self.config.spotify.refresh_token.clone() else { return };
+                    let client_id = self.config.spotify.client_id.clone();
+                    let (tx, rx) = std::sync::mpsc::channel();
+                    self.spotify.token_refresh_rx   = Some(rx);
+                    self.spotify.token_refreshed_at = None;
+                    let handle = tokio::spawn(async move {
+                        let result = crate::integrations::spotify::oauth::refresh_search_token(&client_id, &refresh_token).await;
+                        let _ = tx.send(result);
+                    });
+                    self.spotify.token_refresh_task = Some(handle);
+                }
+            }
+        }
+        if let Some(rx) = self.spotify.token_refresh_rx.take() {
+            match rx.try_recv() {
+                Ok(Ok((new_access, new_refresh))) => {
+                    self.spotify.access_token         = Some(new_access.clone());
+                    self.config.spotify.search_token  = Some(new_access);
+                    self.config.spotify.refresh_token = Some(new_refresh);
+                    self.config.save();
+                    self.spotify.token_refreshed_at   = Some(std::time::Instant::now());
+                    self.start_playback_polling();
+                    tracing::info!("spotify: access_token renovado");
+                }
+                Ok(Err(e)) => {
+                    tracing::warn!("spotify token refresh fallido: {e}");
+                    self.spotify.token_refreshed_at = Some(
+                        std::time::Instant::now() - std::time::Duration::from_secs(50 * 60)
+                    );
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => {
+                    self.spotify.token_refresh_rx = Some(rx);
+                }
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    self.spotify.token_refreshed_at = Some(
+                        std::time::Instant::now() - std::time::Duration::from_secs(50 * 60)
+                    );
+                }
+            }
+        }
+    }
+
+    pub fn poll_spotify_play_result(&mut self) {
+        use crate::integrations::spotify::SpotifyError;
+        if let Some(rx) = self.spotify.play_result_rx.take() {
+            match rx.try_recv() {
+                Ok(Ok(())) => {
+                    self.spotify.player_status = SpotifyPlayerStatus::Playing;
+                }
+                Ok(Err(SpotifyError::Unauthorized)) => {
+                    self.spotify.player_status = SpotifyPlayerStatus::Error(
+                        crate::i18n::t("integrations.spotify.error.generic")
+                    );
+                    tracing::warn!("spotify play: token expirado, renovando");
+                    self.spotify.token_refreshed_at = Some(
+                        std::time::Instant::now() - std::time::Duration::from_secs(60 * 60)
+                    );
+                }
+                Ok(Err(e)) => {
+                    tracing::warn!("spotify play_on_device: {e}");
+                    self.spotify.player_status = SpotifyPlayerStatus::Error(
+                        crate::i18n::t("integrations.spotify.error.generic")
+                    );
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => {
+                    self.spotify.play_result_rx = Some(rx);
+                }
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => {}
             }
         }
     }

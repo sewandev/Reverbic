@@ -1,7 +1,7 @@
 use ratatui::style::{Color, Modifier, Style};
-pub const ACCENT:          Color = Color::Rgb(68, 204, 51);
+pub const ACCENT:          Color = Color::Rgb(0, 240, 255);
 pub const RADIO_ACCENT:    Color = Color::Rgb(64, 160, 255);
-pub const PLAYING:         Color = Color::Rgb(68, 204, 51);
+pub const PLAYING:         Color = Color::Rgb(0, 240, 255);
 pub const MUTED:           Color = Color::DarkGray;
 pub const DIM:             Color = Color::Gray;
 pub const HIGHLIGHT:       Color = Color::White;
