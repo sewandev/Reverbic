@@ -53,6 +53,23 @@
 
 ---
 
+## Why a terminal app?
+
+| | Reverbic | Browser + web radio |
+|---|---|---|
+| RAM usage | ~25 MB | 300–600 MB |
+| CPU at idle | < 1 % | 3–8 % |
+| Startup time | < 1 s | 3–8 s |
+| Disk footprint | ~8 MB | 500 MB+ |
+| Runs in background | Yes — stays in tray | Needs a window open |
+| Media keys | Native support | Depends on the site |
+| Audio ducking | Built-in | Not available |
+| Ads / tracking | None | Present on most sites |
+| Screensaver / overlay | Yes | Not available |
+| Offline config | Local JSON | Account / cookies |
+
+---
+
 ## Keyboard Shortcuts
 
 ### Station list
@@ -122,13 +139,8 @@ Spotify integration requires a client ID from the [Spotify Developer Dashboard](
 
 1. Create an app in the dashboard
 2. Add `http://localhost:8888/callback` and `http://localhost:8898/login` as Redirect URIs
-3. Create a `.env` file in the project root:
-
-```env
-SPOTIFY_CLIENT_ID=your_client_id_here
-```
-
-4. Build the project — the client ID is embedded at compile time
+3. Open Reverbic, press `Alt+O` to open Settings, navigate to **Spotify Client ID** and press `Space`
+4. Paste your Client ID and press `Enter` — no recompile needed
 
 > Spotify playback requires a **Premium** account. Free accounts can use search and device listing only.
 
