@@ -188,11 +188,12 @@ impl<'a> SearchModalWidget<'a> {
         if self.spotify_search_rate_limited {
             let mut y = area.y;
             let countdown = if self.spotify_rate_limited_secs > 0 {
-                format!("! Rate limit — espera {}:{:02}",
+                format!("{}  {}:{:02}",
+                    t("modal.spotify.rate_limit_countdown"),
                     self.spotify_rate_limited_secs / 60,
                     self.spotify_rate_limited_secs % 60)
             } else {
-                "! Rate limit".to_string()
+                t("modal.spotify.rate_limit_countdown")
             };
             Paragraph::new(Span::styled(
                 countdown,
@@ -334,17 +335,17 @@ impl<'a> SearchModalWidget<'a> {
                 let selected = i == self.spotify_devices_selected;
                 let playing  = dev.is_active;
 
-                let type_label = match dev.device_type.to_lowercase().as_str() {
-                    "computer"   => "PC",
-                    "smartphone" => "Móvil",
-                    "speaker"    => "Audio",
-                    "tv"         => "TV",
-                    "tablet"     => "Tablet",
-                    _            => "Otro",
+                let type_label: String = match dev.device_type.to_lowercase().as_str() {
+                    "computer"   => "PC".to_owned(),
+                    "smartphone" => t("spotify.device.smartphone"),
+                    "speaker"    => t("spotify.device.speaker"),
+                    "tv"         => "TV".to_owned(),
+                    "tablet"     => "Tablet".to_owned(),
+                    _            => t("spotify.device.other"),
                 };
 
                 let suffix = if playing {
-                    format!("  ·  {}  [activo]", type_label)
+                    format!("  ·  {}  [{}]", type_label, t("modal.spotify.device_active"))
                 } else {
                     format!("  ·  {}", type_label)
                 };

@@ -176,7 +176,7 @@ impl SearchModalWidget<'_> {
                 key("[↵]"),   sep_s(format!(" {}  ", t("hint.play"))),
                 key("[F]"),   sep(" *  "),
                 key("[↑↓]"), sep_s(format!(" {}  ", t("hint.nav"))),
-                key("[?]"),   sep(" Ayuda "),
+                key("[?]"),   sep_s(format!(" {} ", t("hint.help"))),
             ];
         }
         match self.mode {
@@ -184,19 +184,19 @@ impl SearchModalWidget<'_> {
                 if self.query.is_empty() {
                     vec![
                         Span::raw(" "),
-                        key("[Alt+G]"), sep(" Genero  "),
-                        key("[Alt+C]"), sep(" Pais  "),
-                        key("[Alt+O]"), sep(" Config  "),
+                        key("[Alt+G]"), sep_s(format!(" {}  ", t("hint.genre"))),
+                        key("[Alt+C]"), sep_s(format!(" {}  ", t("hint.country"))),
+                        key("[Alt+O]"), sep_s(format!(" {}  ", t("hint.config"))),
                         key("[Tab]"),   sep_s(format!(" {}  ", t("hint.next_tab"))),
-                        key("[?]"),     sep(" Ayuda "),
+                        key("[?]"),     sep_s(format!(" {} ", t("hint.help"))),
                     ]
                 } else {
                     vec![
                         Span::raw(" "),
-                        key("[↵]"),   sep(" Play  "),
+                        key("[↵]"),   sep_s(format!(" {}  ", t("hint.play"))),
                         key("[↑↓]"), sep_s(format!(" {}  ", t("hint.nav"))),
-                        key("[Esc]"), sep(" Borrar  "),
-                        key("[?]"),   sep(" Ayuda "),
+                        key("[Esc]"), sep_s(format!(" {}  ", t("hint.delete"))),
+                        key("[?]"),   sep_s(format!(" {} ", t("hint.help"))),
                     ]
                 }
             }
@@ -205,14 +205,14 @@ impl SearchModalWidget<'_> {
                 key("[↵]"),   sep_s(format!(" {}  ", t("hint.search"))),
                 key("[↑↓]"), sep_s(format!(" {}  ", t("hint.nav"))),
                 key("[Esc]"), sep_s(format!(" {}  ", t("hint.back"))),
-                key("[?]"),   sep(" Ayuda "),
+                key("[?]"),   sep_s(format!(" {} ", t("hint.help"))),
             ],
             SearchMode::Settings => vec![
                 Span::raw(" "),
                 key("[Space]"), sep_s(format!(" {}  ", t("hint.change"))),
                 key("[↑↓]"),   sep_s(format!(" {}  ", t("hint.nav"))),
                 key("[Esc]"),   sep_s(format!(" {}  ", t("hint.close"))),
-                key("[?]"),     sep(" Ayuda "),
+                key("[?]"),     sep_s(format!(" {} ", t("hint.help"))),
             ],
             SearchMode::Spotify => {
                 use crate::app::{SpotifyAuthStatus, SpotifySubTab};
@@ -225,28 +225,28 @@ impl SearchModalWidget<'_> {
                         if matches!(self.spotify_sub_tab, SpotifySubTab::Devices) {
                             vec![
                                 Span::raw(" "),
-                                key("[↵]"),     sep(" Transferir  "),
+                                key("[↵]"),     sep_s(format!(" {}  ", t("hint.transfer"))),
                                 key("[↑↓]"),   sep_s(format!(" {}  ", t("hint.nav"))),
-                                key("[←→]"),   sep(" Buscar  "),
-                                key("[Alt+R]"), sep(" Recargar  "),
-                                key("[?]"),     sep(" Ayuda "),
+                                key("[←→]"),   sep_s(format!(" {}  ", t("hint.search"))),
+                                key("[Alt+R]"), sep_s(format!(" {}  ", t("hint.reload"))),
+                                key("[?]"),     sep_s(format!(" {} ", t("hint.help"))),
                             ]
                         } else if !self.spotify_results.is_empty() {
                             vec![
                                 Span::raw(" "),
-                                key("[↵]"),     sep(" Play  "),
+                                key("[↵]"),     sep_s(format!(" {}  ", t("hint.play"))),
                                 key("[↑↓]"),   sep_s(format!(" {}  ", t("hint.nav"))),
-                                key("[←→]"),   sep(" Tabs  "),
-                                key("[Alt+D]"), sep(" Desconectar  "),
-                                key("[?]"),     sep(" Ayuda "),
+                                key("[←→]"),   sep_s(format!(" {}  ", t("hint.tabs"))),
+                                key("[Alt+D]"), sep_s(format!(" {}  ", t("hint.disconnect"))),
+                                key("[?]"),     sep_s(format!(" {} ", t("hint.help"))),
                             ]
                         } else {
                             vec![
                                 Span::raw(" "),
-                                key("[←→]"),   sep(" Tabs  "),
-                                key("[Tab]"),   sep(" Radio  "),
-                                key("[Alt+D]"), sep(" Desconectar  "),
-                                key("[?]"),     sep(" Ayuda "),
+                                key("[←→]"),   sep_s(format!(" {}  ", t("hint.tabs"))),
+                                key("[Tab]"),   sep_s(format!(" {}  ", t("hint.radio"))),
+                                key("[Alt+D]"), sep_s(format!(" {}  ", t("hint.disconnect"))),
+                                key("[?]"),     sep_s(format!(" {} ", t("hint.help"))),
                             ]
                         }
                     }
@@ -254,7 +254,7 @@ impl SearchModalWidget<'_> {
                         Span::raw(" "),
                         key("[↵]"),  sep_s(format!(" {}  ", t("modal.spotify.connect_action"))),
                         key("[Tab]"), sep_s(format!(" {}  ", t("hint.next_tab"))),
-                        key("[?]"),  sep(" Ayuda "),
+                        key("[?]"),  sep_s(format!(" {} ", t("hint.help"))),
                     ],
                 }
             },

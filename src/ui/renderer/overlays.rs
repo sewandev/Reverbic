@@ -61,8 +61,6 @@ pub(super) fn render_game_inline(frame: &mut Frame, area: Rect, name: &str, genr
 }
 
 pub(super) fn render_game_strip(frame: &mut Frame, area: Rect, name: &str, genre: &str) {
-    use ratatui::style::Color;
-    const BG: Color = Color::Rgb(13, 13, 13);
     const H_PAD: u16 = 2;
 
     let block = Block::default()
@@ -76,7 +74,7 @@ pub(super) fn render_game_strip(frame: &mut Frame, area: Rect, name: &str, genre
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(theme::MUTED))
-        .style(Style::default().bg(BG));
+        .style(Style::default().bg(theme::PANEL_BG));
     let inner = block.inner(area);
     frame.render_widget(block, area);
 
@@ -90,15 +88,13 @@ pub(super) fn render_game_strip(frame: &mut Frame, area: Rect, name: &str, genre
         spans.push(Span::styled(genre.to_owned(), Style::default().fg(theme::DIM)));
     }
     frame.render_widget(
-        Paragraph::new(Line::from(spans)).style(Style::default().bg(BG)),
+        Paragraph::new(Line::from(spans)).style(Style::default().bg(theme::PANEL_BG)),
         Rect::new(cx, inner.y, cw, 1),
     );
 }
 
 pub(super) fn render_modal_np_strip(frame: &mut Frame, strip: Rect, state: &PlayerState) {
-    use ratatui::style::Color;
-    const STRIP_BG: Color = Color::Rgb(13, 13, 13);
-    const H_PAD:    u16   = 2;
+    const H_PAD: u16 = 2;
 
     if matches!(state.status, PlayerStatus::Idle | PlayerStatus::Error(_)) {
         return;
@@ -134,7 +130,7 @@ pub(super) fn render_modal_np_strip(frame: &mut Frame, strip: Rect, state: &Play
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(theme::MUTED))
-        .style(Style::default().bg(STRIP_BG));
+        .style(Style::default().bg(theme::PANEL_BG));
 
     let inner = block.inner(panel);
     frame.render_widget(block, panel);
@@ -143,14 +139,14 @@ pub(super) fn render_modal_np_strip(frame: &mut Frame, strip: Rect, state: &Play
     let cw = inner.width.saturating_sub(H_PAD * 2);
     let station_line = build_modal_station_line(state);
     frame.render_widget(
-        Paragraph::new(station_line).style(Style::default().bg(STRIP_BG)),
+        Paragraph::new(station_line).style(Style::default().bg(theme::PANEL_BG)),
         Rect::new(cx, inner.y, cw, 1),
     );
     for (i, tline) in title_lines.into_iter().enumerate() {
         let row_y = inner.y + 1 + i as u16;
         if row_y < inner.bottom() {
             frame.render_widget(
-                Paragraph::new(tline).style(Style::default().bg(STRIP_BG)),
+                Paragraph::new(tline).style(Style::default().bg(theme::PANEL_BG)),
                 Rect::new(cx, row_y, cw, 1),
             );
         }
@@ -165,7 +161,7 @@ pub(super) fn build_modal_station_line(state: &PlayerState) -> Line<'static> {
             Span::styled(name, Style::default().fg(theme::MUTED)),
         ]),
         PlayerStatus::Buffering(_) | PlayerStatus::Playing | PlayerStatus::Paused => {
-            let icon = if matches!(state.status, PlayerStatus::Paused) { "⏸  " } else { ">>  " };
+            let icon = if matches!(state.status, PlayerStatus::Paused) { "⏸  " } else { "▶  " };
             Line::from(vec![
                 Span::styled(icon, Style::default().fg(theme::ACCENT)),
                 Span::styled(name, theme::PLAYING_STYLE),
@@ -182,10 +178,8 @@ pub(super) fn render_modal_spotify_strip(
     now_playing:   Option<&crate::integrations::spotify::SpotifyTrack>,
     player_status: &crate::app::SpotifyPlayerStatus,
 ) {
-    use ratatui::style::Color;
     use crate::app::SpotifyPlayerStatus;
-    const STRIP_BG: Color = Color::Rgb(13, 13, 13);
-    const H_PAD:    u16   = 2;
+    const H_PAD: u16 = 2;
 
     let (is_playing, is_paused) = if let Some(pb) = playback {
         (pb.is_playing, !pb.is_playing)
@@ -234,7 +228,7 @@ pub(super) fn render_modal_spotify_strip(
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(theme::MUTED))
-        .style(Style::default().bg(STRIP_BG));
+        .style(Style::default().bg(theme::PANEL_BG));
 
     let inner = block.inner(panel);
     frame.render_widget(block, panel);
@@ -248,7 +242,7 @@ pub(super) fn render_modal_spotify_strip(
         Paragraph::new(Line::from(vec![
             Span::styled(icon,           Style::default().fg(theme::PLAYING)),
             Span::styled(artist_display, theme::PLAYING_STYLE),
-        ])).style(Style::default().bg(STRIP_BG)),
+        ])).style(Style::default().bg(theme::PANEL_BG)),
         Rect::new(cx, inner.y, cw, 1),
     );
 
@@ -256,7 +250,7 @@ pub(super) fn render_modal_spotify_strip(
         let row_y = inner.y + 1 + i as u16;
         if row_y < inner.bottom() {
             frame.render_widget(
-                Paragraph::new(tline).style(Style::default().bg(STRIP_BG)),
+                Paragraph::new(tline).style(Style::default().bg(theme::PANEL_BG)),
                 Rect::new(cx, row_y, cw, 1),
             );
         }
@@ -266,47 +260,47 @@ pub(super) fn render_modal_spotify_strip(
 pub(super) fn render_help_overlay(frame: &mut Frame, mode: &crate::app::SearchMode, spotify_logged_in: bool) {
     use crate::app::SearchMode;
 
-    let lines: &[(&str, &str)] = match mode {
-        SearchMode::Name => &[
-            ("[↵]",     "Reproducir estacion"),
-            ("[↑↓]",   "Navegar lista"),
-            ("[F]",     "Guardar en favoritas"),
-            ("[R]",     "Estacion aleatoria"),
-            ("[Tab]",   "Ir a Spotify"),
-            ("[Alt+G]", "Buscar por Genero"),
-            ("[Alt+C]", "Buscar por Pais"),
-            ("[Alt+O]", "Abrir Configuracion"),
-            ("[Esc]",   "Cerrar / Salir"),
+    let lines: Vec<(&str, String)> = match mode {
+        SearchMode::Name => vec![
+            ("[↵]",     t("help.shortcut.play_station")),
+            ("[↑↓]",   t("help.shortcut.nav_list")),
+            ("[F]",     t("help.shortcut.save_fav")),
+            ("[R]",     t("help.shortcut.random_station")),
+            ("[Tab]",   t("help.shortcut.go_spotify")),
+            ("[Alt+G]", t("help.shortcut.by_genre")),
+            ("[Alt+C]", t("help.shortcut.by_country")),
+            ("[Alt+O]", t("help.shortcut.open_config")),
+            ("[Esc]",   t("help.shortcut.close_quit")),
         ],
         SearchMode::Spotify => {
             if spotify_logged_in {
-                &[
-                    ("[←→]",   "Cambiar sub-tab"),
-                    ("[↵]",     "Transferir / Play"),
-                    ("[↑↓]",   "Navegar"),
-                    ("[Space]", "Pausar / Reanudar"),
-                    ("[Alt+O]", "Configuracion"),
-                    ("[Alt+D]", "Desconectar"),
-                    ("[Alt+R]", "Recargar dispositivos"),
-                    ("[Esc]",   "Cerrar"),
+                vec![
+                    ("[←→]",   t("help.shortcut.switch_subtab")),
+                    ("[↵]",     t("help.shortcut.transfer_play")),
+                    ("[↑↓]",   t("help.shortcut.navigate")),
+                    ("[Space]", t("help.shortcut.pause_resume")),
+                    ("[Alt+O]", t("help.shortcut.settings")),
+                    ("[Alt+D]", t("integrations.spotify.hint_disconnect")),
+                    ("[Alt+R]", t("help.shortcut.reload_devices")),
+                    ("[Esc]",   t("hint.close")),
                 ]
             } else {
-                &[
-                    ("[↵]",   "Conectar Spotify"),
-                    ("[Tab]", "Ir a Radio"),
-                    ("[Esc]", "Cerrar"),
+                vec![
+                    ("[↵]",   t("help.shortcut.connect_spotify")),
+                    ("[Tab]", t("help.shortcut.go_radio")),
+                    ("[Esc]", t("hint.close")),
                 ]
             }
         }
-        SearchMode::Settings => &[
-            ("[Space]", "Cambiar valor"),
-            ("[↑↓]",   "Navegar opciones"),
-            ("[Esc]",   "Volver"),
+        SearchMode::Settings => vec![
+            ("[Space]", t("help.shortcut.change_value")),
+            ("[↑↓]",   t("help.shortcut.nav_options")),
+            ("[Esc]",   t("hint.back")),
         ],
-        _ => &[
-            ("[↑↓]",  "Navegar"),
-            ("[↵]",   "Confirmar"),
-            ("[Esc]", "Volver"),
+        _ => vec![
+            ("[↑↓]",  t("help.shortcut.navigate")),
+            ("[↵]",   t("help.shortcut.confirm")),
+            ("[Esc]", t("hint.back")),
         ],
     };
 
@@ -315,16 +309,17 @@ pub(super) fn render_help_overlay(frame: &mut Frame, mode: &crate::app::SearchMo
         "github.com/sewandev/Reverbic",
     ];
 
-    let area    = frame.area();
-    let w       = 46u16.min(area.width);
-    let h       = (lines.len() as u16 + 3 + CREDITS.len() as u16 + 2).min(area.height);
-    let x       = area.x + area.width.saturating_sub(w) / 2;
-    let y       = area.y + area.height.saturating_sub(h) / 2;
-    let rect    = ratatui::layout::Rect::new(x, y, w, h);
+    let area       = frame.area();
+    let w          = 46u16.min(area.width);
+    let line_count = lines.len();
+    let h          = (line_count as u16 + 3 + CREDITS.len() as u16 + 2).min(area.height);
+    let x          = area.x + area.width.saturating_sub(w) / 2;
+    let y          = area.y + area.height.saturating_sub(h) / 2;
+    let rect       = ratatui::layout::Rect::new(x, y, w, h);
 
     frame.render_widget(Clear, rect);
     let block = Block::default()
-        .title(" Atajos ")
+        .title(format!(" {} ", t("help.overlay.title")))
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(theme::ACCENT))
@@ -332,7 +327,7 @@ pub(super) fn render_help_overlay(frame: &mut Frame, mode: &crate::app::SearchMo
     let inner = block.inner(rect);
     frame.render_widget(block, rect);
 
-    for (i, (key_str, desc)) in lines.iter().enumerate() {
+    for (i, (key_str, desc)) in lines.into_iter().enumerate() {
         let row_y = inner.y + i as u16;
         if row_y >= inner.bottom() { break; }
         frame.render_widget(
@@ -341,13 +336,13 @@ pub(super) fn render_help_overlay(frame: &mut Frame, mode: &crate::app::SearchMo
                     format!("  {:9}", key_str),
                     Style::default().fg(theme::ACCENT).add_modifier(Modifier::BOLD),
                 ),
-                Span::styled(*desc, Style::default().fg(theme::HIGHLIGHT)),
+                Span::styled(desc, Style::default().fg(theme::HIGHLIGHT)),
             ]))
             .style(Style::default().bg(theme::PANEL_BG)),
             ratatui::layout::Rect::new(inner.x, row_y, inner.width, 1),
         );
     }
-    let sep_y = inner.y + lines.len() as u16 + 1;
+    let sep_y = inner.y + line_count as u16 + 1;
     if sep_y < inner.bottom() {
         let sep = "─".repeat(inner.width as usize);
         frame.render_widget(

@@ -83,7 +83,7 @@ impl<'a> Widget for StationListWidget<'a> {
         if let Some(h) = header_area {
             Paragraph::new(Line::from(vec![
                 Span::styled("★ ", Style::default().fg(theme::ACCENT)),
-                Span::styled("Favoritas", Style::default().fg(theme::MUTED)),
+                Span::styled(t("station.favorites"), Style::default().fg(theme::MUTED)),
                 Span::styled(
                     format!(" {}", "─".repeat(h.width.saturating_sub(12) as usize)),
                     Style::default().fg(theme::DIM),
@@ -155,7 +155,7 @@ impl<'a> Widget for StationListWidget<'a> {
                 Style::default().fg(theme::MUTED)
             };
             let bitrate_tag = s.bitrate_kbps
-                .map(|br| Span::styled(format!(" [{}k]", br), Style::default().fg(theme::MUTED)))
+                .map(|br| Span::styled(format!(" [{}kbps]", br), Style::default().fg(theme::MUTED)))
                 .unwrap_or(Span::raw(""));
             let status_tag = if is_playing { status_span(self.player_status) } else { Span::raw("") };
             ListItem::new(Line::from(vec![

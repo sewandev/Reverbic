@@ -174,7 +174,7 @@ pub(super) fn render_screensaver(
     if let Some(name) = spotify_name {
         let name_tc = strings::title_case(name);
         let label = if spotify_premium {
-            format!("★  {}  ·  Spotify Premium", name_tc)
+            format!("★  {}  ·  {}", name_tc, t("integrations.spotify.premium"))
         } else {
             name_tc
         };
@@ -609,8 +609,8 @@ pub(super) fn render_spotify_screensaver(
         }
 
         if has_plan_row {
-            let plan_str   = if is_premium { "Spotify Premium" } else { "" };
-            let follow_str = followers.map(|f| format!("{f} seguidores")).unwrap_or_default();
+            let plan_str   = if is_premium { t("integrations.spotify.premium") } else { String::new() };
+            let follow_str = followers.map(|f| format!("{f} {}", t("screensaver.followers"))).unwrap_or_default();
             let mut spans: Vec<Span<'static>> = Vec::new();
             if !plan_str.is_empty() {
                 spans.push(Span::styled(plan_str, Style::default().fg(GREEN).add_modifier(Modifier::BOLD)));
@@ -635,7 +635,7 @@ pub(super) fn render_spotify_screensaver(
 
     if row < inner.bottom() {
         let time_str  = now_t.format("%H:%M").to_string();
-        let state_str = if playback.is_playing { ">" } else { "||" };
+        let state_str = if playback.is_playing { "▶" } else { "⏸" };
         let right_str = format!("{}  {}", time_str, state_str);
         frame.render_widget(
             Paragraph::new(Span::styled(t("screensaver.prompt"), Style::default().fg(theme::MUTED)))
