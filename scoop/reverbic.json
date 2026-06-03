@@ -7,7 +7,7 @@
     "64bit": {
       "url": "https://github.com/sewandev/Reverbic/releases/download/v1.0.0/reverbic-v1.0.0-x86_64-windows.exe",
       "bin": "reverbic-v1.0.0-x86_64-windows.exe",
-      "hash": "a2540712082dfebea64ed5da1a6463bfb29eb61c9e190f08c14846fe5e3f62e5"
+      "hash": "0219f00b43b8017b97e62489061cfc2497c3e79d2f2ea30d98aa4c992ce08afc"
     }
   },
   "autoupdate": {
