@@ -1,55 +1,55 @@
-name: Solicitud de funcionalidad
-description: Proponer una nueva funcion o mejora
+name: Feature request
+description: Propose a new feature or improvement
 title: "[Feature]: "
 labels: ["enhancement"]
 body:
   - type: markdown
     attributes:
       value: |
-        Antes de abrir este issue, revisa si ya existe una solicitud similar.
+        Before opening this issue, please check if a similar request already exists.
 
   - type: textarea
     id: problem
     attributes:
-      label: Problema o necesidad
-      description: Que problema resolveria esta funcionalidad? Cual es el caso de uso?
-      placeholder: "Ejemplo: Cuando escucho radio por horas, no hay forma de ver el historial de canciones de dias anteriores..."
+      label: Problem or need
+      description: What problem would this feature solve? What is the use case?
+      placeholder: "Example: When listening to radio for hours, there is no way to see the song history from previous days..."
     validations:
       required: true
 
   - type: textarea
     id: solution
     attributes:
-      label: Solucion propuesta
-      description: Como te imaginas que deberia funcionar?
+      label: Proposed solution
+      description: How do you picture this working?
     validations:
       required: true
 
   - type: textarea
     id: alternatives
     attributes:
-      label: Alternativas consideradas
-      description: Hay alguna otra forma de resolver esto? Por que la descartas?
+      label: Alternatives considered
+      description: Is there another way to solve this? Why did you rule it out?
 
   - type: dropdown
     id: area
     attributes:
-      label: Area de la aplicacion
+      label: App area
       options:
         - Radio
         - Spotify
-        - Overlay / bandeja del sistema
-        - UI / Navegacion
-        - Audio (ducking, crossfade, volumen)
-        - Instalacion / configuracion
-        - Otro
+        - Overlay / system tray
+        - UI / Navigation
+        - Audio (ducking, crossfade, volume)
+        - Installation / configuration
+        - Other
     validations:
       required: true
 
   - type: checkboxes
     id: checklist
     attributes:
-      label: Lista de verificacion
+      label: Checklist
       options:
-        - label: Busque en los issues existentes y esta solicitud no es un duplicado.
+        - label: I searched existing issues and this is not a duplicate.
           required: true

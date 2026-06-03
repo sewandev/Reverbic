@@ -1,29 +1,29 @@
-name: Reporte de bug
-description: Algo no funciona como se espera
+name: Bug report
+description: Something is not working as expected
 title: "[Bug]: "
 labels: ["bug"]
 body:
   - type: markdown
     attributes:
       value: |
-        Gracias por tomarte el tiempo de reportar este problema. Completa todos los campos para que podamos reproducirlo.
+        Thanks for taking the time to fill out this bug report. Please complete all fields so we can reproduce the issue.
 
   - type: dropdown
     id: version
     attributes:
-      label: Version de Reverbic
-      description: Puedes verla en la pantalla de ayuda (Alt+H) o en el nombre del ejecutable.
+      label: Reverbic version
+      description: You can find this in the help screen (Alt+H) or in the executable filename.
       options:
         - v1.0.0
-        - Compilado desde el codigo fuente
+        - Built from source
     validations:
       required: true
 
   - type: input
     id: os
     attributes:
-      label: Version de Windows
-      description: "Ejemplo: Windows 11 23H2 / Windows 10 22H2"
+      label: Windows version
+      description: "Example: Windows 11 23H2 / Windows 10 22H2"
       placeholder: Windows 10 / 11 + build
     validations:
       required: true
@@ -31,8 +31,8 @@ body:
   - type: input
     id: terminal
     attributes:
-      label: Terminal usada
-      description: "Ejemplo: Windows Terminal, PowerShell 7, CMD"
+      label: Terminal used
+      description: "Example: Windows Terminal, PowerShell 7, CMD"
       placeholder: Windows Terminal v1.x
     validations:
       required: true
@@ -40,11 +40,11 @@ body:
   - type: textarea
     id: steps
     attributes:
-      label: Pasos para reproducir
-      description: Describe exactamente que hiciste antes de que ocurriera el problema.
+      label: Steps to reproduce
+      description: Describe exactly what you did before the issue occurred.
       placeholder: |
-        1. Abrir Reverbic
-        2. Ir a la pestaña Spotify
+        1. Open Reverbic
+        2. Go to the Spotify tab
         3. ...
     validations:
       required: true
@@ -52,32 +52,32 @@ body:
   - type: textarea
     id: expected
     attributes:
-      label: Comportamiento esperado
-      description: Que deberia haber pasado?
+      label: Expected behavior
+      description: What should have happened?
     validations:
       required: true
 
   - type: textarea
     id: actual
     attributes:
-      label: Comportamiento actual
-      description: Que paso en cambio?
+      label: Actual behavior
+      description: What happened instead?
     validations:
       required: true
 
   - type: textarea
     id: logs
     attributes:
-      label: Logs (opcional)
-      description: Pega el contenido de `logs/reverbic.log` si es relevante.
+      label: Logs (optional)
+      description: Paste the contents of `logs/reverbic.log` if relevant.
       render: text
 
   - type: checkboxes
     id: checklist
     attributes:
-      label: Lista de verificacion
+      label: Checklist
       options:
-        - label: Busque en los issues existentes y este no es un duplicado.
+        - label: I searched existing issues and this is not a duplicate.
           required: true
-        - label: Estoy usando la ultima version disponible.
+        - label: I am using the latest available version.
           required: true
