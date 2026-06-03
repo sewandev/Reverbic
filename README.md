@@ -70,52 +70,6 @@
 
 ---
 
-## Keyboard Shortcuts
-
-### Station list
-
-| Key | Action |
-|-----|--------|
-| `↑` / `k`, `↓` / `j` | Navigate |
-| `Enter` | Play station |
-| `Space` | Pause / Resume |
-| `+` / `=`, `-` | Volume up / down |
-| `F` | Add to favorites |
-| `e` | Rename station |
-| `r` | Random station |
-| `s` | Save current track |
-| `/` | Quick search |
-| `→` | Focus recent tracks |
-| `Tab` | Open search modal |
-| `Alt+O` | Open settings |
-| `q` | Quit |
-
-### Search modal
-
-| Key | Action |
-|-----|--------|
-| `↑↓` | Navigate results |
-| `Enter` | Play / Confirm |
-| `F` | Save to favorites |
-| `R` | Random result |
-| `Alt+G` | Search by genre |
-| `Alt+C` | Search by country |
-| `Tab` | Switch to Spotify tab |
-| `?` | Help overlay |
-| `Esc` | Back / Close |
-
-### Spotify tab
-
-| Key | Action |
-|-----|--------|
-| `←` / `→` | Switch sub-tabs (Search / Devices) |
-| `Enter` | Play track / Transfer to device |
-| `Space` | Pause / Resume |
-| `Alt+D` | Disconnect |
-| `Alt+R` | Reload devices |
-
----
-
 ## Installation
 
 ### Requirements

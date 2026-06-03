@@ -70,52 +70,6 @@
 
 ---
 
-## Atajos de teclado
-
-### Lista de estaciones
-
-| Tecla | Acción |
-|-------|--------|
-| `↑` / `k`, `↓` / `j` | Navegar |
-| `Enter` | Reproducir estación |
-| `Space` | Pausar / Reanudar |
-| `+` / `=`, `-` | Subir / bajar volumen |
-| `F` | Agregar a favoritas |
-| `e` | Renombrar estación |
-| `r` | Estación aleatoria |
-| `s` | Guardar canción actual |
-| `/` | Búsqueda rápida |
-| `→` | Enfocar canciones recientes |
-| `Tab` | Abrir modal de búsqueda |
-| `Alt+O` | Abrir configuración |
-| `q` | Salir |
-
-### Modal de búsqueda
-
-| Tecla | Acción |
-|-------|--------|
-| `↑↓` | Navegar resultados |
-| `Enter` | Reproducir / Confirmar |
-| `F` | Guardar en favoritas |
-| `R` | Resultado aleatorio |
-| `Alt+G` | Buscar por género |
-| `Alt+C` | Buscar por país |
-| `Tab` | Cambiar a pestaña Spotify |
-| `?` | Panel de ayuda |
-| `Esc` | Volver / Cerrar |
-
-### Pestaña Spotify
-
-| Tecla | Acción |
-|-------|--------|
-| `←` / `→` | Cambiar sub-pestaña (Búsqueda / Dispositivos) |
-| `Enter` | Reproducir canción / Transferir a dispositivo |
-| `Space` | Pausar / Reanudar |
-| `Alt+D` | Desconectar |
-| `Alt+R` | Recargar dispositivos |
-
----
-
 ## Instalación
 
 ### Requisitos
