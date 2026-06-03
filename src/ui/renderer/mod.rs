@@ -13,7 +13,7 @@ pub fn spotify_screensaver_progress_rect(
 ) -> Option<Rect> {
     let pw = (area.width * 85 / 100).clamp(60, 110).min(area.width);
 
-    let ph_base: u16 = 2 + 1 + 5 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1;
+    let ph_base: u16 = 2 + 1 + 1 + 1 + 5 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1;
     let ph = ph_base + if profile_rows > 0 { 1 + profile_rows } else { 0 };
 
     let px = area.x + area.width.saturating_sub(pw) / 2;
@@ -25,7 +25,7 @@ pub fn spotify_screensaver_progress_rect(
     let cx      = inner_x + 2;
     let cw      = inner_w.saturating_sub(4);
 
-    let progress_y = inner_y + 14;
+    let progress_y = inner_y + 16;
 
     if progress_y >= area.bottom() { return None; }
     Some(Rect::new(cx, progress_y, cw, 1))

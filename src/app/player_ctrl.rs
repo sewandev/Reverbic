@@ -14,6 +14,9 @@ impl App {
     }
 
     pub(super) async fn play_station(&mut self, station: Station) {
+        if let Some(handle) = &self.spotify.player_tx {
+            handle.pause();
+        }
         self.stop_playback_polling();
         self.config.last_station = Some(LastStation {
             key:          station.key.clone(),
