@@ -121,3 +121,25 @@ Todos los ajustes son accesibles desde la aplicación con `Alt+O`. No es necesar
 
 La configuración se guarda en `%APPDATA%\reverbic\config.json`.
 
+---
+
+## Construido con
+
+**Fuentes de datos**
+| Fuente | Uso |
+|--------|-----|
+| [radio-browser.info](https://www.radio-browser.info) | Búsqueda de estaciones por nombre, género y país |
+| [Spotify Web API](https://developer.spotify.com/documentation/web-api) | Búsqueda de canciones, control de reproducción, dispositivos |
+| [Deezer API](https://developers.deezer.com) | Enriquecimiento de metadatos (artista, álbum, portada) |
+| [iTunes Search API](https://developer.apple.com/library/archive/documentation/AudioVideo/Conceptual/iTuneSearchAPI) | Metadatos de canciones como respaldo |
+
+**Librerías principales**
+| Crate | Propósito |
+|-------|-----------|
+| [ratatui](https://github.com/ratatui-org/ratatui) | Framework de UI en terminal |
+| [librespot](https://github.com/librespot-org/librespot) | Streaming de audio Spotify (Premium) |
+| [rodio](https://github.com/RustAudio/rodio) | Motor de reproducción de audio |
+| [tokio](https://tokio.rs) | Runtime asíncrono |
+| [crossterm](https://github.com/crossterm-rs/crossterm) | Entrada/salida de terminal multiplataforma |
+| [serde](https://serde.rs) | Serialización de configuración |
+
