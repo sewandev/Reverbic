@@ -1,0 +1,83 @@
+name: Reporte de bug
+description: Algo no funciona como se espera
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Gracias por tomarte el tiempo de reportar este problema. Completa todos los campos para que podamos reproducirlo.
+
+  - type: dropdown
+    id: version
+    attributes:
+      label: Version de Reverbic
+      description: Puedes verla en la pantalla de ayuda (Alt+H) o en el nombre del ejecutable.
+      options:
+        - v1.0.0
+        - Compilado desde el codigo fuente
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Version de Windows
+      description: "Ejemplo: Windows 11 23H2 / Windows 10 22H2"
+      placeholder: Windows 10 / 11 + build
+    validations:
+      required: true
+
+  - type: input
+    id: terminal
+    attributes:
+      label: Terminal usada
+      description: "Ejemplo: Windows Terminal, PowerShell 7, CMD"
+      placeholder: Windows Terminal v1.x
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Pasos para reproducir
+      description: Describe exactamente que hiciste antes de que ocurriera el problema.
+      placeholder: |
+        1. Abrir Reverbic
+        2. Ir a la pestaña Spotify
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Comportamiento esperado
+      description: Que deberia haber pasado?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Comportamiento actual
+      description: Que paso en cambio?
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs (opcional)
+      description: Pega el contenido de `logs/reverbic.log` si es relevante.
+      render: text
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Lista de verificacion
+      options:
+        - label: Busque en los issues existentes y este no es un duplicado.
+          required: true
+        - label: Estoy usando la ultima version disponible.
+          required: true

@@ -1,0 +1,38 @@
+name: Pregunta o soporte
+description: Algo no esta claro o necesitas ayuda para configurar Reverbic
+title: "[Question]: "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Para preguntas rapidas puedes revisar el [README](https://github.com/sewandev/Reverbic#readme) primero.
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Pregunta
+      description: Describe con detalle lo que necesitas saber o lo que no funciona.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: topic
+    attributes:
+      label: Tema
+      options:
+        - Configuracion de Spotify
+        - Instalacion
+        - Uso general
+        - Compilacion desde el codigo fuente
+        - Otro
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Lista de verificacion
+      options:
+        - label: Lei el README y no encontre respuesta.
+          required: true

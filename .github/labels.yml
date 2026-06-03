@@ -1,0 +1,47 @@
+- name: bug
+  color: "d73a4a"
+  description: Algo no funciona como se espera
+
+- name: enhancement
+  color: "0075ca"
+  description: Nueva funcionalidad o mejora
+
+- name: question
+  color: "9b59b6"
+  description: Pregunta o solicitud de soporte
+
+- name: documentation
+  color: "0e8a16"
+  description: Cambios o mejoras en la documentacion
+
+- name: good first issue
+  color: "7057ff"
+  description: Bueno para quien empieza a contribuir
+
+- name: help wanted
+  color: "008672"
+  description: Se necesita ayuda externa
+
+- name: duplicate
+  color: "cfd3d7"
+  description: Issue o PR duplicado
+
+- name: wontfix
+  color: "ffffff"
+  description: No se va a trabajar en esto
+
+- name: invalid
+  color: "e4e669"
+  description: No corresponde o falta informacion
+
+- name: windows
+  color: "0078d4"
+  description: Especifico de Windows (WASAPI, overlay, bandeja)
+
+- name: spotify
+  color: "1db954"
+  description: Relacionado con la integracion de Spotify
+
+- name: radio
+  color: "e44d26"
+  description: Relacionado con la reproduccion de radio
