@@ -1,0 +1,77 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Windows release
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: Build release binary
+        run: cargo build --release --target x86_64-pc-windows-msvc
+
+      - name: Rename binary
+        run: |
+          $version = "${{ github.ref_name }}"
+          $src = "target\x86_64-pc-windows-msvc\release\reverbic.exe"
+          $dst = "reverbic-$version-x86_64-windows.exe"
+          Copy-Item $src $dst
+
+      - name: Compute SHA256
+        id: sha256
+        run: |
+          $version = "${{ github.ref_name }}"
+          $file = "reverbic-$version-x86_64-windows.exe"
+          $hash = (Get-FileHash $file -Algorithm SHA256).Hash.ToLower()
+          echo "hash=$hash" >> $env:GITHUB_OUTPUT
+          echo "SHA256: $hash"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Reverbic ${{ github.ref_name }}
+          body: |
+            ## Reverbic ${{ github.ref_name }}
+
+            ### Instalación rápida
+
+            **Scoop**
+            ```powershell
+            scoop bucket add reverbic https://github.com/sewandev/scoop-reverbic
+            scoop install reverbic
+            ```
+
+            **Descarga directa**
+            Descarga `reverbic-${{ github.ref_name }}-x86_64-windows.exe`, colócalo en una carpeta de tu PATH y ejecútalo desde la terminal.
+
+            **SHA256:** `${{ steps.sha256.outputs.hash }}`
+
+            ---
+            Consulta el [README](https://github.com/sewandev/Reverbic#readme) para la configuración de Spotify.
+          files: reverbic-${{ github.ref_name }}-x86_64-windows.exe
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}

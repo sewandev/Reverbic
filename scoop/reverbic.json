@@ -1,0 +1,20 @@
+{
+  "version": "1.0.0",
+  "description": "Terminal radio player for Windows — streams radio, controls Spotify, gaming overlay.",
+  "homepage": "https://github.com/sewandev/Reverbic",
+  "license": "MIT",
+  "architecture": {
+    "64bit": {
+      "url": "https://github.com/sewandev/Reverbic/releases/download/v1.0.0/reverbic-v1.0.0-x86_64-windows.exe",
+      "bin": "reverbic-v1.0.0-x86_64-windows.exe",
+      "hash": "PLACEHOLDER"
+    }
+  },
+  "autoupdate": {
+    "architecture": {
+      "64bit": {
+        "url": "https://github.com/sewandev/Reverbic/releases/download/v$version/reverbic-v$version-x86_64-windows.exe"
+      }
+    }
+  }
+}

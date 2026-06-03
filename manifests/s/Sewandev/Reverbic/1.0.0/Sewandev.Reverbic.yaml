@@ -1,0 +1,20 @@
+PackageIdentifier: Sewandev.Reverbic
+PackageVersion: 1.0.0
+DefaultLocale: en-US
+ManifestType: defaultLocale
+ManifestVersion: 1.6.0
+PackageName: Reverbic
+Publisher: Esteban Jaramillo
+License: MIT
+ShortDescription: Terminal radio player for Windows with Spotify integration and gaming overlay.
+Description: |-
+  Reverbic is a terminal-based radio player for Windows. Stream thousands of internet
+  radio stations, control Spotify remotely, and enjoy a floating Now Playing overlay
+  while gaming — all from the command line.
+Tags:
+  - radio
+  - spotify
+  - tui
+  - terminal
+  - audio
+Homepage: https://github.com/sewandev/Reverbic
