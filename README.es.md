@@ -76,7 +76,6 @@
 
 - Windows 10 u 11
 - [Rust](https://rustup.rs/) (última versión estable)
-- Cuenta de Spotify Premium (para las funciones de Spotify)
 
 ### Compilar desde el código fuente
 

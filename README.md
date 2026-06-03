@@ -76,7 +76,6 @@
 
 - Windows 10 or 11
 - [Rust](https://rustup.rs/) (latest stable)
-- Spotify Premium account (for Spotify features)
 
 ### Build from source
 
