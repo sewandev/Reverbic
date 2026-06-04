@@ -12,6 +12,22 @@ Versionado: [Semantic Versioning](https://semver.org/)
 
 ---
 
+## [1.2.0] — 2026-06-03
+
+### Agregado
+- Borde del modal animado que cicla entre los colores del logo (celeste → morado → carmesí)
+- Borde del strip "en reproducción" animado mientras hay una estación sonando
+- Barras del ecualizador animadas en el logo: versión SVG con CSS keyframes (README/browser) y versión TUI con caracteres de bloque Unicode
+
+### Cambiado
+- La pestaña principal de Spotify usa el verde de marca de Spotify (#1ED760)
+
+### Corregido
+- Hacer clic en cualquier parte del modal ya no interrumpe ni reinicia la radio en reproducción
+- El espaciado entre las sub-pestañas de Spotify y el input de búsqueda ahora coincide con el layout de la pestaña de radio
+
+---
+
 ## [1.1.0] — 2026-06-03
 
 ### Agregado

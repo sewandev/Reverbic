@@ -47,6 +47,7 @@ impl<'a> SearchModalWidget<'a> {
                     format!("{}...", preview)
                 }
             }
+            SettingItem::AutoUpdate => if self.auto_update { on } else { off },
         }
     }
 

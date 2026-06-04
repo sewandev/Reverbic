@@ -9,7 +9,7 @@ use crate::preview::{deezer_preview, parse_seek_input};
 use crate::station::{filter_items, Station, COUNTRIES, GENRES};
 
 use super::{abort_task, cycle_next, cycle_prev, scroll_by, App};
-use super::modal::{AppFocus, SearchMode, SpotifyAuthStatus, SpotifyPlayerStatus};
+use super::modal::{AppFocus, RadioSubTab, SearchMode, SpotifyAuthStatus, SpotifyPlayerStatus};
 use super::modal::settings_items;
 
 impl App {
@@ -36,6 +36,29 @@ impl App {
                     }
                     _ => {}
                 }
+            }
+        }
+
+        if event.modifiers.contains(KeyModifiers::SHIFT)
+            && self.show_search_modal
+            && matches!(self.modal_mode, SearchMode::Name)
+            && matches!(self.radio_sub_tab, RadioSubTab::Favorites)
+        {
+            let idx = self.radio_fav_selected;
+            match event.code {
+                KeyCode::Up => {
+                    crate::favorites::move_up(&mut self.favorites, idx);
+                    crate::favorites::save(&self.favorites);
+                    if idx > 0 { self.radio_fav_selected -= 1; }
+                    return;
+                }
+                KeyCode::Down => {
+                    crate::favorites::move_down(&mut self.favorites, idx);
+                    crate::favorites::save(&self.favorites);
+                    if idx + 1 < self.favorites.len() { self.radio_fav_selected += 1; }
+                    return;
+                }
+                _ => {}
             }
         }
 
@@ -88,6 +111,13 @@ impl App {
                 && matches!(self.spotify.status, SpotifyAuthStatus::LoggedIn) =>
             {
                 self.fetch_spotify_devices();
+            }
+            KeyCode::Char('f') | KeyCode::Char('F')
+                if self.show_search_modal
+                && matches!(self.modal_mode, SearchMode::Name)
+                && matches!(self.radio_sub_tab, RadioSubTab::Favorites) =>
+            {
+                self.remove_radio_fav_selected();
             }
             KeyCode::Char('f') | KeyCode::Char('F') if self.show_search_modal && !self.search_results.is_empty() => {
                 self.toggle_modal_favorite();
@@ -298,6 +328,18 @@ impl App {
     }
 
     async fn on_key_modal_name(&mut self, key: KeyCode) {
+        if matches!(key, KeyCode::Left | KeyCode::Right) {
+            self.radio_sub_tab = match self.radio_sub_tab {
+                RadioSubTab::Search    => RadioSubTab::Favorites,
+                RadioSubTab::Favorites => RadioSubTab::Search,
+            };
+            self.radio_fav_selected = 0;
+            return;
+        }
+        if matches!(self.radio_sub_tab, RadioSubTab::Favorites) {
+            self.on_key_radio_favorites(key).await;
+            return;
+        }
         match key {
             KeyCode::Esc => {
                 self.show_help = false;
@@ -339,6 +381,31 @@ impl App {
                 self.search_query.push(c);
                 self.modal_selected = 0;
                 self.perform_search();
+            }
+            _ => {}
+        }
+    }
+
+    async fn on_key_radio_favorites(&mut self, key: KeyCode) {
+        let len = self.favorites.len();
+        match key {
+            KeyCode::Esc => {
+                self.radio_sub_tab = RadioSubTab::Search;
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                self.radio_fav_selected = super::cycle_prev(self.radio_fav_selected, len);
+            }
+            KeyCode::Down | KeyCode::Char('j') => {
+                self.radio_fav_selected = super::cycle_next(self.radio_fav_selected, len);
+            }
+            KeyCode::Enter => {
+                self.play_favorite_station(self.radio_fav_selected).await;
+            }
+            KeyCode::Char('R') => {
+                if self.radio_fav_selected < len {
+                    self.renaming_favorite = Some(self.radio_fav_selected);
+                    self.rename_input = self.favorites[self.radio_fav_selected].name.clone();
+                }
             }
             _ => {}
         }
@@ -636,39 +703,7 @@ impl App {
             return;
         }
 
-        let player_state = self.player.state();
-        if let Some(duration) = player_state.playback_duration_secs {
-            let has_recent    = !player_state.recent_titles.is_empty();
-            let has_saved     = !self.saved_tracks.is_empty();
-            let has_on_demand = !self.on_demand_shows.is_empty() || self.on_demand_loading;
-            let show_countdown = player_state.station.as_ref().map(|s| s.show_countdown).unwrap_or(false);
-
-            if let Some(np_area) = crate::ui::renderer::now_playing_rect(
-                self.terminal_area,
-                has_recent,
-                has_saved,
-                show_countdown,
-                has_on_demand,
-            ) {
-                if row == np_area.y {
-                    let inner_x     = np_area.x + 1;
-                    let inner_width = np_area.width.saturating_sub(1);
-                    let pos = player_state.playback_pos_secs.unwrap_or(0.0);
-                    let time_str_len = format!(
-                        " {} / {} ",
-                        crate::ui::widgets::now_playing::fmt_duration(pos),
-                        crate::ui::widgets::now_playing::fmt_duration(duration),
-                    ).len();
-                    let bar_width = (inner_width as usize).saturating_sub(time_str_len + 2);
-                    if bar_width > 0 && col >= inner_x {
-                        let fill_col = col.saturating_sub(inner_x + 1) as usize;
-                        let ratio = (fill_col as f32 / bar_width as f32).clamp(0.0, 1.0);
-                        self.player.send(PlayerCommand::Seek(ratio * duration)).await;
-                    }
-                    return;
-                }
-            }
-        }
+        if self.show_search_modal { return; }
 
         let h = self.terminal_area.height;
         if h == 0 {
@@ -734,6 +769,7 @@ impl App {
 
     pub async fn on_double_click(&mut self) {
         self.last_activity = Instant::now();
+        if self.show_search_modal { return; }
         match self.focus {
             AppFocus::Stations | AppFocus::StationSearch => {
                 self.click_flash = Some((self.selected, Instant::now()));
@@ -882,6 +918,7 @@ impl App {
                 self.config.spotify.start_on_spotify = !self.config.spotify.start_on_spotify;
             }
             super::modal::SettingItem::SpotifyClientId => {}
+            super::modal::SettingItem::AutoUpdate => self.config.auto_update = !self.config.auto_update,
         }
         self.save_config();
         if let Some(ref tx) = self.windows_tx {

@@ -19,7 +19,7 @@ impl<'a> SearchModalWidget<'a> {
     pub(super) fn render_tabs(&self, area: Rect, content_x: u16, content_w: u16, buf: &mut Buffer) {
         let tab_area = Rect::new(content_x, area.y, content_w, 1);
         let radio_active   = Style::default().fg(theme::RADIO_ACCENT).add_modifier(Modifier::BOLD);
-        let spotify_active = Style::default().fg(theme::PLAYING).add_modifier(Modifier::BOLD);
+        let spotify_active = Style::default().fg(theme::SPOTIFY_GREEN).add_modifier(Modifier::BOLD);
         let youtube_active = Style::default().fg(theme::DANGER).add_modifier(Modifier::BOLD);
         let inactive       = Style::default().fg(theme::MUTED);
 
@@ -47,6 +47,24 @@ impl<'a> SearchModalWidget<'a> {
     }
 
     pub(super) fn render_name_body(&self, area: Rect, content_x: u16, content_w: u16, buf: &mut Buffer) {
+        use crate::app::RadioSubTab;
+
+        let [_gap, subtab_row, body] = Layout::vertical([
+            Constraint::Length(1),
+            Constraint::Length(1),
+            Constraint::Fill(1),
+        ])
+        .areas(area);
+
+        self.render_radio_subtabs(subtab_row, content_x, content_w, buf);
+
+        match self.radio_sub_tab {
+            RadioSubTab::Search    => self.render_name_search(body, content_x, content_w, buf),
+            RadioSubTab::Favorites => self.render_favorites_body(body, content_x, content_w, buf),
+        }
+    }
+
+    fn render_name_search(&self, area: Rect, content_x: u16, content_w: u16, buf: &mut Buffer) {
         let [_gap, input_row, cap_row, list_area] = Layout::vertical([
             Constraint::Length(1),
             Constraint::Length(1),
@@ -86,6 +104,90 @@ impl<'a> SearchModalWidget<'a> {
             .set_symbol("╹").set_fg(theme::ACCENT).set_bg(BG);
 
         self.render_results(list_area, content_x, content_w, buf);
+    }
+
+    fn render_radio_subtabs(&self, area: Rect, content_x: u16, content_w: u16, buf: &mut Buffer) {
+        use crate::app::RadioSubTab;
+        let text_x = content_x + 2;
+        let text_w = content_w.saturating_sub(2);
+
+        let active   = Style::default().fg(theme::RADIO_ACCENT).add_modifier(Modifier::BOLD);
+        let inactive = Style::default().fg(theme::DIM);
+
+        let (search_st, fav_st) = match self.radio_sub_tab {
+            RadioSubTab::Search    => (active, inactive),
+            RadioSubTab::Favorites => (inactive, active),
+        };
+
+        Paragraph::new(Line::from(vec![
+            Span::styled(t("modal.radio.subtab.search"),    search_st),
+            Span::styled("  ",                               Style::default()),
+            Span::styled(t("modal.radio.subtab.favorites"), fav_st),
+        ]))
+        .render(Rect::new(text_x, area.y, text_w, 1), buf);
+    }
+
+    fn render_favorites_body(&self, area: Rect, content_x: u16, content_w: u16, buf: &mut Buffer) {
+        let text_x = content_x + 2;
+        let text_w = content_w.saturating_sub(2);
+
+        if self.favorites.is_empty() {
+            Paragraph::new(Span::styled(
+                t("modal.favorites.empty"),
+                Style::default().fg(theme::MUTED),
+            ))
+            .render(Rect::new(text_x, area.y, text_w, 1), buf);
+            return;
+        }
+
+        let visible_n    = area.height as usize;
+        let needs_scroll = self.favorites.len() > visible_n;
+        let items_w      = text_w.saturating_sub(if needs_scroll { 1 } else { 0 });
+        let items_area   = Rect::new(text_x, area.y, items_w, area.height);
+        let offset       = crate::ui::widgets::scroll_offset(self.radio_fav_selected, visible_n);
+
+        let items: Vec<ListItem> = self.favorites
+            .iter()
+            .enumerate()
+            .skip(offset)
+            .take(visible_n)
+            .map(|(i, fav)| {
+                let active     = i == self.radio_fav_selected;
+                let is_playing = self.playing_favorite_index == Some(i);
+                let (prefix, name_st, star_st) = if active {
+                    (
+                        "▶  ",
+                        Style::default().fg(theme::PLAYING).add_modifier(Modifier::BOLD),
+                        Style::default().fg(theme::PLAYING).add_modifier(Modifier::BOLD),
+                    )
+                } else if is_playing {
+                    (
+                        "   ",
+                        Style::default().fg(theme::PLAYING),
+                        Style::default().fg(theme::ACCENT),
+                    )
+                } else {
+                    (
+                        "   ",
+                        Style::default().fg(theme::HIGHLIGHT),
+                        Style::default().fg(theme::ACCENT),
+                    )
+                };
+                let name_w = items_w.saturating_sub(5) as usize;
+                let name   = strings::truncate(&fav.name, name_w);
+                ListItem::new(Line::from(vec![
+                    Span::styled(prefix,           name_st),
+                    Span::styled("★ ",             star_st),
+                    Span::styled(name.to_string(), name_st),
+                ]))
+            })
+            .collect();
+
+        List::new(items).render(items_area, buf);
+
+        if needs_scroll {
+            self.render_scrollbar(items_area, self.favorites.len(), self.radio_fav_selected, buf);
+        }
     }
 
     pub(super) fn render_genre_body(&self, area: Rect, content_x: u16, content_w: u16, buf: &mut Buffer) {

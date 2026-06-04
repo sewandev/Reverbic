@@ -29,6 +29,7 @@ mod schedule;
 mod station;
 mod terminal;
 mod ui;
+mod update;
 
 use app::App;
 use audio::PlayerCommand;
@@ -57,6 +58,7 @@ async fn main() -> Result<()> {
         original_hook(info);
     }));
     install::maybe_self_install();
+    update::cleanup_stale();
     let _log_guard = init_logging();
     i18n::init(config::Config::load().language);
     game_detect::init_game_db();
@@ -115,6 +117,7 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
     }
 
     app.init_integrations();
+    app.start_update_check();
 
     #[cfg(target_os = "windows")]
     {
@@ -148,6 +151,8 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
 
     loop {
         app.poll_dead_url();
+        app.poll_update_check();
+        app.poll_update_download();
         app.poll_search_results();
         app.poll_on_demand_results();
         app.poll_station_details();
@@ -181,6 +186,7 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
         app.terminal_area = last_area;
         tokio::select! {
             _ = ticker.tick() => {
+                app.border_tick = app.border_tick.wrapping_add(1);
                 app.poll_search_results();
                 app.poll_on_demand_results();
                 app.poll_station_details();
@@ -221,6 +227,9 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
         }
     }
 
+    if let Some(ref path) = app.update_path.clone() {
+        update::apply_update(path);
+    }
     app.abort_all_tasks();
     Ok(())
 }

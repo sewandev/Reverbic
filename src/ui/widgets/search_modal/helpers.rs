@@ -54,10 +54,6 @@ pub(super) fn key(s: &'static str) -> Span<'static> {
     Span::styled(s, Style::default().fg(theme::HIGHLIGHT).add_modifier(Modifier::BOLD))
 }
 
-pub(super) fn sep(s: &'static str) -> Span<'static> {
-    Span::styled(s, Style::default().fg(theme::MUTED))
-}
-
 pub(super) fn sep_s(s: String) -> Span<'static> {
     Span::styled(s, Style::default().fg(theme::MUTED))
 }

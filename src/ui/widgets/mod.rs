@@ -1,23 +1,5 @@
-pub mod countdown;
-pub mod now_playing;
-pub mod on_demand_panel;
 pub mod search_modal;
-pub mod recent_tracks;
-pub mod saved_tracks;
-pub mod station_list;
-pub mod vu_meter;
-
-const SPINNER_FRAMES: &[&str] = &["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
-const SPINNER_FRAME_MS: u128 = 120;
 
 pub(crate) fn scroll_offset(selected: usize, visible: usize) -> usize {
     if selected >= visible { selected + 1 - visible } else { 0 }
-}
-
-pub(crate) fn spinner_frame() -> &'static str {
-    let ms = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis())
-        .unwrap_or(0);
-    SPINNER_FRAMES[((ms / SPINNER_FRAME_MS) as usize) % SPINNER_FRAMES.len()]
 }

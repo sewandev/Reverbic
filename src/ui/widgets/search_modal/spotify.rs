@@ -65,7 +65,8 @@ impl<'a> SearchModalWidget<'a> {
 
         match self.spotify_sub_tab {
             SpotifySubTab::Search => {
-                let [input_row, cap_row, list_area] = Layout::vertical([
+                let [_gap, input_row, cap_row, list_area] = Layout::vertical([
+                    Constraint::Length(1),
                     Constraint::Length(1),
                     Constraint::Length(1),
                     Constraint::Fill(1),

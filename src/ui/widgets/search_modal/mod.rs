@@ -11,7 +11,7 @@ use crate::i18n::t;
 use crate::station::DynamicStation;
 use crate::ui::theme;
 
-use helpers::{key, sep, sep_s};
+use helpers::{key, sep_s};
 
 mod helpers;
 mod settings;
@@ -64,6 +64,13 @@ pub struct SearchModalWidget<'a> {
     pub spotify_sub_tab:             crate::app::SpotifySubTab,
     pub spotify_loading_more:        bool,
     pub spotify_client_id:           &'a str,
+    pub radio_sub_tab:               crate::app::RadioSubTab,
+    pub favorites:                   &'a [crate::favorites::FavoriteStation],
+    pub radio_fav_selected:          usize,
+    pub playing_favorite_index:      Option<usize>,
+    pub auto_update:                 bool,
+    pub save_notice:                 Option<String>,
+    pub border_tick:                 u32,
 }
 
 impl Widget for SearchModalWidget<'_> {
@@ -90,7 +97,7 @@ impl Widget for SearchModalWidget<'_> {
             )
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
-            .border_style(Style::default().fg(theme::ACCENT))
+            .border_style(Style::default().fg(theme::border_color(self.border_tick)))
             .style(Style::default().bg(BG));
 
         let inner = block.inner(panel);
@@ -169,6 +176,16 @@ impl<'a> From<&'a crate::app::App> for SearchModalWidget<'a> {
             spotify_sub_tab:      sp.sub_tab,
             spotify_loading_more: sp.search_loading_more,
             spotify_client_id:    &app.config.spotify.client_id,
+            radio_sub_tab:          app.radio_sub_tab,
+            favorites:              &app.favorites,
+            radio_fav_selected:     app.radio_fav_selected,
+            playing_favorite_index: {
+                let state = app.player.state();
+                state.station.as_ref().and_then(|p| app.favorites.iter().position(|f| f.url == p.url))
+            },
+            auto_update:  app.config.auto_update,
+            save_notice:  app.save_notice.clone(),
+            border_tick:  app.border_tick,
         }
     }
 }
@@ -184,18 +201,48 @@ impl SearchModalWidget<'_> {
     }
 
     fn bottom_hint(&self) -> Vec<Span<'static>> {
+        if let Some(ref notice) = self.save_notice {
+            return vec![
+                Span::raw("  "),
+                Span::styled(
+                    notice.clone(),
+                    ratatui::style::Style::default()
+                        .fg(theme::PLAYING)
+                        .add_modifier(ratatui::style::Modifier::BOLD),
+                ),
+                Span::raw("  "),
+            ];
+        }
         let showing = !self.results.is_empty();
         if showing {
             return vec![
                 Span::raw(" "),
                 key("[↵]"),   sep_s(format!(" {}  ", t("hint.play"))),
-                key("[Alt+F]"), sep(" *  "),
+                key("[Alt+F]"), sep_s(format!(" {}  ", t("hint.fav"))),
                 key("[↑↓]"), sep_s(format!(" {}  ", t("hint.nav"))),
                 key("[?]"),   sep_s(format!(" {} ", t("hint.help"))),
             ];
         }
         match self.mode {
             SearchMode::Name => {
+                use crate::app::RadioSubTab;
+                if matches!(self.radio_sub_tab, RadioSubTab::Favorites) {
+                    if self.favorites.is_empty() {
+                        return vec![
+                            Span::raw(" "),
+                            key("[←→]"), sep_s(format!(" {}  ", t("hint.tabs"))),
+                            key("[?]"),   sep_s(format!(" {} ", t("hint.help"))),
+                        ];
+                    }
+                    return vec![
+                        Span::raw(" "),
+                        key("[↵]"),     sep_s(format!(" {}  ", t("hint.play"))),
+                        key("[↑↓]"),   sep_s(format!(" {}  ", t("hint.nav"))),
+                        key("[Alt+F]"), sep_s(format!(" {}  ", t("hint.fav"))),
+                        key("[←→]"),   sep_s(format!(" {}  ", t("hint.tabs"))),
+                        key("[?]"),     sep_s(format!(" {} ", t("hint.help"))),
+                    ];
+                }
                 if self.query.is_empty() {
                     vec![
                         Span::raw(" "),

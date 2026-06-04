@@ -33,6 +33,13 @@ pub enum SpotifySubTab {
     Devices,
 }
 
+#[derive(Clone, Copy, PartialEq, Default)]
+pub enum RadioSubTab {
+    #[default]
+    Search,
+    Favorites,
+}
+
 #[derive(Clone, Copy, PartialEq)]
 pub enum SettingItem {
     Autoplay,
@@ -54,6 +61,7 @@ pub enum SettingItem {
     SpotifyStopOnQuit,
     SpotifyStartOnSpotify,
     SpotifyClientId,
+    AutoUpdate,
 }
 
 impl SettingItem {
@@ -78,6 +86,7 @@ impl SettingItem {
             Self::SpotifyStopOnQuit     => t("config.setting.spotify_stop_on_quit"),
             Self::SpotifyStartOnSpotify => t("config.setting.spotify_start_on_spotify"),
             Self::SpotifyClientId       => t("config.setting.spotify_client_id"),
+            Self::AutoUpdate            => t("config.setting.auto_update"),
         }
     }
 
@@ -102,6 +111,7 @@ impl SettingItem {
             Self::SpotifyStopOnQuit     => "config.tooltip.spotify_stop_on_quit",
             Self::SpotifyStartOnSpotify => "config.tooltip.spotify_start_on_spotify",
             Self::SpotifyClientId       => "config.tooltip.spotify_client_id",
+            Self::AutoUpdate            => "config.tooltip.auto_update",
         }
     }
 
@@ -113,7 +123,7 @@ impl SettingItem {
                 => "config.group.overlay",
             Self::DuckEnabled | Self::DuckVolume
                 => "config.group.game",
-            Self::MediaKeys | Self::TrayIcon | Self::Notifications
+            Self::MediaKeys | Self::TrayIcon | Self::Notifications | Self::AutoUpdate
                 => "config.group.system",
             Self::Language
                 => "config.group.appearance",
@@ -144,6 +154,7 @@ pub fn settings_items(duck_enabled: bool) -> Vec<SettingItem> {
         SettingItem::MediaKeys,
         SettingItem::TrayIcon,
         SettingItem::Notifications,
+        SettingItem::AutoUpdate,
         SettingItem::Language,
         SettingItem::SpotifyStopOnQuit,
         SettingItem::SpotifyStartOnSpotify,

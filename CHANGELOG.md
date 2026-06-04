@@ -12,6 +12,22 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ---
 
+## [1.2.0] — 2026-06-03
+
+### Added
+- Animated modal border cycling through the brand logo colors (cyan → purple → crimson)
+- Animated now-playing strip border when a radio station is playing
+- Animated equalizer bars in the app logo: SVG version with CSS keyframes (README/browser) and TUI version with Unicode block characters
+
+### Changed
+- Spotify main tab uses Spotify brand green (#1ED760)
+
+### Fixed
+- Clicking anywhere in the modal no longer interrupted or restarted the currently playing radio
+- Spacing between Spotify sub-tabs and search input now matches the radio tab layout
+
+---
+
 ## [1.1.0] — 2026-06-03
 
 ### Added

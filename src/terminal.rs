@@ -17,7 +17,7 @@ pub fn init() -> Result<Tui> {
     execute!(
         stdout,
         EnterAlternateScreen,
-        SetTitle("Reverbic"),
+        SetTitle(concat!("Reverbic v", env!("CARGO_PKG_VERSION"))),
         EnableMouseCapture,
         EnableBracketedPaste
     )

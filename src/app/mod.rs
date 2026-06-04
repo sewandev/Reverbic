@@ -7,9 +7,10 @@ mod favorites;
 mod integrations;
 mod input;
 mod spotify_state;
+mod update_ctrl;
 
 pub use modal::{
-    AppFocus, SearchMode, SettingItem, SpotifyAuthStatus, SpotifyPlayerStatus, SpotifySubTab,
+    AppFocus, RadioSubTab, SearchMode, SettingItem, SpotifyAuthStatus, SpotifyPlayerStatus, SpotifySubTab,
     settings_items,
 };
 pub use spotify_state::SpotifyState;
@@ -85,6 +86,8 @@ pub struct App {
     pub show_search_modal:   bool,
     pub modal_mode:          SearchMode,
     pub modal_selected:      usize,
+    pub radio_sub_tab:       RadioSubTab,
+    pub radio_fav_selected:  usize,
     pub genre_selected:      usize,
     pub genre_filter:        String,
     pub genre_query:         String,
@@ -96,6 +99,7 @@ pub struct App {
     pub client_id_input:     String,
     pub click_flash:         Option<(usize, Instant)>,
     pub last_activity:       Instant,
+    pub border_tick:         u32,
     pub station_details:     Option<StationDetails>,
     pub windows_tx:          Option<tokio::sync::watch::Sender<crate::config::Config>>,
     pub config:              Config,
@@ -114,6 +118,12 @@ pub struct App {
     last_details_uuid:       Option<String>,
     pub notice_until:        Option<std::time::Instant>,
     pub dead_urls:           HashSet<String>,
+    pub update_available:    Option<String>,
+    pub update_path:         Option<std::path::PathBuf>,
+    update_check_task:       Option<tokio::task::JoinHandle<()>>,
+    update_check_rx:         Option<std::sync::mpsc::Receiver<Option<String>>>,
+    update_download_task:    Option<tokio::task::JoinHandle<()>>,
+    update_download_rx:      Option<std::sync::mpsc::Receiver<std::path::PathBuf>>,
 }
 
 impl App {
@@ -149,6 +159,8 @@ impl App {
             show_search_modal:  true,
             modal_mode:         SearchMode::Name,
             modal_selected:     0,
+            radio_sub_tab:      RadioSubTab::default(),
+            radio_fav_selected: 0,
             genre_selected:     0,
             genre_filter:       String::new(),
             genre_query:        String::new(),
@@ -160,6 +172,7 @@ impl App {
             client_id_input:    String::new(),
             click_flash:        None,
             last_activity:      Instant::now(),
+            border_tick:        0,
             station_details:    None,
             windows_tx:         None,
             config,
@@ -176,8 +189,14 @@ impl App {
             on_demand_rx:       None,
             station_details_rx: None,
             last_details_uuid:  None,
-            notice_until:       None,
-            dead_urls:          HashSet::new(),
+            notice_until:          None,
+            dead_urls:             HashSet::new(),
+            update_available:      None,
+            update_path:           None,
+            update_check_task:     None,
+            update_check_rx:       None,
+            update_download_task:  None,
+            update_download_rx:    None,
         }
     }
 

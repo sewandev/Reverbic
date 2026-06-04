@@ -202,5 +202,9 @@
   "config.spotify.no_client_id": "No Client ID configured. Set it in Settings > Spotify Client ID.",
   "modal.client_id.title": " Spotify Client ID ",
   "modal.client_id.hint": " [↵] Save  [Esc] Cancel ",
-  "status.dead_url": "URL not found (404)"
+  "status.dead_url": "URL not found (404)",
+  "hint.fav": "Remove",
+  "modal.radio.subtab.search": "[ Search ]",
+  "modal.radio.subtab.favorites": "[ Favorites ]",
+  "modal.favorites.empty": "No favorites. Press Alt+F to add one."
 }

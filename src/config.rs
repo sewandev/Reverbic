@@ -148,6 +148,8 @@ pub struct Config {
     pub prebuffer_secs:       u8,
     #[serde(default = "default_true")]
     pub screensaver_clock:    bool,
+    #[serde(default = "default_true")]
+    pub auto_update:          bool,
 }
 
 fn default_true() -> bool { true }
@@ -196,6 +198,7 @@ impl Default for Config {
             volume_step:       5,
             prebuffer_secs:    30,
             screensaver_clock: true,
+            auto_update:       true,
         }
     }
 }

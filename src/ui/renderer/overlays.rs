@@ -84,19 +84,6 @@ pub(super) fn render_client_id_overlay(frame: &mut Frame, input: &str) {
     );
 }
 
-pub(super) fn render_game_inline(frame: &mut Frame, area: Rect, name: &str, genre: &str) {
-    let label = t("overlay.playing_game");
-    let mut spans = vec![
-        Span::styled(format!("  {label}  "), Style::default().fg(theme::MUTED)),
-        Span::styled(name.to_owned(), theme::PLAYING_STYLE),
-    ];
-    if !genre.is_empty() {
-        spans.push(Span::styled("  ·  ", Style::default().fg(theme::MUTED)));
-        spans.push(Span::styled(genre.to_owned(), Style::default().fg(theme::DIM)));
-    }
-    frame.render_widget(Paragraph::new(Line::from(spans)), area);
-}
-
 pub(super) fn render_game_strip(frame: &mut Frame, area: Rect, name: &str, genre: &str) {
     const H_PAD: u16 = 2;
 
@@ -130,7 +117,7 @@ pub(super) fn render_game_strip(frame: &mut Frame, area: Rect, name: &str, genre
     );
 }
 
-pub(super) fn render_modal_np_strip(frame: &mut Frame, strip: Rect, state: &PlayerState) {
+pub(super) fn render_modal_np_strip(frame: &mut Frame, strip: Rect, state: &PlayerState, border_tick: u32) {
     const H_PAD: u16 = 2;
 
     if matches!(state.status, PlayerStatus::Idle | PlayerStatus::Error(_)) {
@@ -157,7 +144,7 @@ pub(super) fn render_modal_np_strip(frame: &mut Frame, strip: Rect, state: &Play
     let vol_color = if state.volume > 0.85 { theme::WARNING } else { theme::ACCENT };
 
     let border_color = match &state.status {
-        PlayerStatus::Playing                                        => theme::ACCENT,
+        PlayerStatus::Playing                                        => theme::border_color(border_tick),
         PlayerStatus::Paused                                         => theme::WARNING,
         PlayerStatus::Buffering(_) | PlayerStatus::Reconnecting(_)  => ratatui::style::Color::Rgb(80, 80, 80),
         _                                                            => theme::MUTED,
@@ -332,7 +319,23 @@ pub(super) fn render_modal_spotify_strip(
     }
 }
 
-pub(super) fn render_help_overlay(frame: &mut Frame, mode: &crate::app::SearchMode, spotify_logged_in: bool) {
+pub(super) fn render_update_badge(frame: &mut Frame, version: &str, area: Rect) {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let blink = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis() % 1000 < 500)
+        .unwrap_or(false);
+    let dot = if blink { "• " } else { "  " };
+    let text = format!("{dot}v{version}");
+    let w = (text.chars().count() as u16 + 1).min(area.width);
+    let x = area.x + area.width.saturating_sub(w);
+    frame.render_widget(
+        Paragraph::new(text).style(Style::default().fg(theme::WARNING)),
+        Rect::new(x, area.y, w, 1),
+    );
+}
+
+pub(super) fn render_help_overlay(frame: &mut Frame, mode: &crate::app::SearchMode, spotify_logged_in: bool, update_available: Option<&str>) {
     use crate::app::SearchMode;
 
     let lines: Vec<(&str, String)> = match mode {
@@ -387,7 +390,8 @@ pub(super) fn render_help_overlay(frame: &mut Frame, mode: &crate::app::SearchMo
     let area       = frame.area();
     let w          = 46u16.min(area.width);
     let line_count = lines.len();
-    let h          = (line_count as u16 + 3 + CREDITS.len() as u16 + 2).min(area.height);
+    let update_row = update_available.is_some() as u16;
+    let h          = (line_count as u16 + 3 + CREDITS.len() as u16 + 2 + update_row).min(area.height);
     let x          = area.x + area.width.saturating_sub(w) / 2;
     let y          = area.y + area.height.saturating_sub(h) / 2;
     let rect       = ratatui::layout::Rect::new(x, y, w, h);
@@ -427,8 +431,20 @@ pub(super) fn render_help_overlay(frame: &mut Frame, mode: &crate::app::SearchMo
         );
     }
 
+    if let Some(version) = update_available {
+        let row_y = sep_y + 1;
+        if row_y < inner.bottom() {
+            let notice = format!("  {} v{version}", t("update.available"));
+            frame.render_widget(
+                Paragraph::new(Span::styled(notice, Style::default().fg(theme::WARNING).add_modifier(Modifier::BOLD)))
+                    .style(Style::default().bg(theme::PANEL_BG)),
+                ratatui::layout::Rect::new(inner.x, row_y, inner.width, 1),
+            );
+        }
+    }
+    let credits_offset = update_row;
     for (i, line) in CREDITS.iter().enumerate() {
-        let row_y = sep_y + 1 + i as u16;
+        let row_y = sep_y + 1 + credits_offset + i as u16;
         if row_y >= inner.bottom() { break; }
         frame.render_widget(
             Paragraph::new(Span::styled(*line, Style::default().fg(theme::MUTED)))
