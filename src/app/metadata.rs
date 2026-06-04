@@ -29,11 +29,11 @@ impl App {
         if self.radio_enriched_for.as_deref() == Some(&icy_title) {
             return;
         }
-        self.radio_enriched_for   = Some(icy_title.clone());
+        self.radio_enriched_for = Some(icy_title.clone());
         self.radio_enriched_track = None;
         abort_task(&mut self.radio_enrichment_task);
         let (tx, rx) = std::sync::mpsc::channel();
-        self.radio_enrichment_rx   = Some(rx);
+        self.radio_enrichment_rx = Some(rx);
         self.radio_enrichment_task = Some(tokio::spawn(async move {
             let result = enrich(&icy_title).await;
             let _ = tx.send(result);
@@ -57,7 +57,9 @@ impl App {
     pub fn poll_station_details(&mut self) {
         if let Some(rx) = self.station_details_rx.take() {
             match rx.try_recv() {
-                Ok(details) => { self.station_details = Some(details); }
+                Ok(details) => {
+                    self.station_details = Some(details);
+                }
                 Err(std::sync::mpsc::TryRecvError::Empty) => {
                     self.station_details_rx = Some(rx);
                 }
@@ -66,16 +68,25 @@ impl App {
         }
 
         let current_uuid = self.player.state().station.as_ref().map(|s| s.key.clone());
-        if current_uuid == self.last_details_uuid { return; }
+        if current_uuid == self.last_details_uuid {
+            return;
+        }
 
         self.last_details_uuid = current_uuid.clone();
-        self.station_details   = None;
+        self.station_details = None;
 
         if let Some(key) = current_uuid {
-            if key.is_empty() || key.starts_with("ondemand_") { return; }
+            if key.is_empty() || key.starts_with("ondemand_") {
+                return;
+            }
 
-            let station_name = self.player.state().station
-                .as_ref().map(|s| s.name.clone()).unwrap_or_default();
+            let station_name = self
+                .player
+                .state()
+                .station
+                .as_ref()
+                .map(|s| s.name.clone())
+                .unwrap_or_default();
 
             let (tx, rx) = std::sync::mpsc::channel();
             self.station_details_rx = Some(rx);
@@ -88,9 +99,13 @@ impl App {
                     }
                 };
                 match tokio::time::timeout(std::time::Duration::from_secs(10), fetch_fut).await {
-                    Ok(Some(d)) => { let _ = tx.send(d); }
-                    Ok(None)    => {}
-                    Err(_)      => { tracing::warn!("station_details fetch timeout para {key}"); }
+                    Ok(Some(d)) => {
+                        let _ = tx.send(d);
+                    }
+                    Ok(None) => {}
+                    Err(_) => {
+                        tracing::warn!("station_details fetch timeout para {key}");
+                    }
                 }
             });
         }

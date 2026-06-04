@@ -13,15 +13,21 @@ use crate::ui::strings;
 use crate::ui::theme;
 
 use super::helpers::{placeholder_example, render_filter_list_body, spin_frame, FilterListParams};
-use super::{BG, SearchModalWidget};
+use super::{SearchModalWidget, BG};
 
 impl<'a> SearchModalWidget<'a> {
     pub(super) fn render_tabs(&self, area: Rect, content_x: u16, content_w: u16, buf: &mut Buffer) {
         let tab_area = Rect::new(content_x, area.y, content_w, 1);
-        let radio_active   = Style::default().fg(theme::RADIO_ACCENT).add_modifier(Modifier::BOLD);
-        let spotify_active = Style::default().fg(theme::SPOTIFY_GREEN).add_modifier(Modifier::BOLD);
-        let youtube_active = Style::default().fg(theme::DANGER).add_modifier(Modifier::BOLD);
-        let inactive       = Style::default().fg(theme::MUTED);
+        let radio_active = Style::default()
+            .fg(theme::RADIO_ACCENT)
+            .add_modifier(Modifier::BOLD);
+        let spotify_active = Style::default()
+            .fg(theme::SPOTIFY_GREEN)
+            .add_modifier(Modifier::BOLD);
+        let youtube_active = Style::default()
+            .fg(theme::DANGER)
+            .add_modifier(Modifier::BOLD);
+        let inactive = Style::default().fg(theme::MUTED);
 
         let radio_st = match self.mode {
             SearchMode::Name | SearchMode::Genre | SearchMode::Country => radio_active,
@@ -37,16 +43,22 @@ impl<'a> SearchModalWidget<'a> {
         };
 
         Paragraph::new(Line::from(vec![
-            Span::styled(t("modal.tab.radio"),   radio_st),
-            Span::styled("  ",                   Style::default()),
+            Span::styled(t("modal.tab.radio"), radio_st),
+            Span::styled("  ", Style::default()),
             Span::styled(t("modal.tab.spotify"), spotify_st),
-            Span::styled("  ",                   Style::default()),
+            Span::styled("  ", Style::default()),
             Span::styled(t("modal.tab.youtube"), youtube_st),
         ]))
         .render(tab_area, buf);
     }
 
-    pub(super) fn render_name_body(&self, area: Rect, content_x: u16, content_w: u16, buf: &mut Buffer) {
+    pub(super) fn render_name_body(
+        &self,
+        area: Rect,
+        content_x: u16,
+        content_w: u16,
+        buf: &mut Buffer,
+    ) {
         use crate::app::RadioSubTab;
 
         let [_gap, subtab_row, body] = Layout::vertical([
@@ -59,7 +71,7 @@ impl<'a> SearchModalWidget<'a> {
         self.render_radio_subtabs(subtab_row, content_x, content_w, buf);
 
         match self.radio_sub_tab {
-            RadioSubTab::Search    => self.render_name_search(body, content_x, content_w, buf),
+            RadioSubTab::Search => self.render_name_search(body, content_x, content_w, buf),
             RadioSubTab::Favorites => self.render_favorites_body(body, content_x, content_w, buf),
         }
     }
@@ -74,10 +86,12 @@ impl<'a> SearchModalWidget<'a> {
         .areas(area);
 
         buf[(content_x, input_row.y)]
-            .set_symbol("┃").set_fg(theme::ACCENT).set_bg(BG);
+            .set_symbol("┃")
+            .set_fg(theme::ACCENT)
+            .set_bg(BG);
 
-        let text_x    = content_x + 2;
-        let text_w    = content_w.saturating_sub(2);
+        let text_x = content_x + 2;
+        let text_w = content_w.saturating_sub(2);
         let text_area = Rect::new(text_x, input_row.y, text_w, 1);
 
         if self.query.is_empty() {
@@ -87,21 +101,35 @@ impl<'a> SearchModalWidget<'a> {
             ))
             .render(text_area, buf);
         } else {
-            let max_q   = text_w.saturating_sub(2) as usize;
+            let max_q = text_w.saturating_sub(2) as usize;
             let visible: String = if self.query.chars().count() > max_q {
-                self.query.chars().rev().take(max_q).collect::<String>().chars().rev().collect()
+                self.query
+                    .chars()
+                    .rev()
+                    .take(max_q)
+                    .collect::<String>()
+                    .chars()
+                    .rev()
+                    .collect()
             } else {
                 self.query.to_owned()
             };
             Paragraph::new(Line::from(vec![
                 Span::styled(visible, Style::default().fg(theme::HIGHLIGHT)),
-                Span::styled("_", Style::default().fg(theme::ACCENT).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    "_",
+                    Style::default()
+                        .fg(theme::ACCENT)
+                        .add_modifier(Modifier::BOLD),
+                ),
             ]))
             .render(text_area, buf);
         }
 
         buf[(content_x, cap_row.y)]
-            .set_symbol("╹").set_fg(theme::ACCENT).set_bg(BG);
+            .set_symbol("╹")
+            .set_fg(theme::ACCENT)
+            .set_bg(BG);
 
         self.render_results(list_area, content_x, content_w, buf);
     }
@@ -111,17 +139,19 @@ impl<'a> SearchModalWidget<'a> {
         let text_x = content_x + 2;
         let text_w = content_w.saturating_sub(2);
 
-        let active   = Style::default().fg(theme::RADIO_ACCENT).add_modifier(Modifier::BOLD);
+        let active = Style::default()
+            .fg(theme::RADIO_ACCENT)
+            .add_modifier(Modifier::BOLD);
         let inactive = Style::default().fg(theme::DIM);
 
         let (search_st, fav_st) = match self.radio_sub_tab {
-            RadioSubTab::Search    => (active, inactive),
+            RadioSubTab::Search => (active, inactive),
             RadioSubTab::Favorites => (inactive, active),
         };
 
         Paragraph::new(Line::from(vec![
-            Span::styled(t("modal.radio.subtab.search"),    search_st),
-            Span::styled("  ",                               Style::default()),
+            Span::styled(t("modal.radio.subtab.search"), search_st),
+            Span::styled("  ", Style::default()),
             Span::styled(t("modal.radio.subtab.favorites"), fav_st),
         ]))
         .render(Rect::new(text_x, area.y, text_w, 1), buf);
@@ -130,11 +160,8 @@ impl<'a> SearchModalWidget<'a> {
     fn render_favorites_body(&self, area: Rect, content_x: u16, content_w: u16, buf: &mut Buffer) {
         let text_x = content_x + 2;
         let text_w = content_w.saturating_sub(2);
-        let [_gap, list_area] = Layout::vertical([
-            Constraint::Length(1),
-            Constraint::Fill(1),
-        ])
-        .areas(area);
+        let [_gap, list_area] =
+            Layout::vertical([Constraint::Length(1), Constraint::Fill(1)]).areas(area);
 
         if self.favorites.is_empty() {
             Paragraph::new(Span::styled(
@@ -145,25 +172,30 @@ impl<'a> SearchModalWidget<'a> {
             return;
         }
 
-        let visible_n    = list_area.height as usize;
+        let visible_n = list_area.height as usize;
         let needs_scroll = self.favorites.len() > visible_n;
-        let items_w      = text_w.saturating_sub(if needs_scroll { 1 } else { 0 });
-        let items_area   = Rect::new(text_x, list_area.y, items_w, list_area.height);
-        let offset       = crate::ui::widgets::scroll_offset(self.radio_fav_selected, visible_n);
+        let items_w = text_w.saturating_sub(if needs_scroll { 1 } else { 0 });
+        let items_area = Rect::new(text_x, list_area.y, items_w, list_area.height);
+        let offset = crate::ui::widgets::scroll_offset(self.radio_fav_selected, visible_n);
 
-        let items: Vec<ListItem> = self.favorites
+        let items: Vec<ListItem> = self
+            .favorites
             .iter()
             .enumerate()
             .skip(offset)
             .take(visible_n)
             .map(|(i, fav)| {
-                let active     = i == self.radio_fav_selected;
+                let active = i == self.radio_fav_selected;
                 let is_playing = self.playing_favorite_index == Some(i);
                 let (prefix, name_st, star_st, meta_st) = if active {
                     (
                         "▶  ",
-                        Style::default().fg(theme::PLAYING).add_modifier(Modifier::BOLD),
-                        Style::default().fg(theme::PLAYING).add_modifier(Modifier::BOLD),
+                        Style::default()
+                            .fg(theme::PLAYING)
+                            .add_modifier(Modifier::BOLD),
+                        Style::default()
+                            .fg(theme::PLAYING)
+                            .add_modifier(Modifier::BOLD),
                         Style::default().fg(theme::PLAYING),
                     )
                 } else if is_playing {
@@ -200,19 +232,20 @@ impl<'a> SearchModalWidget<'a> {
 
                 if meta_parts.is_empty() {
                     ListItem::new(Line::from(vec![
-                        Span::styled(prefix,                    name_st),
-                        Span::styled("★ ",                      star_st),
+                        Span::styled(prefix, name_st),
+                        Span::styled("★ ", star_st),
                         Span::styled(name_truncated.to_string(), name_st),
                     ]))
                 } else {
                     let meta_str = format!("  ·  {}", meta_parts.join("  ·  "));
-                    let avail_w  = items_w.saturating_sub(5 + name_truncated.chars().count() as u16) as usize;
+                    let avail_w =
+                        items_w.saturating_sub(5 + name_truncated.chars().count() as u16) as usize;
                     let meta_trunc = strings::truncate(&meta_str, avail_w);
                     ListItem::new(Line::from(vec![
-                        Span::styled(prefix,                        name_st),
-                        Span::styled("★ ",                          star_st),
-                        Span::styled(name_truncated.to_string(),    name_st),
-                        Span::styled(meta_trunc.to_string(),        meta_st),
+                        Span::styled(prefix, name_st),
+                        Span::styled("★ ", star_st),
+                        Span::styled(name_truncated.to_string(), name_st),
+                        Span::styled(meta_trunc.to_string(), meta_st),
                     ]))
                 }
             })
@@ -221,22 +254,35 @@ impl<'a> SearchModalWidget<'a> {
         List::new(items).render(items_area, buf);
 
         if needs_scroll {
-            self.render_scrollbar(items_area, self.favorites.len(), self.radio_fav_selected, buf);
+            self.render_scrollbar(
+                items_area,
+                self.favorites.len(),
+                self.radio_fav_selected,
+                buf,
+            );
         }
     }
 
-    pub(super) fn render_genre_body(&self, area: Rect, content_x: u16, content_w: u16, buf: &mut Buffer) {
+    pub(super) fn render_genre_body(
+        &self,
+        area: Rect,
+        content_x: u16,
+        content_w: u16,
+        buf: &mut Buffer,
+    ) {
         if !self.results.is_empty() {
-            let [header_row, list_area] = Layout::vertical([
-                Constraint::Length(1),
-                Constraint::Fill(1),
-            ])
-            .areas(area);
+            let [header_row, list_area] =
+                Layout::vertical([Constraint::Length(1), Constraint::Fill(1)]).areas(area);
 
             let header = Rect::new(content_x, header_row.y, content_w, 1);
             Paragraph::new(Line::from(vec![
                 Span::styled("< ", Style::default().fg(theme::MUTED)),
-                Span::styled(self.genre_query, Style::default().fg(theme::ACCENT).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    self.genre_query,
+                    Style::default()
+                        .fg(theme::ACCENT)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::styled("  >", Style::default().fg(theme::MUTED)),
             ]))
             .render(header, buf);
@@ -247,14 +293,17 @@ impl<'a> SearchModalWidget<'a> {
 
         let (needs_scroll, list_area, total) = render_filter_list_body(
             FilterListParams {
-                filter:       self.genre_filter,
-                placeholder:  &t("modal.genre.placeholder"),
-                items:        GENRES,
-                selected:     self.genre_selected,
-                loading:      self.loading,
+                filter: self.genre_filter,
+                placeholder: &t("modal.genre.placeholder"),
+                items: GENRES,
+                selected: self.genre_selected,
+                loading: self.loading,
                 loading_text: &t("modal.loading.genre"),
             },
-            area, content_x, content_w, buf,
+            area,
+            content_x,
+            content_w,
+            buf,
         );
 
         if needs_scroll {
@@ -262,17 +311,25 @@ impl<'a> SearchModalWidget<'a> {
         }
     }
 
-    pub(super) fn render_country_body(&self, area: Rect, content_x: u16, content_w: u16, buf: &mut Buffer) {
+    pub(super) fn render_country_body(
+        &self,
+        area: Rect,
+        content_x: u16,
+        content_w: u16,
+        buf: &mut Buffer,
+    ) {
         if !self.results.is_empty() {
-            let [header_row, list_area] = Layout::vertical([
-                Constraint::Length(1),
-                Constraint::Fill(1),
-            ])
-            .areas(area);
+            let [header_row, list_area] =
+                Layout::vertical([Constraint::Length(1), Constraint::Fill(1)]).areas(area);
             let header = Rect::new(content_x, header_row.y, content_w, 1);
             Paragraph::new(Line::from(vec![
                 Span::styled("< ", Style::default().fg(theme::MUTED)),
-                Span::styled(self.genre_query, Style::default().fg(theme::ACCENT).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    self.genre_query,
+                    Style::default()
+                        .fg(theme::ACCENT)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::styled("  >", Style::default().fg(theme::MUTED)),
             ]))
             .render(header, buf);
@@ -282,14 +339,17 @@ impl<'a> SearchModalWidget<'a> {
 
         let (needs_scroll, list_area, total) = render_filter_list_body(
             FilterListParams {
-                filter:       self.country_filter,
-                placeholder:  &t("modal.country.placeholder"),
-                items:        COUNTRIES,
-                selected:     self.country_selected,
-                loading:      self.loading,
+                filter: self.country_filter,
+                placeholder: &t("modal.country.placeholder"),
+                items: COUNTRIES,
+                selected: self.country_selected,
+                loading: self.loading,
                 loading_text: &t("modal.loading.country"),
             },
-            area, content_x, content_w, buf,
+            area,
+            content_x,
+            content_w,
+            buf,
         );
 
         if needs_scroll {
@@ -297,11 +357,17 @@ impl<'a> SearchModalWidget<'a> {
         }
     }
 
-    pub(super) fn render_results(&self, area: Rect, content_x: u16, content_w: u16, buf: &mut Buffer) {
-        let list_x  = content_x + 2;
+    pub(super) fn render_results(
+        &self,
+        area: Rect,
+        content_x: u16,
+        content_w: u16,
+        buf: &mut Buffer,
+    ) {
+        let list_x = content_x + 2;
         let visible_n = area.height.saturating_sub(1) as usize;
         let needs_scroll = self.results.len() > visible_n;
-        let name_w  = content_w.saturating_sub(if needs_scroll { 9 } else { 8 }) as usize;
+        let name_w = content_w.saturating_sub(if needs_scroll { 9 } else { 8 }) as usize;
         let items_w = content_w.saturating_sub(if needs_scroll { 3 } else { 2 });
         let items_area = Rect::new(list_x, area.y, items_w, area.height);
 
@@ -316,8 +382,11 @@ impl<'a> SearchModalWidget<'a> {
 
         if self.results.is_empty() {
             if !self.query.is_empty() {
-                Paragraph::new(Span::styled(t("modal.empty.no_results"), Style::default().fg(theme::MUTED)))
-                    .render(items_area, buf);
+                Paragraph::new(Span::styled(
+                    t("modal.empty.no_results"),
+                    Style::default().fg(theme::MUTED),
+                ))
+                .render(items_area, buf);
             }
             return;
         }
@@ -331,18 +400,21 @@ impl<'a> SearchModalWidget<'a> {
             .skip(offset)
             .take(visible_n)
             .map(|(i, s)| {
-                let active  = i == self.selected;
-                let prefix  = if active { "▶  " } else { "   " };
+                let active = i == self.selected;
+                let prefix = if active { "▶  " } else { "   " };
                 let name: String = {
                     let t = strings::truncate(&s.name, name_w);
                     format!("{:<width$}", t, width = name_w)
                 };
-                let bitrate = s.bitrate_kbps
+                let bitrate = s
+                    .bitrate_kbps
                     .map(|b| format!("{b:>4}k"))
                     .unwrap_or_else(|| "    ".to_string());
                 let (name_st, meta_st) = if active {
                     (
-                        Style::default().fg(theme::PLAYING).add_modifier(Modifier::BOLD),
+                        Style::default()
+                            .fg(theme::PLAYING)
+                            .add_modifier(Modifier::BOLD),
                         Style::default().fg(theme::ACCENT),
                     )
                 } else {
@@ -352,8 +424,8 @@ impl<'a> SearchModalWidget<'a> {
                     )
                 };
                 ListItem::new(Line::from(vec![
-                    Span::styled(prefix,  name_st),
-                    Span::styled(name,    name_st),
+                    Span::styled(prefix, name_st),
+                    Span::styled(name, name_st),
                     Span::styled(bitrate, meta_st),
                 ]))
             })
@@ -366,19 +438,37 @@ impl<'a> SearchModalWidget<'a> {
         }
     }
 
-    pub(super) fn render_radio_body(&self, area: Rect, content_x: u16, content_w: u16, buf: &mut Buffer) {
+    pub(super) fn render_radio_body(
+        &self,
+        area: Rect,
+        content_x: u16,
+        content_w: u16,
+        buf: &mut Buffer,
+    ) {
         match self.mode {
-            SearchMode::Genre   => self.render_genre_body(area, content_x, content_w, buf),
+            SearchMode::Genre => self.render_genre_body(area, content_x, content_w, buf),
             SearchMode::Country => self.render_country_body(area, content_x, content_w, buf),
-            _                   => self.render_name_body(area, content_x, content_w, buf),
+            _ => self.render_name_body(area, content_x, content_w, buf),
         }
     }
 
-    pub(super) fn render_scrollbar(&self, list_area: Rect, total: usize, selected: usize, buf: &mut Buffer) {
-        let sb_x    = list_area.x + list_area.width + 1;
+    pub(super) fn render_scrollbar(
+        &self,
+        list_area: Rect,
+        total: usize,
+        selected: usize,
+        buf: &mut Buffer,
+    ) {
+        let sb_x = list_area.x + list_area.width + 1;
         let track_h = list_area.height as usize;
-        let offset  = if selected >= track_h { selected - track_h + 1 } else { 0 };
-        let thumb   = if total <= 1 { 0 } else {
+        let offset = if selected >= track_h {
+            selected - track_h + 1
+        } else {
+            0
+        };
+        let thumb = if total <= 1 {
+            0
+        } else {
             (selected * (track_h.saturating_sub(1))) / (total - 1)
         };
 

@@ -1,4 +1,4 @@
-﻿use std::time::Instant;
+use std::time::Instant;
 
 use crossterm::event::KeyCode;
 
@@ -8,9 +8,9 @@ use crate::library;
 use crate::preview::{deezer_preview, parse_seek_input};
 use crate::station::{filter_items, Station, COUNTRIES, GENRES};
 
-use super::{abort_task, cycle_next, cycle_prev, scroll_by, App};
-use super::modal::{AppFocus, RadioSubTab, SearchMode, SpotifyAuthStatus, SpotifyPlayerStatus};
 use super::modal::settings_items;
+use super::modal::{AppFocus, RadioSubTab, SearchMode, SpotifyAuthStatus, SpotifyPlayerStatus};
+use super::{abort_task, cycle_next, cycle_prev, scroll_by, App};
 
 impl App {
     pub async fn on_key_event(&mut self, event: crossterm::event::KeyEvent) {
@@ -25,13 +25,17 @@ impl App {
                     KeyCode::Up => {
                         crate::favorites::move_up(&mut self.favorites, idx);
                         crate::favorites::save(&self.favorites);
-                        if idx > 0 { self.selected -= 1; }
+                        if idx > 0 {
+                            self.selected -= 1;
+                        }
                         return;
                     }
                     KeyCode::Down => {
                         crate::favorites::move_down(&mut self.favorites, idx);
                         crate::favorites::save(&self.favorites);
-                        if idx + 1 < self.favorites.len() { self.selected += 1; }
+                        if idx + 1 < self.favorites.len() {
+                            self.selected += 1;
+                        }
                         return;
                     }
                     _ => {}
@@ -49,13 +53,17 @@ impl App {
                 KeyCode::Up => {
                     crate::favorites::move_up(&mut self.favorites, idx);
                     crate::favorites::save(&self.favorites);
-                    if idx > 0 { self.radio_fav_selected -= 1; }
+                    if idx > 0 {
+                        self.radio_fav_selected -= 1;
+                    }
                     return;
                 }
                 KeyCode::Down => {
                     crate::favorites::move_down(&mut self.favorites, idx);
                     crate::favorites::save(&self.favorites);
-                    if idx + 1 < self.favorites.len() { self.radio_fav_selected += 1; }
+                    if idx + 1 < self.favorites.len() {
+                        self.radio_fav_selected += 1;
+                    }
                     return;
                 }
                 _ => {}
@@ -84,42 +92,44 @@ impl App {
         match key {
             KeyCode::Char('o') | KeyCode::Char('O') => {
                 self.show_search_modal = true;
-                self.modal_mode        = SearchMode::Settings;
+                self.modal_mode = SearchMode::Settings;
                 self.settings_selected = 0;
             }
             KeyCode::Char('g') | KeyCode::Char('G') if self.show_search_modal => {
-                self.modal_mode     = SearchMode::Genre;
+                self.modal_mode = SearchMode::Genre;
                 self.genre_filter.clear();
                 self.genre_selected = 0;
             }
             KeyCode::Char('c') | KeyCode::Char('C') if self.show_search_modal => {
-                self.modal_mode       = SearchMode::Country;
+                self.modal_mode = SearchMode::Country;
                 self.country_filter.clear();
                 self.country_selected = 0;
             }
             KeyCode::Char('d') | KeyCode::Char('D')
                 if self.show_search_modal
-                && matches!(self.modal_mode, SearchMode::Spotify)
-                && matches!(self.spotify.status, SpotifyAuthStatus::LoggedIn) =>
+                    && matches!(self.modal_mode, SearchMode::Spotify)
+                    && matches!(self.spotify.status, SpotifyAuthStatus::LoggedIn) =>
             {
                 self.spotify_logout();
                 self.modal_mode = SearchMode::Name;
             }
             KeyCode::Char('r') | KeyCode::Char('R')
                 if self.show_search_modal
-                && matches!(self.modal_mode, SearchMode::Spotify)
-                && matches!(self.spotify.status, SpotifyAuthStatus::LoggedIn) =>
+                    && matches!(self.modal_mode, SearchMode::Spotify)
+                    && matches!(self.spotify.status, SpotifyAuthStatus::LoggedIn) =>
             {
                 self.fetch_spotify_devices();
             }
             KeyCode::Char('f') | KeyCode::Char('F')
                 if self.show_search_modal
-                && matches!(self.modal_mode, SearchMode::Name)
-                && matches!(self.radio_sub_tab, RadioSubTab::Favorites) =>
+                    && matches!(self.modal_mode, SearchMode::Name)
+                    && matches!(self.radio_sub_tab, RadioSubTab::Favorites) =>
             {
                 self.remove_radio_fav_selected();
             }
-            KeyCode::Char('f') | KeyCode::Char('F') if self.show_search_modal && !self.search_results.is_empty() => {
+            KeyCode::Char('f') | KeyCode::Char('F')
+                if self.show_search_modal && !self.search_results.is_empty() =>
+            {
                 self.toggle_modal_favorite();
             }
             KeyCode::Char('f') | KeyCode::Char('F') if !self.show_search_modal => {
@@ -127,8 +137,8 @@ impl App {
             }
             KeyCode::Char('r') | KeyCode::Char('R')
                 if self.show_search_modal
-                && !matches!(self.modal_mode, SearchMode::Spotify)
-                && !self.search_results.is_empty() =>
+                    && !matches!(self.modal_mode, SearchMode::Spotify)
+                    && !self.search_results.is_empty() =>
             {
                 self.last_activity = std::time::Instant::now();
                 if let Some(idx) = self.play_random_result() {
@@ -145,9 +155,13 @@ impl App {
     }
 
     pub fn on_paste(&mut self, text: String) {
-        if !self.show_search_modal { return; }
+        if !self.show_search_modal {
+            return;
+        }
         let filtered: String = text.chars().filter(|c| !c.is_control()).collect();
-        if filtered.is_empty() { return; }
+        if filtered.is_empty() {
+            return;
+        }
         match self.modal_mode {
             SearchMode::Name => {
                 self.search_query.push_str(&filtered);
@@ -173,7 +187,8 @@ impl App {
                     if self.active_source_is_spotify() {
                         self.adjust_spotify_volume(5).await;
                     } else {
-                        self.adjust_volume(self.config.volume_step as f32 / 100.0).await;
+                        self.adjust_volume(self.config.volume_step as f32 / 100.0)
+                            .await;
                     }
                     return;
                 }
@@ -181,7 +196,8 @@ impl App {
                     if self.active_source_is_spotify() {
                         self.adjust_spotify_volume(-5).await;
                     } else {
-                        self.adjust_volume(-(self.config.volume_step as f32 / 100.0)).await;
+                        self.adjust_volume(-(self.config.volume_step as f32 / 100.0))
+                            .await;
                     }
                     return;
                 }
@@ -194,15 +210,27 @@ impl App {
                                 SpotifyPlayerStatus::Playing => {
                                     self.spotify.player_status = SpotifyPlayerStatus::Paused;
                                     std::thread::spawn(move || {
-                                        if let Ok(rt) = tokio::runtime::Builder::new_current_thread().enable_all().build() {
-                                            let _ = rt.block_on(crate::integrations::spotify::devices::pause_device(&token, &device_id));
+                                        if let Ok(rt) =
+                                            tokio::runtime::Builder::new_current_thread()
+                                                .enable_all()
+                                                .build()
+                                        {
+                                            let _ = rt.block_on(
+                                                crate::integrations::spotify::devices::pause_device(
+                                                    &token, &device_id,
+                                                ),
+                                            );
                                         }
                                     });
                                 }
                                 SpotifyPlayerStatus::Paused => {
                                     self.spotify.player_status = SpotifyPlayerStatus::Playing;
                                     std::thread::spawn(move || {
-                                        if let Ok(rt) = tokio::runtime::Builder::new_current_thread().enable_all().build() {
+                                        if let Ok(rt) =
+                                            tokio::runtime::Builder::new_current_thread()
+                                                .enable_all()
+                                                .build()
+                                        {
                                             let _ = rt.block_on(crate::integrations::spotify::devices::resume_device(&token, &device_id));
                                         }
                                     });
@@ -212,15 +240,25 @@ impl App {
                         } else if let Some(handle) = &self.spotify.player_tx {
                             use super::modal::SpotifyPlayerStatus;
                             match self.spotify.player_status {
-                                SpotifyPlayerStatus::Playing => { handle.pause(); self.spotify.player_status = SpotifyPlayerStatus::Paused; }
-                                SpotifyPlayerStatus::Paused  => { handle.resume(); self.spotify.player_status = SpotifyPlayerStatus::Playing; }
+                                SpotifyPlayerStatus::Playing => {
+                                    handle.pause();
+                                    self.spotify.player_status = SpotifyPlayerStatus::Paused;
+                                }
+                                SpotifyPlayerStatus::Paused => {
+                                    handle.resume();
+                                    self.spotify.player_status = SpotifyPlayerStatus::Playing;
+                                }
                                 _ => {}
                             }
                         }
                     } else {
                         match self.player.state().status {
-                            PlayerStatus::Playing => { self.player.send(PlayerCommand::Pause).await; }
-                            PlayerStatus::Paused  => { self.player.send(PlayerCommand::Resume).await; }
+                            PlayerStatus::Playing => {
+                                self.player.send(PlayerCommand::Pause).await;
+                            }
+                            PlayerStatus::Paused => {
+                                self.player.send(PlayerCommand::Resume).await;
+                            }
                             _ => {}
                         }
                     }
@@ -251,18 +289,24 @@ impl App {
         match key {
             KeyCode::Char(' ') => {
                 match self.player.state().status {
-                    PlayerStatus::Playing => { self.player.send(PlayerCommand::Pause).await; }
-                    PlayerStatus::Paused  => { self.player.send(PlayerCommand::Resume).await; }
+                    PlayerStatus::Playing => {
+                        self.player.send(PlayerCommand::Pause).await;
+                    }
+                    PlayerStatus::Paused => {
+                        self.player.send(PlayerCommand::Resume).await;
+                    }
                     _ => {}
                 }
                 return;
             }
             KeyCode::Char('+') | KeyCode::Char('=') => {
-                self.adjust_volume(self.config.volume_step as f32 / 100.0).await;
+                self.adjust_volume(self.config.volume_step as f32 / 100.0)
+                    .await;
                 return;
             }
             KeyCode::Char('-') => {
-                self.adjust_volume(-(self.config.volume_step as f32 / 100.0)).await;
+                self.adjust_volume(-(self.config.volume_step as f32 / 100.0))
+                    .await;
                 return;
             }
             KeyCode::Char('q') => {
@@ -274,7 +318,7 @@ impl App {
                 return;
             }
             KeyCode::Tab => {
-                let has_recent    = !self.player.state().recent_titles.is_empty();
+                let has_recent = !self.player.state().recent_titles.is_empty();
                 let has_on_demand = !self.on_demand_shows.is_empty() || self.on_demand_loading;
 
                 self.focus = match self.focus {
@@ -305,10 +349,10 @@ impl App {
         }
 
         match self.focus {
-            AppFocus::Stations      => self.on_key_stations(key).await,
-            AppFocus::RecentTracks  => self.on_key_recent(key).await,
+            AppFocus::Stations => self.on_key_stations(key).await,
+            AppFocus::RecentTracks => self.on_key_recent(key).await,
             AppFocus::StationSearch => self.on_key_station_search(key).await,
-            AppFocus::OnDemandList  => self.on_key_on_demand(key).await,
+            AppFocus::OnDemandList => self.on_key_on_demand(key).await,
         }
     }
 
@@ -323,28 +367,36 @@ impl App {
                 return;
             }
             KeyCode::Char('+') | KeyCode::Char('=') => {
-                if matches!(self.modal_mode, SearchMode::Spotify) && self.active_source_is_spotify() {
+                if matches!(self.modal_mode, SearchMode::Spotify) && self.active_source_is_spotify()
+                {
                     self.adjust_spotify_volume(5).await;
                 } else {
-                    self.adjust_volume(self.config.volume_step as f32 / 100.0).await;
+                    self.adjust_volume(self.config.volume_step as f32 / 100.0)
+                        .await;
                 }
                 return;
             }
             KeyCode::Char('-') => {
-                if matches!(self.modal_mode, SearchMode::Spotify) && self.active_source_is_spotify() {
+                if matches!(self.modal_mode, SearchMode::Spotify) && self.active_source_is_spotify()
+                {
                     self.adjust_spotify_volume(-5).await;
                 } else {
-                    self.adjust_volume(-(self.config.volume_step as f32 / 100.0)).await;
+                    self.adjust_volume(-(self.config.volume_step as f32 / 100.0))
+                        .await;
                 }
                 return;
             }
             KeyCode::Char(' ')
                 if matches!(self.modal_mode, SearchMode::Name)
-                && matches!(self.radio_sub_tab, RadioSubTab::Favorites) =>
+                    && matches!(self.radio_sub_tab, RadioSubTab::Favorites) =>
             {
                 match self.player.state().status {
-                    PlayerStatus::Playing => { self.player.send(PlayerCommand::Pause).await; }
-                    PlayerStatus::Paused  => { self.player.send(PlayerCommand::Resume).await; }
+                    PlayerStatus::Playing => {
+                        self.player.send(PlayerCommand::Pause).await;
+                    }
+                    PlayerStatus::Paused => {
+                        self.player.send(PlayerCommand::Resume).await;
+                    }
                     _ => {}
                 }
                 return;
@@ -385,19 +437,19 @@ impl App {
         }
 
         match self.modal_mode {
-            SearchMode::Name         => self.on_key_modal_name(key).await,
-            SearchMode::Genre        => self.on_key_modal_genre(key).await,
-            SearchMode::Country      => self.on_key_modal_country(key).await,
-            SearchMode::Settings     => self.on_key_modal_settings(key),
-            SearchMode::Spotify      => self.on_key_modal_spotify(key).await,
-            SearchMode::Youtube      => {}
+            SearchMode::Name => self.on_key_modal_name(key).await,
+            SearchMode::Genre => self.on_key_modal_genre(key).await,
+            SearchMode::Country => self.on_key_modal_country(key).await,
+            SearchMode::Settings => self.on_key_modal_settings(key),
+            SearchMode::Spotify => self.on_key_modal_spotify(key).await,
+            SearchMode::Youtube => {}
         }
     }
 
     async fn on_key_modal_name(&mut self, key: KeyCode) {
         if matches!(key, KeyCode::Left | KeyCode::Right) {
             self.radio_sub_tab = match self.radio_sub_tab {
-                RadioSubTab::Search    => RadioSubTab::Favorites,
+                RadioSubTab::Search => RadioSubTab::Favorites,
                 RadioSubTab::Favorites => RadioSubTab::Search,
             };
             self.radio_fav_selected = 0;
@@ -520,7 +572,8 @@ impl App {
             return;
         }
         let len = filtered.len();
-        if super::handle_filter_list_key(key, &mut self.genre_filter, &mut self.genre_selected, len) {
+        if super::handle_filter_list_key(key, &mut self.genre_filter, &mut self.genre_selected, len)
+        {
             self.modal_mode = SearchMode::Name;
         }
     }
@@ -540,7 +593,12 @@ impl App {
             return;
         }
         let len = filtered.len();
-        if super::handle_filter_list_key(key, &mut self.country_filter, &mut self.country_selected, len) {
+        if super::handle_filter_list_key(
+            key,
+            &mut self.country_filter,
+            &mut self.country_selected,
+            len,
+        ) {
             self.modal_mode = SearchMode::Name;
         }
     }
@@ -560,7 +618,9 @@ impl App {
             }
             KeyCode::Enter | KeyCode::Char(' ') => {
                 let items = settings_items(self.config.duck_enabled);
-                if let Some(&super::modal::SettingItem::SpotifyClientId) = items.get(self.settings_selected) {
+                if let Some(&super::modal::SettingItem::SpotifyClientId) =
+                    items.get(self.settings_selected)
+                {
                     self.client_id_input = self.config.spotify.client_id.clone();
                     self.editing_client_id = true;
                 } else {
@@ -583,8 +643,12 @@ impl App {
                 self.client_id_input.clear();
                 self.editing_client_id = false;
             }
-            KeyCode::Backspace => { self.client_id_input.pop(); }
-            KeyCode::Char(c) if !c.is_control() => { self.client_id_input.push(c); }
+            KeyCode::Backspace => {
+                self.client_id_input.pop();
+            }
+            KeyCode::Char(c) if !c.is_control() => {
+                self.client_id_input.push(c);
+            }
             _ => {}
         }
     }
@@ -646,11 +710,15 @@ impl App {
                     self.search_query.clear();
                     self.search_results.clear();
                     self.selected = self.selected.min(self.stations.len().saturating_sub(1));
-                } else if matches!(self.player.state().status, PlayerStatus::Error(_) | PlayerStatus::Reconnecting(_)) {
+                } else if matches!(
+                    self.player.state().status,
+                    PlayerStatus::Error(_) | PlayerStatus::Reconnecting(_)
+                ) {
                     self.stop_metadata_polling();
                     self.player.send(PlayerCommand::Stop).await;
                 } else {
-                    self.config.last_selected = self.selected.min(self.stations.len().saturating_sub(1));
+                    self.config.last_selected =
+                        self.selected.min(self.stations.len().saturating_sub(1));
                     self.save_config();
                     self.stop_metadata_polling();
                     self.player.send(PlayerCommand::Stop).await;
@@ -675,8 +743,7 @@ impl App {
             KeyCode::Esc => {
                 self.search_query.clear();
                 self.search_results.clear();
-                self.selected = self.selected
-                    .min(self.stations.len().saturating_sub(1));
+                self.selected = self.selected.min(self.stations.len().saturating_sub(1));
                 self.focus = AppFocus::Stations;
             }
             KeyCode::Enter => {
@@ -690,8 +757,7 @@ impl App {
                 self.search_query.pop();
                 if self.search_query.is_empty() {
                     self.search_results.clear();
-                    self.selected = self.selected
-                        .min(self.stations.len().saturating_sub(1));
+                    self.selected = self.selected.min(self.stations.len().saturating_sub(1));
                     self.focus = AppFocus::Stations;
                 } else {
                     self.selected = self.favorites.len() + self.stations.len();
@@ -724,11 +790,14 @@ impl App {
             if let Some(ref playback) = self.spotify.playback.clone() {
                 if playback.duration_ms > 0 {
                     let has_name = self.config.spotify.display_name.is_some();
-                    let has_plan = self.spotify.is_premium || self.config.spotify.followers.is_some();
+                    let has_plan =
+                        self.spotify.is_premium || self.config.spotify.followers.is_some();
                     let profile_rows = u16::from(has_name || self.config.spotify.country.is_some())
                         + u16::from(has_plan);
                     if let Some(prog) = crate::ui::renderer::spotify_screensaver_progress_rect(
-                        self.terminal_area, profile_rows, self.config.screensaver_clock,
+                        self.terminal_area,
+                        profile_rows,
+                        self.config.screensaver_clock,
                     ) {
                         if row == prog.y && col >= prog.x && col < prog.x + prog.width {
                             let time_cur = {
@@ -739,24 +808,28 @@ impl App {
                                 let s = playback.duration_ms / 1000;
                                 format!("{}:{:02}", s / 60, s % 60)
                             };
-                            let vol_str    = format!("vol {}%", playback.volume_pct);
+                            let vol_str = format!("vol {}%", playback.volume_pct);
                             let prefix_len = (time_cur.len() + 1) as u16;
                             let suffix_len = (format!(" {} {}", time_tot, vol_str).len()) as u16;
-                            let bar_start  = prog.x + prefix_len;
-                            let bar_w      = prog.width.saturating_sub(prefix_len + suffix_len);
+                            let bar_start = prog.x + prefix_len;
+                            let bar_w = prog.width.saturating_sub(prefix_len + suffix_len);
                             if bar_w > 0 && col >= bar_start {
                                 let fill_col = col.saturating_sub(bar_start);
-                                let ratio    = (fill_col as f32 / bar_w as f32).clamp(0.0, 1.0);
-                                let pos_ms   = (ratio * playback.duration_ms as f32) as u32;
+                                let ratio = (fill_col as f32 / bar_w as f32).clamp(0.0, 1.0);
+                                let pos_ms = (ratio * playback.duration_ms as f32) as u32;
                                 if let Some(ref mut p) = self.spotify.playback {
                                     p.progress_ms = pos_ms;
                                 }
                                 if let Some(token) = self.spotify.access_token.clone() {
-                                    let device_id = self.spotify.active_device_id.clone().unwrap_or_default();
+                                    let device_id =
+                                        self.spotify.active_device_id.clone().unwrap_or_default();
                                     tokio::spawn(async move {
-                                        if let Err(e) = crate::integrations::spotify::devices::seek_playback(
-                                            &token, &device_id, pos_ms,
-                                        ).await {
+                                        if let Err(e) =
+                                            crate::integrations::spotify::devices::seek_playback(
+                                                &token, &device_id, pos_ms,
+                                            )
+                                            .await
+                                        {
                                             tracing::warn!("spotify seek error: {e}");
                                         }
                                     });
@@ -770,14 +843,16 @@ impl App {
             return;
         }
 
-        if self.show_search_modal { return; }
+        if self.show_search_modal {
+            return;
+        }
 
         let h = self.terminal_area.height;
         if h == 0 {
             return;
         }
         let content_start: u16 = if h >= 11 { 4 } else { 2 };
-        let footer_rows:   u16 = if h >= 11 { 5 } else { 2 };
+        let footer_rows: u16 = if h >= 11 { 5 } else { 2 };
         let list_max_row = h.saturating_sub(footer_rows);
         if row < content_start || row >= list_max_row {
             return;
@@ -803,16 +878,30 @@ impl App {
     pub async fn on_mouse_scroll(&mut self, delta: i32) {
         self.last_activity = Instant::now();
         if self.show_search_modal {
-            let (len, sel) = if self.search_results.is_empty() && matches!(self.modal_mode, SearchMode::Genre) {
-                (filter_items(GENRES, &self.genre_filter).len(), &mut self.genre_selected)
-            } else if self.search_results.is_empty() && matches!(self.modal_mode, SearchMode::Country) {
-                (filter_items(COUNTRIES, &self.country_filter).len(), &mut self.country_selected)
-            } else if matches!(self.modal_mode, SearchMode::Settings) {
-                (settings_items(self.config.duck_enabled).len(), &mut self.settings_selected)
-            } else {
-                (self.search_results.len(), &mut self.modal_selected)
-            };
-            if len == 0 { return; }
+            let (len, sel) =
+                if self.search_results.is_empty() && matches!(self.modal_mode, SearchMode::Genre) {
+                    (
+                        filter_items(GENRES, &self.genre_filter).len(),
+                        &mut self.genre_selected,
+                    )
+                } else if self.search_results.is_empty()
+                    && matches!(self.modal_mode, SearchMode::Country)
+                {
+                    (
+                        filter_items(COUNTRIES, &self.country_filter).len(),
+                        &mut self.country_selected,
+                    )
+                } else if matches!(self.modal_mode, SearchMode::Settings) {
+                    (
+                        settings_items(self.config.duck_enabled).len(),
+                        &mut self.settings_selected,
+                    )
+                } else {
+                    (self.search_results.len(), &mut self.modal_selected)
+                };
+            if len == 0 {
+                return;
+            }
             *sel = scroll_by(*sel, delta, len);
             return;
         }
@@ -820,12 +909,16 @@ impl App {
         match self.focus {
             AppFocus::RecentTracks => {
                 let len = self.player.state().recent_titles.len();
-                if len == 0 { return; }
+                if len == 0 {
+                    return;
+                }
                 self.recent_selected = scroll_by(self.recent_selected, delta, len);
             }
             AppFocus::OnDemandList => {
                 let len = self.on_demand_shows.len();
-                if len == 0 { return; }
+                if len == 0 {
+                    return;
+                }
                 self.on_demand_selected = scroll_by(self.on_demand_selected, delta, len);
             }
             AppFocus::Stations | AppFocus::StationSearch => {
@@ -836,7 +929,9 @@ impl App {
 
     pub async fn on_double_click(&mut self) {
         self.last_activity = Instant::now();
-        if self.show_search_modal { return; }
+        if self.show_search_modal {
+            return;
+        }
         match self.focus {
             AppFocus::Stations | AppFocus::StationSearch => {
                 self.click_flash = Some((self.selected, Instant::now()));
@@ -887,14 +982,14 @@ impl App {
                     self.seek_input.clear();
                 } else if let Some(show) = self.on_demand_shows.get(self.on_demand_selected) {
                     let station = Station {
-                        key:              format!("ondemand_{}", show.id),
-                        name:             show.title.clone(),
-                        url:              show.audio_url.clone(),
+                        key: format!("ondemand_{}", show.id),
+                        name: show.title.clone(),
+                        url: show.audio_url.clone(),
                         metadata_api_url: None,
-                        history_api_url:  None,
-                        schedule_url:     None,
-                        show_countdown:   false,
-                        bitrate_kbps:     None,
+                        history_api_url: None,
+                        schedule_url: None,
+                        show_countdown: false,
+                        bitrate_kbps: None,
                     };
                     self.play_station(station).await;
                 }
@@ -904,13 +999,18 @@ impl App {
             }
             KeyCode::Char('[') => {
                 let pos = self.player.state().playback_pos_secs.unwrap_or(0.0);
-                self.player.send(PlayerCommand::Seek((pos - 60.0).max(0.0))).await;
+                self.player
+                    .send(PlayerCommand::Seek((pos - 60.0).max(0.0)))
+                    .await;
             }
             KeyCode::Char(']') => {
-                let state  = self.player.state();
-                let pos    = state.playback_pos_secs.unwrap_or(0.0);
+                let state = self.player.state();
+                let pos = state.playback_pos_secs.unwrap_or(0.0);
                 let target = pos + 60.0;
-                let target = state.playback_duration_secs.map(|d| target.min(d)).unwrap_or(target);
+                let target = state
+                    .playback_duration_secs
+                    .map(|d| target.min(d))
+                    .unwrap_or(target);
                 self.player.send(PlayerCommand::Seek(target)).await;
             }
             KeyCode::Char(c) if c.is_ascii_digit() || c == ':' => {
@@ -931,35 +1031,51 @@ impl App {
 
     fn apply_settings_toggle(&mut self, idx: usize) {
         use crate::i18n;
-        let Some(&item) = settings_items(self.config.duck_enabled).get(idx) else { return };
+        let Some(&item) = settings_items(self.config.duck_enabled).get(idx) else {
+            return;
+        };
         match item {
-            super::modal::SettingItem::Autoplay        => self.config.autoplay_last  = !self.config.autoplay_last,
-            super::modal::SettingItem::RestoreVolume   => self.config.restore_volume = !self.config.restore_volume,
-            super::modal::SettingItem::Crossfade       => self.config.crossfade_next(),
-            super::modal::SettingItem::VolumeStep      => self.config.volume_step_next(),
-            super::modal::SettingItem::Prebuffer       => {
+            super::modal::SettingItem::Autoplay => {
+                self.config.autoplay_last = !self.config.autoplay_last
+            }
+            super::modal::SettingItem::RestoreVolume => {
+                self.config.restore_volume = !self.config.restore_volume
+            }
+            super::modal::SettingItem::Crossfade => self.config.crossfade_next(),
+            super::modal::SettingItem::VolumeStep => self.config.volume_step_next(),
+            super::modal::SettingItem::Prebuffer => {
                 self.config.prebuffer_next();
                 let secs = self.config.prebuffer_secs as f32;
                 let cmd_tx = self.player.clone_sender();
                 tokio::spawn(async move {
-                    let _ = cmd_tx.send(crate::audio::PlayerCommand::SetPrebuffer(secs)).await;
+                    let _ = cmd_tx
+                        .send(crate::audio::PlayerCommand::SetPrebuffer(secs))
+                        .await;
                 });
             }
-            super::modal::SettingItem::OverlayMode     => self.config.overlay_mode     = self.config.overlay_mode.next(),
-            super::modal::SettingItem::OverlayAlpha    => {
+            super::modal::SettingItem::OverlayMode => {
+                self.config.overlay_mode = self.config.overlay_mode.next()
+            }
+            super::modal::SettingItem::OverlayAlpha => {
                 self.config.overlay_alpha = match self.config.overlay_alpha {
                     v if v < 30 => 30,
                     v if v < 50 => 50,
                     v if v < 70 => 70,
                     v if v < 90 => 90,
-                    _           => 20,
+                    _ => 20,
                 };
             }
-            super::modal::SettingItem::OverlayPosition => self.config.overlay_position = self.config.overlay_position.next(),
-            super::modal::SettingItem::Screensaver      => self.config.screensaver_next(),
-            super::modal::SettingItem::ScreensaverClock => self.config.screensaver_clock = !self.config.screensaver_clock,
-            super::modal::SettingItem::DuckEnabled     => self.config.duck_enabled = !self.config.duck_enabled,
-            super::modal::SettingItem::DuckVolume      => {
+            super::modal::SettingItem::OverlayPosition => {
+                self.config.overlay_position = self.config.overlay_position.next()
+            }
+            super::modal::SettingItem::Screensaver => self.config.screensaver_next(),
+            super::modal::SettingItem::ScreensaverClock => {
+                self.config.screensaver_clock = !self.config.screensaver_clock
+            }
+            super::modal::SettingItem::DuckEnabled => {
+                self.config.duck_enabled = !self.config.duck_enabled
+            }
+            super::modal::SettingItem::DuckVolume => {
                 self.config.duck_volume = match self.config.duck_volume {
                     v if v < 20 => 20,
                     v if v < 30 => 30,
@@ -968,12 +1084,16 @@ impl App {
                     v if v < 60 => 60,
                     v if v < 70 => 70,
                     v if v < 80 => 80,
-                    _           => 10,
+                    _ => 10,
                 };
             }
-            super::modal::SettingItem::MediaKeys       => self.config.media_keys    = !self.config.media_keys,
-            super::modal::SettingItem::TrayIcon        => self.config.tray_icon     = !self.config.tray_icon,
-            super::modal::SettingItem::Notifications   => self.config.notifications = !self.config.notifications,
+            super::modal::SettingItem::MediaKeys => {
+                self.config.media_keys = !self.config.media_keys
+            }
+            super::modal::SettingItem::TrayIcon => self.config.tray_icon = !self.config.tray_icon,
+            super::modal::SettingItem::Notifications => {
+                self.config.notifications = !self.config.notifications
+            }
             super::modal::SettingItem::Language => {
                 self.config.language = self.config.language.next();
                 i18n::set_language(self.config.language);
@@ -985,7 +1105,9 @@ impl App {
                 self.config.spotify.start_on_spotify = !self.config.spotify.start_on_spotify;
             }
             super::modal::SettingItem::SpotifyClientId => {}
-            super::modal::SettingItem::AutoUpdate => self.config.auto_update = !self.config.auto_update,
+            super::modal::SettingItem::AutoUpdate => {
+                self.config.auto_update = !self.config.auto_update
+            }
         }
         self.save_config();
         if let Some(ref tx) = self.windows_tx {
@@ -1025,7 +1147,7 @@ impl App {
             _ => {
                 use super::modal::SpotifySubTab;
                 match self.spotify.sub_tab {
-                    SpotifySubTab::Search  => self.on_key_spotify_search(key).await,
+                    SpotifySubTab::Search => self.on_key_spotify_search(key).await,
                     SpotifySubTab::Devices => self.on_key_spotify_devices(key).await,
                 }
             }
@@ -1042,7 +1164,7 @@ impl App {
                 if matches!(self.spotify.status, SpotifyAuthStatus::Connecting) {
                     abort_task(&mut self.spotify.auth_task);
                     self.spotify.auth_rx = None;
-                    self.spotify.status  = SpotifyAuthStatus::Idle;
+                    self.spotify.status = SpotifyAuthStatus::Idle;
                 } else {
                     self.should_quit = true;
                 }
@@ -1077,7 +1199,11 @@ impl App {
                         SpotifyPlayerStatus::Playing => {
                             self.spotify.player_status = SpotifyPlayerStatus::Paused;
                             tokio::spawn(async move {
-                                if let Err(e) = crate::integrations::spotify::devices::pause_device(&token, &device_id).await {
+                                if let Err(e) = crate::integrations::spotify::devices::pause_device(
+                                    &token, &device_id,
+                                )
+                                .await
+                                {
                                     tracing::warn!("spotify pause error: {e}");
                                 }
                             });
@@ -1085,7 +1211,12 @@ impl App {
                         SpotifyPlayerStatus::Paused => {
                             self.spotify.player_status = SpotifyPlayerStatus::Playing;
                             tokio::spawn(async move {
-                                if let Err(e) = crate::integrations::spotify::devices::resume_device(&token, &device_id).await {
+                                if let Err(e) =
+                                    crate::integrations::spotify::devices::resume_device(
+                                        &token, &device_id,
+                                    )
+                                    .await
+                                {
                                     tracing::warn!("spotify resume error: {e}");
                                 }
                             });
@@ -1095,7 +1226,7 @@ impl App {
                 } else if let Some(handle) = &self.spotify.player_tx {
                     match self.spotify.player_status {
                         SpotifyPlayerStatus::Playing => handle.pause(),
-                        SpotifyPlayerStatus::Paused  => handle.resume(),
+                        SpotifyPlayerStatus::Paused => handle.resume(),
                         _ => {}
                     }
                 }
@@ -1128,26 +1259,35 @@ impl App {
                 }
             }
             KeyCode::Enter => {
-                if let Some(track) = self.spotify.search_results.get(self.spotify.search_selected).cloned() {
+                if let Some(track) = self
+                    .spotify
+                    .search_results
+                    .get(self.spotify.search_selected)
+                    .cloned()
+                {
                     self.player.send(PlayerCommand::Stop).await;
-                    self.save_notice        = Some(t("notice.spotify_radio_stopped"));
+                    self.save_notice = Some(t("notice.spotify_radio_stopped"));
                     self.save_notice_is_dup = false;
-                    self.notice_until       = Some(std::time::Instant::now() + std::time::Duration::from_secs(5));
+                    self.notice_until =
+                        Some(std::time::Instant::now() + std::time::Duration::from_secs(5));
                     if let Some(device_id) = self.spotify.active_device_id.clone() {
                         let token = self.spotify.access_token.clone().unwrap_or_default();
-                        let uri   = track.uri.clone();
-                        self.spotify.now_playing   = Some(track);
+                        let uri = track.uri.clone();
+                        self.spotify.now_playing = Some(track);
                         self.spotify.player_status = SpotifyPlayerStatus::Loading;
                         let (tx, rx) = std::sync::mpsc::channel();
                         self.spotify.play_result_rx = Some(rx);
                         tokio::spawn(async move {
-                            let result = crate::integrations::spotify::devices::play_on_device(&token, &device_id, &uri).await;
+                            let result = crate::integrations::spotify::devices::play_on_device(
+                                &token, &device_id, &uri,
+                            )
+                            .await;
                             let _ = tx.send(result);
                         });
                         self.start_playback_polling();
                     } else if let Some(handle) = &self.spotify.player_tx {
                         handle.play(track.clone());
-                        self.spotify.now_playing   = Some(track);
+                        self.spotify.now_playing = Some(track);
                         self.spotify.player_status = SpotifyPlayerStatus::Loading;
                     } else {
                         self.spotify.player_status = SpotifyPlayerStatus::Error(
@@ -1191,7 +1331,11 @@ impl App {
             KeyCode::Enter => {
                 let title = titles[self.recent_selected].clone();
                 let state = self.player.state();
-                let key_str = state.station.as_ref().map(|s| s.key.as_str()).unwrap_or("unknown");
+                let key_str = state
+                    .station
+                    .as_ref()
+                    .map(|s| s.key.as_str())
+                    .unwrap_or("unknown");
                 match library::save_track(&title, key_str) {
                     library::SaveResult::Saved => {
                         self.saved_tracks = library::load_saved_tracks(key_str);
@@ -1208,17 +1352,31 @@ impl App {
                 let state = self.player.state();
                 if state.preview_title.is_some() || state.preview_searching {
                     self.player.send(PlayerCommand::StopPreview).await;
-                    self.player.send(PlayerCommand::SetPreviewSearching(false)).await;
+                    self.player
+                        .send(PlayerCommand::SetPreviewSearching(false))
+                        .await;
                 } else if !titles.is_empty() {
                     let raw = titles[self.recent_selected].clone();
                     let cmd_tx = self.player.clone_sender();
                     let _ = cmd_tx.send(PlayerCommand::SetPreviewSearching(true)).await;
-                    let _ = cmd_tx.send(PlayerCommand::SetPreviewLoadingTrack(Some(raw.clone()))).await;
+                    let _ = cmd_tx
+                        .send(PlayerCommand::SetPreviewLoadingTrack(Some(raw.clone())))
+                        .await;
                     tokio::spawn(async move {
                         match deezer_preview(&raw).await {
                             Some((url, title)) => {
-                                let _ = cmd_tx.send(PlayerCommand::SetPreviewLoadingTrack(None)).await;
-                                if cmd_tx.send(PlayerCommand::PlayPreview { url, title, raw_track: raw }).await.is_err() {
+                                let _ = cmd_tx
+                                    .send(PlayerCommand::SetPreviewLoadingTrack(None))
+                                    .await;
+                                if cmd_tx
+                                    .send(PlayerCommand::PlayPreview {
+                                        url,
+                                        title,
+                                        raw_track: raw,
+                                    })
+                                    .await
+                                    .is_err()
+                                {
                                     return;
                                 }
                                 tokio::time::sleep(std::time::Duration::from_secs(35)).await;
@@ -1226,9 +1384,14 @@ impl App {
                             }
                             None => {
                                 tracing::warn!("Deezer: sin resultado para '{raw}'");
-                                let _ = cmd_tx.send(PlayerCommand::SetPreviewLoadingTrack(None)).await;
-                                let _ = cmd_tx.send(PlayerCommand::SetPreviewSearching(false)).await;
-                                let _ = cmd_tx.send(PlayerCommand::MarkPreviewUnavailable(raw)).await;
+                                let _ = cmd_tx
+                                    .send(PlayerCommand::SetPreviewLoadingTrack(None))
+                                    .await;
+                                let _ =
+                                    cmd_tx.send(PlayerCommand::SetPreviewSearching(false)).await;
+                                let _ = cmd_tx
+                                    .send(PlayerCommand::MarkPreviewUnavailable(raw))
+                                    .await;
                             }
                         }
                     });

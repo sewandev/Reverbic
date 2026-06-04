@@ -2,10 +2,10 @@ use serde::Deserialize;
 
 #[derive(Debug, Clone)]
 pub struct EnrichedTrack {
-    pub artist:        String,
-    pub title:        String,
-    pub album:        String,
-    pub year:         Option<u16>,
+    pub artist: String,
+    pub title: String,
+    pub album: String,
+    pub year: Option<u16>,
     pub duration_secs: u32,
 }
 
@@ -13,7 +13,8 @@ pub async fn enrich(icy_title: &str) -> Option<EnrichedTrack> {
     let (artist, title) = parse_icy(icy_title)?;
     let query = format!("{} {}", artist, title);
 
-    try_deezer(&query, &artist, &title).await
+    try_deezer(&query, &artist, &title)
+        .await
         .or(try_itunes(&query, &artist, &title).await)
 }
 
@@ -42,10 +43,10 @@ async fn try_deezer(query: &str, artist: &str, title: &str) -> Option<EnrichedTr
     }
     #[derive(Deserialize)]
     struct DeezerTrack {
-        title:    String,
+        title: String,
         duration: u32,
-        artist:   DeezerArtist,
-        album:    DeezerAlbum,
+        artist: DeezerArtist,
+        album: DeezerAlbum,
     }
     #[derive(Deserialize)]
     struct DeezerArtist {
@@ -64,19 +65,18 @@ async fn try_deezer(query: &str, artist: &str, title: &str) -> Option<EnrichedTr
     }
 
     Some(EnrichedTrack {
-        artist:        track.artist.name,
-        title:         track.title,
-        album:         track.album.title,
-        year:          None,
+        artist: track.artist.name,
+        title: track.title,
+        album: track.album.title,
+        year: None,
         duration_secs: track.duration,
     })
 }
 
 async fn try_itunes(query: &str, artist: &str, title: &str) -> Option<EnrichedTrack> {
     let encoded = encode(query);
-    let url = format!(
-        "https://itunes.apple.com/search?term={encoded}&entity=song&limit=1&media=music"
-    );
+    let url =
+        format!("https://itunes.apple.com/search?term={encoded}&entity=song&limit=1&media=music");
     let client = crate::http::http_client_timeout(8)?;
     let resp = client.get(&url).send().await.ok()?;
     if !resp.status().is_success() {
@@ -91,10 +91,10 @@ async fn try_itunes(query: &str, artist: &str, title: &str) -> Option<EnrichedTr
     #[derive(Deserialize)]
     #[serde(rename_all = "camelCase")]
     struct ItunesTrack {
-        track_name:        String,
-        artist_name:       String,
-        collection_name:   String,
-        release_date:      Option<String>,
+        track_name: String,
+        artist_name: String,
+        collection_name: String,
+        release_date: Option<String>,
         track_time_millis: Option<u64>,
     }
 
@@ -105,16 +105,17 @@ async fn try_itunes(query: &str, artist: &str, title: &str) -> Option<EnrichedTr
         return None;
     }
 
-    let year = track.release_date
+    let year = track
+        .release_date
         .as_deref()
         .and_then(|d| d.get(..4))
         .and_then(|y| y.parse().ok());
     let duration_secs = track.track_time_millis.unwrap_or(0) as u32 / 1000;
 
     Some(EnrichedTrack {
-        artist:        track.artist_name,
-        title:         track.track_name,
-        album:         track.collection_name,
+        artist: track.artist_name,
+        title: track.track_name,
+        album: track.collection_name,
         year,
         duration_secs,
     })
@@ -129,8 +130,9 @@ fn fuzzy_match(a: &str, b: &str) -> bool {
 fn encode(s: &str) -> String {
     s.bytes().fold(String::new(), |mut out, b| {
         match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9'
-            | b'-' | b'_' | b'.' | b'~' => out.push(b as char),
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                out.push(b as char)
+            }
             b' ' => out.push('+'),
             _ => out.push_str(&format!("%{b:02X}")),
         }

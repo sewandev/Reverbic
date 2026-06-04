@@ -1,20 +1,16 @@
-use std::sync::Arc;
 use std::sync::mpsc::SyncSender;
+use std::sync::Arc;
 
 use librespot_connect::{ConnectConfig, LoadRequest, LoadRequestOptions, Spirc};
-use librespot_core::{
-    Session, SessionConfig,
-    authentication::Credentials,
-    cache::Cache,
-};
 use librespot_core::config::DeviceType;
+use librespot_core::{authentication::Credentials, cache::Cache, Session, SessionConfig};
 use librespot_playback::{
     audio_backend,
     config::{AudioFormat, PlayerConfig},
-    mixer::{Mixer, MixerConfig, softmixer::SoftMixer},
+    mixer::{softmixer::SoftMixer, Mixer, MixerConfig},
     player::Player,
 };
-use tokio::sync::mpsc::{UnboundedSender, UnboundedReceiver, unbounded_channel};
+use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 
 use super::{SpotifyPlayerCmd, SpotifyPlayerEvent, SpotifyTrack};
 
@@ -55,9 +51,19 @@ async fn run_player(
         ..Default::default()
     };
     let cache_dir = std::env::var("APPDATA")
-        .map(|p| std::path::PathBuf::from(p).join(".reverbic").join("librespot"))
+        .map(|p| {
+            std::path::PathBuf::from(p)
+                .join(".reverbic")
+                .join("librespot")
+        })
         .unwrap_or_else(|_| std::path::PathBuf::from(".reverbic").join("librespot"));
-    let cache = Cache::new(Some(&cache_dir), None::<&std::path::PathBuf>, None::<&std::path::PathBuf>, None).ok();
+    let cache = Cache::new(
+        Some(&cache_dir),
+        None::<&std::path::PathBuf>,
+        None::<&std::path::PathBuf>,
+        None,
+    )
+    .ok();
     let credentials = match cache.as_ref().and_then(|c| c.credentials()) {
         Some(cached) => {
             tracing::info!("librespot: usando credenciales cacheadas");
@@ -70,15 +76,13 @@ async fn run_player(
     };
 
     let session = Session::new(session_config, cache);
-    let mixer: Arc<dyn Mixer> = Arc::new(
-        match SoftMixer::open(MixerConfig::default()) {
-            Ok(m) => m,
-            Err(e) => {
-                let _ = event_tx.try_send(SpotifyPlayerEvent::Error(format!("Mixer: {e}")));
-                return;
-            }
+    let mixer: Arc<dyn Mixer> = Arc::new(match SoftMixer::open(MixerConfig::default()) {
+        Ok(m) => m,
+        Err(e) => {
+            let _ = event_tx.try_send(SpotifyPlayerEvent::Error(format!("Mixer: {e}")));
+            return;
         }
-    );
+    });
 
     let backend = match audio_backend::find(None) {
         Some(b) => b,
@@ -89,8 +93,8 @@ async fn run_player(
             return;
         }
     };
-    let format      = AudioFormat::default();
-    let volume_fn   = mixer.get_soft_volume();
+    let format = AudioFormat::default();
+    let volume_fn = mixer.get_soft_volume();
 
     let player = Player::new(
         PlayerConfig::default(),
@@ -102,12 +106,12 @@ async fn run_player(
     let mut librespot_events = player.get_player_event_channel();
 
     let connect_config = ConnectConfig {
-        name:           "Reverbic".to_string(),
-        device_type:    DeviceType::Computer,
+        name: "Reverbic".to_string(),
+        device_type: DeviceType::Computer,
         initial_volume: 65535 / 2,
-        is_group:       false,
+        is_group: false,
         disable_volume: false,
-        volume_steps:   64,
+        volume_steps: 64,
     };
 
     let (spirc, spirc_task) = match Spirc::new(
@@ -116,12 +120,12 @@ async fn run_player(
         credentials,
         player.clone(),
         mixer.clone(),
-    ).await {
+    )
+    .await
+    {
         Ok(r) => r,
         Err(e) => {
-            let _ = event_tx.try_send(SpotifyPlayerEvent::Error(
-                format!("Spirc init: {e}"),
-            ));
+            let _ = event_tx.try_send(SpotifyPlayerEvent::Error(format!("Spirc init: {e}")));
             return;
         }
     };

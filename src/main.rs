@@ -1,4 +1,3 @@
-
 #![deny(warnings)]
 
 use std::panic;
@@ -11,21 +10,21 @@ use tracing_subscriber::{fmt, fmt::time::ChronoLocal, EnvFilter};
 
 mod app;
 mod audio;
-mod http;
-mod install;
-mod shell;
-mod game_detect;
-mod integrations;
 mod config;
 mod error;
 mod favorites;
+mod game_detect;
+mod http;
 mod i18n;
+mod install;
+mod integrations;
 mod library;
 mod metadata;
 #[cfg(target_os = "windows")]
 mod overlay;
 mod preview;
 mod schedule;
+mod shell;
 mod station;
 mod terminal;
 mod ui;
@@ -39,7 +38,7 @@ static SHUTDOWN_REQUESTED: AtomicBool = AtomicBool::new(false);
 
 #[cfg(target_os = "windows")]
 unsafe extern "system" fn console_ctrl_handler(ctrl_type: u32) -> windows::Win32::Foundation::BOOL {
-    const CTRL_C_EVENT:     u32 = 0;
+    const CTRL_C_EVENT: u32 = 0;
     const CTRL_BREAK_EVENT: u32 = 1;
     const CTRL_CLOSE_EVENT: u32 = 2;
     if ctrl_type == CTRL_C_EVENT || ctrl_type == CTRL_BREAK_EVENT || ctrl_type == CTRL_CLOSE_EVENT {
@@ -86,8 +85,7 @@ fn init_logging() -> Option<tracing_appender::non_blocking::WorkerGuard> {
             fmt()
                 .with_timer(ChronoLocal::new("%Y-%m-%dT%H:%M:%S%.3f%z".to_string()))
                 .with_env_filter(
-                    EnvFilter::from_default_env()
-                        .add_directive(tracing::Level::DEBUG.into()),
+                    EnvFilter::from_default_env().add_directive(tracing::Level::DEBUG.into()),
                 )
                 .with_writer(non_blocking)
                 .with_ansi(false)
@@ -129,14 +127,14 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
         if let Some(saved) = app.config.last_station.clone() {
             use crate::station::{enrich, find_enrichment, Station};
             let mut station = Station {
-                key:              saved.key.clone(),
-                name:             saved.name.clone(),
-                url:              saved.url.clone(),
+                key: saved.key.clone(),
+                name: saved.name.clone(),
+                url: saved.url.clone(),
                 metadata_api_url: None,
-                history_api_url:  None,
-                schedule_url:     None,
-                show_countdown:   false,
-                bitrate_kbps:     saved.bitrate_kbps,
+                history_api_url: None,
+                schedule_url: None,
+                show_countdown: false,
+                bitrate_kbps: saved.bitrate_kbps,
             };
             if let Some(enrichment) = find_enrichment(&saved.name) {
                 enrich(&mut station, enrichment);
@@ -151,6 +149,7 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
 
     loop {
         app.poll_dead_url();
+        app.poll_favorites_enrichment();
         app.poll_update_check();
         app.poll_update_download();
         app.poll_search_results();
@@ -165,11 +164,19 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
         app.poll_spotify_player_events();
         app.poll_spotify_devices();
         app.poll_remote_playback();
-        if app.notice_until.map(|t| std::time::Instant::now() >= t).unwrap_or(false) {
-            app.save_notice  = None;
+        if app
+            .notice_until
+            .map(|t| std::time::Instant::now() >= t)
+            .unwrap_or(false)
+        {
+            app.save_notice = None;
             app.notice_until = None;
         }
-        if app.click_flash.map(|(_, t)| t.elapsed() >= std::time::Duration::from_millis(300)).unwrap_or(false) {
+        if app
+            .click_flash
+            .map(|(_, t)| t.elapsed() >= std::time::Duration::from_millis(300))
+            .unwrap_or(false)
+        {
             app.click_flash = None;
         }
         if let Some(title) = app.player.state().title.clone() {
@@ -245,23 +252,23 @@ async fn handle_event(app: &mut App, maybe_event: Option<std::io::Result<Event>>
         Some(Ok(Event::Paste(text))) => {
             app.on_paste(text);
         }
-        Some(Ok(Event::Mouse(mouse))) => {
-            match mouse.kind {
-                MouseEventKind::ScrollUp => {
-                    app.on_mouse_scroll(if app.show_search_modal { -1 } else { -3 }).await;
-                }
-                MouseEventKind::ScrollDown => {
-                    app.on_mouse_scroll(if app.show_search_modal { 1 } else { 3 }).await;
-                }
-                MouseEventKind::Down(_) if click_count >= 2 => {
-                    app.on_double_click().await;
-                }
-                MouseEventKind::Down(_) => {
-                    app.on_click(mouse.column, mouse.row).await;
-                }
-                _ => {}
+        Some(Ok(Event::Mouse(mouse))) => match mouse.kind {
+            MouseEventKind::ScrollUp => {
+                app.on_mouse_scroll(if app.show_search_modal { -1 } else { -3 })
+                    .await;
             }
-        }
+            MouseEventKind::ScrollDown => {
+                app.on_mouse_scroll(if app.show_search_modal { 1 } else { 3 })
+                    .await;
+            }
+            MouseEventKind::Down(_) if click_count >= 2 => {
+                app.on_double_click().await;
+            }
+            MouseEventKind::Down(_) => {
+                app.on_click(mouse.column, mouse.row).await;
+            }
+            _ => {}
+        },
         Some(Ok(Event::Resize(_, _))) => {
             tracing::debug!("terminal resized");
         }

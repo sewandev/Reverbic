@@ -21,8 +21,12 @@ impl App {
             match tokio::time::timeout(
                 std::time::Duration::from_secs(8),
                 on_demand::fetch_shows_for_playlist(playlist_id),
-            ).await {
-                Ok(result) => { let _ = tx.send(result.unwrap_or_default()); }
+            )
+            .await
+            {
+                Ok(result) => {
+                    let _ = tx.send(result.unwrap_or_default());
+                }
                 Err(_) => {
                     tracing::warn!("on_demand fetch timeout para playlist {playlist_id}");
                     let _ = tx.send(Vec::new());

@@ -4,13 +4,16 @@ pub mod radio_browser;
 pub mod registry;
 
 pub use enrichment::{enrich, find_enrichment};
-pub use radio_browser::{is_uuid, search_stations, search_stations_by_tag, search_stations_by_country, fetch_station_details, fetch_station_details_by_name, DynamicStation, StationDetails, GENRES, COUNTRIES};
+pub use radio_browser::{
+    fetch_station_details, fetch_station_details_by_name, is_uuid, search_stations,
+    search_stations_by_country, search_stations_by_tag, DynamicStation, StationDetails, COUNTRIES,
+    GENRES,
+};
 pub use registry::Station;
 
 use nucleo_matcher::{
-    Config, Matcher,
     pattern::{CaseMatching, Normalization, Pattern},
-    Utf32Str,
+    Config, Matcher, Utf32Str,
 };
 
 pub fn filter_items(
@@ -44,12 +47,12 @@ mod tests {
     use super::*;
 
     const SAMPLE: &[(&str, &str)] = &[
-        ("jazz",       "Jazz"),
-        ("classical",  "Classical"),
-        ("dnb",        "Drum and Bass"),
+        ("jazz", "Jazz"),
+        ("classical", "Classical"),
+        ("dnb", "Drum and Bass"),
         ("electronic", "Electronic"),
-        ("country",    "Country"),
-        ("latin",      "Latin"),
+        ("country", "Country"),
+        ("latin", "Latin"),
     ];
 
     #[test]

@@ -18,7 +18,10 @@ mod tests {
     #[test]
     fn parse_title_standard() {
         let raw = "StreamTitle='Armin van Buuren - Blah Blah';StreamUrl='';";
-        assert_eq!(parse_icy_title(raw), Some("Armin van Buuren - Blah Blah".to_string()));
+        assert_eq!(
+            parse_icy_title(raw),
+            Some("Armin van Buuren - Blah Blah".to_string())
+        );
     }
 
     #[test]

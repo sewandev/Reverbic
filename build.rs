@@ -6,10 +6,14 @@ fn main() {
 }
 
 fn load_dotenv() {
-    let Ok(content) = std::fs::read_to_string(".env") else { return };
+    let Ok(content) = std::fs::read_to_string(".env") else {
+        return;
+    };
     for line in content.lines() {
         let line = line.trim();
-        if line.is_empty() || line.starts_with('#') { continue; }
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
         if let Some((key, val)) = line.split_once('=') {
             let key = key.trim();
             let val = val.trim().trim_matches('"');

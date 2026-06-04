@@ -42,7 +42,10 @@ impl SpotifyError {
                     .ok()
                     .and_then(|j| j["error"]["message"].as_str().map(str::to_string))
                     .unwrap_or_else(|| body.chars().take(100).collect());
-                Self::Api { status: status.as_u16(), message }
+                Self::Api {
+                    status: status.as_u16(),
+                    message,
+                }
             }
         }
     }

@@ -1,4 +1,3 @@
-
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -6,9 +5,9 @@ pub use crate::i18n::Language;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LastStation {
-    pub key:          String,
-    pub name:         String,
-    pub url:          String,
+    pub key: String,
+    pub name: String,
+    pub url: String,
     pub bitrate_kbps: Option<u16>,
 }
 
@@ -27,7 +26,7 @@ pub struct GameIntegrationsConfig {
     #[serde(default)]
     pub enabled: bool,
     #[serde(default)]
-    pub dota2:   bool,
+    pub dota2: bool,
 }
 
 impl OverlayMode {
@@ -35,18 +34,18 @@ impl OverlayMode {
         use crate::i18n::t;
         match self {
             Self::WhenPlaying => t("overlay.when_playing"),
-            Self::Always      => t("overlay.always"),
-            Self::Hidden      => t("overlay.hidden"),
-            Self::Games       => t("overlay.games"),
+            Self::Always => t("overlay.always"),
+            Self::Hidden => t("overlay.hidden"),
+            Self::Games => t("overlay.games"),
         }
     }
 
     pub fn next(self) -> Self {
         match self {
             Self::WhenPlaying => Self::Always,
-            Self::Always      => Self::Hidden,
-            Self::Hidden      => Self::Games,
-            Self::Games       => Self::WhenPlaying,
+            Self::Always => Self::Hidden,
+            Self::Hidden => Self::Games,
+            Self::Games => Self::WhenPlaying,
         }
     }
 }
@@ -65,19 +64,19 @@ impl OverlayPosition {
     pub fn display(self) -> String {
         use crate::i18n::t;
         match self {
-            Self::TopLeft     => t("overlay.top_left"),
-            Self::TopRight    => t("overlay.top_right"),
+            Self::TopLeft => t("overlay.top_left"),
+            Self::TopRight => t("overlay.top_right"),
             Self::BottomRight => t("overlay.bottom_right"),
-            Self::BottomLeft  => t("overlay.bottom_left"),
+            Self::BottomLeft => t("overlay.bottom_left"),
         }
     }
 
     pub fn next(self) -> Self {
         match self {
-            Self::TopLeft     => Self::TopRight,
-            Self::TopRight    => Self::BottomRight,
+            Self::TopLeft => Self::TopRight,
+            Self::TopRight => Self::BottomRight,
             Self::BottomRight => Self::BottomLeft,
-            Self::BottomLeft  => Self::TopLeft,
+            Self::BottomLeft => Self::TopLeft,
         }
     }
 }
@@ -85,90 +84,102 @@ impl OverlayPosition {
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct SpotifyConfig {
     #[serde(default)]
-    pub client_id:     String,
+    pub client_id: String,
     #[serde(default)]
-    pub display_name:  Option<String>,
+    pub display_name: Option<String>,
     #[serde(default)]
-    pub search_token:  Option<String>,
+    pub search_token: Option<String>,
     #[serde(skip_serializing, default)]
     pub refresh_token: Option<String>,
     #[serde(default)]
-    pub is_premium:    Option<bool>,
+    pub is_premium: Option<bool>,
     #[serde(default)]
-    pub country:       Option<String>,
+    pub country: Option<String>,
     #[serde(default)]
-    pub followers:     Option<u32>,
+    pub followers: Option<u32>,
     #[serde(default = "default_true")]
-    pub stop_on_quit:      bool,
+    pub stop_on_quit: bool,
     #[serde(default)]
-    pub start_on_spotify:  bool,
+    pub start_on_spotify: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
-    pub volume:         f32,
-    pub last_selected:  usize,
+    pub volume: f32,
+    pub last_selected: usize,
     #[serde(default)]
-    pub autoplay_last:  bool,
+    pub autoplay_last: bool,
     #[serde(default)]
     pub search_history: Vec<String>,
     #[serde(default)]
-    pub overlay_mode:   OverlayMode,
+    pub overlay_mode: OverlayMode,
     #[serde(default)]
-    pub last_station:   Option<LastStation>,
+    pub last_station: Option<LastStation>,
     #[serde(default)]
     pub crossfade_secs: u8,
     #[serde(default)]
-    pub media_keys:     bool,
+    pub media_keys: bool,
     #[serde(default)]
-    pub tray_icon:      bool,
+    pub tray_icon: bool,
     #[serde(default)]
-    pub notifications:  bool,
+    pub notifications: bool,
     #[serde(default)]
-    pub language:       Language,
+    pub language: Language,
     #[serde(default = "default_true")]
     pub restore_volume: bool,
     #[serde(default)]
-    pub duck_enabled:    bool,
+    pub duck_enabled: bool,
     #[serde(default = "default_duck_volume")]
-    pub duck_volume:     u8,
+    pub duck_volume: u8,
     #[serde(default = "default_overlay_alpha")]
-    pub overlay_alpha:     u8,
+    pub overlay_alpha: u8,
     #[serde(default)]
-    pub overlay_position:  OverlayPosition,
+    pub overlay_position: OverlayPosition,
     #[serde(default = "default_screensaver_secs")]
-    pub screensaver_secs:     u16,
+    pub screensaver_secs: u16,
     #[serde(default)]
-    pub game_integrations:    GameIntegrationsConfig,
+    pub game_integrations: GameIntegrationsConfig,
     #[serde(default)]
-    pub spotify:              SpotifyConfig,
+    pub spotify: SpotifyConfig,
     #[serde(default = "default_volume_step")]
-    pub volume_step:          u8,
+    pub volume_step: u8,
     #[serde(default = "default_prebuffer_secs")]
-    pub prebuffer_secs:       u8,
+    pub prebuffer_secs: u8,
     #[serde(default = "default_true")]
-    pub screensaver_clock:    bool,
+    pub screensaver_clock: bool,
     #[serde(default = "default_true")]
-    pub auto_update:          bool,
+    pub auto_update: bool,
 }
 
-fn default_true() -> bool { true }
-fn default_duck_volume() -> u8 { 40 }
-fn default_overlay_alpha() -> u8 { 90 }
-fn default_screensaver_secs() -> u16 { 10 }
-fn default_volume_step() -> u8 { 5 }
-fn default_prebuffer_secs() -> u8 { 30 }
+fn default_true() -> bool {
+    true
+}
+fn default_duck_volume() -> u8 {
+    40
+}
+fn default_overlay_alpha() -> u8 {
+    90
+}
+fn default_screensaver_secs() -> u16 {
+    10
+}
+fn default_volume_step() -> u8 {
+    5
+}
+fn default_prebuffer_secs() -> u8 {
+    30
+}
 
 impl Config {
     pub fn screensaver_next(&mut self) {
         self.screensaver_secs = match self.screensaver_secs {
-            0          => 10,
-            10         => 20,
-            20         => 30,
-            30         => 60,
-            60         => 120,
-            120        => 300,
-            _          => 0,
+            0 => 10,
+            10 => 20,
+            20 => 30,
+            30 => 60,
+            60 => 120,
+            120 => 300,
+            _ => 0,
         };
     }
 }
@@ -188,17 +199,17 @@ impl Default for Config {
             notifications: false,
             language: Language::default(),
             restore_volume: true,
-            duck_enabled:    false,
-            duck_volume:     40,
-            overlay_alpha:     90,
-            overlay_position:  OverlayPosition::TopLeft,
-            screensaver_secs:  10,
+            duck_enabled: false,
+            duck_volume: 40,
+            overlay_alpha: 90,
+            overlay_position: OverlayPosition::TopLeft,
+            screensaver_secs: 10,
             game_integrations: GameIntegrationsConfig::default(),
-            spotify:           SpotifyConfig::default(),
-            volume_step:       5,
-            prebuffer_secs:    30,
+            spotify: SpotifyConfig::default(),
+            volume_step: 5,
+            prebuffer_secs: 30,
             screensaver_clock: true,
-            auto_update:       true,
+            auto_update: true,
         }
     }
 }
@@ -238,14 +249,16 @@ impl Config {
         self.prebuffer_secs = match self.prebuffer_secs {
             10 => 30,
             30 => 60,
-            _  => 10,
+            _ => 10,
         };
     }
 }
 
 impl Config {
     pub fn add_to_history(&mut self, query: String) {
-        if query.trim().is_empty() { return; }
+        if query.trim().is_empty() {
+            return;
+        }
         self.search_history.retain(|h| h != &query);
         self.search_history.insert(0, query);
         self.search_history.truncate(10);
@@ -275,7 +288,10 @@ impl Config {
     pub fn load() -> Self {
         let path = Self::path();
         if !path.exists() {
-            return Self { language: detect_system_language(), ..Default::default() };
+            return Self {
+                language: detect_system_language(),
+                ..Default::default()
+            };
         }
         let Ok(data) = std::fs::read_to_string(&path) else {
             return Self::default();
@@ -301,14 +317,18 @@ impl Config {
     pub fn save(&self) {
         if let Ok(entry) = keyring::Entry::new("reverbic", "spotify_refresh_token") {
             match &self.spotify.refresh_token {
-                Some(token) => { let _ = entry.set_password(token); }
-                None        => { let _ = entry.delete_credential(); }
+                Some(token) => {
+                    let _ = entry.set_password(token);
+                }
+                None => {
+                    let _ = entry.delete_credential();
+                }
             }
         }
         let path = Self::path();
         match save_json_atomic(&path, self) {
-            Ok(())  => tracing::info!("Config guardada en {:?}", path),
-            Err(e)  => tracing::error!("No se pudo guardar config: {e}"),
+            Ok(()) => tracing::info!("Config guardada en {:?}", path),
+            Err(e) => tracing::error!("No se pudo guardar config: {e}"),
         }
     }
 
@@ -317,10 +337,13 @@ impl Config {
     }
 }
 
-pub fn save_json_atomic<T: Serialize + ?Sized>(path: &std::path::Path, data: &T) -> std::io::Result<()> {
-    let dir = path.parent().ok_or_else(|| std::io::Error::new(
-        std::io::ErrorKind::InvalidInput, "no parent directory",
-    ))?;
+pub fn save_json_atomic<T: Serialize + ?Sized>(
+    path: &std::path::Path,
+    data: &T,
+) -> std::io::Result<()> {
+    let dir = path.parent().ok_or_else(|| {
+        std::io::Error::new(std::io::ErrorKind::InvalidInput, "no parent directory")
+    })?;
     std::fs::create_dir_all(dir)?;
     let tmp = path.with_extension("tmp");
     let json = serde_json::to_string_pretty(data)

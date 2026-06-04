@@ -22,8 +22,13 @@ impl App {
             self.spotify.active_device_id.clone(),
         ) {
             std::thread::spawn(move || {
-                if let Ok(rt) = tokio::runtime::Builder::new_current_thread().enable_all().build() {
-                    let _ = rt.block_on(crate::integrations::spotify::devices::pause_device(&token, &device_id));
+                if let Ok(rt) = tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                {
+                    let _ = rt.block_on(crate::integrations::spotify::devices::pause_device(
+                        &token, &device_id,
+                    ));
                 }
             });
         }
@@ -33,9 +38,9 @@ impl App {
         }
         self.stop_playback_polling();
         self.config.last_station = Some(LastStation {
-            key:          station.key.clone(),
-            name:         station.name.clone(),
-            url:          station.url.clone(),
+            key: station.key.clone(),
+            name: station.name.clone(),
+            url: station.url.clone(),
             bitrate_kbps: station.bitrate_kbps,
         });
         self.save_config();
@@ -48,7 +53,12 @@ impl App {
         );
 
         if fade > 0 && is_active {
-            self.player.send(PlayerCommand::CrossfadeTo { station: station.clone(), secs: fade }).await;
+            self.player
+                .send(PlayerCommand::CrossfadeTo {
+                    station: station.clone(),
+                    secs: fade,
+                })
+                .await;
         } else {
             self.player.send(PlayerCommand::Play(station.clone())).await;
         }
@@ -66,24 +76,28 @@ impl App {
     }
 
     pub(super) async fn play_favorite_station(&mut self, index: usize) {
-        if index >= self.favorites.len() { return; }
+        if index >= self.favorites.len() {
+            return;
+        }
         let station = self.favorites[index].to_station();
         self.play_station(station).await;
     }
 
     pub(super) async fn play_dynamic_station(&mut self, index: usize) {
-        if index >= self.search_results.len() { return; }
+        if index >= self.search_results.len() {
+            return;
+        }
         let ds = &self.search_results[index];
 
         let mut station = Station {
-            key:              ds.key.clone(),
-            name:             ds.name.clone(),
-            url:              ds.url.clone(),
+            key: ds.key.clone(),
+            name: ds.name.clone(),
+            url: ds.url.clone(),
             metadata_api_url: None,
-            history_api_url:  None,
-            schedule_url:     None,
-            show_countdown:   false,
-            bitrate_kbps:     ds.bitrate_kbps,
+            history_api_url: None,
+            schedule_url: None,
+            show_countdown: false,
+            bitrate_kbps: ds.bitrate_kbps,
         };
 
         if let Some(enrichment) = find_enrichment(&station.name) {
@@ -104,7 +118,9 @@ impl App {
     }
 
     pub(super) fn play_random_result(&self) -> Option<usize> {
-        if self.search_results.is_empty() { return None; }
+        if self.search_results.is_empty() {
+            return None;
+        }
         let ms = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_millis())

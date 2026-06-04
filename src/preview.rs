@@ -1,11 +1,25 @@
-
 use chrono::Local;
 
 pub fn strip_version_info(title: &str) -> String {
     const VERSION_KEYWORDS: &[&str] = &[
-        "remix", "edit", "mix", "version", "remaster", "live", "extended",
-        "radio", "original", "club", "vip", "instrumental", "acoustic",
-        "bootleg", "rework", "flip", "dub", "remi",
+        "remix",
+        "edit",
+        "mix",
+        "version",
+        "remaster",
+        "live",
+        "extended",
+        "radio",
+        "original",
+        "club",
+        "vip",
+        "instrumental",
+        "acoustic",
+        "bootleg",
+        "rework",
+        "flip",
+        "dub",
+        "remi",
     ];
     let mut result = title.to_string();
     loop {
@@ -27,7 +41,9 @@ pub fn strip_version_info(title: &str) -> String {
                 }
             }
         }
-        if result == before { break; }
+        if result == before {
+            break;
+        }
     }
     result.trim().to_string()
 }
@@ -48,7 +64,11 @@ fn log_deezer_not_found(raw: &str, query: &str) {
     let ts = Local::now().format("%Y-%m-%dT%H:%M:%S");
     let line = format!("{ts}  original: \"{raw}\"  query: {query}\n");
 
-    if let Ok(mut f) = std::fs::OpenOptions::new().append(true).create(true).open(&path) {
+    if let Ok(mut f) = std::fs::OpenOptions::new()
+        .append(true)
+        .create(true)
+        .open(&path)
+    {
         let _ = f.write_all(line.as_bytes());
     }
 }
@@ -57,7 +77,7 @@ pub async fn deezer_preview(raw: &str) -> Option<(String, String)> {
     let clean = raw.split_once("  ").map(|(_, r)| r).unwrap_or(raw).trim();
     let q = if let Some(sep) = clean.find(" - ") {
         let raw_artist = clean[..sep].trim();
-        let raw_title  = clean[sep + 3..].trim();
+        let raw_title = clean[sep + 3..].trim();
         let primary_artist = raw_artist
             .split([',', '&'])
             .next()
@@ -65,7 +85,9 @@ pub async fn deezer_preview(raw: &str) -> Option<(String, String)> {
             .trim();
         let clean_title = strip_version_info(raw_title);
 
-        tracing::debug!("Deezer query: artist='{primary_artist}' track='{clean_title}' (original: '{clean}')");
+        tracing::debug!(
+            "Deezer query: artist='{primary_artist}' track='{clean_title}' (original: '{clean}')"
+        );
         format!(r#"artist:"{primary_artist}" track:"{clean_title}""#)
     } else {
         strip_version_info(clean)
@@ -101,11 +123,18 @@ pub async fn deezer_preview(raw: &str) -> Option<(String, String)> {
         return None;
     }
 
-    let artist        = track["artist"]["name"].as_str().unwrap_or("");
-    let title         = track["title"].as_str().unwrap_or("");
-    let display_title = if artist.is_empty() { title.to_string() } else { format!("{artist} - {title}") };
+    let artist = track["artist"]["name"].as_str().unwrap_or("");
+    let title = track["title"].as_str().unwrap_or("");
+    let display_title = if artist.is_empty() {
+        title.to_string()
+    } else {
+        format!("{artist} - {title}")
+    };
 
-    tracing::info!("Deezer: preview encontrado para '{}' — {preview_url}", display_title);
+    tracing::info!(
+        "Deezer: preview encontrado para '{}' — {preview_url}",
+        display_title
+    );
     Some((preview_url.to_string(), display_title))
 }
 

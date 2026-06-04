@@ -5,11 +5,11 @@ use serde::Deserialize;
 
 #[derive(Clone, Deserialize)]
 pub struct GameInfo {
-    pub name:  String,
+    pub name: String,
     pub genre: String,
 }
 static GAME: OnceLock<Mutex<Option<(String, String)>>> = OnceLock::new();
-static DB:   OnceLock<HashMap<String, GameInfo>>       = OnceLock::new();
+static DB: OnceLock<HashMap<String, GameInfo>> = OnceLock::new();
 
 fn store() -> &'static Mutex<Option<(String, String)>> {
     GAME.get_or_init(|| Mutex::new(None))

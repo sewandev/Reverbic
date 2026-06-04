@@ -14,20 +14,29 @@ use crate::ui::strings;
 use crate::ui::theme;
 
 pub(super) struct ScreensaverCtx<'a> {
-    pub state:           &'a PlayerState,
-    pub details:         Option<&'a StationDetails>,
-    pub is_favorite:     bool,
-    pub spotify_name:    Option<&'a str>,
+    pub state: &'a PlayerState,
+    pub details: Option<&'a StationDetails>,
+    pub is_favorite: bool,
+    pub spotify_name: Option<&'a str>,
     pub spotify_premium: bool,
-    pub enriched_track:  Option<&'a crate::metadata::EnrichedTrack>,
-    pub show_clock:      bool,
-    pub border_tick:     u32,
+    pub enriched_track: Option<&'a crate::metadata::EnrichedTrack>,
+    pub show_clock: bool,
+    pub border_tick: u32,
 }
 
 pub(super) fn render_screensaver(frame: &mut Frame, area: Rect, ctx: ScreensaverCtx<'_>) {
-    let ScreensaverCtx { state, details, is_favorite, spotify_name, spotify_premium, enriched_track, show_clock, border_tick } = ctx;
+    let ScreensaverCtx {
+        state,
+        details,
+        is_favorite,
+        spotify_name,
+        spotify_premium,
+        enriched_track,
+        show_clock,
+        border_tick,
+    } = ctx;
     const OVERLAY: ratatui::style::Color = theme::OVERLAY_COLOR;
-    const BG:      ratatui::style::Color = theme::PANEL_BG;
+    const BG: ratatui::style::Color = theme::PANEL_BG;
 
     frame.render_widget(Clear, area);
     for y in area.top()..area.bottom() {
@@ -37,22 +46,34 @@ pub(super) fn render_screensaver(frame: &mut Frame, area: Rect, ctx: Screensaver
     }
 
     let has_recent = !state.recent_titles.is_empty();
-    let n_recent   = state.recent_titles.len().min(5) as u16;
+    let n_recent = state.recent_titles.len().min(5) as u16;
 
-    let (has_meta, has_tags, has_url) = details.map(|d| (
-        !d.country.is_empty() || !d.language.is_empty() || !d.codec.is_empty(),
-        !d.tags.is_empty(),
-        !d.homepage.is_empty(),
-    )).unwrap_or((false, false, false));
+    let (has_meta, has_tags, has_url) = details
+        .map(|d| {
+            (
+                !d.country.is_empty() || !d.language.is_empty() || !d.codec.is_empty(),
+                !d.tags.is_empty(),
+                !d.homepage.is_empty(),
+            )
+        })
+        .unwrap_or((false, false, false));
 
     let detail_rows: u16 = u16::from(has_meta) + u16::from(has_tags) + u16::from(has_url);
     let has_details = detail_rows > 0;
-    let pw     = (area.width * 85 / 100).clamp(74, 120).min(area.width);
+    let pw = (area.width * 85 / 100).clamp(74, 120).min(area.width);
     let cw_est = pw.saturating_sub(6);
-    let title  = state.title.as_deref().unwrap_or("—");
-    let title_rows: u16 = if title.chars().count() > cw_est as usize { 2 } else { 1 };
+    let title = state.title.as_deref().unwrap_or("—");
+    let title_rows: u16 = if title.chars().count() > cw_est as usize {
+        2
+    } else {
+        1
+    };
 
-    let title_block_h: u16 = if enriched_track.is_some() { 3 } else { title_rows };
+    let title_block_h: u16 = if enriched_track.is_some() {
+        3
+    } else {
+        title_rows
+    };
     let recent_rows: u16 = if has_recent { 1 + n_recent } else { 0 };
 
     let clock_h: u16 = if show_clock { 5 + 1 } else { 0 };
@@ -68,10 +89,10 @@ pub(super) fn render_screensaver(frame: &mut Frame, area: Rect, ctx: Screensaver
         + if has_details { 1 + detail_rows } else { 0 }    // sep + detalles
         + if has_recent  { 1 + recent_rows } else { 0 }    // sep + recientes
         + 1                                                 // gap
-        + 1;                                                // barra inferior
+        + 1; // barra inferior
 
-    let px    = area.x + area.width.saturating_sub(pw) / 2;
-    let py    = area.y + area.height.saturating_sub(ph) / 2;
+    let px = area.x + area.width.saturating_sub(pw) / 2;
+    let py = area.y + area.height.saturating_sub(ph) / 2;
     let panel = Rect::new(px, py, pw, ph.min(area.height));
 
     if py >= 3 {
@@ -92,10 +113,12 @@ pub(super) fn render_screensaver(frame: &mut Frame, area: Rect, ctx: Screensaver
     }
 
     let border_color = match &state.status {
-        PlayerStatus::Playing                                       => theme::border_color(border_tick),
-        PlayerStatus::Paused                                        => theme::WARNING,
-        PlayerStatus::Buffering(_) | PlayerStatus::Reconnecting(_) => ratatui::style::Color::Rgb(80, 80, 80),
-        _                                                           => theme::MUTED,
+        PlayerStatus::Playing => theme::border_color(border_tick),
+        PlayerStatus::Paused => theme::WARNING,
+        PlayerStatus::Buffering(_) | PlayerStatus::Reconnecting(_) => {
+            ratatui::style::Color::Rgb(80, 80, 80)
+        }
+        _ => theme::MUTED,
     };
 
     let block = Block::default()
@@ -106,36 +129,52 @@ pub(super) fn render_screensaver(frame: &mut Frame, area: Rect, ctx: Screensaver
     let inner = block.inner(panel);
     frame.render_widget(block, panel);
 
-    let cx      = inner.x + 2;
-    let cw      = inner.width.saturating_sub(4);
+    let cx = inner.x + 2;
+    let cw = inner.width.saturating_sub(4);
     let mut row = inner.y + 1;
 
     let now_t = Local::now();
     if show_clock {
-        let h1       = (now_t.hour()   / 10) as u8;
-        let h2       = (now_t.hour()   % 10) as u8;
-        let m1       = (now_t.minute() / 10) as u8;
-        let m2       = (now_t.minute() % 10) as u8;
+        let h1 = (now_t.hour() / 10) as u8;
+        let h2 = (now_t.hour() % 10) as u8;
+        let m1 = (now_t.minute() / 10) as u8;
+        let m2 = (now_t.minute() % 10) as u8;
         let colon_on = now_t.second().is_multiple_of(2);
         let clock_w: u16 = 19;
-        let clock_x      = cx + cw.saturating_sub(clock_w) / 2;
+        let clock_x = cx + cw.saturating_sub(clock_w) / 2;
         for r in 0..5usize {
             frame.render_widget(
-                Paragraph::new(build_clock_row(r, h1, h2, m1, m2, colon_on, border_color, BG))
-                    .style(Style::default().bg(BG)),
+                Paragraph::new(build_clock_row(
+                    r,
+                    h1,
+                    h2,
+                    m1,
+                    m2,
+                    colon_on,
+                    border_color,
+                    BG,
+                ))
+                .style(Style::default().bg(BG)),
                 Rect::new(clock_x, row, clock_w, 1),
             );
             row += 1;
         }
         row += 1;
     }
-    let raw_name    = state.station.as_ref().map(|s| s.name.as_str()).unwrap_or("—");
-    let prefix      = if is_favorite { "★  " } else { "" };
-    let station_str = strings::truncate(&format!("{prefix}{}", raw_name.to_uppercase()), cw as usize);
+    let raw_name = state
+        .station
+        .as_ref()
+        .map(|s| s.name.as_str())
+        .unwrap_or("—");
+    let prefix = if is_favorite { "★  " } else { "" };
+    let station_str =
+        strings::truncate(&format!("{prefix}{}", raw_name.to_uppercase()), cw as usize);
     frame.render_widget(
         Paragraph::new(Line::from(Span::styled(
             station_str,
-            Style::default().fg(border_color).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(border_color)
+                .add_modifier(Modifier::BOLD),
         )))
         .alignment(Alignment::Center)
         .style(Style::default().bg(BG)),
@@ -156,7 +195,9 @@ pub(super) fn render_screensaver(frame: &mut Frame, area: Rect, ctx: Screensaver
         frame.render_widget(
             Paragraph::new(Span::styled(
                 strings::truncate(&et.title, cw as usize),
-                Style::default().fg(theme::HIGHLIGHT).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(theme::HIGHLIGHT)
+                    .add_modifier(Modifier::BOLD),
             ))
             .alignment(Alignment::Center)
             .style(Style::default().bg(BG)),
@@ -170,9 +211,9 @@ pub(super) fn render_screensaver(frame: &mut Frame, area: Rect, ctx: Screensaver
         };
         let album_line = match (et.year, duration_str.is_empty()) {
             (Some(y), false) => format!("{}  ·  {}  ·  {}", et.album, y, duration_str),
-            (Some(y), true)  => format!("{}  ·  {}", et.album, y),
-            (None,    false) => format!("{}  ·  {}", et.album, duration_str),
-            (None,    true)  => et.album.clone(),
+            (Some(y), true) => format!("{}  ·  {}", et.album, y),
+            (None, false) => format!("{}  ·  {}", et.album, duration_str),
+            (None, true) => et.album.clone(),
         };
         frame.render_widget(
             Paragraph::new(Span::styled(
@@ -186,10 +227,13 @@ pub(super) fn render_screensaver(frame: &mut Frame, area: Rect, ctx: Screensaver
         row += 1;
     } else {
         frame.render_widget(
-            Paragraph::new(Span::styled(title.to_owned(), Style::default().fg(theme::HIGHLIGHT)))
-                .alignment(Alignment::Center)
-                .wrap(Wrap { trim: true })
-                .style(Style::default().bg(BG)),
+            Paragraph::new(Span::styled(
+                title.to_owned(),
+                Style::default().fg(theme::HIGHLIGHT),
+            ))
+            .alignment(Alignment::Center)
+            .wrap(Wrap { trim: true })
+            .style(Style::default().bg(BG)),
             Rect::new(cx, row, cw, title_rows),
         );
         row += title_rows;
@@ -204,7 +248,9 @@ pub(super) fn render_screensaver(frame: &mut Frame, area: Rect, ctx: Screensaver
         frame.render_widget(
             Paragraph::new(Line::from(Span::styled(
                 label,
-                Style::default().fg(theme::ACCENT).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(theme::ACCENT)
+                    .add_modifier(Modifier::BOLD),
             )))
             .alignment(Alignment::Center)
             .style(Style::default().bg(BG)),
@@ -223,8 +269,11 @@ pub(super) fn render_screensaver(frame: &mut Frame, area: Rect, ctx: Screensaver
     if has_details {
         let sep = "─".repeat(cw as usize);
         frame.render_widget(
-            Paragraph::new(Line::from(Span::styled(sep, Style::default().fg(theme::DIM))))
-                .style(Style::default().bg(BG)),
+            Paragraph::new(Line::from(Span::styled(
+                sep,
+                Style::default().fg(theme::DIM),
+            )))
+            .style(Style::default().bg(BG)),
             Rect::new(cx, row, cw, 1),
         );
         row += 1;
@@ -237,7 +286,10 @@ pub(super) fn render_screensaver(frame: &mut Frame, area: Rect, ctx: Screensaver
                         if !spans.is_empty() {
                             spans.push(Span::styled("  ·  ", Style::default().fg(theme::MUTED)));
                         }
-                        spans.push(Span::styled(strings::title_case(val), Style::default().fg(theme::DIM)));
+                        spans.push(Span::styled(
+                            strings::title_case(val),
+                            Style::default().fg(theme::DIM),
+                        ));
                     }
                 }
                 if !d.codec.is_empty() {
@@ -258,7 +310,12 @@ pub(super) fn render_screensaver(frame: &mut Frame, area: Rect, ctx: Screensaver
                 row += 1;
             }
             if has_tags && !d.tags.is_empty() {
-                let raw     = d.tags.iter().map(|t| strings::title_case(t)).collect::<Vec<_>>().join("  ·  ");
+                let raw = d
+                    .tags
+                    .iter()
+                    .map(|t| strings::title_case(t))
+                    .collect::<Vec<_>>()
+                    .join("  ·  ");
                 let display = strings::truncate(&raw, cw as usize);
                 frame.render_widget(
                     Paragraph::new(Span::styled(display, Style::default().fg(theme::MUTED)))
@@ -268,12 +325,21 @@ pub(super) fn render_screensaver(frame: &mut Frame, area: Rect, ctx: Screensaver
                 row += 1;
             }
             if has_url && !d.homepage.is_empty() {
-                let url = strings::truncate(d.homepage.trim_end_matches('/'), cw.saturating_sub(5) as usize);
+                let url = strings::truncate(
+                    d.homepage.trim_end_matches('/'),
+                    cw.saturating_sub(5) as usize,
+                );
                 frame.render_widget(
                     Paragraph::new(Line::from(vec![
                         Span::styled("[o]  ", Style::default().fg(theme::ACCENT)),
-                        Span::styled(url, Style::default().fg(theme::MUTED).add_modifier(Modifier::UNDERLINED)),
-                    ])).style(Style::default().bg(BG)),
+                        Span::styled(
+                            url,
+                            Style::default()
+                                .fg(theme::MUTED)
+                                .add_modifier(Modifier::UNDERLINED),
+                        ),
+                    ]))
+                    .style(Style::default().bg(BG)),
                     Rect::new(cx, row, cw, 1),
                 );
                 row += 1;
@@ -283,8 +349,11 @@ pub(super) fn render_screensaver(frame: &mut Frame, area: Rect, ctx: Screensaver
     if has_recent {
         let sep = "─".repeat(cw as usize);
         frame.render_widget(
-            Paragraph::new(Line::from(Span::styled(sep, Style::default().fg(theme::DIM))))
-                .style(Style::default().bg(BG)),
+            Paragraph::new(Line::from(Span::styled(
+                sep,
+                Style::default().fg(theme::DIM),
+            )))
+            .style(Style::default().bg(BG)),
             Rect::new(cx, row, cw, 1),
         );
         row += 1;
@@ -300,15 +369,20 @@ pub(super) fn render_screensaver(frame: &mut Frame, area: Rect, ctx: Screensaver
         row += 1;
 
         let now_live = t("screensaver.now_live");
-        let badge_w  = now_live.chars().count() as u16 + 4;
-        let max_cur  = cw.saturating_sub(3 + badge_w) as usize;
+        let badge_w = now_live.chars().count() as u16 + 4;
+        let max_cur = cw.saturating_sub(3 + badge_w) as usize;
 
         if let Some(current) = state.recent_titles.first() {
             let display = strings::truncate(current, max_cur);
             frame.render_widget(
                 Paragraph::new(Line::from(vec![
                     Span::styled("▶  ", Style::default().fg(theme::ACCENT)),
-                    Span::styled(display, Style::default().fg(theme::HIGHLIGHT).add_modifier(Modifier::BOLD)),
+                    Span::styled(
+                        display,
+                        Style::default()
+                            .fg(theme::HIGHLIGHT)
+                            .add_modifier(Modifier::BOLD),
+                    ),
                     Span::styled(format!("  {now_live}"), Style::default().fg(theme::ACCENT)),
                 ]))
                 .style(Style::default().bg(BG)),
@@ -333,10 +407,14 @@ pub(super) fn render_screensaver(frame: &mut Frame, area: Rect, ctx: Screensaver
     }
     row += 1;
     if row < inner.bottom() {
-        let vol_pct          = (state.volume.clamp(0.0, 1.0) * 100.0).round() as u32;
-        let vol_color        = if state.volume > 0.85 { theme::WARNING } else { theme::ACCENT };
-        let (filled, empty)  = volume_bar_spans(state.volume, 10);
-        let time_str         = now_t.format("%H:%M").to_string();
+        let vol_pct = (state.volume.clamp(0.0, 1.0) * 100.0).round() as u32;
+        let vol_color = if state.volume > 0.85 {
+            theme::WARNING
+        } else {
+            theme::ACCENT
+        };
+        let (filled, empty) = volume_bar_spans(state.volume, 10);
+        let time_str = now_t.format("%H:%M").to_string();
         let shortcuts = "[Space] ⏸/▶  [+/-] Vol  [Alt+S] ■  [any] →";
         frame.render_widget(
             Paragraph::new(Span::styled(shortcuts, Style::default().fg(theme::DIM)))
@@ -346,12 +424,12 @@ pub(super) fn render_screensaver(frame: &mut Frame, area: Rect, ctx: Screensaver
         frame.render_widget(
             Paragraph::new(Line::from(vec![
                 Span::styled(format!("{}  ", time_str), Style::default().fg(theme::MUTED)),
-                Span::styled(filled,                   Style::default().fg(vol_color)),
-                Span::styled(empty,                    Style::default().fg(theme::MUTED)),
+                Span::styled(filled, Style::default().fg(vol_color)),
+                Span::styled(empty, Style::default().fg(theme::MUTED)),
                 Span::styled(format!("  {:>3}%", vol_pct), Style::default().fg(vol_color)),
             ]))
-                .alignment(Alignment::Right)
-                .style(Style::default().bg(BG)),
+            .alignment(Alignment::Right)
+            .style(Style::default().bg(BG)),
             Rect::new(cx, row, cw, 1),
         );
     }
@@ -360,7 +438,7 @@ pub(super) fn render_screensaver(frame: &mut Frame, area: Rect, ctx: Screensaver
 pub(super) const LOGO_W: u16 = 39;
 
 fn eq_bar_level(tick: u32, period: u32, phase: u32, min_l: usize, max_l: usize) -> usize {
-    let t    = tick.wrapping_add(phase) % period;
+    let t = tick.wrapping_add(phase) % period;
     let half = period / 2;
     let range = max_l - min_l;
     let level = if t < half {
@@ -386,52 +464,58 @@ fn eq_bar_char(level: usize) -> &'static str {
 
 fn logo_lines(bg: ratatui::style::Color, tick: u32) -> [Line<'static>; 2] {
     use ratatui::style::Color::Rgb;
-    const CYAN:   ratatui::style::Color = Rgb(0, 240, 255);
+    const CYAN: ratatui::style::Color = Rgb(0, 240, 255);
     const VIOLET: ratatui::style::Color = Rgb(112, 0, 255);
-    const PINK:   ratatui::style::Color = Rgb(255, 0, 85);
+    const PINK: ratatui::style::Color = Rgb(255, 0, 85);
     const LETTER_COLORS: [ratatui::style::Color; 8] = [
-        Rgb(0,   240, 255),
-        Rgb(40,  160, 255),
-        Rgb(75,  80,  255),
-        Rgb(112, 0,   255),
-        Rgb(160, 0,   200),
-        Rgb(200, 0,   140),
-        Rgb(235, 0,   100),
-        Rgb(255, 0,   85),
+        Rgb(0, 240, 255),
+        Rgb(40, 160, 255),
+        Rgb(75, 80, 255),
+        Rgb(112, 0, 255),
+        Rgb(160, 0, 200),
+        Rgb(200, 0, 140),
+        Rgb(235, 0, 100),
+        Rgb(255, 0, 85),
     ];
     const LETTERS: &[char] = &['R', 'E', 'V', 'E', 'R', 'B', 'I', 'C'];
 
-    let b1 = eq_bar_level(tick, 36, 0,  1, 8);
+    let b1 = eq_bar_level(tick, 36, 0, 1, 8);
     let b2 = eq_bar_level(tick, 42, 12, 2, 8);
     let b3 = eq_bar_level(tick, 30, 22, 1, 7);
 
     let top1 = if b1 == 8 { "▄▄" } else { "  " };
-    let top2 = match b2 { 8 => "▄▄", 7 => "▁▁", _ => "  " };
+    let top2 = match b2 {
+        8 => "▄▄",
+        7 => "▁▁",
+        _ => "  ",
+    };
     let top3 = if b3 == 7 { "▁▁" } else { "  " };
 
     let s = Style::default().bg(bg);
 
     let top = Line::from(vec![
-        Span::styled("    ",  s),
-        Span::styled(top1,   s.fg(CYAN)),
-        Span::styled("  ",   s),
-        Span::styled(top2,   s.fg(VIOLET)),
-        Span::styled("  ",   s),
-        Span::styled(top3,   s.fg(PINK)),
+        Span::styled("    ", s),
+        Span::styled(top1, s.fg(CYAN)),
+        Span::styled("  ", s),
+        Span::styled(top2, s.fg(VIOLET)),
+        Span::styled("  ", s),
+        Span::styled(top3, s.fg(PINK)),
     ]);
 
     let mut spans: Vec<Span<'static>> = vec![
-        Span::styled("▶",                   s.fg(CYAN)),
-        Span::styled("   ",                 s),
-        Span::styled(eq_bar_char(b1),       s.fg(CYAN)),
-        Span::styled("  ",                  s),
-        Span::styled(eq_bar_char(b2),       s.fg(VIOLET)),
-        Span::styled("  ",                  s),
-        Span::styled(eq_bar_char(b3),       s.fg(PINK)),
-        Span::styled("   ",                 s),
+        Span::styled("▶", s.fg(CYAN)),
+        Span::styled("   ", s),
+        Span::styled(eq_bar_char(b1), s.fg(CYAN)),
+        Span::styled("  ", s),
+        Span::styled(eq_bar_char(b2), s.fg(VIOLET)),
+        Span::styled("  ", s),
+        Span::styled(eq_bar_char(b3), s.fg(PINK)),
+        Span::styled("   ", s),
     ];
     for (i, &ch) in LETTERS.iter().enumerate() {
-        if i > 0 { spans.push(Span::styled("  ", s)); }
+        if i > 0 {
+            spans.push(Span::styled("  ", s));
+        }
         spans.push(Span::styled(
             ch.to_string(),
             s.fg(LETTER_COLORS[i]).add_modifier(Modifier::BOLD),
@@ -441,19 +525,27 @@ fn logo_lines(bg: ratatui::style::Color, tick: u32) -> [Line<'static>; 2] {
 }
 
 pub(super) fn render_logo_above(
-    frame:      &mut Frame,
-    area_x:     u16,
+    frame: &mut Frame,
+    area_x: u16,
     area_width: u16,
-    y:          u16,
-    bg:         ratatui::style::Color,
-    tick:       u32,
+    y: u16,
+    bg: ratatui::style::Color,
+    tick: u32,
 ) {
-    if y < 2 { return; }
+    if y < 2 {
+        return;
+    }
     let logo_x = area_x + area_width.saturating_sub(LOGO_W) / 2;
     let [l1, l2] = logo_lines(bg, tick);
     let st = Style::default().bg(bg);
-    frame.render_widget(Paragraph::new(l1).style(st), Rect::new(logo_x, y - 2, LOGO_W, 1));
-    frame.render_widget(Paragraph::new(l2).style(st), Rect::new(logo_x, y - 1, LOGO_W, 1));
+    frame.render_widget(
+        Paragraph::new(l1).style(st),
+        Rect::new(logo_x, y - 2, LOGO_W, 1),
+    );
+    frame.render_widget(
+        Paragraph::new(l2).style(st),
+        Rect::new(logo_x, y - 1, LOGO_W, 1),
+    );
 }
 
 fn big_digit_rows(d: u8) -> [&'static str; 5] {
@@ -474,14 +566,23 @@ fn big_digit_rows(d: u8) -> [&'static str; 5] {
 
 #[expect(clippy::too_many_arguments)]
 fn build_clock_row(
-    row:      usize,
-    h1: u8, h2: u8,
-    m1: u8, m2: u8,
+    row: usize,
+    h1: u8,
+    h2: u8,
+    m1: u8,
+    m2: u8,
     colon_on: bool,
-    color:    ratatui::style::Color,
-    bg:       ratatui::style::Color,
+    color: ratatui::style::Color,
+    bg: ratatui::style::Color,
 ) -> Line<'static> {
-    let colon_ch = if colon_on { match row { 1 | 3 => "█", _ => " " } } else { " " };
+    let colon_ch = if colon_on {
+        match row {
+            1 | 3 => "█",
+            _ => " ",
+        }
+    } else {
+        " "
+    };
     let s = format!(
         "{} {}  {}  {} {}",
         big_digit_rows(h1)[row],
@@ -497,17 +598,17 @@ fn visualizer_line(level_db: f32, width: usize, bg: ratatui::style::Color) -> Li
     use ratatui::style::Color::Rgb;
     const BLOCKS: &[char] = &['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
     const SPECTRUM: [ratatui::style::Color; 8] = [
-        Rgb(0,   240, 255),
-        Rgb(40,  160, 255),
-        Rgb(75,  80,  255),
-        Rgb(112, 0,   255),
-        Rgb(160, 0,   200),
-        Rgb(200, 0,   140),
-        Rgb(235, 0,   100),
-        Rgb(255, 0,   85),
+        Rgb(0, 240, 255),
+        Rgb(40, 160, 255),
+        Rgb(75, 80, 255),
+        Rgb(112, 0, 255),
+        Rgb(160, 0, 200),
+        Rgb(200, 0, 140),
+        Rgb(235, 0, 100),
+        Rgb(255, 0, 85),
     ];
     let base = ((level_db + 60.0) / 60.0).clamp(0.0, 1.0) as f64;
-    let ms   = std::time::SystemTime::now()
+    let ms = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_millis())
         .unwrap_or(0) as f64;
@@ -515,14 +616,21 @@ fn visualizer_line(level_db: f32, width: usize, bg: ratatui::style::Color) -> Li
     let n_bars = (width / 2).max(1);
     let mut spans: Vec<Span<'static>> = Vec::with_capacity(n_bars * 2);
     for i in 0..n_bars {
-        let freq  = 0.0025 + (i as f64) * 0.00025;
+        let freq = 0.0025 + (i as f64) * 0.00025;
         let phase = i as f64 * 1.1;
-        let wave  = (ms * freq + phase).sin() * 0.35 + 0.35;
-        let h     = (base * 0.65 + wave * 0.35).clamp(0.0, 1.0);
-        let idx   = ((h * 7.0) as usize).min(7);
+        let wave = (ms * freq + phase).sin() * 0.35 + 0.35;
+        let h = (base * 0.65 + wave * 0.35).clamp(0.0, 1.0);
+        let idx = ((h * 7.0) as usize).min(7);
         let pos_idx = (i * 7 / n_bars.saturating_sub(1).max(1)).min(7);
-        let color = if h < 0.05 { theme::MUTED } else { SPECTRUM[pos_idx] };
-        spans.push(Span::styled(BLOCKS[idx].to_string(), Style::default().fg(color).bg(bg)));
+        let color = if h < 0.05 {
+            theme::MUTED
+        } else {
+            SPECTRUM[pos_idx]
+        };
+        spans.push(Span::styled(
+            BLOCKS[idx].to_string(),
+            Style::default().fg(color).bg(bg),
+        ));
         if i + 1 < n_bars {
             spans.push(Span::styled(" ", Style::default().bg(bg)));
         }
@@ -536,22 +644,21 @@ fn volume_bar_spans(vol: f32, bar_width: usize) -> (String, String) {
     ("█".repeat(filled), "░".repeat(bar_width - filled))
 }
 
-
 #[expect(clippy::too_many_arguments)]
 pub(super) fn render_spotify_screensaver(
-    frame:        &mut Frame,
-    area:         Rect,
-    playback:     &crate::integrations::spotify::SpotifyPlaybackState,
+    frame: &mut Frame,
+    area: Rect,
+    playback: &crate::integrations::spotify::SpotifyPlaybackState,
     profile_name: Option<&str>,
-    country:      Option<&str>,
-    followers:    Option<u32>,
-    is_premium:   bool,
-    show_clock:   bool,
-    border_tick:  u32,
+    country: Option<&str>,
+    followers: Option<u32>,
+    is_premium: bool,
+    show_clock: bool,
+    border_tick: u32,
 ) {
     const OVERLAY: ratatui::style::Color = theme::OVERLAY_COLOR;
-    const BG:      ratatui::style::Color = theme::PANEL_BG;
-    const GREEN:   ratatui::style::Color = theme::PLAYING;
+    const BG: ratatui::style::Color = theme::PANEL_BG;
+    const GREEN: ratatui::style::Color = theme::PLAYING;
 
     frame.render_widget(Clear, area);
     for y in area.top()..area.bottom() {
@@ -563,7 +670,7 @@ pub(super) fn render_spotify_screensaver(
     let has_name_row = profile_name.is_some() || country.is_some();
     let has_plan_row = is_premium || followers.is_some();
     let profile_rows = u16::from(has_name_row) + u16::from(has_plan_row);
-    let has_profile  = profile_rows > 0;
+    let has_profile = profile_rows > 0;
 
     let pw = (area.width * 85 / 100).clamp(60, 110);
     let clock_rows: u16 = if show_clock { 6 } else { 0 };
@@ -576,15 +683,19 @@ pub(super) fn render_spotify_screensaver(
     };
     let show_profile = has_profile && ph == ph_with_profile;
 
-    let px    = area.x + area.width.saturating_sub(pw) / 2;
-    let py    = area.y + area.height.saturating_sub(ph) / 2;
+    let px = area.x + area.width.saturating_sub(pw) / 2;
+    let py = area.y + area.height.saturating_sub(ph) / 2;
     let panel = Rect::new(px, py, pw, ph.min(area.height));
 
     if py >= 3 {
         render_logo_above(frame, area.x, area.width, py - 1, OVERLAY, border_tick);
     }
 
-    let border_color = if playback.is_playing { theme::border_color(border_tick) } else { theme::WARNING };
+    let border_color = if playback.is_playing {
+        theme::border_color(border_tick)
+    } else {
+        theme::WARNING
+    };
 
     let block = Block::default()
         .borders(Borders::ALL)
@@ -594,23 +705,32 @@ pub(super) fn render_spotify_screensaver(
     let inner = block.inner(panel);
     frame.render_widget(block, panel);
 
-    let cx      = inner.x + 2;
-    let cw      = inner.width.saturating_sub(4);
+    let cx = inner.x + 2;
+    let cw = inner.width.saturating_sub(4);
     let mut row = inner.y + 1;
 
     let now_t = Local::now();
     if show_clock {
-        let h1       = (now_t.hour()   / 10) as u8;
-        let h2       = (now_t.hour()   % 10) as u8;
-        let m1       = (now_t.minute() / 10) as u8;
-        let m2       = (now_t.minute() % 10) as u8;
+        let h1 = (now_t.hour() / 10) as u8;
+        let h2 = (now_t.hour() % 10) as u8;
+        let m1 = (now_t.minute() / 10) as u8;
+        let m2 = (now_t.minute() % 10) as u8;
         let colon_on = now_t.second().is_multiple_of(2);
         let clock_w: u16 = 19;
-        let clock_x      = cx + cw.saturating_sub(clock_w) / 2;
+        let clock_x = cx + cw.saturating_sub(clock_w) / 2;
         for r in 0..5usize {
             frame.render_widget(
-                Paragraph::new(build_clock_row(r, h1, h2, m1, m2, colon_on, border_color, BG))
-                    .style(Style::default().bg(BG)),
+                Paragraph::new(build_clock_row(
+                    r,
+                    h1,
+                    h2,
+                    m1,
+                    m2,
+                    colon_on,
+                    border_color,
+                    BG,
+                ))
+                .style(Style::default().bg(BG)),
                 Rect::new(clock_x, row, clock_w, 1),
             );
             row += 1;
@@ -655,7 +775,9 @@ pub(super) fn render_spotify_screensaver(
     frame.render_widget(
         Paragraph::new(Span::styled(
             strings::truncate(&playback.track_name, cw as usize),
-            Style::default().fg(theme::HIGHLIGHT).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(theme::HIGHLIGHT)
+                .add_modifier(Modifier::BOLD),
         ))
         .alignment(Alignment::Center)
         .style(Style::default().bg(BG)),
@@ -687,13 +809,13 @@ pub(super) fn render_spotify_screensaver(
     let time_suffix = format!(" {}", time_tot);
     let bar_w = cw.saturating_sub(time_prefix.len() as u16 + time_suffix.len() as u16);
     let filled = (progress_ratio * bar_w as f32).round() as usize;
-    let empty  = (bar_w as usize).saturating_sub(filled);
-    let bar    = format!("{}{}", "█".repeat(filled), "░".repeat(empty));
+    let empty = (bar_w as usize).saturating_sub(filled);
+    let bar = format!("{}{}", "█".repeat(filled), "░".repeat(empty));
 
     frame.render_widget(
         Paragraph::new(Line::from(vec![
             Span::styled(time_prefix, Style::default().fg(theme::MUTED)),
-            Span::styled(bar,         Style::default().fg(GREEN)),
+            Span::styled(bar, Style::default().fg(GREEN)),
             Span::styled(time_suffix, Style::default().fg(theme::MUTED)),
         ]))
         .style(Style::default().bg(BG)),
@@ -702,8 +824,7 @@ pub(super) fn render_spotify_screensaver(
     row += 1;
 
     frame.render_widget(
-        Paragraph::new(visualizer_line(-60.0, cw as usize, BG))
-            .style(Style::default().bg(BG)),
+        Paragraph::new(visualizer_line(-60.0, cw as usize, BG)).style(Style::default().bg(BG)),
         Rect::new(cx, row, cw, 1),
     );
     row += 1;
@@ -722,13 +843,24 @@ pub(super) fn render_spotify_screensaver(
             let country_str = country.unwrap_or("");
             let mut spans: Vec<Span<'static>> = Vec::new();
             if let Some(name) = name_tc {
-                spans.push(Span::styled(name, Style::default().fg(theme::HIGHLIGHT).add_modifier(Modifier::BOLD)));
+                spans.push(Span::styled(
+                    name,
+                    Style::default()
+                        .fg(theme::HIGHLIGHT)
+                        .add_modifier(Modifier::BOLD),
+                ));
             }
             if !country_str.is_empty() {
-                let used = spans.iter().map(|s| s.content.chars().count() as u16).sum::<u16>();
-                let pad  = cw.saturating_sub(used + country_str.chars().count() as u16);
+                let used = spans
+                    .iter()
+                    .map(|s| s.content.chars().count() as u16)
+                    .sum::<u16>();
+                let pad = cw.saturating_sub(used + country_str.chars().count() as u16);
                 spans.push(Span::styled(" ".repeat(pad as usize), Style::default()));
-                spans.push(Span::styled(country_str.to_string(), Style::default().fg(theme::MUTED)));
+                spans.push(Span::styled(
+                    country_str.to_string(),
+                    Style::default().fg(theme::MUTED),
+                ));
             }
             if !spans.is_empty() {
                 frame.render_widget(
@@ -740,15 +872,27 @@ pub(super) fn render_spotify_screensaver(
         }
 
         if has_plan_row {
-            let plan_str   = if is_premium { t("integrations.spotify.premium") } else { String::new() };
-            let follow_str = followers.map(|f| format!("{f} {}", t("screensaver.followers"))).unwrap_or_default();
+            let plan_str = if is_premium {
+                t("integrations.spotify.premium")
+            } else {
+                String::new()
+            };
+            let follow_str = followers
+                .map(|f| format!("{f} {}", t("screensaver.followers")))
+                .unwrap_or_default();
             let mut spans: Vec<Span<'static>> = Vec::new();
             if !plan_str.is_empty() {
-                spans.push(Span::styled(plan_str, Style::default().fg(GREEN).add_modifier(Modifier::BOLD)));
+                spans.push(Span::styled(
+                    plan_str,
+                    Style::default().fg(GREEN).add_modifier(Modifier::BOLD),
+                ));
             }
             if !follow_str.is_empty() {
-                let used = spans.iter().map(|s| s.content.chars().count() as u16).sum::<u16>();
-                let pad  = cw.saturating_sub(used + follow_str.chars().count() as u16);
+                let used = spans
+                    .iter()
+                    .map(|s| s.content.chars().count() as u16)
+                    .sum::<u16>();
+                let pad = cw.saturating_sub(used + follow_str.chars().count() as u16);
                 spans.push(Span::styled(" ".repeat(pad as usize), Style::default()));
                 spans.push(Span::styled(follow_str, Style::default().fg(theme::MUTED)));
             }
@@ -765,10 +909,14 @@ pub(super) fn render_spotify_screensaver(
     row += 1;
 
     if row < inner.bottom() {
-        let time_str         = now_t.format("%H:%M").to_string();
-        let state_str        = if playback.is_playing { "▶" } else { "⏸" };
-        let vol_color        = if playback.volume_pct > 85 { theme::WARNING } else { GREEN };
-        let (filled, empty)  = volume_bar_spans(playback.volume_pct as f32 / 100.0, 10);
+        let time_str = now_t.format("%H:%M").to_string();
+        let state_str = if playback.is_playing { "▶" } else { "⏸" };
+        let vol_color = if playback.volume_pct > 85 {
+            theme::WARNING
+        } else {
+            GREEN
+        };
+        let (filled, empty) = volume_bar_spans(playback.volume_pct as f32 / 100.0, 10);
         let shortcuts = "[Space] ⏸/▶  [+/-] Vol  [any] →";
         frame.render_widget(
             Paragraph::new(Span::styled(shortcuts, Style::default().fg(theme::DIM)))
@@ -778,12 +926,15 @@ pub(super) fn render_spotify_screensaver(
         frame.render_widget(
             Paragraph::new(Line::from(vec![
                 Span::styled(format!("{}  ", time_str), Style::default().fg(theme::MUTED)),
-                Span::styled(filled,                   Style::default().fg(vol_color)),
-                Span::styled(empty,                    Style::default().fg(theme::MUTED)),
-                Span::styled(format!("  {:>3}%  {}", playback.volume_pct, state_str), Style::default().fg(vol_color)),
+                Span::styled(filled, Style::default().fg(vol_color)),
+                Span::styled(empty, Style::default().fg(theme::MUTED)),
+                Span::styled(
+                    format!("  {:>3}%  {}", playback.volume_pct, state_str),
+                    Style::default().fg(vol_color),
+                ),
             ]))
-                .alignment(Alignment::Right)
-                .style(Style::default().bg(BG)),
+            .alignment(Alignment::Right)
+            .style(Style::default().bg(BG)),
             Rect::new(cx, row, cw, 1),
         );
     }

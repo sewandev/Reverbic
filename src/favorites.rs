@@ -22,14 +22,14 @@ pub struct FavoriteStation {
 impl FavoriteStation {
     pub fn to_station(&self) -> Station {
         let mut s = Station {
-            key:              self.key.clone(),
-            name:             self.name.clone(),
-            url:              self.url.clone(),
+            key: self.key.clone(),
+            name: self.name.clone(),
+            url: self.url.clone(),
             metadata_api_url: None,
-            history_api_url:  None,
-            schedule_url:     None,
-            show_countdown:   false,
-            bitrate_kbps:     self.bitrate_kbps,
+            history_api_url: None,
+            schedule_url: None,
+            show_countdown: false,
+            bitrate_kbps: self.bitrate_kbps,
         };
         if let Some(enrichment) = find_enrichment(&self.name) {
             enrich(&mut s, enrichment);
@@ -47,7 +47,7 @@ pub fn load() -> Vec<FavoriteStation> {
                 Vec::new()
             }
         },
-        Err(_)   => Vec::new(),
+        Err(_) => Vec::new(),
     }
 }
 
@@ -63,7 +63,6 @@ pub fn toggle(favorites: &mut Vec<FavoriteStation>, fav: FavoriteStation) -> boo
         true
     }
 }
-
 
 pub fn move_up(favorites: &mut [FavoriteStation], i: usize) {
     if i > 0 && i < favorites.len() {

@@ -1,4 +1,3 @@
-
 use std::path::PathBuf;
 use std::sync::mpsc;
 
@@ -6,7 +5,9 @@ use super::App;
 
 impl App {
     pub fn start_update_check(&mut self) {
-        if !self.config.auto_update { return; }
+        if !self.config.auto_update {
+            return;
+        }
         let (tx, rx) = mpsc::channel();
         self.update_check_rx = Some(rx);
         self.update_check_task = Some(tokio::spawn(async move {
@@ -16,7 +17,9 @@ impl App {
     }
 
     pub fn poll_update_check(&mut self) {
-        let Some(rx) = &self.update_check_rx else { return };
+        let Some(rx) = &self.update_check_rx else {
+            return;
+        };
         if let Ok(result) = rx.try_recv() {
             self.update_check_rx = None;
             self.update_check_task = None;
@@ -38,7 +41,9 @@ impl App {
     }
 
     pub fn poll_update_download(&mut self) {
-        let Some(rx) = &self.update_download_rx else { return };
+        let Some(rx) = &self.update_download_rx else {
+            return;
+        };
         if let Ok(path) = rx.try_recv() {
             self.update_download_rx = None;
             self.update_download_task = None;

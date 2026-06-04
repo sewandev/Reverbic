@@ -1,4 +1,3 @@
-
 use std::path::{Path, PathBuf};
 
 const REPO: &str = "sewandev/Reverbic";
@@ -11,7 +10,9 @@ pub async fn fetch_latest_version() -> Option<String> {
         .build()
         .ok()?;
     let resp = client.get(&url).send().await.ok()?;
-    if !resp.status().is_success() { return None; }
+    if !resp.status().is_success() {
+        return None;
+    }
     let json: serde_json::Value = resp.json().await.ok()?;
     let tag = json.get("tag_name")?.as_str()?;
     let version = tag.trim_start_matches('v');
@@ -34,15 +35,21 @@ pub async fn download_update(version: &str) -> Option<PathBuf> {
         .build()
         .ok()?;
     let resp = client.get(&url).send().await.ok()?;
-    if !resp.status().is_success() { return None; }
+    if !resp.status().is_success() {
+        return None;
+    }
     let bytes = resp.bytes().await.ok()?;
     std::fs::write(&path, bytes).ok()?;
     Some(path)
 }
 
 pub fn apply_update(new_exe: &Path) {
-    let Ok(current) = std::env::current_exe() else { return };
-    let Some(file_name) = current.file_name() else { return };
+    let Ok(current) = std::env::current_exe() else {
+        return;
+    };
+    let Some(file_name) = current.file_name() else {
+        return;
+    };
     let old_name = format!("{}.old", file_name.to_string_lossy());
     let old = current.with_file_name(old_name);
     if std::fs::rename(&current, &old).is_ok() {
@@ -51,9 +58,15 @@ pub fn apply_update(new_exe: &Path) {
 }
 
 pub fn cleanup_stale() {
-    let Ok(current) = std::env::current_exe() else { return };
-    let Some(parent) = current.parent() else { return };
-    let Some(file_name) = current.file_name() else { return };
+    let Ok(current) = std::env::current_exe() else {
+        return;
+    };
+    let Some(parent) = current.parent() else {
+        return;
+    };
+    let Some(file_name) = current.file_name() else {
+        return;
+    };
     let old = parent.join(format!("{}.old", file_name.to_string_lossy()));
     if old.exists() {
         let _ = std::fs::remove_file(old);

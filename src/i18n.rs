@@ -42,7 +42,11 @@ pub fn set_language(lang: Language) {
 }
 
 pub fn current_language() -> Language {
-    if CURRENT.load(Ordering::Relaxed) == 1 { Language::En } else { Language::Es }
+    if CURRENT.load(Ordering::Relaxed) == 1 {
+        Language::En
+    } else {
+        Language::Es
+    }
 }
 pub fn t(key: &str) -> String {
     let lang = current_language();

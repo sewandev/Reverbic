@@ -1,17 +1,17 @@
+mod favorites;
+mod input;
+mod integrations;
+mod metadata;
 mod modal;
+mod on_demand;
 mod player_ctrl;
 mod search;
-mod metadata;
-mod on_demand;
-mod favorites;
-mod integrations;
-mod input;
 mod spotify_state;
 mod update_ctrl;
 
 pub use modal::{
-    AppFocus, RadioSubTab, SearchMode, SettingItem, SpotifyAuthStatus, SpotifyPlayerStatus, SpotifySubTab,
-    settings_items,
+    settings_items, AppFocus, RadioSubTab, SearchMode, SettingItem, SpotifyAuthStatus,
+    SpotifyPlayerStatus, SpotifySubTab,
 };
 pub use spotify_state::SpotifyState;
 
@@ -24,34 +24,59 @@ use ratatui::layout::Rect;
 use crate::audio::{AudioPlayer, PlayerState};
 use crate::config::Config;
 use crate::favorites::{self as fav_store, FavoriteStation};
-use crate::station::{DynamicStation, Station, StationDetails};
 use crate::station::on_demand::OnDemandShow;
+use crate::station::{DynamicStation, Station, StationDetails};
 
 pub(super) fn cycle_prev(sel: usize, len: usize) -> usize {
-    if len == 0 { 0 } else { sel.checked_sub(1).unwrap_or(len - 1) }
+    if len == 0 {
+        0
+    } else {
+        sel.checked_sub(1).unwrap_or(len - 1)
+    }
 }
 
 pub(super) fn cycle_next(sel: usize, len: usize) -> usize {
-    if len == 0 { 0 } else { (sel + 1) % len }
+    if len == 0 {
+        0
+    } else {
+        (sel + 1) % len
+    }
 }
 
-pub(super) fn handle_filter_list_key(key: KeyCode, filter: &mut String, selected: &mut usize, len: usize) -> bool {
+pub(super) fn handle_filter_list_key(
+    key: KeyCode,
+    filter: &mut String,
+    selected: &mut usize,
+    len: usize,
+) -> bool {
     match key {
         KeyCode::Esc => {
-            if !filter.is_empty() { filter.clear(); *selected = 0; }
-            else { return true; }
+            if !filter.is_empty() {
+                filter.clear();
+                *selected = 0;
+            } else {
+                return true;
+            }
         }
-        KeyCode::Up         => *selected = cycle_prev(*selected, len),
-        KeyCode::Down       => *selected = cycle_next(*selected, len),
-        KeyCode::Backspace  => { filter.pop(); *selected = 0; }
-        KeyCode::Char(c) if !c.is_control() => { filter.push(c); *selected = 0; }
+        KeyCode::Up => *selected = cycle_prev(*selected, len),
+        KeyCode::Down => *selected = cycle_next(*selected, len),
+        KeyCode::Backspace => {
+            filter.pop();
+            *selected = 0;
+        }
+        KeyCode::Char(c) if !c.is_control() => {
+            filter.push(c);
+            *selected = 0;
+        }
         _ => {}
     }
     false
 }
 
 pub(super) fn abort_task(task: &mut Option<tokio::task::JoinHandle<()>>) {
-    if let Some(h) = task.take() { h.abort(); }
+    if let Some(h) = task.take() {
+        h.abort();
+    }
 }
 
 pub(super) fn scroll_by(sel: usize, delta: i32, len: usize) -> usize {
@@ -63,155 +88,172 @@ pub(super) fn scroll_by(sel: usize, delta: i32, len: usize) -> usize {
 }
 
 pub struct App {
-    pub stations:            Vec<Station>,
-    pub favorites:           Vec<FavoriteStation>,
-    pub selected:            usize,
-    pub player:              AudioPlayer,
-    pub should_quit:         bool,
-    pub focus:               AppFocus,
-    pub recent_selected:     usize,
-    pub saved_tracks:        Vec<String>,
-    pub save_notice:         Option<String>,
-    pub save_notice_is_dup:  bool,
-    pub search_query:        String,
-    pub search_results:      Vec<DynamicStation>,
-    pub search_loading:      bool,
-    pub terminal_area:       Rect,
-    pub on_demand_shows:     Vec<OnDemandShow>,
-    pub on_demand_selected:  usize,
-    pub on_demand_loading:   bool,
-    pub selected_program:    usize,
-    pub seek_input:          String,
-    pub settings_selected:   usize,
-    pub show_search_modal:   bool,
-    pub modal_mode:          SearchMode,
-    pub modal_selected:      usize,
-    pub radio_sub_tab:       RadioSubTab,
-    pub radio_fav_selected:  usize,
-    pub genre_selected:      usize,
-    pub genre_filter:        String,
-    pub genre_query:         String,
-    pub country_selected:    usize,
-    pub country_filter:      String,
-    pub renaming_favorite:   Option<usize>,
-    pub rename_input:        String,
-    pub editing_client_id:   bool,
-    pub client_id_input:     String,
-    pub click_flash:         Option<(usize, Instant)>,
-    pub last_activity:       Instant,
-    pub border_tick:         u32,
-    pub station_details:     Option<StationDetails>,
-    pub windows_tx:          Option<tokio::sync::watch::Sender<crate::config::Config>>,
-    pub config:              Config,
-    pub show_help:              bool,
-    pub spotify:               SpotifyState,
-    pub radio_enriched_track:  Option<crate::metadata::EnrichedTrack>,
-    pub(super) radio_enriched_for:       Option<String>,
-    pub(super) radio_enrichment_task:    Option<tokio::task::JoinHandle<()>>,
-    pub(super) radio_enrichment_rx:      Option<std::sync::mpsc::Receiver<Option<crate::metadata::EnrichedTrack>>>,
-    metadata_task:             Option<tokio::task::JoinHandle<()>>,
-    search_task:             Option<tokio::task::JoinHandle<()>>,
-    search_result_rx:        Option<std::sync::mpsc::Receiver<Vec<DynamicStation>>>,
-    on_demand_task:          Option<tokio::task::JoinHandle<()>>,
-    on_demand_rx:            Option<std::sync::mpsc::Receiver<Vec<OnDemandShow>>>,
-    station_details_rx:      Option<std::sync::mpsc::Receiver<StationDetails>>,
-    last_details_uuid:       Option<String>,
-    pub notice_until:        Option<std::time::Instant>,
-    pub dead_urls:           HashSet<String>,
-    pub update_available:    Option<String>,
-    pub update_path:         Option<std::path::PathBuf>,
-    update_check_task:       Option<tokio::task::JoinHandle<()>>,
-    update_check_rx:         Option<std::sync::mpsc::Receiver<Option<String>>>,
-    update_download_task:    Option<tokio::task::JoinHandle<()>>,
-    update_download_rx:      Option<std::sync::mpsc::Receiver<std::path::PathBuf>>,
+    pub stations: Vec<Station>,
+    pub favorites: Vec<FavoriteStation>,
+    pub selected: usize,
+    pub player: AudioPlayer,
+    pub should_quit: bool,
+    pub focus: AppFocus,
+    pub recent_selected: usize,
+    pub saved_tracks: Vec<String>,
+    pub save_notice: Option<String>,
+    pub save_notice_is_dup: bool,
+    pub search_query: String,
+    pub search_results: Vec<DynamicStation>,
+    pub search_loading: bool,
+    pub terminal_area: Rect,
+    pub on_demand_shows: Vec<OnDemandShow>,
+    pub on_demand_selected: usize,
+    pub on_demand_loading: bool,
+    pub selected_program: usize,
+    pub seek_input: String,
+    pub settings_selected: usize,
+    pub show_search_modal: bool,
+    pub modal_mode: SearchMode,
+    pub modal_selected: usize,
+    pub radio_sub_tab: RadioSubTab,
+    pub radio_fav_selected: usize,
+    pub genre_selected: usize,
+    pub genre_filter: String,
+    pub genre_query: String,
+    pub country_selected: usize,
+    pub country_filter: String,
+    pub renaming_favorite: Option<usize>,
+    pub rename_input: String,
+    pub editing_client_id: bool,
+    pub client_id_input: String,
+    pub click_flash: Option<(usize, Instant)>,
+    pub last_activity: Instant,
+    pub border_tick: u32,
+    pub station_details: Option<StationDetails>,
+    pub windows_tx: Option<tokio::sync::watch::Sender<crate::config::Config>>,
+    pub config: Config,
+    pub show_help: bool,
+    pub spotify: SpotifyState,
+    pub radio_enriched_track: Option<crate::metadata::EnrichedTrack>,
+    pub(super) radio_enriched_for: Option<String>,
+    pub(super) radio_enrichment_task: Option<tokio::task::JoinHandle<()>>,
+    pub(super) radio_enrichment_rx:
+        Option<std::sync::mpsc::Receiver<Option<crate::metadata::EnrichedTrack>>>,
+    metadata_task: Option<tokio::task::JoinHandle<()>>,
+    search_task: Option<tokio::task::JoinHandle<()>>,
+    search_result_rx: Option<std::sync::mpsc::Receiver<Vec<DynamicStation>>>,
+    on_demand_task: Option<tokio::task::JoinHandle<()>>,
+    on_demand_rx: Option<std::sync::mpsc::Receiver<Vec<OnDemandShow>>>,
+    station_details_rx: Option<std::sync::mpsc::Receiver<StationDetails>>,
+    last_details_uuid: Option<String>,
+    pub notice_until: Option<std::time::Instant>,
+    pub dead_urls: HashSet<String>,
+    pub update_available: Option<String>,
+    pub update_path: Option<std::path::PathBuf>,
+    update_check_task: Option<tokio::task::JoinHandle<()>>,
+    update_check_rx: Option<std::sync::mpsc::Receiver<Option<String>>>,
+    update_download_task: Option<tokio::task::JoinHandle<()>>,
+    update_download_rx: Option<std::sync::mpsc::Receiver<std::path::PathBuf>>,
+    fav_enrich_task: Option<tokio::task::JoinHandle<()>>,
+    fav_enrich_rx: Option<std::sync::mpsc::Receiver<Vec<FavoriteStation>>>,
 }
 
 impl App {
     pub async fn new() -> Self {
         let config = Config::load();
         let player = AudioPlayer::spawn();
-        let initial_vol = if config.restore_volume { config.volume } else { 1.0 };
-        player.send(crate::audio::PlayerCommand::SetVolume(initial_vol)).await;
-        player.send(crate::audio::PlayerCommand::SetPrebuffer(config.prebuffer_secs as f32)).await;
+        let initial_vol = if config.restore_volume {
+            config.volume
+        } else {
+            1.0
+        };
+        player
+            .send(crate::audio::PlayerCommand::SetVolume(initial_vol))
+            .await;
+        player
+            .send(crate::audio::PlayerCommand::SetPrebuffer(
+                config.prebuffer_secs as f32,
+            ))
+            .await;
 
         let favorites = fav_store::load();
-        Self {
-            stations:           Vec::new(),
+        let mut app = Self {
+            stations: Vec::new(),
             favorites,
-            selected:           0,
+            selected: 0,
             player,
-            should_quit:        false,
-            focus:              AppFocus::Stations,
-            recent_selected:    0,
-            saved_tracks:       Vec::new(),
-            save_notice:        None,
+            should_quit: false,
+            focus: AppFocus::Stations,
+            recent_selected: 0,
+            saved_tracks: Vec::new(),
+            save_notice: None,
             save_notice_is_dup: false,
-            search_query:       String::new(),
-            search_results:     Vec::new(),
-            search_loading:     false,
-            terminal_area:      Rect::default(),
-            on_demand_shows:    Vec::new(),
+            search_query: String::new(),
+            search_results: Vec::new(),
+            search_loading: false,
+            terminal_area: Rect::default(),
+            on_demand_shows: Vec::new(),
             on_demand_selected: 0,
-            on_demand_loading:  false,
-            selected_program:   0,
-            seek_input:         String::new(),
-            settings_selected:  0,
-            show_search_modal:  true,
-            modal_mode:         SearchMode::Name,
-            modal_selected:     0,
-            radio_sub_tab:      RadioSubTab::default(),
+            on_demand_loading: false,
+            selected_program: 0,
+            seek_input: String::new(),
+            settings_selected: 0,
+            show_search_modal: true,
+            modal_mode: SearchMode::Name,
+            modal_selected: 0,
+            radio_sub_tab: RadioSubTab::default(),
             radio_fav_selected: 0,
-            genre_selected:     0,
-            genre_filter:       String::new(),
-            genre_query:        String::new(),
-            country_selected:   0,
-            country_filter:     String::new(),
-            renaming_favorite:  None,
-            rename_input:       String::new(),
-            editing_client_id:  false,
-            client_id_input:    String::new(),
-            click_flash:        None,
-            last_activity:      Instant::now(),
-            border_tick:        0,
-            station_details:    None,
-            windows_tx:         None,
+            genre_selected: 0,
+            genre_filter: String::new(),
+            genre_query: String::new(),
+            country_selected: 0,
+            country_filter: String::new(),
+            renaming_favorite: None,
+            rename_input: String::new(),
+            editing_client_id: false,
+            client_id_input: String::new(),
+            click_flash: None,
+            last_activity: Instant::now(),
+            border_tick: 0,
+            station_details: None,
+            windows_tx: None,
             config,
-            show_help:                false,
-            spotify:                  SpotifyState::default(),
-            radio_enriched_track:     None,
-            radio_enriched_for:       None,
-            radio_enrichment_task:    None,
-            radio_enrichment_rx:      None,
-            metadata_task:            None,
-            search_task:        None,
-            search_result_rx:   None,
-            on_demand_task:     None,
-            on_demand_rx:       None,
+            show_help: false,
+            spotify: SpotifyState::default(),
+            radio_enriched_track: None,
+            radio_enriched_for: None,
+            radio_enrichment_task: None,
+            radio_enrichment_rx: None,
+            metadata_task: None,
+            search_task: None,
+            search_result_rx: None,
+            on_demand_task: None,
+            on_demand_rx: None,
             station_details_rx: None,
-            last_details_uuid:  None,
-            notice_until:          None,
-            dead_urls:             HashSet::new(),
-            update_available:      None,
-            update_path:           None,
-            update_check_task:     None,
-            update_check_rx:       None,
-            update_download_task:  None,
-            update_download_rx:    None,
-        }
+            last_details_uuid: None,
+            notice_until: None,
+            dead_urls: HashSet::new(),
+            update_available: None,
+            update_path: None,
+            update_check_task: None,
+            update_check_rx: None,
+            update_download_task: None,
+            update_download_rx: None,
+            fav_enrich_task: None,
+            fav_enrich_rx: None,
+        };
+        app.start_favorites_enrichment();
+        app
     }
 
     pub fn screensaver_active(&self) -> bool {
         let secs = self.config.screensaver_secs;
-        secs > 0
-            && self.show_search_modal
-            && self.last_activity.elapsed().as_secs() >= secs as u64
+        secs > 0 && self.show_search_modal && self.last_activity.elapsed().as_secs() >= secs as u64
     }
     pub fn active_source_is_spotify(&self) -> bool {
         use crate::audio::PlayerStatus;
         let radio_active = matches!(
             self.player.state().status,
-            PlayerStatus::Playing | PlayerStatus::Paused
-                | PlayerStatus::Buffering(_) | PlayerStatus::Reconnecting(_)
+            PlayerStatus::Playing
+                | PlayerStatus::Paused
+                | PlayerStatus::Buffering(_)
+                | PlayerStatus::Reconnecting(_)
         );
         !radio_active && self.spotify.playback.is_some()
     }
@@ -225,7 +267,11 @@ impl App {
     }
 
     pub(super) fn favorite_index(&self) -> Option<usize> {
-        if self.is_favorite_selected() { Some(self.selected) } else { None }
+        if self.is_favorite_selected() {
+            Some(self.selected)
+        } else {
+            None
+        }
     }
 
     pub(super) fn is_hardcoded_selected(&self) -> bool {
@@ -260,17 +306,25 @@ impl App {
         } else if let Some(i) = self.hardcoded_index() {
             let s = &self.stations[i];
             Some(FavoriteStation {
-                key: s.key.clone(), name: s.name.clone(), url: s.url.clone(),
+                key: s.key.clone(),
+                name: s.name.clone(),
+                url: s.url.clone(),
                 bitrate_kbps: s.bitrate_kbps,
-                country: String::new(), tags: Vec::new(), homepage: String::new(),
+                country: String::new(),
+                tags: Vec::new(),
+                homepage: String::new(),
             })
         } else {
             self.search_result_index()
                 .and_then(|i| self.search_results.get(i))
                 .map(|ds| FavoriteStation {
-                    key: ds.key.clone(), name: ds.name.clone(), url: ds.url.clone(),
+                    key: ds.key.clone(),
+                    name: ds.name.clone(),
+                    url: ds.url.clone(),
                     bitrate_kbps: ds.bitrate_kbps,
-                    country: ds.country.clone(), tags: ds.tags.clone(), homepage: ds.homepage.clone(),
+                    country: ds.country.clone(),
+                    tags: ds.tags.clone(),
+                    homepage: ds.homepage.clone(),
                 })
         }
     }

@@ -10,24 +10,24 @@ pub use devices::SpotifyPlaybackState;
 
 pub enum AuthResult {
     Success {
-        username:      String,
-        search_token:  String,
+        username: String,
+        search_token: String,
         refresh_token: String,
-        audio_token:   String,
-        is_premium:    bool,
-        country:       Option<String>,
-        followers:     Option<u32>,
+        audio_token: String,
+        is_premium: bool,
+        country: Option<String>,
+        followers: Option<u32>,
     },
     Failure(String),
 }
 
 #[derive(Clone)]
 pub struct SpotifyTrack {
-    pub name:        String,
-    pub artist:      String,
-    pub album:       String,
+    pub name: String,
+    pub artist: String,
+    pub album: String,
     pub duration_ms: u32,
-    pub uri:         String,
+    pub uri: String,
 }
 
 pub enum SpotifyPlayerCmd {

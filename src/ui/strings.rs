@@ -5,7 +5,12 @@ pub fn truncate(s: &str, max_chars: usize) -> String {
     if s.chars().count() <= max_chars {
         s.to_owned()
     } else {
-        format!("{}…", s.chars().take(max_chars.saturating_sub(1)).collect::<String>())
+        format!(
+            "{}…",
+            s.chars()
+                .take(max_chars.saturating_sub(1))
+                .collect::<String>()
+        )
     }
 }
 
@@ -14,7 +19,7 @@ pub fn title_case(s: &str) -> String {
         .map(|word| {
             let mut chars = word.chars();
             match chars.next() {
-                None    => String::new(),
+                None => String::new(),
                 Some(c) => c.to_uppercase().collect::<String>() + chars.as_str(),
             }
         })

@@ -1,9 +1,9 @@
 use super::{SpotifyError, SpotifyTrack};
 
 pub async fn search_tracks(
-    query:        &str,
+    query: &str,
     access_token: &str,
-    offset:       usize,
+    offset: usize,
 ) -> Result<(Vec<SpotifyTrack>, bool), SpotifyError> {
     if query.is_empty() {
         return Ok((vec![], false));
@@ -14,8 +14,9 @@ pub async fn search_tracks(
 
     let encoded = query.bytes().fold(String::new(), |mut s, b| {
         match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9'
-            | b'-' | b'_' | b'.' | b'~' => s.push(b as char),
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                s.push(b as char)
+            }
             _ => s.push_str(&format!("%{b:02X}")),
         }
         s
@@ -31,15 +32,22 @@ pub async fn search_tracks(
         .await
         .map_err(|e| SpotifyError::Network(e.to_string()))?;
 
-    let status      = response.status();
-    let retry_after = response.headers()
+    let status = response.status();
+    let retry_after = response
+        .headers()
         .get("Retry-After")
         .and_then(|v| v.to_str().ok())
         .and_then(|s| s.parse::<u64>().ok())
         .unwrap_or(60);
-    let body = response.text().await.map_err(|e| SpotifyError::Network(e.to_string()))?;
+    let body = response
+        .text()
+        .await
+        .map_err(|e| SpotifyError::Network(e.to_string()))?;
 
-    tracing::debug!("spotify /v1/search — status={status} body={}", &body[..body.len().min(400)]);
+    tracing::debug!(
+        "spotify /v1/search — status={status} body={}",
+        &body[..body.len().min(400)]
+    );
 
     if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
         tracing::warn!("spotify search: rate limit activo, reintenta en {retry_after}s");
@@ -54,8 +62,8 @@ pub async fn search_tracks(
 }
 
 fn parse_body(body: &str) -> Result<(Vec<SpotifyTrack>, bool), SpotifyError> {
-    let json: serde_json::Value = serde_json::from_str(body)
-        .map_err(|e| SpotifyError::Parse(e.to_string()))?;
+    let json: serde_json::Value =
+        serde_json::from_str(body).map_err(|e| SpotifyError::Parse(e.to_string()))?;
 
     let tracks_obj = &json["tracks"];
     let tracks: Vec<SpotifyTrack> = tracks_obj["items"]
@@ -80,5 +88,11 @@ fn parse_track(item: &serde_json::Value) -> Option<SpotifyTrack> {
     let duration_ms = item["duration_ms"].as_u64().unwrap_or(0) as u32;
     let uri = item["uri"].as_str()?.to_string();
 
-    Some(SpotifyTrack { name, artist, album, duration_ms, uri })
+    Some(SpotifyTrack {
+        name,
+        artist,
+        album,
+        duration_ms,
+        uri,
+    })
 }

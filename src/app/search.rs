@@ -1,4 +1,6 @@
-use crate::station::{search_stations, search_stations_by_tag, search_stations_by_country, DynamicStation};
+use crate::station::{
+    search_stations, search_stations_by_country, search_stations_by_tag, DynamicStation,
+};
 
 use super::{abort_task, App};
 
@@ -8,7 +10,9 @@ impl App {
         if query.trim().is_empty() {
             self.search_results.clear();
             self.search_loading = false;
-            if let Some(t) = self.search_task.take() { t.abort(); }
+            if let Some(t) = self.search_task.take() {
+                t.abort();
+            }
             return;
         }
         self.spawn_search(move || async move { search_stations(&query, 20).await });
@@ -39,7 +43,8 @@ impl App {
         self.search_result_rx = Some(rx);
 
         self.search_task = Some(tokio::spawn(async move {
-            let filtered: Vec<DynamicStation> = build().await
+            let filtered: Vec<DynamicStation> = build()
+                .await
                 .unwrap_or_default()
                 .into_iter()
                 .filter(|s| !existing_urls.contains(&s.url))

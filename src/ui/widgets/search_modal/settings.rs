@@ -6,7 +6,7 @@ use ratatui::{
     widgets::{Paragraph, Widget, Wrap},
 };
 
-use crate::app::{SettingItem, settings_items};
+use crate::app::{settings_items, SettingItem};
 use crate::i18n::{current_language, t, Language};
 use crate::ui::theme;
 
@@ -15,30 +15,84 @@ use super::SearchModalWidget;
 
 impl<'a> SearchModalWidget<'a> {
     pub(super) fn item_value(&self, item: SettingItem) -> String {
-        let on  = t("config.value.on");
+        let on = t("config.value.on");
         let off = t("config.value.off");
         match item {
-            SettingItem::Autoplay        => if self.autoplay_last  { on } else { off },
-            SettingItem::RestoreVolume   => if self.restore_volume { on } else { off },
-            SettingItem::Crossfade       => self.crossfade.clone(),
-            SettingItem::VolumeStep      => format!("{}%", self.volume_step),
-            SettingItem::Prebuffer       => format!("{}s", self.prebuffer_secs),
-            SettingItem::OverlayMode     => self.overlay_mode.clone(),
-            SettingItem::OverlayAlpha    => format!("{}%", self.overlay_alpha),
+            SettingItem::Autoplay => {
+                if self.autoplay_last {
+                    on
+                } else {
+                    off
+                }
+            }
+            SettingItem::RestoreVolume => {
+                if self.restore_volume {
+                    on
+                } else {
+                    off
+                }
+            }
+            SettingItem::Crossfade => self.crossfade.clone(),
+            SettingItem::VolumeStep => format!("{}%", self.volume_step),
+            SettingItem::Prebuffer => format!("{}s", self.prebuffer_secs),
+            SettingItem::OverlayMode => self.overlay_mode.clone(),
+            SettingItem::OverlayAlpha => format!("{}%", self.overlay_alpha),
             SettingItem::OverlayPosition => self.overlay_position.clone(),
-            SettingItem::Screensaver      => screensaver_display(self.screensaver_secs),
-            SettingItem::ScreensaverClock => if self.screensaver_clock { on } else { off },
-            SettingItem::DuckEnabled     => if self.duck_enabled { on } else { off },
-            SettingItem::DuckVolume      => format!("{}%", self.duck_volume),
-            SettingItem::MediaKeys       => if self.media_keys    { on } else { off },
-            SettingItem::TrayIcon        => if self.tray_icon     { on } else { off },
-            SettingItem::Notifications   => if self.notifications { on } else { off },
-            SettingItem::Language        => match current_language() {
+            SettingItem::Screensaver => screensaver_display(self.screensaver_secs),
+            SettingItem::ScreensaverClock => {
+                if self.screensaver_clock {
+                    on
+                } else {
+                    off
+                }
+            }
+            SettingItem::DuckEnabled => {
+                if self.duck_enabled {
+                    on
+                } else {
+                    off
+                }
+            }
+            SettingItem::DuckVolume => format!("{}%", self.duck_volume),
+            SettingItem::MediaKeys => {
+                if self.media_keys {
+                    on
+                } else {
+                    off
+                }
+            }
+            SettingItem::TrayIcon => {
+                if self.tray_icon {
+                    on
+                } else {
+                    off
+                }
+            }
+            SettingItem::Notifications => {
+                if self.notifications {
+                    on
+                } else {
+                    off
+                }
+            }
+            SettingItem::Language => match current_language() {
                 Language::Es => t("lang.display.es"),
                 Language::En => t("lang.display.en"),
             },
-            SettingItem::SpotifyStopOnQuit     => if self.spotify_stop_on_quit     { on } else { off },
-            SettingItem::SpotifyStartOnSpotify => if self.spotify_start_on_spotify { on } else { off },
+            SettingItem::SpotifyStopOnQuit => {
+                if self.spotify_stop_on_quit {
+                    on
+                } else {
+                    off
+                }
+            }
+            SettingItem::SpotifyStartOnSpotify => {
+                if self.spotify_start_on_spotify {
+                    on
+                } else {
+                    off
+                }
+            }
             SettingItem::SpotifyClientId => {
                 if self.spotify_client_id.is_empty() {
                     t("config.spotify.not_set")
@@ -47,7 +101,13 @@ impl<'a> SearchModalWidget<'a> {
                     format!("{}...", preview)
                 }
             }
-            SettingItem::AutoUpdate => if self.auto_update { on } else { off },
+            SettingItem::AutoUpdate => {
+                if self.auto_update {
+                    on
+                } else {
+                    off
+                }
+            }
         }
     }
 
@@ -55,7 +115,13 @@ impl<'a> SearchModalWidget<'a> {
         value == t("config.value.on").as_str()
     }
 
-    pub(super) fn render_settings_body(&self, area: Rect, content_x: u16, content_w: u16, buf: &mut Buffer) {
+    pub(super) fn render_settings_body(
+        &self,
+        area: Rect,
+        content_x: u16,
+        content_w: u16,
+        buf: &mut Buffer,
+    ) {
         let mut rows: Vec<(String, Option<String>)> = Vec::new();
         let mut last_group = "";
         for item in settings_items(self.duck_enabled) {
@@ -71,7 +137,9 @@ impl<'a> SearchModalWidget<'a> {
         let mut selected_row = 0usize;
         for (ri, (_, val)) in rows.iter().enumerate() {
             if val.is_some() {
-                if item_idx == self.settings_selected { selected_row = ri; }
+                if item_idx == self.settings_selected {
+                    selected_row = ri;
+                }
                 item_idx += 1;
             }
         }
@@ -83,10 +151,11 @@ impl<'a> SearchModalWidget<'a> {
             Constraint::Length(1),
             Constraint::Fill(1),
             Constraint::Length(3),
-        ]).areas(area);
+        ])
+        .areas(area);
 
         let visible_n = items_area.height.saturating_sub(1) as usize;
-        let offset    = super::super::scroll_offset(selected_row, visible_n);
+        let offset = super::super::scroll_offset(selected_row, visible_n);
         let val_col_w: u16 = 16;
         let lbl_col_w: u16 = list_w.saturating_sub(3 + val_col_w);
 
@@ -94,7 +163,9 @@ impl<'a> SearchModalWidget<'a> {
         for (ri, (label, val_opt)) in rows.iter().enumerate() {
             let display_y = ri as isize - offset as isize;
             if display_y < 0 || display_y >= visible_n as isize {
-                if val_opt.is_some() { item_idx += 1; }
+                if val_opt.is_some() {
+                    item_idx += 1;
+                }
                 continue;
             }
             let y = items_area.y + display_y as u16;
@@ -108,14 +179,18 @@ impl<'a> SearchModalWidget<'a> {
                 let label_chars = label_str.chars().count() as u16;
                 let padding = lbl_col_w.saturating_sub(label_chars) as usize;
                 let label_st = if active {
-                    Style::default().fg(theme::RADIO_ACCENT).add_modifier(Modifier::BOLD)
+                    Style::default()
+                        .fg(theme::RADIO_ACCENT)
+                        .add_modifier(Modifier::BOLD)
                 } else {
                     Style::default().fg(theme::HIGHLIGHT)
                 };
-                let is_on  = Self::is_on_value(value);
+                let is_on = Self::is_on_value(value);
                 let is_off = value == t("config.value.off").as_str();
                 let val_st = if active {
-                    Style::default().fg(theme::PLAYING).add_modifier(Modifier::BOLD)
+                    Style::default()
+                        .fg(theme::PLAYING)
+                        .add_modifier(Modifier::BOLD)
                 } else if is_on {
                     Style::default().fg(theme::PLAYING)
                 } else if is_off {
@@ -125,22 +200,25 @@ impl<'a> SearchModalWidget<'a> {
                 };
 
                 Paragraph::new(Line::from(vec![
-                    Span::styled(prefix,                   label_st),
-                    Span::styled(label_str,                label_st),
-                    Span::styled(" ".repeat(padding),      Style::default()),
-                    Span::styled(value.clone(),            val_st),
+                    Span::styled(prefix, label_st),
+                    Span::styled(label_str, label_st),
+                    Span::styled(" ".repeat(padding), Style::default()),
+                    Span::styled(value.clone(), val_st),
                 ]))
                 .render(Rect::new(list_x, y, list_w, 1), buf);
                 item_idx += 1;
             } else {
                 let label_upper = label.to_uppercase();
                 let label_chars = label_upper.chars().count() as u16;
-                let right_dashes = list_w
-                    .saturating_sub(3 + label_chars + 1)
-                    as usize;
+                let right_dashes = list_w.saturating_sub(3 + label_chars + 1) as usize;
                 Paragraph::new(Line::from(vec![
                     Span::styled("── ", Style::default().fg(theme::DIM)),
-                    Span::styled(label_upper, Style::default().fg(theme::MUTED).add_modifier(Modifier::BOLD)),
+                    Span::styled(
+                        label_upper,
+                        Style::default()
+                            .fg(theme::MUTED)
+                            .add_modifier(Modifier::BOLD),
+                    ),
                     Span::styled(
                         format!(" {}", "─".repeat(right_dashes)),
                         Style::default().fg(theme::DIM),

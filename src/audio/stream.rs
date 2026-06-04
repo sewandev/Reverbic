@@ -1,21 +1,20 @@
-
 use bytes::Bytes;
 use std::collections::VecDeque;
 use std::io::{self, Read, Seek, SeekFrom};
-use std::sync::{mpsc, Mutex};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::Arc;
+use std::sync::{mpsc, Mutex};
 
 use crate::metadata::parse_icy_title;
 
 pub struct StreamReader {
-    rx:            Mutex<mpsc::Receiver<Bytes>>,
-    chunks:        VecDeque<Bytes>,
-    offset:        usize,
-    buffered:      usize,
-    last_chunk_at:   Arc<AtomicU64>,
-    download_done:   Arc<AtomicBool>,
-    dead_url:        Arc<AtomicBool>,
+    rx: Mutex<mpsc::Receiver<Bytes>>,
+    chunks: VecDeque<Bytes>,
+    offset: usize,
+    buffered: usize,
+    last_chunk_at: Arc<AtomicU64>,
+    download_done: Arc<AtomicBool>,
+    dead_url: Arc<AtomicBool>,
 }
 
 impl StreamReader {
@@ -44,13 +43,22 @@ impl StreamReader {
         let (audio_tx, audio_rx) = mpsc::sync_channel::<Bytes>(channel_size);
         let (title_tx, title_rx) = mpsc::sync_channel::<String>(8);
 
-        let download_done  = Arc::new(AtomicBool::new(false));
-        let done_for_task  = Arc::clone(&download_done);
-        let dead_url       = Arc::new(AtomicBool::new(false));
-        let dead_for_task  = Arc::clone(&dead_url);
+        let download_done = Arc::new(AtomicBool::new(false));
+        let done_for_task = Arc::clone(&download_done);
+        let dead_url = Arc::new(AtomicBool::new(false));
+        let dead_for_task = Arc::clone(&dead_url);
 
         handle.spawn(async move {
-            if let Err(e) = download_stream(url, start_byte, audio_tx, title_tx, done_for_task, dead_for_task).await {
+            if let Err(e) = download_stream(
+                url,
+                start_byte,
+                audio_tx,
+                title_tx,
+                done_for_task,
+                dead_for_task,
+            )
+            .await
+            {
                 tracing::error!("Stream download failed: {e}");
             }
         });
@@ -150,8 +158,7 @@ impl Read for StreamReader {
             };
             let available = front.len() - self.offset;
             let take = available.min(out.len() - written);
-            out[written..written + take]
-                .copy_from_slice(&front[self.offset..self.offset + take]);
+            out[written..written + take].copy_from_slice(&front[self.offset..self.offset + take]);
             written += take;
             self.offset += take;
             self.buffered -= take;
@@ -184,7 +191,10 @@ async fn download_stream(
     tracing::info!("Conectando a stream: {url} (start_byte={start_byte})");
 
     let mut req_headers = reqwest::header::HeaderMap::new();
-    req_headers.insert("Icy-MetaData", reqwest::header::HeaderValue::from_static("1"));
+    req_headers.insert(
+        "Icy-MetaData",
+        reqwest::header::HeaderValue::from_static("1"),
+    );
     req_headers.insert(
         reqwest::header::USER_AGENT,
         reqwest::header::HeaderValue::from_static("reverbic/0.1"),
@@ -205,7 +215,9 @@ async fn download_stream(
     let resp = match tokio::time::timeout(
         std::time::Duration::from_secs(5),
         client.get(&url).send(),
-    ).await {
+    )
+    .await
+    {
         Ok(Ok(r)) => r,
         Ok(Err(e)) => return Err(e),
         Err(_) => {
@@ -234,10 +246,9 @@ async fn download_stream(
     let mut first_chunk_logged = false;
 
     use futures_util::StreamExt;
-    while let Ok(Some(chunk)) = tokio::time::timeout(
-        std::time::Duration::from_secs(5),
-        stream.next(),
-    ).await {
+    while let Ok(Some(chunk)) =
+        tokio::time::timeout(std::time::Duration::from_secs(5), stream.next()).await
+    {
         match chunk {
             Ok(raw_bytes) => {
                 if !first_chunk_logged {
@@ -448,7 +459,7 @@ fn log_first_chunk(bytes: &Bytes) {
     match std::str::from_utf8(&bytes[..bytes.len().min(64)]) {
         Ok(text) => tracing::warn!(
             first_bytes_utf8 = text,
-            total_chunk_len  = bytes.len(),
+            total_chunk_len = bytes.len(),
             "Primer chunk es texto — posible respuesta HTML"
         ),
         Err(_) => tracing::info!(
@@ -467,8 +478,8 @@ enum IcyState {
 }
 
 struct IcyStripper {
-    state:    IcyState,
-    metaint:  usize,
+    state: IcyState,
+    metaint: usize,
     title_tx: mpsc::SyncSender<String>,
     meta_buf: Vec<u8>,
 }
@@ -619,7 +630,9 @@ mod tests {
         s.process(&meta_block[mid..], &mut out);
         assert!(out.is_empty());
 
-        let title = rx.try_recv().expect("título emitido tras completar el bloque");
+        let title = rx
+            .try_recv()
+            .expect("título emitido tras completar el bloque");
         assert_eq!(title, "Chunked");
     }
 }

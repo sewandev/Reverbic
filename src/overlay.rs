@@ -11,23 +11,25 @@ use windows::{
         Foundation::*,
         Graphics::Gdi::*,
         Media::Audio::{
-            AudioSessionStateActive, AudioSessionStateExpired,
-            IAudioSessionControl2, IAudioSessionEnumerator, IAudioSessionManager2,
-            IMMDeviceEnumerator, MMDeviceEnumerator, eConsole, eRender,
-            Endpoints::IAudioMeterInformation,
+            eConsole, eRender, AudioSessionStateActive, AudioSessionStateExpired,
+            Endpoints::IAudioMeterInformation, IAudioSessionControl2, IAudioSessionEnumerator,
+            IAudioSessionManager2, IMMDeviceEnumerator, MMDeviceEnumerator,
         },
         System::{
             Com::{CoCreateInstance, CoInitializeEx, CLSCTX_ALL, COINIT_MULTITHREADED},
             Console::GetConsoleWindow,
             Diagnostics::ToolHelp::{
-                CreateToolhelp32Snapshot, Process32FirstW, Process32NextW,
-                PROCESSENTRY32W, TH32CS_SNAPPROCESS,
+                CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W,
+                TH32CS_SNAPPROCESS,
             },
             LibraryLoader::GetModuleHandleW,
             Threading::AttachThreadInput,
         },
         UI::{
-            Shell::{Shell_NotifyIconW, NOTIFYICONDATAW, NIF_ICON, NIF_MESSAGE, NIF_TIP, NIF_INFO, NIM_ADD, NIM_DELETE, NIM_MODIFY, NIIF_NOSOUND},
+            Shell::{
+                Shell_NotifyIconW, NIF_ICON, NIF_INFO, NIF_MESSAGE, NIF_TIP, NIIF_NOSOUND, NIM_ADD,
+                NIM_DELETE, NIM_MODIFY, NOTIFYICONDATAW,
+            },
             WindowsAndMessaging::*,
         },
     },
@@ -39,31 +41,31 @@ use crate::config::{Config, OverlayMode, OverlayPosition};
 const OW: i32 = 320;
 const OH: i32 = 105;
 const ACCENT_W: i32 = 3;
-const PAD_L:    i32 = ACCENT_W + 10;
-const PAD_R:    i32 = 8;
+const PAD_L: i32 = ACCENT_W + 10;
+const PAD_R: i32 = 8;
 
-const PEAK_HOLD_MS:     u128 = 1500;
-const PEAK_DECAY_TICK:  f32  = 0.020; // por tick de 50ms → full-scale en ~2.5s
-const DUCK_THRESHOLD:   f32  = 0.02;  // 2% de pico = audio activo en otro proceso
-const UNDUCK_DELAY_MS:  u128 = 2000;  // silencio sostenido antes de restaurar
+const PEAK_HOLD_MS: u128 = 1500;
+const PEAK_DECAY_TICK: f32 = 0.020; // por tick de 50ms → full-scale en ~2.5s
+const DUCK_THRESHOLD: f32 = 0.02; // 2% de pico = audio activo en otro proceso
+const UNDUCK_DELAY_MS: u128 = 2000; // silencio sostenido antes de restaurar
 const fn rgb(r: u8, g: u8, b: u8) -> COLORREF {
     COLORREF(((b as u32) << 16) | ((g as u32) << 8) | (r as u32))
 }
 
-const C_BG:        COLORREF = rgb(0x14, 0x14, 0x14);
-const C_ACCENT:    COLORREF = rgb(0x44, 0xCC, 0x33);
-const C_BRAND:     COLORREF = rgb(0xE8, 0xE8, 0xE8);
+const C_BG: COLORREF = rgb(0x14, 0x14, 0x14);
+const C_ACCENT: COLORREF = rgb(0x44, 0xCC, 0x33);
+const C_BRAND: COLORREF = rgb(0xE8, 0xE8, 0xE8);
 const C_SEPARATOR: COLORREF = rgb(0x2A, 0x2A, 0x2A);
-const C_STATION:   COLORREF = rgb(0x44, 0xCC, 0x44);
-const C_SHOW:      COLORREF = rgb(0xCC, 0xA0, 0x30);
-const C_TITLE:     COLORREF = rgb(0xAA, 0xAA, 0xAA);
-const C_ST_OK:     COLORREF = rgb(0x44, 0xCC, 0x33);
-const C_ST_BUF:    COLORREF = rgb(0xCC, 0x99, 0x00);
-const C_ST_RECO:   COLORREF = rgb(0xFF, 0x80, 0x00);
-const C_VU_BG:     COLORREF = rgb(0x28, 0x28, 0x28);
-const C_VU_LOW:    COLORREF = rgb(0x33, 0xAA, 0x33);
-const C_VU_MED:    COLORREF = rgb(0xAA, 0xCC, 0x00);
-const C_VU_HIGH:   COLORREF = rgb(0xFF, 0x44, 0x00);
+const C_STATION: COLORREF = rgb(0x44, 0xCC, 0x44);
+const C_SHOW: COLORREF = rgb(0xCC, 0xA0, 0x30);
+const C_TITLE: COLORREF = rgb(0xAA, 0xAA, 0xAA);
+const C_ST_OK: COLORREF = rgb(0x44, 0xCC, 0x33);
+const C_ST_BUF: COLORREF = rgb(0xCC, 0x99, 0x00);
+const C_ST_RECO: COLORREF = rgb(0xFF, 0x80, 0x00);
+const C_VU_BG: COLORREF = rgb(0x28, 0x28, 0x28);
+const C_VU_LOW: COLORREF = rgb(0x33, 0xAA, 0x33);
+const C_VU_MED: COLORREF = rgb(0xAA, 0xCC, 0x00);
+const C_VU_HIGH: COLORREF = rgb(0xFF, 0x44, 0x00);
 #[derive(Clone, Copy)]
 enum OStatus {
     Playing,
@@ -72,22 +74,23 @@ enum OStatus {
 }
 
 struct State {
-    station:          String,
-    show:             String,
-    title:            String,
-    level_db:         f32,
-    ostatus:          OStatus,
-    peak_ratio:       f32,
-    game:             String,
+    station: String,
+    show: String,
+    title: String,
+    level_db: f32,
+    ostatus: OStatus,
+    peak_ratio: f32,
+    game: String,
     overlay_position: crate::config::OverlayPosition,
 }
-static MEDIA_VK_TX: std::sync::OnceLock<std::sync::mpsc::SyncSender<u32>> = std::sync::OnceLock::new();
-static GAME_STATE:  std::sync::OnceLock<Arc<Mutex<String>>>               = std::sync::OnceLock::new();
+static MEDIA_VK_TX: std::sync::OnceLock<std::sync::mpsc::SyncSender<u32>> =
+    std::sync::OnceLock::new();
+static GAME_STATE: std::sync::OnceLock<Arc<Mutex<String>>> = std::sync::OnceLock::new();
 
 pub fn spawn(
-    state_rx:  watch::Receiver<PlayerState>,
+    state_rx: watch::Receiver<PlayerState>,
     config_rx: watch::Receiver<Config>,
-    cmd_tx:    mpsc::Sender<PlayerCommand>,
+    cmd_tx: mpsc::Sender<PlayerCommand>,
 ) {
     std::thread::Builder::new()
         .name("overlay".into())
@@ -99,9 +102,9 @@ pub fn spawn(
         .expect("overlay thread");
 }
 unsafe fn run(
-    mut rx:        watch::Receiver<PlayerState>,
+    mut rx: watch::Receiver<PlayerState>,
     mut config_rx: watch::Receiver<Config>,
-    cmd_tx:        mpsc::Sender<PlayerCommand>,
+    cmd_tx: mpsc::Sender<PlayerCommand>,
 ) -> windows::core::Result<()> {
     let own_pid = std::process::id();
     {
@@ -119,7 +122,9 @@ unsafe fn run(
                     let raw = detected.unwrap_or_default();
                     crate::game_detect::set(if raw.is_empty() { None } else { Some(raw) });
                     let display = crate::game_detect::get_name().unwrap_or_default();
-                    if let Ok(mut g) = sg.lock() { *g = display; }
+                    if let Ok(mut g) = sg.lock() {
+                        *g = display;
+                    }
                     std::thread::sleep(Duration::from_millis(500));
                 }
             })
@@ -127,24 +132,24 @@ unsafe fn run(
     }
 
     let hinstance = HINSTANCE(GetModuleHandleW(None)?.0);
-    let class     = w!("ReverbicOverlay");
+    let class = w!("ReverbicOverlay");
 
     let shared = Arc::new(Mutex::new(State {
-        station:          String::new(),
-        show:             String::new(),
-        title:            String::new(),
-        level_db:         -60.0,
-        ostatus:          OStatus::Playing,
-        peak_ratio:       0.0,
-        game:             String::new(),
+        station: String::new(),
+        show: String::new(),
+        title: String::new(),
+        level_db: -60.0,
+        ostatus: OStatus::Playing,
+        peak_ratio: 0.0,
+        game: String::new(),
         overlay_position: config_rx.borrow().overlay_position,
     }));
     let raw = Arc::into_raw(Arc::clone(&shared));
 
     let wc = WNDCLASSEXW {
-        cbSize:        std::mem::size_of::<WNDCLASSEXW>() as u32,
-        lpfnWndProc:   Some(wnd_proc),
-        hInstance:     hinstance,
+        cbSize: std::mem::size_of::<WNDCLASSEXW>() as u32,
+        lpfnWndProc: Some(wnd_proc),
+        hInstance: hinstance,
         lpszClassName: class,
         ..Default::default()
     };
@@ -156,38 +161,42 @@ unsafe fn run(
         class,
         w!("Reverbic"),
         WS_POPUP,
-        init_x, init_y, OW, OH,
-        None, None, hinstance,
+        init_x,
+        init_y,
+        OW,
+        OH,
+        None,
+        None,
+        hinstance,
         Some(raw as *const _),
     )?;
 
     let init_alpha: u8 = (config_rx.borrow().overlay_alpha.min(100) as u32 * 255 / 100) as u8;
     SetLayeredWindowAttributes(hwnd, COLORREF(0), init_alpha, LWA_ALPHA)?;
 
-    let mut msg              = MSG::default();
-    let mut visible          = false;
-    let mut peak_ratio       = 0_f32;
-    let mut peak_held_at     = Instant::now();
-    let mut cfg              = config_rx.borrow().clone();
-    let mut playing          = false;
-    let mut last_title       = String::new();
-    let mut prev_position    = cfg.overlay_position;
+    let mut msg = MSG::default();
+    let mut visible = false;
+    let mut peak_ratio = 0_f32;
+    let mut peak_held_at = Instant::now();
+    let mut cfg = config_rx.borrow().clone();
+    let mut playing = false;
+    let mut last_title = String::new();
+    let mut prev_position = cfg.overlay_position;
 
     let (media_tx, media_rx) = std::sync::mpsc::sync_channel::<u32>(4);
     let _ = MEDIA_VK_TX.set(media_tx);
 
-    let mut hook:           HHOOK         = HHOOK::default();
-    let mut tray_added:     bool          = false;
+    let mut hook: HHOOK = HHOOK::default();
+    let mut tray_added: bool = false;
     let tray_id: u32 = 1001;
-    let wm_tray      = WM_APP + 1;
+    let wm_tray = WM_APP + 1;
 
-    let mut is_ducked:      bool          = false;
-    let mut pre_duck_vol:   f32           = 1.0;
-    let mut quiet_since:    Option<Instant> = None;
-    let mut next_duck_check: Instant      = Instant::now();
+    let mut is_ducked: bool = false;
+    let mut pre_duck_vol: f32 = 1.0;
+    let mut quiet_since: Option<Instant> = None;
+    let mut next_duck_check: Instant = Instant::now();
     if cfg.media_keys {
-        hook = SetWindowsHookExW(WH_KEYBOARD_LL, Some(keyboard_hook), None, 0)
-            .unwrap_or_default();
+        hook = SetWindowsHookExW(WH_KEYBOARD_LL, Some(keyboard_hook), None, 0).unwrap_or_default();
     }
     if cfg.tray_icon {
         tray_added = add_tray_icon(hwnd, tray_id, wm_tray).is_ok();
@@ -196,8 +205,12 @@ unsafe fn run(
     loop {
         while PeekMessageW(&mut msg, None, 0, 0, PM_REMOVE).as_bool() {
             if msg.message == WM_QUIT {
-                if !hook.0.is_null() { let _ = UnhookWindowsHookEx(hook); }
-                if tray_added { remove_tray_icon(hwnd, tray_id); }
+                if !hook.0.is_null() {
+                    let _ = UnhookWindowsHookEx(hook);
+                }
+                if tray_added {
+                    remove_tray_icon(hwnd, tray_id);
+                }
                 return Ok(());
             }
             let _ = TranslateMessage(&msg);
@@ -208,8 +221,8 @@ unsafe fn run(
             let cmd = match vk {
                 0xB3 => match ps.status {
                     PlayerStatus::Playing => Some(PlayerCommand::Pause),
-                    PlayerStatus::Paused  => Some(PlayerCommand::Resume),
-                    _                     => None,
+                    PlayerStatus::Paused => Some(PlayerCommand::Resume),
+                    _ => None,
                 },
                 0xB2 => Some(PlayerCommand::Stop),
                 _ => None,
@@ -257,25 +270,33 @@ unsafe fn run(
             let title_changed = new_title != last_title && !new_title.is_empty() && playing;
 
             if let Ok(mut s) = shared.lock() {
-                s.station  = ps.station.as_ref().map(|st| st.name.clone()).unwrap_or_default();
-                s.show     = ps.api_show.clone().unwrap_or_default();
-                s.title    = new_title.clone();
+                s.station = ps
+                    .station
+                    .as_ref()
+                    .map(|st| st.name.clone())
+                    .unwrap_or_default();
+                s.show = ps.api_show.clone().unwrap_or_default();
+                s.title = new_title.clone();
                 s.level_db = ps.level_db;
-                s.ostatus  = match ps.status {
-                    PlayerStatus::Buffering(f)    => OStatus::Buffering(f),
+                s.ostatus = match ps.status {
+                    PlayerStatus::Buffering(f) => OStatus::Buffering(f),
                     PlayerStatus::Reconnecting(n) => OStatus::Reconnecting(n),
-                    _                             => OStatus::Playing,
+                    _ => OStatus::Playing,
                 };
                 let cur = ((ps.level_db + 60.0) / 60.0).clamp(0.0, 1.0);
                 if cur >= peak_ratio {
-                    peak_ratio   = cur;
+                    peak_ratio = cur;
                     peak_held_at = Instant::now();
                 }
                 s.peak_ratio = peak_ratio;
             }
             if title_changed && cfg.notifications && tray_added {
                 last_title = new_title.clone();
-                let station = ps.station.as_ref().map(|s| s.name.as_str()).unwrap_or("Reverbic");
+                let station = ps
+                    .station
+                    .as_ref()
+                    .map(|s| s.name.as_str())
+                    .unwrap_or("Reverbic");
                 let _ = show_balloon(hwnd, tray_id, station, &new_title);
             }
             if tray_added {
@@ -288,15 +309,22 @@ unsafe fn run(
             }
         }
         let should_show = match cfg.overlay_mode {
-            OverlayMode::Hidden      => false,
-            OverlayMode::Always      => playing,
+            OverlayMode::Hidden => false,
+            OverlayMode::Always => playing,
             OverlayMode::WhenPlaying => playing,
-            OverlayMode::Games       => playing && is_fullscreen_foreground(hwnd),
+            OverlayMode::Games => playing && is_fullscreen_foreground(hwnd),
         };
 
         if should_show != visible {
             visible = should_show;
-            let _ = ShowWindow(hwnd, if should_show { SW_SHOWNOACTIVATE } else { SW_HIDE });
+            let _ = ShowWindow(
+                hwnd,
+                if should_show {
+                    SW_SHOWNOACTIVATE
+                } else {
+                    SW_HIDE
+                },
+            );
         }
         if visible {
             need_repaint = true;
@@ -314,7 +342,7 @@ unsafe fn run(
         if cfg.duck_enabled && playing {
             if Instant::now() >= next_duck_check {
                 next_duck_check = Instant::now() + Duration::from_millis(500);
-                let peak        = other_audio_peak(own_pid);
+                let peak = other_audio_peak(own_pid);
                 let duck_target = cfg.duck_volume as f32 / 100.0;
 
                 if peak > DUCK_THRESHOLD {
@@ -332,8 +360,8 @@ unsafe fn run(
                         None => quiet_since = Some(Instant::now()),
                         Some(t) if t.elapsed().as_millis() >= UNDUCK_DELAY_MS => {
                             let _ = cmd_tx.try_send(PlayerCommand::SetVolume(pre_duck_vol));
-                            is_ducked    = false;
-                            quiet_since  = None;
+                            is_ducked = false;
+                            quiet_since = None;
                         }
                         _ => {}
                     }
@@ -341,7 +369,7 @@ unsafe fn run(
             }
         } else if is_ducked {
             let _ = cmd_tx.try_send(PlayerCommand::SetVolume(pre_duck_vol));
-            is_ducked   = false;
+            is_ducked = false;
             quiet_since = None;
         }
         if visible && peak_held_at.elapsed().as_millis() > PEAK_HOLD_MS {
@@ -365,7 +393,10 @@ unsafe fn run(
 }
 
 unsafe extern "system" fn wnd_proc(
-    hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM,
+    hwnd: HWND,
+    msg: u32,
+    wparam: WPARAM,
+    lparam: LPARAM,
 ) -> LRESULT {
     match msg {
         WM_NCCREATE => {
@@ -378,7 +409,8 @@ unsafe extern "system" fn wnd_proc(
             if !ptr.is_null() {
                 if let Ok(s) = (*ptr).lock() {
                     let (x, y) = overlay_coords(hwnd, s.overlay_position);
-                    let _ = SetWindowPos(hwnd, HWND_TOPMOST, x, y, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE);
+                    let _ =
+                        SetWindowPos(hwnd, HWND_TOPMOST, x, y, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE);
                 }
             }
             LRESULT(0)
@@ -387,7 +419,7 @@ unsafe extern "system" fn wnd_proc(
         WM_PAINT => {
             let ptr = GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *const Mutex<State>;
             let mut ps = PAINTSTRUCT::default();
-            let hdc    = BeginPaint(hwnd, &mut ps);
+            let hdc = BeginPaint(hwnd, &mut ps);
             if !ptr.is_null() {
                 if let Ok(s) = (*ptr).lock() {
                     paint(hdc, &s);
@@ -410,7 +442,7 @@ unsafe extern "system" fn wnd_proc(
             if event == WM_LBUTTONDBLCLK {
                 let console = GetConsoleWindow();
                 if !console.0.is_null() {
-                    let fg     = GetForegroundWindow();
+                    let fg = GetForegroundWindow();
                     let fg_tid = GetWindowThreadProcessId(fg, None);
                     let my_tid = GetWindowThreadProcessId(hwnd, None);
                     if fg_tid != 0 && fg_tid != my_tid {
@@ -433,12 +465,30 @@ unsafe extern "system" fn wnd_proc(
     }
 }
 unsafe fn paint(hdc: HDC, s: &State) {
-    fill(hdc, RECT { left: 0, top: 0, right: OW,       bottom: OH }, C_BG);
-    fill(hdc, RECT { left: 0, top: 0, right: ACCENT_W, bottom: OH }, C_ACCENT);
+    fill(
+        hdc,
+        RECT {
+            left: 0,
+            top: 0,
+            right: OW,
+            bottom: OH,
+        },
+        C_BG,
+    );
+    fill(
+        hdc,
+        RECT {
+            left: 0,
+            top: 0,
+            right: ACCENT_W,
+            bottom: OH,
+        },
+        C_ACCENT,
+    );
 
     SetBkMode(hdc, TRANSPARENT);
     let f_brand = font(11, true);
-    let prev    = SelectObject(hdc, HGDIOBJ(f_brand.0));
+    let prev = SelectObject(hdc, HGDIOBJ(f_brand.0));
 
     SetTextColor(hdc, C_BRAND);
     let _ = TextOutW(hdc, PAD_L, 5, &wide("REVERBIC"));
@@ -448,7 +498,16 @@ unsafe fn paint(hdc: HDC, s: &State) {
     let prev_align = SetTextAlign(hdc, TA_RIGHT);
     let _ = TextOutW(hdc, OW - PAD_R, 5, &wide(&status_str));
     let _ = SetTextAlign(hdc, TEXT_ALIGN_OPTIONS(prev_align));
-    fill(hdc, RECT { left: PAD_L, top: 20, right: OW - PAD_R, bottom: 21 }, C_SEPARATOR);
+    fill(
+        hdc,
+        RECT {
+            left: PAD_L,
+            top: 20,
+            right: OW - PAD_R,
+            bottom: 21,
+        },
+        C_SEPARATOR,
+    );
     let f_station = font(15, true);
     SelectObject(hdc, HGDIOBJ(f_station.0));
     SetTextColor(hdc, C_STATION);
@@ -464,10 +523,23 @@ unsafe fn paint(hdc: HDC, s: &State) {
 
     let y_title = if has_show { 61 } else { 45 };
     SetTextColor(hdc, C_TITLE);
-    let title = if s.title.is_empty() { "—" } else { s.title.as_str() };
+    let title = if s.title.is_empty() {
+        "—"
+    } else {
+        s.title.as_str()
+    };
     let _ = TextOutW(hdc, PAD_L, y_title, &wide_truncated(title, 38));
     let vu_top = if !s.game.is_empty() {
-        fill(hdc, RECT { left: PAD_L, top: 77, right: OW - PAD_R, bottom: 78 }, C_SEPARATOR);
+        fill(
+            hdc,
+            RECT {
+                left: PAD_L,
+                top: 77,
+                right: OW - PAD_R,
+                bottom: 78,
+            },
+            C_SEPARATOR,
+        );
         let f_game = font(11, false);
         SelectObject(hdc, HGDIOBJ(f_game.0));
         SetTextColor(hdc, C_TITLE);
@@ -476,19 +548,48 @@ unsafe fn paint(hdc: HDC, s: &State) {
         let _ = TextOutW(hdc, PAD_L + 52, 80, &wide_truncated(&s.game, 28));
         let _ = DeleteObject(HGDIOBJ(f_game.0));
         94
-    } else { 79 };
+    } else {
+        79
+    };
     let vu_x1 = PAD_L;
     let vu_x2 = OW - PAD_R;
-    fill(hdc, RECT { left: vu_x1, top: vu_top, right: vu_x2, bottom: vu_top + 4 }, C_VU_BG);
+    fill(
+        hdc,
+        RECT {
+            left: vu_x1,
+            top: vu_top,
+            right: vu_x2,
+            bottom: vu_top + 4,
+        },
+        C_VU_BG,
+    );
 
     let ratio = ((s.level_db + 60.0) / 60.0).clamp(0.0, 1.0);
     let bar_w = ((vu_x2 - vu_x1) as f32 * ratio) as i32;
     if bar_w > 0 {
-        fill(hdc, RECT { left: vu_x1, top: vu_top, right: vu_x1 + bar_w, bottom: vu_top + 4 }, vu_color(ratio));
+        fill(
+            hdc,
+            RECT {
+                left: vu_x1,
+                top: vu_top,
+                right: vu_x1 + bar_w,
+                bottom: vu_top + 4,
+            },
+            vu_color(ratio),
+        );
     }
     if s.peak_ratio > 0.02 {
         let px = (vu_x1 + ((vu_x2 - vu_x1) as f32 * s.peak_ratio) as i32).min(vu_x2 - 2);
-        fill(hdc, RECT { left: px, top: vu_top, right: px + 2, bottom: vu_top + 4 }, vu_color(s.peak_ratio));
+        fill(
+            hdc,
+            RECT {
+                left: px,
+                top: vu_top,
+                right: px + 2,
+                bottom: vu_top + 4,
+            },
+            vu_color(s.peak_ratio),
+        );
     }
     SelectObject(hdc, prev);
     let _ = DeleteObject(HGDIOBJ(f_brand.0));
@@ -497,14 +598,20 @@ unsafe fn paint(hdc: HDC, s: &State) {
 }
 fn status_label(os: OStatus) -> (String, COLORREF) {
     match os {
-        OStatus::Playing         => ("● PLAYING".into(),              C_ST_OK),
-        OStatus::Buffering(f)    => (format!("◌ {:.0}%", f * 100.0), C_ST_BUF),
-        OStatus::Reconnecting(n) => (format!("↻ ×{n}"),              C_ST_RECO),
+        OStatus::Playing => ("● PLAYING".into(), C_ST_OK),
+        OStatus::Buffering(f) => (format!("◌ {:.0}%", f * 100.0), C_ST_BUF),
+        OStatus::Reconnecting(n) => (format!("↻ ×{n}"), C_ST_RECO),
     }
 }
 
 fn vu_color(ratio: f32) -> COLORREF {
-    if ratio < 0.5 { C_VU_LOW } else if ratio < 0.8 { C_VU_MED } else { C_VU_HIGH }
+    if ratio < 0.5 {
+        C_VU_LOW
+    } else if ratio < 0.8 {
+        C_VU_MED
+    } else {
+        C_VU_HIGH
+    }
 }
 
 unsafe fn fill(hdc: HDC, r: RECT, color: COLORREF) {
@@ -515,10 +622,17 @@ unsafe fn fill(hdc: HDC, r: RECT, color: COLORREF) {
 
 unsafe fn font(size: i32, bold: bool) -> HFONT {
     CreateFontW(
-        size, 0, 0, 0,
+        size,
+        0,
+        0,
+        0,
         if bold { 700 } else { 400 },
-        0, 0, 0,
-        1, 0, 0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
         5, // CLEARTYPE_QUALITY
         0,
         w!("Segoe UI"),
@@ -542,22 +656,23 @@ unsafe extern "system" fn keyboard_hook(code: i32, wparam: WPARAM, lparam: LPARA
 }
 
 unsafe fn add_tray_icon(hwnd: HWND, id: u32, callback_msg: u32) -> windows::core::Result<()> {
-    let hmodule  = GetModuleHandleW(None)?;
-    let icon = LoadIconW(hmodule, PCWSTR(std::ptr::dangling::<u16>()))
-        .unwrap_or_else(|_| LoadIconW(HINSTANCE::default(), IDI_APPLICATION)
-            .expect("IDI_APPLICATION siempre disponible"));
+    let hmodule = GetModuleHandleW(None)?;
+    let icon = LoadIconW(hmodule, PCWSTR(std::ptr::dangling::<u16>())).unwrap_or_else(|_| {
+        LoadIconW(HINSTANCE::default(), IDI_APPLICATION)
+            .expect("IDI_APPLICATION siempre disponible")
+    });
     let mut tip = [0u16; 128];
     let text: Vec<u16> = "Reverbic".encode_utf16().collect();
     tip[..text.len().min(127)].copy_from_slice(&text[..text.len().min(127)]);
 
     let nid = NOTIFYICONDATAW {
-        cbSize:           std::mem::size_of::<NOTIFYICONDATAW>() as u32,
-        hWnd:             hwnd,
-        uID:              id,
-        uFlags:           NIF_ICON | NIF_MESSAGE | NIF_TIP,
+        cbSize: std::mem::size_of::<NOTIFYICONDATAW>() as u32,
+        hWnd: hwnd,
+        uID: id,
+        uFlags: NIF_ICON | NIF_MESSAGE | NIF_TIP,
         uCallbackMessage: callback_msg,
-        hIcon:            icon,
-        szTip:            tip,
+        hIcon: icon,
+        szTip: tip,
         ..Default::default()
     };
     Shell_NotifyIconW(NIM_ADD, &nid).ok()
@@ -566,8 +681,8 @@ unsafe fn add_tray_icon(hwnd: HWND, id: u32, callback_msg: u32) -> windows::core
 unsafe fn remove_tray_icon(hwnd: HWND, id: u32) {
     let nid = NOTIFYICONDATAW {
         cbSize: std::mem::size_of::<NOTIFYICONDATAW>() as u32,
-        hWnd:   hwnd,
-        uID:    id,
+        hWnd: hwnd,
+        uID: id,
         ..Default::default()
     };
     let _ = Shell_NotifyIconW(NIM_DELETE, &nid);
@@ -579,10 +694,10 @@ unsafe fn update_tray_tip(hwnd: HWND, id: u32, tip: &str) -> windows::core::Resu
     tip_buf[..text.len().min(127)].copy_from_slice(&text[..text.len().min(127)]);
     let nid = NOTIFYICONDATAW {
         cbSize: std::mem::size_of::<NOTIFYICONDATAW>() as u32,
-        hWnd:   hwnd,
-        uID:    id,
+        hWnd: hwnd,
+        uID: id,
         uFlags: NIF_TIP,
-        szTip:  tip_buf,
+        szTip: tip_buf,
         ..Default::default()
     };
     Shell_NotifyIconW(NIM_MODIFY, &nid).ok()
@@ -598,13 +713,13 @@ unsafe fn show_balloon(hwnd: HWND, id: u32, title: &str, body: &str) -> windows:
     info[..b.len().min(255)].copy_from_slice(&b[..b.len().min(255)]);
 
     let nid = NOTIFYICONDATAW {
-        cbSize:       std::mem::size_of::<NOTIFYICONDATAW>() as u32,
-        hWnd:         hwnd,
-        uID:          id,
-        uFlags:       NIF_INFO,
-        szInfoTitle:  info_title,
-        szInfo:       info,
-        dwInfoFlags:  NIIF_NOSOUND,
+        cbSize: std::mem::size_of::<NOTIFYICONDATAW>() as u32,
+        hWnd: hwnd,
+        uID: id,
+        uFlags: NIF_INFO,
+        szInfoTitle: info_title,
+        szInfo: info,
+        dwInfoFlags: NIIF_NOSOUND,
         ..Default::default()
     };
     Shell_NotifyIconW(NIM_MODIFY, &nid).ok()
@@ -655,12 +770,17 @@ unsafe fn overlay_coords(hwnd: HWND, pos: OverlayPosition) -> (i32, i32) {
         let r = info.rcMonitor;
         (r.right - r.left, r.bottom - r.top, r.left, r.top)
     } else {
-        (GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN), 0, 0)
+        (
+            GetSystemMetrics(SM_CXSCREEN),
+            GetSystemMetrics(SM_CYSCREEN),
+            0,
+            0,
+        )
     };
     match pos {
-        OverlayPosition::TopLeft     => (ox + MARGIN,           oy + MARGIN),
-        OverlayPosition::TopRight    => (ox + sw - OW - MARGIN, oy + MARGIN),
-        OverlayPosition::BottomLeft  => (ox + MARGIN,           oy + sh - OH - MARGIN),
+        OverlayPosition::TopLeft => (ox + MARGIN, oy + MARGIN),
+        OverlayPosition::TopRight => (ox + sw - OW - MARGIN, oy + MARGIN),
+        OverlayPosition::BottomLeft => (ox + MARGIN, oy + sh - OH - MARGIN),
         OverlayPosition::BottomRight => (ox + sw - OW - MARGIN, oy + sh - OH - MARGIN),
     }
 }
@@ -682,13 +802,17 @@ fn build_process_snapshot() -> HashMap<u32, String> {
         };
         if Process32FirstW(snap, &mut entry).is_ok() {
             loop {
-                let nul  = entry.szExeFile.iter().position(|&c| c == 0).unwrap_or(260);
-                let raw  = String::from_utf16_lossy(&entry.szExeFile[..nul]);
+                let nul = entry.szExeFile.iter().position(|&c| c == 0).unwrap_or(260);
+                let raw = String::from_utf16_lossy(&entry.szExeFile[..nul]);
                 let name = if raw.to_ascii_lowercase().ends_with(".exe") {
                     raw[..raw.len().saturating_sub(4)].to_string()
-                } else { raw };
+                } else {
+                    raw
+                };
                 map.insert(entry.th32ProcessID, name);
-                if Process32NextW(snap, &mut entry).is_err() { break; }
+                if Process32NextW(snap, &mut entry).is_err() {
+                    break;
+                }
             }
         }
         let _ = CloseHandle(snap);
@@ -697,45 +821,66 @@ fn build_process_snapshot() -> HashMap<u32, String> {
 }
 
 unsafe fn detect_audio_activity(
-    own_pid:  u32,
+    own_pid: u32,
     proc_map: &HashMap<u32, String>,
 ) -> (f32, Option<String>) {
-    let enumerator: IMMDeviceEnumerator = match CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL) {
-        Ok(e) => e, Err(_) => return (0.0, None),
-    };
+    let enumerator: IMMDeviceEnumerator =
+        match CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL) {
+            Ok(e) => e,
+            Err(_) => return (0.0, None),
+        };
     let device = match enumerator.GetDefaultAudioEndpoint(eRender, eConsole) {
-        Ok(d) => d, Err(_) => return (0.0, None),
+        Ok(d) => d,
+        Err(_) => return (0.0, None),
     };
     let mgr: IAudioSessionManager2 = match device.Activate(CLSCTX_ALL, None) {
-        Ok(m) => m, Err(_) => return (0.0, None),
+        Ok(m) => m,
+        Err(_) => return (0.0, None),
     };
     let ses_enum: IAudioSessionEnumerator = match mgr.GetSessionEnumerator() {
-        Ok(e) => e, Err(_) => return (0.0, None),
+        Ok(e) => e,
+        Err(_) => return (0.0, None),
     };
     let count: i32 = ses_enum.GetCount().unwrap_or(0);
 
-    let mut max_peak    = 0.0f32;
-    let mut active_pid:   Option<u32> = None;
+    let mut max_peak = 0.0f32;
+    let mut active_pid: Option<u32> = None;
     let mut inactive_pid: Option<u32> = None;
 
     for i in 0..count {
-        let ctrl  = match ses_enum.GetSession(i)         { Ok(c) => c, Err(_) => continue };
-        let ctrl2: IAudioSessionControl2 = match ctrl.cast() { Ok(c) => c, Err(_) => continue };
-        let pid   = ctrl2.GetProcessId().unwrap_or(own_pid);
-        if pid == own_pid || pid == 0 { continue }
+        let ctrl = match ses_enum.GetSession(i) {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+        let ctrl2: IAudioSessionControl2 = match ctrl.cast() {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+        let pid = ctrl2.GetProcessId().unwrap_or(own_pid);
+        if pid == own_pid || pid == 0 {
+            continue;
+        }
         let state = ctrl.GetState().unwrap_or(AudioSessionStateExpired);
-        if state == AudioSessionStateExpired { continue }
+        if state == AudioSessionStateExpired {
+            continue;
+        }
 
-        let meter: IAudioMeterInformation = match ctrl.cast() { Ok(m) => m, Err(_) => continue };
+        let meter: IAudioMeterInformation = match ctrl.cast() {
+            Ok(m) => m,
+            Err(_) => continue,
+        };
         let peak: f32 = meter.GetPeakValue().unwrap_or(0.0);
 
         if state == AudioSessionStateActive {
-            if peak >= max_peak { max_peak = peak; active_pid = Some(pid); }
+            if peak >= max_peak {
+                max_peak = peak;
+                active_pid = Some(pid);
+            }
         } else if inactive_pid.is_none() {
             inactive_pid = Some(pid);
         }
     }
-    let game_pid  = active_pid.or(inactive_pid);
+    let game_pid = active_pid.or(inactive_pid);
     let game_name = game_pid.and_then(|pid| proc_map.get(&pid).cloned());
 
     (max_peak, game_name)

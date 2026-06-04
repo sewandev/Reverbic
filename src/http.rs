@@ -1,4 +1,3 @@
-
 pub fn http_client() -> Option<reqwest::Client> {
     http_client_timeout(10)
 }
