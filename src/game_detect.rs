@@ -48,6 +48,3 @@ pub fn set(raw: Option<String>) {
 pub fn get() -> Option<(String, String)> {
     store().lock().ok()?.clone()
 }
-pub fn get_name() -> Option<String> {
-    get().map(|(name, _)| name)
-}

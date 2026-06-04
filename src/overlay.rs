@@ -38,16 +38,24 @@ use windows::{
 use crate::audio::{PlayerCommand, PlayerState, PlayerStatus};
 use crate::config::{Config, OverlayMode, OverlayPosition};
 
-const OW: i32 = 320;
-const OH: i32 = 105;
+const OW: i32 = 380;
+const OH: i32 = 145;
 const ACCENT_W: i32 = 3;
 const PAD_L: i32 = ACCENT_W + 10;
 const PAD_R: i32 = 8;
 
+const VU_BARS: usize = 9;
+const VU_BAR_W: i32 = 12;
+const VU_BAR_GAP: i32 = 3;
+const VU_Y: i32 = 114;
+const VU_H: i32 = 20;
+const VOL_BAR_W: i32 = 72;
+
 const PEAK_HOLD_MS: u128 = 1500;
-const PEAK_DECAY_TICK: f32 = 0.020; // por tick de 50ms → full-scale en ~2.5s
-const DUCK_THRESHOLD: f32 = 0.02; // 2% de pico = audio activo en otro proceso
-const UNDUCK_DELAY_MS: u128 = 2000; // silencio sostenido antes de restaurar
+const PEAK_DECAY_TICK: f32 = 0.020;
+const DUCK_THRESHOLD: f32 = 0.02;
+const UNDUCK_DELAY_MS: u128 = 2000;
+
 const fn rgb(r: u8, g: u8, b: u8) -> COLORREF {
     COLORREF(((b as u32) << 16) | ((g as u32) << 8) | (r as u32))
 }
@@ -59,6 +67,7 @@ const C_SEPARATOR: COLORREF = rgb(0x2A, 0x2A, 0x2A);
 const C_STATION: COLORREF = rgb(0x44, 0xCC, 0x44);
 const C_SHOW: COLORREF = rgb(0xCC, 0xA0, 0x30);
 const C_TITLE: COLORREF = rgb(0xAA, 0xAA, 0xAA);
+const C_RECENT: COLORREF = rgb(0x55, 0x55, 0x55);
 const C_ST_OK: COLORREF = rgb(0x44, 0xCC, 0x33);
 const C_ST_BUF: COLORREF = rgb(0xCC, 0x99, 0x00);
 const C_ST_RECO: COLORREF = rgb(0xFF, 0x80, 0x00);
@@ -66,6 +75,8 @@ const C_VU_BG: COLORREF = rgb(0x28, 0x28, 0x28);
 const C_VU_LOW: COLORREF = rgb(0x33, 0xAA, 0x33);
 const C_VU_MED: COLORREF = rgb(0xAA, 0xCC, 0x00);
 const C_VU_HIGH: COLORREF = rgb(0xFF, 0x44, 0x00);
+const C_VOL_FG: COLORREF = rgb(0x44, 0xAA, 0x55);
+
 #[derive(Clone, Copy)]
 enum OStatus {
     Playing,
@@ -80,12 +91,14 @@ struct State {
     level_db: f32,
     ostatus: OStatus,
     peak_ratio: f32,
-    game: String,
+    volume: f32,
+    bitrate_kbps: Option<u16>,
+    recent: Vec<String>,
     overlay_position: crate::config::OverlayPosition,
 }
+
 static MEDIA_VK_TX: std::sync::OnceLock<std::sync::mpsc::SyncSender<u32>> =
     std::sync::OnceLock::new();
-static GAME_STATE: std::sync::OnceLock<Arc<Mutex<String>>> = std::sync::OnceLock::new();
 
 pub fn spawn(
     state_rx: watch::Receiver<PlayerState>,
@@ -101,6 +114,7 @@ pub fn spawn(
         })
         .expect("overlay thread");
 }
+
 unsafe fn run(
     mut rx: watch::Receiver<PlayerState>,
     mut config_rx: watch::Receiver<Config>,
@@ -108,23 +122,15 @@ unsafe fn run(
 ) -> windows::core::Result<()> {
     let own_pid = std::process::id();
     {
-        let shared_game = Arc::new(Mutex::new(String::new()));
-        let sg = Arc::clone(&shared_game);
-        GAME_STATE.get_or_init(|| shared_game);
-
         std::thread::Builder::new()
             .name("wasapi-monitor".into())
             .spawn(move || unsafe {
                 let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
                 loop {
                     let proc_map = build_process_snapshot();
-                    let (_peak, detected) = detect_audio_activity(own_pid, &proc_map);
+                    let (_, detected) = detect_audio_activity(own_pid, &proc_map);
                     let raw = detected.unwrap_or_default();
                     crate::game_detect::set(if raw.is_empty() { None } else { Some(raw) });
-                    let display = crate::game_detect::get_name().unwrap_or_default();
-                    if let Ok(mut g) = sg.lock() {
-                        *g = display;
-                    }
                     std::thread::sleep(Duration::from_millis(500));
                 }
             })
@@ -141,7 +147,9 @@ unsafe fn run(
         level_db: -60.0,
         ostatus: OStatus::Playing,
         peak_ratio: 0.0,
-        game: String::new(),
+        volume: 1.0,
+        bitrate_kbps: None,
+        recent: Vec::new(),
         overlay_position: config_rx.borrow().overlay_position,
     }));
     let raw = Arc::into_raw(Arc::clone(&shared));
@@ -278,6 +286,9 @@ unsafe fn run(
                 s.show = ps.api_show.clone().unwrap_or_default();
                 s.title = new_title.clone();
                 s.level_db = ps.level_db;
+                s.volume = ps.volume;
+                s.bitrate_kbps = ps.station.as_ref().and_then(|st| st.bitrate_kbps);
+                s.recent = ps.recent_titles.iter().take(3).cloned().collect();
                 s.ostatus = match ps.status {
                     PlayerStatus::Buffering(f) => OStatus::Buffering(f),
                     PlayerStatus::Reconnecting(n) => OStatus::Reconnecting(n),
@@ -328,16 +339,6 @@ unsafe fn run(
         }
         if visible {
             need_repaint = true;
-        }
-        if let Some(gs) = GAME_STATE.get() {
-            if let Ok(name) = gs.try_lock() {
-                if let Ok(mut s) = shared.try_lock() {
-                    if s.game != *name {
-                        s.game = name.clone();
-                        need_repaint = true;
-                    }
-                }
-            }
         }
         if cfg.duck_enabled && playing {
             if Instant::now() >= next_duck_check {
@@ -464,6 +465,7 @@ unsafe extern "system" fn wnd_proc(
         _ => DefWindowProcW(hwnd, msg, wparam, lparam),
     }
 }
+
 unsafe fn paint(hdc: HDC, s: &State) {
     fill(
         hdc,
@@ -487,120 +489,210 @@ unsafe fn paint(hdc: HDC, s: &State) {
     );
 
     SetBkMode(hdc, TRANSPARENT);
-    let f_brand = font(11, true);
+
+    let f_brand = font(13, true);
+    let f_small = font(11, false);
+    let f_station = font(16, true);
+    let f_detail = font(12, false);
+    let f_recent = font(11, false);
+
     let prev = SelectObject(hdc, HGDIOBJ(f_brand.0));
 
+    // ── header row ─────────────────────────────────────────────────
     SetTextColor(hdc, C_BRAND);
     let _ = TextOutW(hdc, PAD_L, 5, &wide("REVERBIC"));
 
+    SelectObject(hdc, HGDIOBJ(f_small.0));
+    let clock = chrono::Local::now().format("%H:%M").to_string();
+    let prev_align = SetTextAlign(hdc, TA_RIGHT);
+    SetTextColor(hdc, C_TITLE);
+    let _ = TextOutW(hdc, OW - PAD_R, 5, &wide(&clock));
+
     let (status_str, status_color) = status_label(s.ostatus);
     SetTextColor(hdc, status_color);
-    let prev_align = SetTextAlign(hdc, TA_RIGHT);
-    let _ = TextOutW(hdc, OW - PAD_R, 5, &wide(&status_str));
+    let _ = TextOutW(hdc, OW - PAD_R - 44, 5, &wide(&status_str));
     let _ = SetTextAlign(hdc, TEXT_ALIGN_OPTIONS(prev_align));
+
     fill(
         hdc,
         RECT {
             left: PAD_L,
-            top: 20,
+            top: 22,
             right: OW - PAD_R,
-            bottom: 21,
+            bottom: 23,
         },
         C_SEPARATOR,
     );
-    let f_station = font(15, true);
+
+    // ── station row ────────────────────────────────────────────────
     SelectObject(hdc, HGDIOBJ(f_station.0));
     SetTextColor(hdc, C_STATION);
-    let _ = TextOutW(hdc, PAD_L, 25, &wide_truncated(&s.station, 30));
-    let f_detail = font(12, false);
-    SelectObject(hdc, HGDIOBJ(f_detail.0));
+    let _ = TextOutW(hdc, PAD_L, 27, &wide_truncated(&s.station, 22));
 
+    if let Some(kbps) = s.bitrate_kbps {
+        SelectObject(hdc, HGDIOBJ(f_small.0));
+        SetTextColor(hdc, C_TITLE);
+        let prev_a = SetTextAlign(hdc, TA_RIGHT);
+        let _ = TextOutW(hdc, OW - PAD_R, 32, &wide(&format!("{}k", kbps)));
+        let _ = SetTextAlign(hdc, TEXT_ALIGN_OPTIONS(prev_a));
+    }
+
+    fill(
+        hdc,
+        RECT {
+            left: PAD_L,
+            top: 46,
+            right: OW - PAD_R,
+            bottom: 47,
+        },
+        C_SEPARATOR,
+    );
+
+    // ── track info ─────────────────────────────────────────────────
+    SelectObject(hdc, HGDIOBJ(f_detail.0));
     let has_show = !s.show.is_empty();
     if has_show {
         SetTextColor(hdc, C_SHOW);
-        let _ = TextOutW(hdc, PAD_L, 45, &wide_truncated(&s.show, 36));
+        let _ = TextOutW(hdc, PAD_L, 50, &wide_truncated(&s.show, 42));
     }
-
-    let y_title = if has_show { 61 } else { 45 };
+    let y_title = if has_show { 64 } else { 50 };
     SetTextColor(hdc, C_TITLE);
     let title = if s.title.is_empty() {
         "—"
     } else {
         s.title.as_str()
     };
-    let _ = TextOutW(hdc, PAD_L, y_title, &wide_truncated(title, 38));
-    let vu_top = if !s.game.is_empty() {
-        fill(
-            hdc,
-            RECT {
-                left: PAD_L,
-                top: 77,
-                right: OW - PAD_R,
-                bottom: 78,
-            },
-            C_SEPARATOR,
-        );
-        let f_game = font(11, false);
-        SelectObject(hdc, HGDIOBJ(f_game.0));
-        SetTextColor(hdc, C_TITLE);
-        let _ = TextOutW(hdc, PAD_L, 80, &wide("Jugando: "));
-        SetTextColor(hdc, C_ACCENT);
-        let _ = TextOutW(hdc, PAD_L + 52, 80, &wide_truncated(&s.game, 28));
-        let _ = DeleteObject(HGDIOBJ(f_game.0));
-        94
-    } else {
-        79
-    };
-    let vu_x1 = PAD_L;
-    let vu_x2 = OW - PAD_R;
+    let _ = TextOutW(hdc, PAD_L, y_title, &wide_truncated(title, 44));
+
     fill(
         hdc,
         RECT {
-            left: vu_x1,
-            top: vu_top,
-            right: vu_x2,
-            bottom: vu_top + 4,
+            left: PAD_L,
+            top: 79,
+            right: OW - PAD_R,
+            bottom: 80,
+        },
+        C_SEPARATOR,
+    );
+
+    // ── recent tracks ──────────────────────────────────────────────
+    SelectObject(hdc, HGDIOBJ(f_recent.0));
+    SetTextColor(hdc, C_RECENT);
+    for (i, track) in s.recent.iter().enumerate().skip(1).take(2) {
+        let y = 83 + (i as i32 - 1) * 14;
+        let _ = TextOutW(
+            hdc,
+            PAD_L,
+            y,
+            &wide_truncated(&format!("\u{21B3} {}", track), 47),
+        );
+    }
+
+    fill(
+        hdc,
+        RECT {
+            left: PAD_L,
+            top: 110,
+            right: OW - PAD_R,
+            bottom: 111,
+        },
+        C_SEPARATOR,
+    );
+
+    // ── VU bars ────────────────────────────────────────────────────
+    let base = ((s.level_db + 60.0) / 60.0).clamp(0.0, 1.0);
+    let t_ms = std::time::SystemTime::now()
+        .duration_since(std::time::SystemTime::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis();
+
+    for i in 0..VU_BARS {
+        let bx = PAD_L + (i as i32) * (VU_BAR_W + VU_BAR_GAP);
+        fill(
+            hdc,
+            RECT {
+                left: bx,
+                top: VU_Y,
+                right: bx + VU_BAR_W,
+                bottom: VU_Y + VU_H,
+            },
+            C_VU_BG,
+        );
+        let phase = t_ms as f64 * 0.005 + (i as f64) * 0.65;
+        let anim = (phase.sin() * 0.3 + 0.7) as f32;
+        let level = (base * anim).clamp(0.0, 1.0);
+        let min_h = if base > 0.02 { 2 } else { 0 };
+        let bh = ((VU_H as f32 * level) as i32).max(min_h);
+        if bh > 0 {
+            fill(
+                hdc,
+                RECT {
+                    left: bx,
+                    top: VU_Y + VU_H - bh,
+                    right: bx + VU_BAR_W,
+                    bottom: VU_Y + VU_H,
+                },
+                vu_color(level),
+            );
+        }
+    }
+
+    // ── volume bar ─────────────────────────────────────────────────
+    let vu_end_x = PAD_L + VU_BARS as i32 * (VU_BAR_W + VU_BAR_GAP) - VU_BAR_GAP;
+    let vol_label_x = vu_end_x + 10;
+    let vol_bar_x = vol_label_x + 28;
+    let vol_bar_y = VU_Y + 6;
+
+    SelectObject(hdc, HGDIOBJ(f_small.0));
+    SetTextColor(hdc, C_BRAND);
+    let _ = TextOutW(hdc, vol_label_x, VU_Y + 3, &wide("VOL"));
+
+    fill(
+        hdc,
+        RECT {
+            left: vol_bar_x,
+            top: vol_bar_y,
+            right: vol_bar_x + VOL_BAR_W,
+            bottom: vol_bar_y + 8,
         },
         C_VU_BG,
     );
+    let fill_w = (VOL_BAR_W as f32 * s.volume.clamp(0.0, 1.0)) as i32;
+    if fill_w > 0 {
+        fill(
+            hdc,
+            RECT {
+                left: vol_bar_x,
+                top: vol_bar_y,
+                right: vol_bar_x + fill_w,
+                bottom: vol_bar_y + 8,
+            },
+            C_VOL_FG,
+        );
+    }
 
-    let ratio = ((s.level_db + 60.0) / 60.0).clamp(0.0, 1.0);
-    let bar_w = ((vu_x2 - vu_x1) as f32 * ratio) as i32;
-    if bar_w > 0 {
-        fill(
-            hdc,
-            RECT {
-                left: vu_x1,
-                top: vu_top,
-                right: vu_x1 + bar_w,
-                bottom: vu_top + 4,
-            },
-            vu_color(ratio),
-        );
-    }
-    if s.peak_ratio > 0.02 {
-        let px = (vu_x1 + ((vu_x2 - vu_x1) as f32 * s.peak_ratio) as i32).min(vu_x2 - 2);
-        fill(
-            hdc,
-            RECT {
-                left: px,
-                top: vu_top,
-                right: px + 2,
-                bottom: vu_top + 4,
-            },
-            vu_color(s.peak_ratio),
-        );
-    }
+    SetTextColor(hdc, C_TITLE);
+    let vol_pct = (s.volume * 100.0).round() as u32;
+    let _ = TextOutW(
+        hdc,
+        vol_bar_x + VOL_BAR_W + 5,
+        VU_Y + 3,
+        &wide(&format!("{}%", vol_pct)),
+    );
+
     SelectObject(hdc, prev);
     let _ = DeleteObject(HGDIOBJ(f_brand.0));
+    let _ = DeleteObject(HGDIOBJ(f_small.0));
     let _ = DeleteObject(HGDIOBJ(f_station.0));
     let _ = DeleteObject(HGDIOBJ(f_detail.0));
+    let _ = DeleteObject(HGDIOBJ(f_recent.0));
 }
+
 fn status_label(os: OStatus) -> (String, COLORREF) {
     match os {
         OStatus::Playing => ("● PLAYING".into(), C_ST_OK),
         OStatus::Buffering(f) => (format!("◌ {:.0}%", f * 100.0), C_ST_BUF),
-        OStatus::Reconnecting(n) => (format!("↻ ×{n}"), C_ST_RECO),
+        OStatus::Reconnecting(n) => (format!("↻ x{n}"), C_ST_RECO),
     }
 }
 
@@ -891,6 +983,6 @@ fn wide_truncated(s: &str, max: usize) -> Vec<u16> {
         s.encode_utf16().collect()
     } else {
         let head: String = s.chars().take(max - 1).collect();
-        format!("{head}…").encode_utf16().collect()
+        format!("{head}\u{2026}").encode_utf16().collect()
     }
 }
