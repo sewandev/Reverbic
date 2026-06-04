@@ -319,7 +319,7 @@ impl<'a> SearchModalWidget<'a> {
             Span::styled(t("modal.spotify.devices_header"), Style::default().fg(theme::MUTED)),
         ]))
         .render(Rect::new(list_x, y, list_w, 1), buf);
-        y += 1;
+        y += 2; // gap equal to spacing between tabs and subtabs
 
         if self.spotify_devices_loading {
             if y < area.bottom() {

@@ -14,8 +14,23 @@ impl App {
     }
 
     pub(super) async fn play_station(&mut self, station: Station) {
+        // Pause local Spotify SDK player
         if let Some(handle) = &self.spotify.player_tx {
             handle.pause();
+        }
+        // Pause remote Spotify device if one is active
+        if let (Some(token), Some(device_id)) = (
+            self.spotify.access_token.clone(),
+            self.spotify.active_device_id.clone(),
+        ) {
+            tokio::spawn(async move {
+                let _ = crate::integrations::spotify::devices::pause_device(&token, &device_id).await;
+            });
+        }
+        // Update spotify status flag
+        use crate::app::modal::SpotifyPlayerStatus;
+        if matches!(self.spotify.player_status, SpotifyPlayerStatus::Playing) {
+            self.spotify.player_status = SpotifyPlayerStatus::Paused;
         }
         self.stop_playback_polling();
         self.config.last_station = Some(LastStation {

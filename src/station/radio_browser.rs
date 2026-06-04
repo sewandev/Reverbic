@@ -161,6 +161,12 @@ pub struct RadioBrowserStation {
     pub url_resolved: String,
     pub url: String,
     pub bitrate: u32,
+    #[serde(default)]
+    pub country: String,
+    #[serde(default)]
+    pub tags: String,
+    #[serde(default)]
+    pub homepage: String,
 }
 
 #[derive(Debug, Clone)]
@@ -169,15 +175,27 @@ pub struct DynamicStation {
     pub name: String,
     pub url: String,
     pub bitrate_kbps: Option<u16>,
+    pub country: String,
+    pub tags: Vec<String>,
+    pub homepage: String,
 }
 
 impl From<RadioBrowserStation> for DynamicStation {
     fn from(rb: RadioBrowserStation) -> Self {
+        let tags = rb.tags
+            .split(',')
+            .map(|t| t.trim().to_string())
+            .filter(|t| !t.is_empty())
+            .take(3)
+            .collect();
         Self {
             key: rb.stationuuid,
             name: rb.name,
             url: if rb.url_resolved.is_empty() { rb.url } else { rb.url_resolved },
             bitrate_kbps: if rb.bitrate > 0 { Some(rb.bitrate as u16) } else { None },
+            country: rb.country,
+            tags,
+            homepage: rb.homepage,
         }
     }
 }

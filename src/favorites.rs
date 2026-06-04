@@ -11,6 +11,12 @@ pub struct FavoriteStation {
     pub url: String,
     #[serde(default)]
     pub bitrate_kbps: Option<u16>,
+    #[serde(default)]
+    pub country: String,
+    #[serde(default)]
+    pub tags: Vec<String>,
+    #[serde(default)]
+    pub homepage: String,
 }
 
 impl FavoriteStation {

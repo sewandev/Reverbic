@@ -135,13 +135,11 @@ pub(super) fn render_modal_np_strip(frame: &mut Frame, strip: Rect, state: &Play
     };
     let title_lines = wrap_into_lines(&raw_title, content_w, 2);
 
-    let panel_h = 2 + 1 + title_lines.len() as u16;
+    // +1 for the combined visualizer+volume row
+    let panel_h = 2 + 1 + title_lines.len() as u16 + 1;
     if panel_h > strip.height { return; }
 
     let panel = Rect::new(strip.x, strip.y, strip.width, panel_h);
-
-    let vol_pct   = (state.volume.clamp(0.0, 1.0) * 100.0).round() as u32;
-    let vol_color = if state.volume > 0.85 { theme::WARNING } else { theme::ACCENT };
 
     let border_color = match &state.status {
         PlayerStatus::Playing                                        => theme::border_color(border_tick),
@@ -151,13 +149,6 @@ pub(super) fn render_modal_np_strip(frame: &mut Frame, strip: Rect, state: &Play
     };
 
     let block = Block::default()
-        .title_top(
-            Line::from(Span::styled(
-                format!(" {vol_pct:>3}% "),
-                Style::default().fg(vol_color),
-            ))
-            .alignment(Alignment::Right),
-        )
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(border_color))
@@ -182,6 +173,64 @@ pub(super) fn render_modal_np_strip(frame: &mut Frame, strip: Rect, state: &Play
             );
         }
     }
+
+    // Visualizer + volume bar on last inner row
+    let viz_row = inner.bottom().saturating_sub(1);
+    if viz_row >= inner.y && viz_row < inner.bottom() {
+        let vol_pct   = (state.volume.clamp(0.0, 1.0) * 100.0).round() as u32;
+        let vol_color = if state.volume > 0.85 { theme::WARNING } else { theme::ACCENT };
+        let vol_bar_w = 8usize;
+        let vol_bar   = volume_bar_str(state.volume, vol_bar_w);
+        let vol_str   = format!("  {}  {:>3}%", vol_bar, vol_pct);
+        let viz_w     = (cw as usize).saturating_sub(vol_str.chars().count() + 1);
+        let viz_line  = visualizer_spans(state.level_db, viz_w, theme::PANEL_BG);
+        let mut spans = viz_line;
+        spans.push(Span::styled(vol_str, Style::default().fg(vol_color)));
+        frame.render_widget(
+            Paragraph::new(Line::from(spans)).style(Style::default().bg(theme::PANEL_BG)),
+            Rect::new(cx, viz_row, cw, 1),
+        );
+    }
+}
+
+fn volume_bar_str(vol: f32, bar_width: usize) -> String {
+    let filled = (vol.clamp(0.0, 1.0) * bar_width as f32).round() as usize;
+    let filled = filled.min(bar_width);
+    format!("{}{}", "█".repeat(filled), "░".repeat(bar_width - filled))
+}
+
+fn visualizer_spans(level_db: f32, width: usize, bg: ratatui::style::Color) -> Vec<Span<'static>> {
+    const BLOCKS: &[char] = &['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
+    if width == 0 { return vec![]; }
+    let base = ((level_db + 60.0) / 60.0).clamp(0.0, 1.0) as f64;
+    let ms   = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0) as f64;
+
+    let n_bars = (width / 2).max(1);
+    let mut spans: Vec<Span<'static>> = Vec::with_capacity(n_bars * 2);
+    for i in 0..n_bars {
+        let freq  = 0.0025 + (i as f64) * 0.00025;
+        let phase = i as f64 * 1.1;
+        let wave  = (ms * freq + phase).sin() * 0.35 + 0.35;
+        let h     = (base * 0.65 + wave * 0.35).clamp(0.0, 1.0);
+        let idx   = ((h * 7.0) as usize).min(7);
+        let color = if h > 0.85 {
+            ratatui::style::Color::Red
+        } else if h > 0.6 {
+            theme::WARNING
+        } else if h > 0.3 {
+            theme::ACCENT
+        } else {
+            theme::MUTED
+        };
+        spans.push(Span::styled(BLOCKS[idx].to_string(), Style::default().fg(color).bg(bg)));
+        if i + 1 < n_bars {
+            spans.push(Span::styled(" ", Style::default().bg(bg)));
+        }
+    }
+    spans
 }
 
 pub(super) fn build_modal_station_line(state: &PlayerState) -> Line<'static> {
@@ -247,22 +296,14 @@ pub(super) fn render_modal_spotify_strip(
     };
     let title_lines = wrap_into_lines(&track_meta, content_w, 2);
 
-    let panel_h = 2 + 1 + title_lines.len() as u16 + u16::from(has_progress);
+    let panel_h = 2 + 1 + title_lines.len() as u16 + u16::from(has_progress) + 1;
     if panel_h > strip.height { return; }
 
     let panel = Rect::new(strip.x, strip.y, strip.width, panel_h);
 
-    let vol_str = volume_pct
-        .map(|v| format!(" {v}% "))
-        .unwrap_or_default();
-
     let border_color = if is_playing { theme::PLAYING } else { theme::WARNING };
 
     let block = Block::default()
-        .title_top(
-            Line::from(Span::styled(vol_str, Style::default().fg(theme::ACCENT)))
-                .alignment(Alignment::Right),
-        )
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(border_color))
@@ -317,6 +358,27 @@ pub(super) fn render_modal_spotify_strip(
             );
         }
     }
+
+    // Visualizer + volume on last inner row
+    let viz_row = inner.bottom().saturating_sub(1);
+    if viz_row >= inner.y && viz_row < inner.bottom() {
+        let vol_color = theme::PLAYING;
+        let vol_str = if let Some(v) = volume_pct {
+            let bar = volume_bar_str(v as f32 / 100.0, 8);
+            format!("  {}  {:>3}%", bar, v)
+        } else {
+            String::new()
+        };
+        let viz_w   = (cw as usize).saturating_sub(vol_str.chars().count() + 1);
+        let mut spans = visualizer_spans(-60.0, viz_w, theme::PANEL_BG);
+        if !vol_str.is_empty() {
+            spans.push(Span::styled(vol_str, Style::default().fg(vol_color)));
+        }
+        frame.render_widget(
+            Paragraph::new(Line::from(spans)).style(Style::default().bg(theme::PANEL_BG)),
+            Rect::new(cx, viz_row, cw, 1),
+        );
+    }
 }
 
 pub(super) fn render_update_badge(frame: &mut Frame, version: &str, area: Rect) {
@@ -343,7 +405,9 @@ pub(super) fn render_help_overlay(frame: &mut Frame, mode: &crate::app::SearchMo
             ("[↵]",     t("help.shortcut.play_station")),
             ("[↑↓]",   t("help.shortcut.nav_list")),
             ("[Alt+F]", t("help.shortcut.save_fav")),
-            ("[R]",     t("help.shortcut.random_station")),
+            ("[Space]", t("help.shortcut.pause_resume")),
+            ("[Alt+R]", t("help.shortcut.random_station")),
+            ("[Alt+S]", t("help.shortcut.stop_radio")),
             ("[Tab]",   t("help.shortcut.go_spotify")),
             ("[Alt+G]", t("help.shortcut.by_genre")),
             ("[Alt+C]", t("help.shortcut.by_country")),

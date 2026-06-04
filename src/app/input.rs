@@ -125,6 +125,23 @@ impl App {
             KeyCode::Char('f') | KeyCode::Char('F') if !self.show_search_modal => {
                 self.toggle_selected_favorite();
             }
+            // Alt+R: play random station in radio search results
+            KeyCode::Char('r') | KeyCode::Char('R')
+                if self.show_search_modal
+                && !matches!(self.modal_mode, SearchMode::Spotify)
+                && !self.search_results.is_empty() =>
+            {
+                self.last_activity = std::time::Instant::now();
+                if let Some(idx) = self.play_random_result() {
+                    self.play_dynamic_station(idx).await;
+                }
+            }
+            // Alt+S: stop radio
+            KeyCode::Char('s') | KeyCode::Char('S') => {
+                self.stop_metadata_polling();
+                self.player.send(PlayerCommand::Stop).await;
+                self.saved_tracks = Vec::new();
+            }
             _ => {}
         }
     }
@@ -167,6 +184,43 @@ impl App {
                         self.adjust_spotify_volume(-5).await;
                     } else {
                         self.adjust_volume(-(self.config.volume_step as f32 / 100.0)).await;
+                    }
+                    return;
+                }
+                KeyCode::Char(' ') => {
+                    if self.active_source_is_spotify() {
+                        use super::modal::SpotifyPlayerStatus;
+                        if let Some(device_id) = self.spotify.active_device_id.clone() {
+                            let token = self.spotify.access_token.clone().unwrap_or_default();
+                            match self.spotify.player_status {
+                                SpotifyPlayerStatus::Playing => {
+                                    self.spotify.player_status = SpotifyPlayerStatus::Paused;
+                                    tokio::spawn(async move {
+                                        let _ = crate::integrations::spotify::devices::pause_device(&token, &device_id).await;
+                                    });
+                                }
+                                SpotifyPlayerStatus::Paused => {
+                                    self.spotify.player_status = SpotifyPlayerStatus::Playing;
+                                    tokio::spawn(async move {
+                                        let _ = crate::integrations::spotify::devices::resume_device(&token, &device_id).await;
+                                    });
+                                }
+                                _ => {}
+                            }
+                        } else if let Some(handle) = &self.spotify.player_tx {
+                            use super::modal::SpotifyPlayerStatus;
+                            match self.spotify.player_status {
+                                SpotifyPlayerStatus::Playing => { handle.pause(); self.spotify.player_status = SpotifyPlayerStatus::Paused; }
+                                SpotifyPlayerStatus::Paused  => { handle.resume(); self.spotify.player_status = SpotifyPlayerStatus::Playing; }
+                                _ => {}
+                            }
+                        }
+                    } else {
+                        match self.player.state().status {
+                            PlayerStatus::Playing => { self.player.send(PlayerCommand::Pause).await; }
+                            PlayerStatus::Paused  => { self.player.send(PlayerCommand::Resume).await; }
+                            _ => {}
+                        }
                     }
                     return;
                 }
@@ -279,6 +333,17 @@ impl App {
                     self.adjust_spotify_volume(-5).await;
                 } else {
                     self.adjust_volume(-(self.config.volume_step as f32 / 100.0)).await;
+                }
+                return;
+            }
+            // Space: pause/resume radio (only in radio search modes, not Settings/Spotify)
+            KeyCode::Char(' ')
+                if !matches!(self.modal_mode, SearchMode::Settings | SearchMode::Spotify) =>
+            {
+                match self.player.state().status {
+                    PlayerStatus::Playing => { self.player.send(PlayerCommand::Pause).await; }
+                    PlayerStatus::Paused  => { self.player.send(PlayerCommand::Resume).await; }
+                    _ => {}
                 }
                 return;
             }

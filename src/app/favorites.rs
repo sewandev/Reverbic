@@ -14,6 +14,9 @@ impl App {
                 name:         s.name.clone(),
                 url:          s.url.clone(),
                 bitrate_kbps: s.bitrate_kbps,
+                country:      String::new(),
+                tags:         Vec::new(),
+                homepage:     String::new(),
             })
         });
         if let Some(fav) = fav {
@@ -34,6 +37,9 @@ impl App {
                 name:         station.name.clone(),
                 url:          station.url.clone(),
                 bitrate_kbps: station.bitrate_kbps,
+                country:      station.country.clone(),
+                tags:         station.tags.clone(),
+                homepage:     station.homepage.clone(),
             };
             let added = crate::favorites::toggle(&mut self.favorites, fav);
             crate::favorites::save(&self.favorites);

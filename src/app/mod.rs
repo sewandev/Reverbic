@@ -258,19 +258,24 @@ impl App {
     }
 
     pub(super) fn build_favorite_from_selected(&self) -> Option<FavoriteStation> {
-        let make = |key: &str, name: &str, url: &str, bitrate_kbps| FavoriteStation {
-            key: key.to_owned(), name: name.to_owned(), url: url.to_owned(), bitrate_kbps,
-        };
         if let Some(i) = self.favorite_index() {
             let f = &self.favorites[i];
-            Some(make(&f.key, &f.name, &f.url, f.bitrate_kbps))
+            Some(f.clone())
         } else if let Some(i) = self.hardcoded_index() {
             let s = &self.stations[i];
-            Some(make(&s.key, &s.name, &s.url, s.bitrate_kbps))
+            Some(FavoriteStation {
+                key: s.key.clone(), name: s.name.clone(), url: s.url.clone(),
+                bitrate_kbps: s.bitrate_kbps,
+                country: String::new(), tags: Vec::new(), homepage: String::new(),
+            })
         } else {
             self.search_result_index()
                 .and_then(|i| self.search_results.get(i))
-                .map(|ds| make(&ds.key, &ds.name, &ds.url, ds.bitrate_kbps))
+                .map(|ds| FavoriteStation {
+                    key: ds.key.clone(), name: ds.name.clone(), url: ds.url.clone(),
+                    bitrate_kbps: ds.bitrate_kbps,
+                    country: ds.country.clone(), tags: ds.tags.clone(), homepage: ds.homepage.clone(),
+                })
         }
     }
 

@@ -131,19 +131,26 @@ impl<'a> SearchModalWidget<'a> {
         let text_x = content_x + 2;
         let text_w = content_w.saturating_sub(2);
 
+        // gap between subtab header and list (issue 6)
+        let [_gap, list_area] = Layout::vertical([
+            Constraint::Length(1),
+            Constraint::Fill(1),
+        ])
+        .areas(area);
+
         if self.favorites.is_empty() {
             Paragraph::new(Span::styled(
                 t("modal.favorites.empty"),
                 Style::default().fg(theme::MUTED),
             ))
-            .render(Rect::new(text_x, area.y, text_w, 1), buf);
+            .render(Rect::new(text_x, list_area.y, text_w, 1), buf);
             return;
         }
 
-        let visible_n    = area.height as usize;
+        let visible_n    = list_area.height as usize;
         let needs_scroll = self.favorites.len() > visible_n;
         let items_w      = text_w.saturating_sub(if needs_scroll { 1 } else { 0 });
-        let items_area   = Rect::new(text_x, area.y, items_w, area.height);
+        let items_area   = Rect::new(text_x, list_area.y, items_w, list_area.height);
         let offset       = crate::ui::widgets::scroll_offset(self.radio_fav_selected, visible_n);
 
         let items: Vec<ListItem> = self.favorites
@@ -154,32 +161,64 @@ impl<'a> SearchModalWidget<'a> {
             .map(|(i, fav)| {
                 let active     = i == self.radio_fav_selected;
                 let is_playing = self.playing_favorite_index == Some(i);
-                let (prefix, name_st, star_st) = if active {
+                let (prefix, name_st, star_st, meta_st) = if active {
                     (
                         "▶  ",
                         Style::default().fg(theme::PLAYING).add_modifier(Modifier::BOLD),
                         Style::default().fg(theme::PLAYING).add_modifier(Modifier::BOLD),
+                        Style::default().fg(theme::PLAYING),
                     )
                 } else if is_playing {
                     (
                         "   ",
                         Style::default().fg(theme::PLAYING),
                         Style::default().fg(theme::ACCENT),
+                        Style::default().fg(theme::MUTED),
                     )
                 } else {
                     (
                         "   ",
                         Style::default().fg(theme::HIGHLIGHT),
                         Style::default().fg(theme::ACCENT),
+                        Style::default().fg(theme::MUTED),
                     )
                 };
+
+                // issues 4+5: title case name + country · tag · url meta
+                let display_name = strings::title_case(&fav.name);
+                let mut meta_parts: Vec<String> = Vec::new();
+                if !fav.country.is_empty() {
+                    meta_parts.push(strings::title_case(&fav.country));
+                }
+                if let Some(tag) = fav.tags.first() {
+                    if !tag.is_empty() {
+                        meta_parts.push(strings::title_case(tag));
+                    }
+                }
+                if !fav.homepage.is_empty() {
+                    meta_parts.push(fav.homepage.clone());
+                }
+
                 let name_w = items_w.saturating_sub(5) as usize;
-                let name   = strings::truncate(&fav.name, name_w);
-                ListItem::new(Line::from(vec![
-                    Span::styled(prefix,           name_st),
-                    Span::styled("★ ",             star_st),
-                    Span::styled(name.to_string(), name_st),
-                ]))
+                let name_truncated = strings::truncate(&display_name, name_w);
+
+                if meta_parts.is_empty() {
+                    ListItem::new(Line::from(vec![
+                        Span::styled(prefix,                    name_st),
+                        Span::styled("★ ",                      star_st),
+                        Span::styled(name_truncated.to_string(), name_st),
+                    ]))
+                } else {
+                    let meta_str = format!("  ·  {}", meta_parts.join("  ·  "));
+                    let avail_w  = items_w.saturating_sub(5 + name_truncated.chars().count() as u16) as usize;
+                    let meta_trunc = strings::truncate(&meta_str, avail_w);
+                    ListItem::new(Line::from(vec![
+                        Span::styled(prefix,                        name_st),
+                        Span::styled("★ ",                          star_st),
+                        Span::styled(name_truncated.to_string(),    name_st),
+                        Span::styled(meta_trunc.to_string(),        meta_st),
+                    ]))
+                }
             })
             .collect();
 

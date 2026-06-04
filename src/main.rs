@@ -191,11 +191,14 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
                 app.poll_on_demand_results();
                 app.poll_station_details();
             }
+            _ = tokio::signal::ctrl_c() => {
+                app.should_quit = true;
+            }
             maybe_event = events.next() => {
                 let now = Instant::now();
                 if let Some(prev) = last_click {
                     if now.duration_since(prev).as_millis() < 300 {
-                        click_count += 1;
+                        click_count = click_count.saturating_add(1);
                     } else {
                         click_count = 1;
                     }
