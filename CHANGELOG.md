@@ -12,6 +12,22 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ---
 
+## [1.3.0] — 2026-06-04
+
+### Added
+- Gaming mode panel shown above the radio screensaver when a game is detected
+- Favorites subtab now shows country, tags, and homepage URL for each saved station
+- Automatic enrichment of saved favorites with missing metadata (country, tags, URL) on startup
+
+### Changed
+- Win32 overlay redesigned: larger window (380×145 px), 9 animated VU bars with sine-wave per bar, real-time clock, bitrate indicator, volume bar, and last 2 played tracks instead of the redundant game name
+- "Gaming Mode" label in the gaming strip uses the animated border color (bold)
+
+### Fixed
+- Fixed panic "A Tokio 1.x context was found, but it is being shutdown" when pausing Spotify on radio switch or screensaver activation
+
+---
+
 ## [1.2.0] — 2026-06-03
 
 ### Added
@@ -75,6 +91,8 @@ Versioning: [Semantic Versioning](https://semver.org/)
 - Issue templates (bug, feature, question)
 - Logo and assets embedded in the executable (no external dependencies)
 
-[Unreleased]: https://github.com/sewandev/Reverbic/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/sewandev/Reverbic/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/sewandev/Reverbic/compare/v1.2.0...v1.3.0
+[1.2.0]: https://github.com/sewandev/Reverbic/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/sewandev/Reverbic/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/sewandev/Reverbic/releases/tag/v1.0.0
