@@ -26,7 +26,7 @@
 </p>
 
 <p align="center">
-  <img src="assets/overlay.png" alt="Overlay para juegos" width="100%">
+  <img src="assets/overlay.png" alt="Overlay para juegos" width="400">
   <br><em>Overlay para juegos</em>
 </p>
 
