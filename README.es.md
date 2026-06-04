@@ -18,16 +18,11 @@
 
 <p align="center">
   <a href="CHANGELOG.md">Changelog</a> |
-  <a href="CHANGELOG.es.md">Registro de cambios</a>
+  <a href="CHANGELOG.es.md">Changelog ES</a>
 </p>
 
 <p align="center">
   <img src="assets/Preview-Reverbic.gif" alt="Vista previa de Reverbic" width="100%">
-</p>
-
-<p align="center">
-  <img src="assets/overlay.png" alt="Overlay para juegos" width="400">
-  <br><em>Overlay para juegos</em>
 </p>
 
 ---
@@ -55,6 +50,7 @@
 - Soporte de teclas de medios (Play/Pause, Stop)
 - Audio ducking — reduce el volumen automáticamente cuando otra aplicación produce audio
 - Detección de juegos — el overlay cambia a modo de información del juego
+- Discord Rich Presence — muestra la estación y canción actual en tu perfil de Discord
 
 **UI / UX**
 - Protector de pantalla con reloj, información de la estación y metadatos de la canción
@@ -62,6 +58,23 @@
 - Búsqueda fuzzy en la lista de estaciones y el modal
 - Navegación orientada al teclado
 - i18n: inglés / español
+
+---
+
+## Capturas de pantalla
+
+<table align="center">
+  <tr>
+    <td align="center">
+      <img src="assets/overlay.png" alt="Overlay para juegos" width="280"><br>
+      <sub>Overlay para juegos</sub>
+    </td>
+    <td align="center">
+      <img src="assets/RPC.png" alt="Discord Rich Presence" width="240"><br>
+      <sub>Discord Rich Presence</sub>
+    </td>
+  </tr>
+</table>
 
 ---
 
@@ -137,6 +150,7 @@ Todos los ajustes son accesibles desde la aplicación con `Alt+O`. No es necesar
 | Protector de pantalla | Tiempo de inactividad antes de activar el protector |
 | Paso de volumen | Cambio de volumen por tecla |
 | Pre-buffer | Segundos de buffer antes de iniciar la reproducción |
+| Discord Rich Presence | Muestra la estación y canción actual en tu perfil de Discord |
 | Idioma | Inglés / Español |
 
 La configuración se guarda en `%APPDATA%\reverbic\config.json`.

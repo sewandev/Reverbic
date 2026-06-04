@@ -62,6 +62,7 @@ pub enum SettingItem {
     SpotifyStartOnSpotify,
     SpotifyClientId,
     AutoUpdate,
+    DiscordRpc,
 }
 
 impl SettingItem {
@@ -87,6 +88,7 @@ impl SettingItem {
             Self::SpotifyStartOnSpotify => t("config.setting.spotify_start_on_spotify"),
             Self::SpotifyClientId => t("config.setting.spotify_client_id"),
             Self::AutoUpdate => t("config.setting.auto_update"),
+            Self::DiscordRpc => t("config.setting.discord_rpc"),
         }
     }
 
@@ -112,6 +114,7 @@ impl SettingItem {
             Self::SpotifyStartOnSpotify => "config.tooltip.spotify_start_on_spotify",
             Self::SpotifyClientId => "config.tooltip.spotify_client_id",
             Self::AutoUpdate => "config.tooltip.auto_update",
+            Self::DiscordRpc => "config.tooltip.discord_rpc",
         }
     }
 
@@ -128,9 +131,11 @@ impl SettingItem {
             | Self::Screensaver
             | Self::ScreensaverClock => "config.group.overlay",
             Self::DuckEnabled | Self::DuckVolume => "config.group.game",
-            Self::MediaKeys | Self::TrayIcon | Self::Notifications | Self::AutoUpdate => {
-                "config.group.system"
-            }
+            Self::MediaKeys
+            | Self::TrayIcon
+            | Self::Notifications
+            | Self::AutoUpdate
+            | Self::DiscordRpc => "config.group.system",
             Self::Language => "config.group.appearance",
             Self::SpotifyStopOnQuit | Self::SpotifyStartOnSpotify | Self::SpotifyClientId => {
                 "config.group.integrations"
@@ -161,6 +166,7 @@ pub fn settings_items(duck_enabled: bool) -> Vec<SettingItem> {
         SettingItem::TrayIcon,
         SettingItem::Notifications,
         SettingItem::AutoUpdate,
+        SettingItem::DiscordRpc,
         SettingItem::Language,
         SettingItem::SpotifyStopOnQuit,
         SettingItem::SpotifyStartOnSpotify,

@@ -69,6 +69,7 @@ pub struct SearchModalWidget<'a> {
     pub radio_fav_selected: usize,
     pub playing_favorite_index: Option<usize>,
     pub auto_update: bool,
+    pub discord_rpc: bool,
     pub save_notice: Option<String>,
     pub border_tick: u32,
 }
@@ -184,6 +185,7 @@ impl<'a> From<&'a crate::app::App> for SearchModalWidget<'a> {
                     .and_then(|p| app.favorites.iter().position(|f| f.url == p.url))
             },
             auto_update: app.config.auto_update,
+            discord_rpc: app.config.discord_rpc,
             save_notice: app.save_notice.clone(),
             border_tick: app.border_tick,
         }

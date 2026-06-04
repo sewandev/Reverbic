@@ -149,6 +149,8 @@ pub struct Config {
     pub screensaver_clock: bool,
     #[serde(default = "default_true")]
     pub auto_update: bool,
+    #[serde(default)]
+    pub discord_rpc: bool,
 }
 
 fn default_true() -> bool {
@@ -210,6 +212,7 @@ impl Default for Config {
             prebuffer_secs: 30,
             screensaver_clock: true,
             auto_update: true,
+            discord_rpc: false,
         }
     }
 }

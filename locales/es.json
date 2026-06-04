@@ -209,5 +209,7 @@
   "hint.fav": "Quitar",
   "modal.radio.subtab.search": "[ Buscar ]",
   "modal.radio.subtab.favorites": "[ Favoritas ]",
-  "modal.favorites.empty": "Sin favoritas. Presiona Alt+F para agregar una."
+  "modal.favorites.empty": "Sin favoritas. Presiona Alt+F para agregar una.",
+  "config.setting.discord_rpc": "Discord Rich Presence",
+  "config.tooltip.discord_rpc": "Muestra la estación y canción actual en tu perfil de Discord."
 }

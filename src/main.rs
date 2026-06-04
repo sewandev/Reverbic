@@ -120,7 +120,9 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
     #[cfg(target_os = "windows")]
     {
         let (config_tx, config_rx) = tokio::sync::watch::channel(app.config.clone());
+        let discord_config_rx = config_rx.clone();
         overlay::spawn(app.player.subscribe(), config_rx, app.player.clone_sender());
+        crate::integrations::discord::spawn(app.player.subscribe(), discord_config_rx);
         app.windows_tx = Some(config_tx);
     }
     if app.config.autoplay_last {

@@ -18,16 +18,11 @@
 
 <p align="center">
   <a href="CHANGELOG.md">Changelog</a> |
-  <a href="CHANGELOG.es.md">Registro de cambios</a>
+  <a href="CHANGELOG.es.md">Changelog ES</a>
 </p>
 
 <p align="center">
   <img src="assets/Preview-Reverbic.gif" alt="Reverbic preview" width="100%">
-</p>
-
-<p align="center">
-  <img src="assets/overlay.png" alt="Gaming overlay" width="400">
-  <br><em>Gaming overlay</em>
 </p>
 
 ---
@@ -55,6 +50,7 @@
 - Media key support (Play/Pause, Stop)
 - Audio ducking — auto-reduces volume when another app produces sound
 - Game detection — switches overlay to game-info mode
+- Discord Rich Presence — shows current station and track on your Discord profile
 
 **UI / UX**
 - Screensaver mode with clock, station info, and track metadata
@@ -62,6 +58,23 @@
 - Fuzzy search in station list and modal
 - Keyboard-first navigation
 - i18n: English / Spanish
+
+---
+
+## Screenshots
+
+<table align="center">
+  <tr>
+    <td align="center">
+      <img src="assets/overlay.png" alt="Gaming overlay" width="280"><br>
+      <sub>Gaming overlay</sub>
+    </td>
+    <td align="center">
+      <img src="assets/RPC.png" alt="Discord Rich Presence" width="240"><br>
+      <sub>Discord Rich Presence</sub>
+    </td>
+  </tr>
+</table>
 
 ---
 
@@ -137,6 +150,7 @@ All settings are accessible inside the app via `Alt+O`. No config file editing r
 | Screensaver | Idle time before screensaver activates |
 | Volume step | Volume change per keypress |
 | Pre-buffer | Seconds to buffer before playback |
+| Discord Rich Presence | Show current station and track on Discord profile |
 | Language | English / Spanish |
 
 Config is stored at `%APPDATA%\reverbic\config.json`.

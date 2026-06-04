@@ -108,6 +108,13 @@ impl<'a> SearchModalWidget<'a> {
                     off
                 }
             }
+            SettingItem::DiscordRpc => {
+                if self.discord_rpc {
+                    on
+                } else {
+                    off
+                }
+            }
         }
     }
 

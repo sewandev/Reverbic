@@ -1104,6 +1104,9 @@ impl App {
             super::modal::SettingItem::AutoUpdate => {
                 self.config.auto_update = !self.config.auto_update
             }
+            super::modal::SettingItem::DiscordRpc => {
+                self.config.discord_rpc = !self.config.discord_rpc
+            }
         }
         self.save_config();
         if let Some(ref tx) = self.windows_tx {
