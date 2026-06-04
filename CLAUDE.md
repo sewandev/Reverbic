@@ -46,6 +46,9 @@
 
 ## Release y winget
 
+### Version bump
+- Solo editar `version` en `Cargo.toml` y correr `cargo update --workspace` — **nunca** `cargo generate-lockfile` al hacer un release, actualiza dependencias transitivas y puede romper builds
+
 ### Checklist antes de publicar
 1. Bumping `version` en `Cargo.toml` (ej. `1.2.0`)
 2. Mover `[Unreleased]` → `[x.y.z] — YYYY-MM-DD` en `CHANGELOG.md` y `CHANGELOG.es.md`; crear nuevo `[Unreleased]` vacío
