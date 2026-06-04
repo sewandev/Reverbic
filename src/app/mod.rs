@@ -206,10 +206,6 @@ impl App {
             && self.show_search_modal
             && self.last_activity.elapsed().as_secs() >= secs as u64
     }
-
-    /// Determina si la fuente activa es Spotify (vs radio u otro).
-    /// Radio tiene prioridad: si está sonando, esta función devuelve false
-    /// sin importar el estado de Spotify.
     pub fn active_source_is_spotify(&self) -> bool {
         use crate::audio::PlayerStatus;
         let radio_active = matches!(

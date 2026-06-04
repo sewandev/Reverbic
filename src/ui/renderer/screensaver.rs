@@ -36,7 +36,6 @@ pub(super) fn render_screensaver(frame: &mut Frame, area: Rect, ctx: Screensaver
         }
     }
 
-    let has_game   = crate::game_detect::get().is_some();
     let has_recent = !state.recent_titles.is_empty();
     let n_recent   = state.recent_titles.len().min(5) as u16;
 
@@ -46,7 +45,7 @@ pub(super) fn render_screensaver(frame: &mut Frame, area: Rect, ctx: Screensaver
         !d.homepage.is_empty(),
     )).unwrap_or((false, false, false));
 
-    let detail_rows: u16 = u16::from(has_meta) + u16::from(has_tags) + u16::from(has_url) + u16::from(has_game);
+    let detail_rows: u16 = u16::from(has_meta) + u16::from(has_tags) + u16::from(has_url);
     let has_details = detail_rows > 0;
     let pw     = (area.width * 85 / 100).clamp(74, 120).min(area.width);
     let cw_est = pw.saturating_sub(6);
@@ -79,11 +78,24 @@ pub(super) fn render_screensaver(frame: &mut Frame, area: Rect, ctx: Screensaver
         render_logo_above(frame, area.x, area.width, py - 1, OVERLAY, border_tick);
     }
 
+    if let Some((ref name, ref genre)) = crate::game_detect::get() {
+        if py >= 3 {
+            let panel_h: u16 = 3;
+            super::overlays::render_game_strip(
+                frame,
+                Rect::new(px, py.saturating_sub(panel_h), pw, panel_h),
+                name,
+                genre,
+                border_tick,
+            );
+        }
+    }
+
     let border_color = match &state.status {
-        PlayerStatus::Playing                                      => theme::ACCENT,
-        PlayerStatus::Paused                                       => theme::WARNING,
+        PlayerStatus::Playing                                       => theme::border_color(border_tick),
+        PlayerStatus::Paused                                        => theme::WARNING,
         PlayerStatus::Buffering(_) | PlayerStatus::Reconnecting(_) => ratatui::style::Color::Rgb(80, 80, 80),
-        _                                                          => theme::MUTED,
+        _                                                           => theme::MUTED,
     };
 
     let block = Block::default()
@@ -267,16 +279,6 @@ pub(super) fn render_screensaver(frame: &mut Frame, area: Rect, ctx: Screensaver
                 row += 1;
             }
         }
-        if let Some((ref name, ref genre)) = crate::game_detect::get() {
-            let text    = if genre.is_empty() { name.clone() } else { format!("{name}  ·  {genre}") };
-            let display = strings::truncate(&text, cw as usize);
-            frame.render_widget(
-                Paragraph::new(Span::styled(display, Style::default().fg(theme::DIM)))
-                    .style(Style::default().bg(BG)),
-                Rect::new(cx, row, cw, 1),
-            );
-            row += 1;
-        }
     }
     if has_recent {
         let sep = "─".repeat(cw as usize);
@@ -331,13 +333,10 @@ pub(super) fn render_screensaver(frame: &mut Frame, area: Rect, ctx: Screensaver
     }
     row += 1;
     if row < inner.bottom() {
-        let vol_pct   = (state.volume.clamp(0.0, 1.0) * 100.0).round() as u32;
-        let vol_color = if state.volume > 0.85 { theme::WARNING } else { theme::ACCENT };
-        let vol_bar   = volume_bar(state.volume, 10);
-        let time_str  = now_t.format("%H:%M").to_string();
-        let right_str = format!("{}  {}  {:>3}%", time_str, vol_bar, vol_pct);
-
-        // Shortcuts hint (left side, subtle)
+        let vol_pct          = (state.volume.clamp(0.0, 1.0) * 100.0).round() as u32;
+        let vol_color        = if state.volume > 0.85 { theme::WARNING } else { theme::ACCENT };
+        let (filled, empty)  = volume_bar_spans(state.volume, 10);
+        let time_str         = now_t.format("%H:%M").to_string();
         let shortcuts = "[Space] ⏸/▶  [+/-] Vol  [Alt+S] ■  [any] →";
         frame.render_widget(
             Paragraph::new(Span::styled(shortcuts, Style::default().fg(theme::DIM)))
@@ -345,7 +344,12 @@ pub(super) fn render_screensaver(frame: &mut Frame, area: Rect, ctx: Screensaver
             Rect::new(cx, row, cw, 1),
         );
         frame.render_widget(
-            Paragraph::new(Line::from(Span::styled(right_str, Style::default().fg(vol_color))))
+            Paragraph::new(Line::from(vec![
+                Span::styled(format!("{}  ", time_str), Style::default().fg(theme::MUTED)),
+                Span::styled(filled,                   Style::default().fg(vol_color)),
+                Span::styled(empty,                    Style::default().fg(theme::MUTED)),
+                Span::styled(format!("  {:>3}%", vol_pct), Style::default().fg(vol_color)),
+            ]))
                 .alignment(Alignment::Right)
                 .style(Style::default().bg(BG)),
             Rect::new(cx, row, cw, 1),
@@ -526,11 +530,12 @@ fn visualizer_line(level_db: f32, width: usize, bg: ratatui::style::Color) -> Li
     Line::from(spans)
 }
 
-fn volume_bar(vol: f32, bar_width: usize) -> String {
+fn volume_bar_spans(vol: f32, bar_width: usize) -> (String, String) {
     let filled = (vol.clamp(0.0, 1.0) * bar_width as f32).round() as usize;
     let filled = filled.min(bar_width);
-    format!("{}{}", "█".repeat(filled), "░".repeat(bar_width - filled))
+    ("█".repeat(filled), "░".repeat(bar_width - filled))
 }
+
 
 #[expect(clippy::too_many_arguments)]
 pub(super) fn render_spotify_screensaver(
@@ -579,7 +584,7 @@ pub(super) fn render_spotify_screensaver(
         render_logo_above(frame, area.x, area.width, py - 1, OVERLAY, border_tick);
     }
 
-    let border_color = if playback.is_playing { GREEN } else { theme::WARNING };
+    let border_color = if playback.is_playing { theme::border_color(border_tick) } else { theme::WARNING };
 
     let block = Block::default()
         .borders(Borders::ALL)
@@ -760,21 +765,23 @@ pub(super) fn render_spotify_screensaver(
     row += 1;
 
     if row < inner.bottom() {
-        let time_str  = now_t.format("%H:%M").to_string();
-        let state_str = if playback.is_playing { "▶" } else { "⏸" };
-        let vol_bar   = volume_bar(playback.volume_pct as f32 / 100.0, 10);
-        let right_str = format!("{}  {}  {:>3}%  {}", time_str, vol_bar, playback.volume_pct, state_str);
-
-        // Shortcuts hint (left side, subtle)
+        let time_str         = now_t.format("%H:%M").to_string();
+        let state_str        = if playback.is_playing { "▶" } else { "⏸" };
+        let vol_color        = if playback.volume_pct > 85 { theme::WARNING } else { GREEN };
+        let (filled, empty)  = volume_bar_spans(playback.volume_pct as f32 / 100.0, 10);
         let shortcuts = "[Space] ⏸/▶  [+/-] Vol  [any] →";
         frame.render_widget(
             Paragraph::new(Span::styled(shortcuts, Style::default().fg(theme::DIM)))
                 .style(Style::default().bg(BG)),
             Rect::new(cx, row, cw, 1),
         );
-        let vol_color = if playback.volume_pct > 85 { theme::WARNING } else { GREEN };
         frame.render_widget(
-            Paragraph::new(Line::from(Span::styled(right_str, Style::default().fg(vol_color))))
+            Paragraph::new(Line::from(vec![
+                Span::styled(format!("{}  ", time_str), Style::default().fg(theme::MUTED)),
+                Span::styled(filled,                   Style::default().fg(vol_color)),
+                Span::styled(empty,                    Style::default().fg(theme::MUTED)),
+                Span::styled(format!("  {:>3}%  {}", playback.volume_pct, state_str), Style::default().fg(vol_color)),
+            ]))
                 .alignment(Alignment::Right)
                 .style(Style::default().bg(BG)),
             Rect::new(cx, row, cw, 1),

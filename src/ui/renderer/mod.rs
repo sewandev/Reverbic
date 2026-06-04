@@ -97,7 +97,7 @@ pub fn render(frame: &mut Frame, app: &App) {
     if let Some((ref name, ref genre)) = crate::game_detect::get() {
         let panel_h: u16 = 3;
         let game_y = modal_y.saturating_sub(panel_h);
-        render_game_strip(frame, Rect::new(modal_x, game_y, modal_w, panel_h), name, genre);
+        render_game_strip(frame, Rect::new(modal_x, game_y, modal_w, panel_h), name, genre, app.border_tick);
     }
 
     let strip_y     = modal_y + modal_h;
@@ -112,6 +112,7 @@ pub fn render(frame: &mut Frame, app: &App) {
                 app.spotify.playback.as_ref(),
                 app.spotify.now_playing.as_ref(),
                 &app.spotify.player_status,
+                app.border_tick,
             );
         } else {
             render_modal_np_strip(frame, strip, &player_state, app.border_tick);

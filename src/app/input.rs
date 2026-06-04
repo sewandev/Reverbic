@@ -125,7 +125,6 @@ impl App {
             KeyCode::Char('f') | KeyCode::Char('F') if !self.show_search_modal => {
                 self.toggle_selected_favorite();
             }
-            // Alt+R: play random station in radio search results
             KeyCode::Char('r') | KeyCode::Char('R')
                 if self.show_search_modal
                 && !matches!(self.modal_mode, SearchMode::Spotify)
@@ -136,7 +135,6 @@ impl App {
                     self.play_dynamic_station(idx).await;
                 }
             }
-            // Alt+S: stop radio
             KeyCode::Char('s') | KeyCode::Char('S') => {
                 self.stop_metadata_polling();
                 self.player.send(PlayerCommand::Stop).await;
@@ -195,14 +193,18 @@ impl App {
                             match self.spotify.player_status {
                                 SpotifyPlayerStatus::Playing => {
                                     self.spotify.player_status = SpotifyPlayerStatus::Paused;
-                                    tokio::spawn(async move {
-                                        let _ = crate::integrations::spotify::devices::pause_device(&token, &device_id).await;
+                                    std::thread::spawn(move || {
+                                        if let Ok(rt) = tokio::runtime::Builder::new_current_thread().enable_all().build() {
+                                            let _ = rt.block_on(crate::integrations::spotify::devices::pause_device(&token, &device_id));
+                                        }
                                     });
                                 }
                                 SpotifyPlayerStatus::Paused => {
                                     self.spotify.player_status = SpotifyPlayerStatus::Playing;
-                                    tokio::spawn(async move {
-                                        let _ = crate::integrations::spotify::devices::resume_device(&token, &device_id).await;
+                                    std::thread::spawn(move || {
+                                        if let Ok(rt) = tokio::runtime::Builder::new_current_thread().enable_all().build() {
+                                            let _ = rt.block_on(crate::integrations::spotify::devices::resume_device(&token, &device_id));
+                                        }
                                     });
                                 }
                                 _ => {}
@@ -336,9 +338,9 @@ impl App {
                 }
                 return;
             }
-            // Space: pause/resume radio (only in radio search modes, not Settings/Spotify)
             KeyCode::Char(' ')
-                if !matches!(self.modal_mode, SearchMode::Settings | SearchMode::Spotify) =>
+                if matches!(self.modal_mode, SearchMode::Name)
+                && matches!(self.radio_sub_tab, RadioSubTab::Favorites) =>
             {
                 match self.player.state().status {
                     PlayerStatus::Playing => { self.player.send(PlayerCommand::Pause).await; }

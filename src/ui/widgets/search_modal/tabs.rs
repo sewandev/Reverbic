@@ -130,8 +130,6 @@ impl<'a> SearchModalWidget<'a> {
     fn render_favorites_body(&self, area: Rect, content_x: u16, content_w: u16, buf: &mut Buffer) {
         let text_x = content_x + 2;
         let text_w = content_w.saturating_sub(2);
-
-        // gap between subtab header and list (issue 6)
         let [_gap, list_area] = Layout::vertical([
             Constraint::Length(1),
             Constraint::Fill(1),
@@ -183,8 +181,6 @@ impl<'a> SearchModalWidget<'a> {
                         Style::default().fg(theme::MUTED),
                     )
                 };
-
-                // issues 4+5: title case name + country · tag · url meta
                 let display_name = strings::title_case(&fav.name);
                 let mut meta_parts: Vec<String> = Vec::new();
                 if !fav.country.is_empty() {

@@ -84,9 +84,10 @@ pub(super) fn render_client_id_overlay(frame: &mut Frame, input: &str) {
     );
 }
 
-pub(super) fn render_game_strip(frame: &mut Frame, area: Rect, name: &str, genre: &str) {
+pub(super) fn render_game_strip(frame: &mut Frame, area: Rect, name: &str, genre: &str, border_tick: u32) {
     const H_PAD: u16 = 2;
 
+    let border_color = theme::border_color(border_tick);
     let block = Block::default()
         .title_top(
             Line::from(Span::styled(
@@ -97,7 +98,7 @@ pub(super) fn render_game_strip(frame: &mut Frame, area: Rect, name: &str, genre
         )
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
-        .border_style(Style::default().fg(theme::MUTED))
+        .border_style(Style::default().fg(border_color))
         .style(Style::default().bg(theme::PANEL_BG));
     let inner = block.inner(area);
     frame.render_widget(block, area);
@@ -134,8 +135,6 @@ pub(super) fn render_modal_np_strip(frame: &mut Frame, strip: Rect, state: &Play
         _ => String::new(),
     };
     let title_lines = wrap_into_lines(&raw_title, content_w, 2);
-
-    // +1 for the combined visualizer+volume row
     let panel_h = 2 + 1 + title_lines.len() as u16 + 1;
     if panel_h > strip.height { return; }
 
@@ -173,19 +172,21 @@ pub(super) fn render_modal_np_strip(frame: &mut Frame, strip: Rect, state: &Play
             );
         }
     }
-
-    // Visualizer + volume bar on last inner row
     let viz_row = inner.bottom().saturating_sub(1);
     if viz_row >= inner.y && viz_row < inner.bottom() {
-        let vol_pct   = (state.volume.clamp(0.0, 1.0) * 100.0).round() as u32;
-        let vol_color = if state.volume > 0.85 { theme::WARNING } else { theme::ACCENT };
-        let vol_bar_w = 8usize;
-        let vol_bar   = volume_bar_str(state.volume, vol_bar_w);
-        let vol_str   = format!("  {}  {:>3}%", vol_bar, vol_pct);
-        let viz_w     = (cw as usize).saturating_sub(vol_str.chars().count() + 1);
-        let viz_line  = visualizer_spans(state.level_db, viz_w, theme::PANEL_BG);
-        let mut spans = viz_line;
-        spans.push(Span::styled(vol_str, Style::default().fg(vol_color)));
+        let vol_pct            = (state.volume.clamp(0.0, 1.0) * 100.0).round() as u32;
+        let vol_color          = if state.volume > 0.85 { theme::WARNING } else { theme::ACCENT };
+        let (filled, empty)    = volume_bar_spans(state.volume, 8);
+        let pct_str            = format!("  {:>3}%", vol_pct);
+        let vol_prefix         = "  ";
+        let vol_w              = vol_prefix.len() + filled.chars().count() + empty.chars().count() + pct_str.len();
+        let viz_w              = (cw as usize).saturating_sub(vol_w + 1);
+        let viz_line           = visualizer_spans(state.level_db, viz_w, theme::PANEL_BG);
+        let mut spans          = viz_line;
+        spans.push(Span::raw(vol_prefix));
+        spans.push(Span::styled(filled, Style::default().fg(vol_color)));
+        spans.push(Span::styled(empty,  Style::default().fg(theme::MUTED)));
+        spans.push(Span::styled(pct_str, Style::default().fg(vol_color)));
         frame.render_widget(
             Paragraph::new(Line::from(spans)).style(Style::default().bg(theme::PANEL_BG)),
             Rect::new(cx, viz_row, cw, 1),
@@ -193,14 +194,25 @@ pub(super) fn render_modal_np_strip(frame: &mut Frame, strip: Rect, state: &Play
     }
 }
 
-fn volume_bar_str(vol: f32, bar_width: usize) -> String {
+fn volume_bar_spans(vol: f32, bar_width: usize) -> (String, String) {
     let filled = (vol.clamp(0.0, 1.0) * bar_width as f32).round() as usize;
     let filled = filled.min(bar_width);
-    format!("{}{}", "█".repeat(filled), "░".repeat(bar_width - filled))
+    ("█".repeat(filled), "░".repeat(bar_width - filled))
 }
 
 fn visualizer_spans(level_db: f32, width: usize, bg: ratatui::style::Color) -> Vec<Span<'static>> {
+    use ratatui::style::Color::Rgb;
     const BLOCKS: &[char] = &['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
+    const SPECTRUM: [ratatui::style::Color; 8] = [
+        Rgb(0,   240, 255),
+        Rgb(40,  160, 255),
+        Rgb(75,  80,  255),
+        Rgb(112, 0,   255),
+        Rgb(160, 0,   200),
+        Rgb(200, 0,   140),
+        Rgb(235, 0,   100),
+        Rgb(255, 0,   85),
+    ];
     if width == 0 { return vec![]; }
     let base = ((level_db + 60.0) / 60.0).clamp(0.0, 1.0) as f64;
     let ms   = std::time::SystemTime::now()
@@ -211,20 +223,13 @@ fn visualizer_spans(level_db: f32, width: usize, bg: ratatui::style::Color) -> V
     let n_bars = (width / 2).max(1);
     let mut spans: Vec<Span<'static>> = Vec::with_capacity(n_bars * 2);
     for i in 0..n_bars {
-        let freq  = 0.0025 + (i as f64) * 0.00025;
-        let phase = i as f64 * 1.1;
-        let wave  = (ms * freq + phase).sin() * 0.35 + 0.35;
-        let h     = (base * 0.65 + wave * 0.35).clamp(0.0, 1.0);
-        let idx   = ((h * 7.0) as usize).min(7);
-        let color = if h > 0.85 {
-            ratatui::style::Color::Red
-        } else if h > 0.6 {
-            theme::WARNING
-        } else if h > 0.3 {
-            theme::ACCENT
-        } else {
-            theme::MUTED
-        };
+        let freq    = 0.0025 + (i as f64) * 0.00025;
+        let phase   = i as f64 * 1.1;
+        let wave    = (ms * freq + phase).sin() * 0.35 + 0.35;
+        let h       = (base * 0.65 + wave * 0.35).clamp(0.0, 1.0);
+        let idx     = ((h * 7.0) as usize).min(7);
+        let pos_idx = (i * 7 / n_bars.saturating_sub(1).max(1)).min(7);
+        let color   = if h < 0.05 { theme::MUTED } else { SPECTRUM[pos_idx] };
         spans.push(Span::styled(BLOCKS[idx].to_string(), Style::default().fg(color).bg(bg)));
         if i + 1 < n_bars {
             spans.push(Span::styled(" ", Style::default().bg(bg)));
@@ -257,6 +262,7 @@ pub(super) fn render_modal_spotify_strip(
     playback:      Option<&crate::integrations::spotify::SpotifyPlaybackState>,
     now_playing:   Option<&crate::integrations::spotify::SpotifyTrack>,
     player_status: &crate::app::SpotifyPlayerStatus,
+    border_tick:   u32,
 ) {
     use crate::app::SpotifyPlayerStatus;
     const H_PAD: u16 = 2;
@@ -301,7 +307,7 @@ pub(super) fn render_modal_spotify_strip(
 
     let panel = Rect::new(strip.x, strip.y, strip.width, panel_h);
 
-    let border_color = if is_playing { theme::PLAYING } else { theme::WARNING };
+    let border_color = if is_playing { theme::border_color(border_tick) } else { theme::WARNING };
 
     let block = Block::default()
         .borders(Borders::ALL)
@@ -358,21 +364,21 @@ pub(super) fn render_modal_spotify_strip(
             );
         }
     }
-
-    // Visualizer + volume on last inner row
     let viz_row = inner.bottom().saturating_sub(1);
     if viz_row >= inner.y && viz_row < inner.bottom() {
         let vol_color = theme::PLAYING;
-        let vol_str = if let Some(v) = volume_pct {
-            let bar = volume_bar_str(v as f32 / 100.0, 8);
-            format!("  {}  {:>3}%", bar, v)
-        } else {
-            String::new()
-        };
-        let viz_w   = (cw as usize).saturating_sub(vol_str.chars().count() + 1);
+        let vol_w = if let Some(v) = volume_pct {
+            let (f, e) = volume_bar_spans(v as f32 / 100.0, 8);
+            2 + f.chars().count() + e.chars().count() + format!("  {:>3}%", v).len()
+        } else { 0 };
+        let viz_w     = (cw as usize).saturating_sub(vol_w + 1);
         let mut spans = visualizer_spans(-60.0, viz_w, theme::PANEL_BG);
-        if !vol_str.is_empty() {
-            spans.push(Span::styled(vol_str, Style::default().fg(vol_color)));
+        if let Some(v) = volume_pct {
+            let (filled, empty) = volume_bar_spans(v as f32 / 100.0, 8);
+            spans.push(Span::raw("  "));
+            spans.push(Span::styled(filled, Style::default().fg(vol_color)));
+            spans.push(Span::styled(empty,  Style::default().fg(theme::MUTED)));
+            spans.push(Span::styled(format!("  {:>3}%", v), Style::default().fg(vol_color)));
         }
         frame.render_widget(
             Paragraph::new(Line::from(spans)).style(Style::default().bg(theme::PANEL_BG)),
