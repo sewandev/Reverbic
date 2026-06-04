@@ -13,10 +13,7 @@ mod ipc;
 const CLIENT_ID: &str = "1512183864100126810";
 const RECONNECT_DELAY: Duration = Duration::from_secs(15);
 
-pub fn spawn(
-    mut player_rx: watch::Receiver<PlayerState>,
-    mut config_rx: watch::Receiver<Config>,
-) {
+pub fn spawn(mut player_rx: watch::Receiver<PlayerState>, mut config_rx: watch::Receiver<Config>) {
     tokio::spawn(async move {
         run(&mut player_rx, &mut config_rx).await;
     });
@@ -76,14 +73,12 @@ async fn run(
                         conn = Some(c);
                     } else {
                         tracing::debug!("Discord RPC: handshake fallido, reintentando...");
-                        reconnect_deadline =
-                            Some(tokio::time::Instant::now() + RECONNECT_DELAY);
+                        reconnect_deadline = Some(tokio::time::Instant::now() + RECONNECT_DELAY);
                         continue;
                     }
                 }
                 None => {
-                    reconnect_deadline =
-                        Some(tokio::time::Instant::now() + RECONNECT_DELAY);
+                    reconnect_deadline = Some(tokio::time::Instant::now() + RECONNECT_DELAY);
                     continue;
                 }
             }

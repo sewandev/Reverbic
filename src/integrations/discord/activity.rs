@@ -10,10 +10,7 @@ pub struct DiscordActivity {
 
 impl DiscordActivity {
     pub fn to_json(&self, start_timestamp: Option<u64>) -> String {
-        let mut parts = vec![format!(
-            r#""details":"{}""#,
-            escape_json(&self.details)
-        )];
+        let mut parts = vec![format!(r#""details":"{}""#, escape_json(&self.details))];
 
         if let Some(ref s) = self.state {
             parts.push(format!(r#""state":"{}""#, escape_json(s)));
@@ -25,9 +22,7 @@ impl DiscordActivity {
             }
         }
 
-        parts.push(
-            r#""assets":{"large_image":"reverbic","large_text":"Reverbic"}"#.to_string(),
-        );
+        parts.push(r#""assets":{"large_image":"reverbic","large_text":"Reverbic"}"#.to_string());
 
         format!("{{{}}}", parts.join(","))
     }
