@@ -21,7 +21,9 @@
   <a href="CHANGELOG.es.md">Registro de cambios</a>
 </p>
 
-<video src="https://github.com/user-attachments/assets/81e799be-0519-47f7-8a74-661b45b2a898" controls width="100%"></video>
+<p align="center">
+  <img src="assets/Preview-Reverbic.gif" alt="Vista previa de Reverbic" width="100%">
+</p>
 
 ---
 
