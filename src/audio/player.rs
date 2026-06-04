@@ -837,12 +837,69 @@ fn handle_seek_cmd(
     }
 }
 
+#[cfg(target_os = "windows")]
+fn handle_device_change(
+    st: &mut AudioLoopState,
+    device_sink: &mut MixerDeviceSink,
+    state_tx: &watch::Sender<PlayerState>,
+) {
+    if let Some(p) = st.player.take() {
+        p.stop();
+    }
+    if let Some(p) = st.preview_player.take() {
+        p.stop();
+    }
+    if let Some(cf) = st.crossfade_out.take() {
+        cf.player.stop();
+    }
+    st.title_rx = None;
+    st.stream_last_chunk = None;
+    st.stream_download_done = None;
+    st.volume_before_duck = None;
+    st.od.reset();
+
+    std::thread::sleep(std::time::Duration::from_millis(500));
+
+    for attempt in 0..5u8 {
+        match DeviceSinkBuilder::open_default_sink() {
+            Ok(new_sink) => {
+                *device_sink = new_sink;
+                info!("audio: dispositivo de audio reconectado");
+                if st.current_station.is_some() {
+                    st.reconnect_at =
+                        Some(std::time::Instant::now() + std::time::Duration::from_millis(200));
+                    st.reconnect_count = 0;
+                    update_state(state_tx, |s| s.status = PlayerStatus::Connecting);
+                }
+                return;
+            }
+            Err(e) => {
+                if attempt < 4 {
+                    std::thread::sleep(std::time::Duration::from_millis(400));
+                } else {
+                    warn!("audio: no se pudo reconectar al dispositivo de audio: {e}");
+                    update_state(state_tx, |s| {
+                        s.status = PlayerStatus::Error(format!("Audio: {e}"));
+                    });
+                }
+            }
+        }
+    }
+}
+
 fn audio_loop(
     mut cmd_rx: mpsc::Receiver<PlayerCommand>,
     state_tx: watch::Sender<PlayerState>,
     handle: tokio::runtime::Handle,
 ) {
-    let device_sink: MixerDeviceSink = match DeviceSinkBuilder::open_default_sink() {
+    #[cfg(target_os = "windows")]
+    let device_changed = {
+        let flag = Arc::new(AtomicBool::new(false));
+        crate::audio::device_monitor::spawn_monitor(Arc::clone(&flag));
+        flag
+    };
+
+    let sink = match DeviceSinkBuilder::open_default_sink() {
         Ok(s) => s,
         Err(e) => {
             error!("No se pudo abrir dispositivo de audio: {e}");
@@ -853,10 +910,19 @@ fn audio_loop(
             return;
         }
     };
+    #[cfg(target_os = "windows")]
+    let mut device_sink = sink;
+    #[cfg(not(target_os = "windows"))]
+    let device_sink = sink;
 
     let mut st = AudioLoopState::new();
 
     loop {
+        #[cfg(target_os = "windows")]
+        if device_changed.swap(false, Ordering::AcqRel) {
+            handle_device_change(&mut st, &mut device_sink, &state_tx);
+        }
+
         tick_crossfade(&mut st);
 
         let api_fresh = st

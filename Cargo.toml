@@ -29,7 +29,9 @@ nucleo-matcher     = "0.3"
 keyring            = { version = "3", features = ["windows-native"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
+windows-core = "0.58"
 windows = { version = "0.58", features = [
+    "implement",
     "Win32_Foundation",
     "Win32_Graphics_Gdi",
     "Win32_Media_Audio",
@@ -42,6 +44,7 @@ windows = { version = "0.58", features = [
     "Win32_System_Threading",
     "Win32_UI_WindowsAndMessaging",
     "Win32_UI_Shell",
+    "Win32_UI_Shell_PropertiesSystem",
     "Win32_UI_Input_KeyboardAndMouse",
 ] }
 
