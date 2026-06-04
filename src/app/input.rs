@@ -520,11 +520,9 @@ impl App {
             KeyCode::Enter => {
                 self.play_favorite_station(self.radio_fav_selected).await;
             }
-            KeyCode::Char('R') => {
-                if self.radio_fav_selected < len {
-                    self.renaming_favorite = Some(self.radio_fav_selected);
-                    self.rename_input = self.favorites[self.radio_fav_selected].name.clone();
-                }
+            KeyCode::Char('R') if self.radio_fav_selected < len => {
+                self.renaming_favorite = Some(self.radio_fav_selected);
+                self.rename_input = self.favorites[self.radio_fav_selected].name.clone();
             }
             _ => {}
         }
@@ -775,10 +773,8 @@ impl App {
                     self.selected -= 1;
                 }
             }
-            KeyCode::Down | KeyCode::Char('j') => {
-                if self.selected + 1 < self.total_stations() {
-                    self.selected += 1;
-                }
+            KeyCode::Down | KeyCode::Char('j') if self.selected + 1 < self.total_stations() => {
+                self.selected += 1;
             }
             _ => {}
         }
