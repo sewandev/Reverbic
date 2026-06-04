@@ -25,6 +25,11 @@
   <img src="assets/Preview-Reverbic.gif" alt="Reverbic preview" width="100%">
 </p>
 
+<p align="center">
+  <img src="assets/overlay.png" alt="Gaming overlay" width="100%">
+  <br><em>Gaming overlay</em>
+</p>
+
 ---
 
 ## Features

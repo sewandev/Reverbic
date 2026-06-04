@@ -25,6 +25,11 @@
   <img src="assets/Preview-Reverbic.gif" alt="Vista previa de Reverbic" width="100%">
 </p>
 
+<p align="center">
+  <img src="assets/overlay.png" alt="Overlay para juegos" width="100%">
+  <br><em>Overlay para juegos</em>
+</p>
+
 ---
 
 ## Funcionalidades
