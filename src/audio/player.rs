@@ -410,6 +410,15 @@ const BASE_RECONNECT_DELAY_SECS: u64 = 1;
 const MAX_RETRY_DELAY_SECS: u64 = 30;
 const ONDEMAND_BYTES_PER_SEC: f32 = 16_000.0;
 
+fn on_demand_byte_offset(target_secs: f32, station: &Station) -> u64 {
+    let bytes_per_sec = station
+        .bitrate_kbps
+        .map(|kbps| kbps as f32 * 1_000.0 / 8.0)
+        .unwrap_or(ONDEMAND_BYTES_PER_SEC);
+
+    (target_secs * bytes_per_sec) as u64
+}
+
 fn update_state(tx: &watch::Sender<PlayerState>, f: impl FnOnce(&mut PlayerState)) {
     let mut s = tx.borrow().clone();
     f(&mut s);
@@ -796,11 +805,13 @@ fn handle_seek_cmd(
     if !st.od.active {
         return;
     }
-    let url = match st.current_station.as_ref().map(|s| s.url.clone()) {
-        Some(u) => u,
+    let (url, byte_offset) = match st.current_station.as_ref() {
+        Some(station) => (
+            station.url.clone(),
+            on_demand_byte_offset(target_secs, station),
+        ),
         None => return,
     };
-    let byte_offset = (target_secs * ONDEMAND_BYTES_PER_SEC) as u64;
     info!("Seek a {target_secs:.0}s → byte {byte_offset}");
 
     if let Some(p) = st.player.take() {
@@ -833,6 +844,45 @@ fn handle_seek_cmd(
             });
         }
         Err(e) => warn!("Seek: error re-decoding from byte {byte_offset}: {e}"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn station_with_bitrate(bitrate_kbps: Option<u16>) -> Station {
+        Station {
+            key: "test".into(),
+            name: "Test".into(),
+            url: "https://example.com/audio.mp3".into(),
+            metadata_api_url: None,
+            history_api_url: None,
+            schedule_url: None,
+            show_countdown: false,
+            bitrate_kbps,
+        }
+    }
+
+    #[test]
+    fn on_demand_seek_uses_station_bitrate_when_available() {
+        let station = station_with_bitrate(Some(256));
+
+        assert_eq!(on_demand_byte_offset(10.0, &station), 320_000);
+    }
+
+    #[test]
+    fn on_demand_seek_keeps_128_kbps_behavior() {
+        let station = station_with_bitrate(Some(128));
+
+        assert_eq!(on_demand_byte_offset(10.0, &station), 160_000);
+    }
+
+    #[test]
+    fn on_demand_seek_falls_back_to_default_when_bitrate_is_unknown() {
+        let station = station_with_bitrate(None);
+
+        assert_eq!(on_demand_byte_offset(10.0, &station), 160_000);
     }
 }
 
