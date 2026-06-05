@@ -8,12 +8,15 @@ mod player_ctrl;
 mod search;
 mod spotify_state;
 mod update_ctrl;
+mod youtube;
+mod youtube_state;
 
 pub use modal::{
     settings_items, AppFocus, RadioSubTab, SearchMode, SettingItem, SpotifyAuthStatus,
     SpotifyPlayerStatus, SpotifySubTab,
 };
 pub use spotify_state::SpotifyState;
+pub use youtube_state::{YoutubeState, YoutubeStatus};
 
 use std::collections::HashSet;
 use std::time::Instant;
@@ -130,6 +133,7 @@ pub struct App {
     pub config: Config,
     pub show_help: bool,
     pub spotify: SpotifyState,
+    pub youtube: YoutubeState,
     pub radio_enriched_track: Option<crate::metadata::EnrichedTrack>,
     pub(super) radio_enriched_for: Option<String>,
     pub(super) radio_enrichment_task: Option<tokio::task::JoinHandle<()>>,
@@ -216,6 +220,7 @@ impl App {
             config,
             show_help: false,
             spotify: SpotifyState::default(),
+            youtube: YoutubeState::default(),
             radio_enriched_track: None,
             radio_enriched_for: None,
             radio_enrichment_task: None,
@@ -349,5 +354,6 @@ impl App {
         abort_task(&mut self.on_demand_task);
         abort_task(&mut self.radio_enrichment_task);
         self.spotify.cleanup();
+        self.youtube.cleanup();
     }
 }

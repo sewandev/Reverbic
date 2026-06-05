@@ -176,6 +176,11 @@ impl App {
                 self.country_filter.push_str(&filtered);
                 self.country_selected = 0;
             }
+            SearchMode::Youtube => {
+                self.youtube.query.push_str(&filtered);
+                self.youtube.selected = 0;
+                self.perform_youtube_search();
+            }
             _ => {}
         }
     }
@@ -426,12 +431,19 @@ impl App {
             self.spotify.search_selected = 0;
             abort_task(&mut self.spotify.search_task);
             self.spotify.search_loading = false;
+            self.youtube.query.clear();
+            self.youtube.results.clear();
+            self.youtube.selected = 0;
+            self.youtube.loading = false;
+            abort_task(&mut self.youtube.search_task);
             if matches!(self.modal_mode, SearchMode::Spotify)
                 && matches!(self.spotify.status, SpotifyAuthStatus::LoggedIn)
                 && self.spotify.devices.is_empty()
                 && !self.spotify.devices_loading
             {
                 self.fetch_spotify_devices();
+            } else if matches!(self.modal_mode, SearchMode::Youtube) {
+                self.ensure_youtube_ready();
             }
             return;
         }
@@ -442,7 +454,7 @@ impl App {
             SearchMode::Country => self.on_key_modal_country(key).await,
             SearchMode::Settings => self.on_key_modal_settings(key),
             SearchMode::Spotify => self.on_key_modal_spotify(key).await,
-            SearchMode::Youtube => {}
+            SearchMode::Youtube => self.on_key_modal_youtube(key).await,
         }
     }
 
@@ -1304,6 +1316,57 @@ impl App {
                 self.spotify.search_query.push(c);
                 self.spotify.search_selected = 0;
                 self.perform_spotify_search();
+            }
+            _ => {}
+        }
+    }
+
+    async fn on_key_modal_youtube(&mut self, key: KeyCode) {
+        match key {
+            KeyCode::Esc => {
+                self.show_help = false;
+                if self.youtube.query.is_empty() && self.youtube.results.is_empty() {
+                    self.should_quit = true;
+                } else {
+                    self.youtube.query.clear();
+                    self.youtube.results.clear();
+                    self.youtube.selected = 0;
+                    self.youtube.loading = false;
+                    if crate::integrations::youtube::install::is_installed() {
+                        self.youtube.status = super::YoutubeStatus::Ready;
+                    } else {
+                        self.youtube.status = super::YoutubeStatus::Idle;
+                    }
+                }
+            }
+            KeyCode::Up => {
+                if !self.youtube.results.is_empty() {
+                    self.youtube.selected =
+                        cycle_prev(self.youtube.selected, self.youtube.results.len());
+                }
+            }
+            KeyCode::Down => {
+                if !self.youtube.results.is_empty() {
+                    self.youtube.selected =
+                        cycle_next(self.youtube.selected, self.youtube.results.len());
+                }
+            }
+            KeyCode::Enter => {
+                if !self.youtube.results.is_empty() {
+                    self.start_youtube_resolve();
+                } else {
+                    self.ensure_youtube_ready();
+                }
+            }
+            KeyCode::Backspace => {
+                self.youtube.query.pop();
+                self.youtube.selected = 0;
+                self.perform_youtube_search();
+            }
+            KeyCode::Char(c) if !c.is_control() => {
+                self.youtube.query.push(c);
+                self.youtube.selected = 0;
+                self.perform_youtube_search();
             }
             _ => {}
         }
