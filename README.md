@@ -106,7 +106,7 @@
 
 Pre-built binaries are available on the [Releases page](https://github.com/sewandev/Reverbic/releases/latest).
 
-Download `reverbic-v1.0.0-x86_64-windows.exe` and run it once from any terminal. On first launch, it automatically copies itself to `%LOCALAPPDATA%\Programs\reverbic\` and adds that folder to your user PATH. After that, open a new terminal and type `reverbic` from anywhere.
+Download the `.exe` file from the releases page and run it once from any terminal. On first launch, it automatically copies itself to `%LOCALAPPDATA%\Programs\reverbic\` and adds that folder to your user PATH. After that, open a new terminal and type `reverbic` from anywhere.
 
 > **Windows SmartScreen** may show a warning for unsigned binaries. Click "More info" → "Run anyway".
 
@@ -139,19 +139,26 @@ All settings are accessible inside the app via `Alt+O`. No config file editing r
 | Setting | Description |
 |---------|-------------|
 | Autoplay last station | Resume the last station on startup |
+| Restore volume | Restore the volume level from the previous session |
 | Crossfade | Crossfade duration between stations |
+| Volume step | Volume change per keypress |
+| Pre-buffer | Seconds to buffer before on-demand playback |
 | Overlay mode | Hidden / When playing / Always / Games only |
-| Overlay position | Top-left / Top-right / Bottom-left / Bottom-right |
 | Overlay transparency | 0–100 % |
+| Overlay position | Top-left / Top-right / Bottom-left / Bottom-right |
+| Screensaver | Idle time before screensaver activates |
+| Screensaver clock | Show the large digital clock in the screensaver |
 | Audio ducking | Auto-reduce volume when other apps play audio |
 | Duck volume | Target volume level when ducking |
 | Media keys | Enable media key support |
-| System tray | Show tray icon with notifications |
-| Screensaver | Idle time before screensaver activates |
-| Volume step | Volume change per keypress |
-| Pre-buffer | Seconds to buffer before playback |
+| System tray | Show tray icon in the system tray |
+| Notifications | Send system notifications when the track changes |
+| Auto-update | Automatically download and apply updates |
 | Discord Rich Presence | Show current station and track on Discord profile |
 | Language | English / Spanish |
+| Spotify: stop on quit | Stop Spotify playback when closing Reverbic |
+| Spotify: go to Spotify on connect | Switch to the Spotify tab automatically on connect |
+| Spotify: Client ID | Your Spotify app Client ID (press Space to edit) |
 
 Config is stored at `%APPDATA%\reverbic\config.json`.
 

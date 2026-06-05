@@ -106,7 +106,7 @@
 
 Los binarios precompilados están disponibles en la [página de Releases](https://github.com/sewandev/Reverbic/releases/latest).
 
-Descarga `reverbic-v1.0.0-x86_64-windows.exe` y ejecútalo una vez desde cualquier terminal. En el primer arranque, el binario se copia automáticamente a `%LOCALAPPDATA%\Programs\reverbic\` y agrega esa carpeta al PATH del usuario. Luego abre una nueva terminal y escribe `reverbic` desde cualquier lugar.
+Descarga el archivo `.exe` desde la página de releases y ejecútalo una vez desde cualquier terminal. En el primer arranque, el binario se copia automáticamente a `%LOCALAPPDATA%\Programs\reverbic\` y agrega esa carpeta al PATH del usuario. Luego abre una nueva terminal y escribe `reverbic` desde cualquier lugar.
 
 > **Windows SmartScreen** puede mostrar una advertencia para binarios sin firma. Haz clic en "Más información" → "Ejecutar de todas formas".
 
@@ -139,19 +139,26 @@ Todos los ajustes son accesibles desde la aplicación con `Alt+O`. No es necesar
 | Ajuste | Descripción |
 |--------|-------------|
 | Autoplay última estación | Reanuda la última estación al iniciar |
+| Restaurar volumen | Recupera el nivel de volumen de la sesión anterior |
 | Crossfade | Duración del fundido entre estaciones |
-| Modo overlay | Oculto / Al reproducir / Siempre / Solo en juegos |
-| Posición del overlay | Arriba-izquierda / Arriba-derecha / Abajo-izquierda / Abajo-derecha |
-| Transparencia del overlay | 0–100 % |
-| Audio ducking | Reduce el volumen automáticamente cuando otra app reproduce audio |
-| Volumen duck | Nivel de volumen objetivo al activar el ducking |
-| Teclas de medios | Activar soporte de teclas multimedia |
-| Bandeja del sistema | Mostrar icono con notificaciones |
-| Protector de pantalla | Tiempo de inactividad antes de activar el protector |
 | Paso de volumen | Cambio de volumen por tecla |
-| Pre-buffer | Segundos de buffer antes de iniciar la reproducción |
+| Pre-buffer | Segundos de buffer antes de reproducir on-demand |
+| Modo overlay | Oculto / Al reproducir / Siempre / Solo en juegos |
+| Transparencia del overlay | 0–100 % |
+| Posición del overlay | Arriba-izquierda / Arriba-derecha / Abajo-izquierda / Abajo-derecha |
+| Protector de pantalla | Tiempo de inactividad antes de activar el protector |
+| Reloj del protector | Muestra el reloj digital grande en el protector de pantalla |
+| Audio ducking | Reduce el volumen cuando otra app reproduce audio |
+| Volumen duck | Nivel de volumen objetivo al activar el ducking |
+| Teclas multimedia | Activar soporte de teclas multimedia |
+| Bandeja del sistema | Mostrar icono de Reverbic en la bandeja del sistema |
+| Notificaciones | Enviar notificaciones del sistema al cambiar de canción |
+| Actualización automática | Descargar y aplicar actualizaciones automáticamente |
 | Discord Rich Presence | Muestra la estación y canción actual en tu perfil de Discord |
 | Idioma | Inglés / Español |
+| Spotify: detener al cerrar | Detiene la reproducción de Spotify al cerrar Reverbic |
+| Spotify: ir a Spotify al conectar | Cambia a la pestaña Spotify automáticamente al conectarse |
+| Spotify: Client ID | Tu Client ID de la app de Spotify (presiona Espacio para editar) |
 
 La configuración se guarda en `%APPDATA%\reverbic\config.json`.
 
