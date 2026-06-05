@@ -228,3 +228,11 @@ Config is stored at `~/.reverbic/config.json`.
 | [tokio](https://tokio.rs) | Async runtime |
 | [crossterm](https://github.com/crossterm-rs/crossterm) | Cross-platform terminal input/output |
 | [serde](https://serde.rs) | Config serialization |
+
+---
+
+## Contributors
+
+<a href="https://github.com/sewandev/Reverbic/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=sewandev/Reverbic" />
+</a>
