@@ -194,7 +194,10 @@ async fn exchange_code(
 
     let status = resp.status();
     let body = resp.text().await.map_err(|e| format!("{e}"))?;
-    tracing::debug!("token exchange ({}) status={status}", &client_id[..8]);
+    tracing::debug!(
+        "token exchange ({}) status={status}",
+        client_id_log_prefix(client_id)
+    );
 
     let json: serde_json::Value =
         serde_json::from_str(&body).map_err(|e| format!("JSON inválido: {e}"))?;
@@ -211,6 +214,20 @@ async fn exchange_code(
             .or_else(|| json["error"].as_str())
             .unwrap_or("Error desconocido")
     ))
+}
+
+fn client_id_log_prefix(client_id: &str) -> &str {
+    &client_id[..8]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn client_id_log_prefix_accepts_short_client_id() {
+        assert_eq!(client_id_log_prefix("abc"), "abc");
+    }
 }
 
 pub async fn fetch_user_profile(
