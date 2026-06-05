@@ -117,6 +117,23 @@
   </tr>
 </table>
 
+<details>
+  <summary>Classic CMD vs Modern Terminal + Powershell 7</summary>
+
+  <table>
+  <tr>
+    <td align="center">
+      <img src="assets/CMD.PNG" alt="Terminal Windows" width="580"><br>
+      <sub>Classic CMD</sub>
+    </td>
+    <td align="center">
+      <img src="assets/TerminalPWS7.PNG" alt="Powershell 7" width="500"><br>
+      <sub>Modern Terminal + Powershell 7</sub>
+    </td>
+  </tr>
+</table>
+</details>
+
 ### Descarga
 
 Los binarios precompilados están disponibles en la [página de Releases](https://github.com/sewandev/Reverbic/releases/latest).

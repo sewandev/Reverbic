@@ -107,15 +107,32 @@
 <table>
   <tr>
     <td align="center">
-      <a href="https://apps.microsoft.com/detail/9n0dx20hk701?hl"><img src="assets/Terminal Windows.PNG" alt="Terminal Windows" width="280"></a><br>
+      <a href="https://apps.microsoft.com/detail/9n0dx20hk701?hl"><img src="assets/Terminal Windows.PNG" alt="Terminal Windows" width="180"></a><br>
       <sub>Terminal Windows</sub>
     </td>
     <td align="center">
-      <a href="https://apps.microsoft.com/detail/9mz1snwt0n5d?hl"><img src="assets/Powershell.PNG" alt="Powershell 7" width="240"></a><br>
+      <a href="https://apps.microsoft.com/detail/9mz1snwt0n5d?hl"><img src="assets/Powershell.PNG" alt="Powershell 7" width="180"></a><br>
       <sub>Powershell 7</sub>
     </td>
   </tr>
 </table>
+
+<details>
+  <summary>Classic CMD vs Modern Terminal + Powershell 7</summary>
+
+  <table>
+  <tr>
+    <td align="center">
+      <img src="assets/CMD.PNG" alt="Terminal Windows" width="580"><br>
+      <sub>Classic CMD</sub>
+    </td>
+    <td align="center">
+      <img src="assets/TerminalPWS7.PNG" alt="Powershell 7" width="500"><br>
+      <sub>Modern Terminal + Powershell 7</sub>
+    </td>
+  </tr>
+</table>
+</details>
 
 ### Download
 
