@@ -2,11 +2,11 @@
   <img src="assets/logo.svg" alt="Reverbic" width="340">
 </p>
 
-<p align="center">Reproductor de radio en terminal y control remoto de Spotify para Windows.</p>
+<p align="center">Reproductor de radio en terminal y control remoto de Spotify para Windows, macOS y Linux.</p>
 
 <p align="center">
   <img alt="Version" src="https://img.shields.io/badge/version-1.4.0-blueviolet?style=flat-square" />
-  <img alt="Platform" src="https://img.shields.io/badge/platform-Windows-0078d4?style=flat-square" />
+  <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-0078d4?style=flat-square" />
   <img alt="Built with Rust" src="https://img.shields.io/badge/built_with-Rust-CE422B?style=flat-square" />
   <img alt="License" src="https://img.shields.io/badge/license-MIT-green?style=flat-square" />
 </p>
@@ -44,7 +44,7 @@
 - Sub-pestañas: Búsqueda y Dispositivos
 - Manejo de rate-limit con cuenta regresiva
 
-**Windows**
+**Windows / Escritorio**
 - Overlay flotante — siempre encima, posición configurable (4 esquinas) y transparencia ajustable
 - Icono en la bandeja del sistema con notificaciones balloon
 - Soporte de teclas de medios (Play/Pause, Stop)
@@ -99,7 +99,7 @@
 
 ### Requisitos
 
-- Windows 10 u 11
+- Windows 10/11, macOS o Linux
 - [Rust](https://rustup.rs/) (última versión estable)
 
 > [!IMPORTANT]
