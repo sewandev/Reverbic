@@ -217,7 +217,11 @@ async fn exchange_code(
 }
 
 fn client_id_log_prefix(client_id: &str) -> &str {
-    &client_id[..8]
+    client_id
+        .char_indices()
+        .nth(8)
+        .map(|(idx, _)| &client_id[..idx])
+        .unwrap_or(client_id)
 }
 
 #[cfg(test)]
@@ -227,6 +231,16 @@ mod tests {
     #[test]
     fn client_id_log_prefix_accepts_short_client_id() {
         assert_eq!(client_id_log_prefix("abc"), "abc");
+    }
+
+    #[test]
+    fn client_id_log_prefix_truncates_long_client_id() {
+        assert_eq!(client_id_log_prefix("abcdefghij"), "abcdefgh");
+    }
+
+    #[test]
+    fn client_id_log_prefix_handles_utf8_boundary() {
+        assert_eq!(client_id_log_prefix("åbcdefghij"), "åbcdefgh");
     }
 }
 
