@@ -1,47 +1,47 @@
 - name: bug
   color: "d73a4a"
-  description: Algo no funciona como se espera
+  description: Something is not working as expected
 
 - name: enhancement
   color: "0075ca"
-  description: Nueva funcionalidad o mejora
+  description: New feature or improvement
 
 - name: question
   color: "9b59b6"
-  description: Pregunta o solicitud de soporte
+  description: Question or support request
 
 - name: documentation
   color: "0e8a16"
-  description: Cambios o mejoras en la documentacion
+  description: Documentation changes or improvements
 
 - name: good first issue
   color: "7057ff"
-  description: Bueno para quien empieza a contribuir
+  description: Good for first-time contributors
 
 - name: help wanted
   color: "008672"
-  description: Se necesita ayuda externa
+  description: External help wanted
 
 - name: duplicate
   color: "cfd3d7"
-  description: Issue o PR duplicado
+  description: Duplicate issue or pull request
 
 - name: wontfix
   color: "ffffff"
-  description: No se va a trabajar en esto
+  description: This will not be worked on
 
 - name: invalid
   color: "e4e669"
-  description: No corresponde o falta informacion
+  description: Not applicable or missing information
 
 - name: windows
   color: "0078d4"
-  description: Especifico de Windows (WASAPI, overlay, bandeja)
+  description: Windows-specific behavior (WASAPI, overlay, tray)
 
 - name: spotify
   color: "1db954"
-  description: Relacionado con la integracion de Spotify
+  description: Related to Spotify integration
 
 - name: radio
   color: "e44d26"
-  description: Relacionado con la reproduccion de radio
+  description: Related to radio playback

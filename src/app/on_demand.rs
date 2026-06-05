@@ -28,7 +28,7 @@ impl App {
                     let _ = tx.send(result.unwrap_or_default());
                 }
                 Err(_) => {
-                    tracing::warn!("on_demand fetch timeout para playlist {playlist_id}");
+                    tracing::warn!("on_demand fetch timed out for playlist {playlist_id}");
                     let _ = tx.send(Vec::new());
                 }
             }

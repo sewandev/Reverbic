@@ -1382,7 +1382,7 @@ impl App {
                                 let _ = cmd_tx.send(PlayerCommand::StopPreview).await;
                             }
                             None => {
-                                tracing::warn!("Deezer: sin resultado para '{raw}'");
+                                tracing::warn!("Deezer: no result for '{raw}'");
                                 let _ = cmd_tx
                                     .send(PlayerCommand::SetPreviewLoadingTrack(None))
                                     .await;

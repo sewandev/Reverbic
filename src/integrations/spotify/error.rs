@@ -2,25 +2,25 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum SpotifyError {
-    #[error("Error de red: {0}")]
+    #[error("Network error: {0}")]
     Network(String),
 
-    #[error("Limite de requests alcanzado. Reintenta en {0}s.")]
+    #[error("Rate limit reached. Retry in {0}s.")]
     RateLimit(u64),
 
-    #[error("No autorizado. Reconecta tu cuenta de Spotify.")]
+    #[error("Unauthorized. Reconnect your Spotify account.")]
     Unauthorized,
 
-    #[error("Se requiere Spotify Premium para esta funcion.")]
+    #[error("Spotify Premium is required for this feature.")]
     PremiumRequired,
 
-    #[error("Dispositivo no disponible o fuera de linea.")]
+    #[error("Device unavailable or offline.")]
     DeviceUnavailable,
 
     #[error("Spotify ({status}): {message}")]
     Api { status: u16, message: String },
 
-    #[error("Error al procesar respuesta de Spotify: {0}")]
+    #[error("Error processing Spotify response: {0}")]
     Parse(String),
 }
 

@@ -66,11 +66,11 @@ async fn run_player(
     .ok();
     let credentials = match cache.as_ref().and_then(|c| c.credentials()) {
         Some(cached) => {
-            tracing::info!("librespot: usando credenciales cacheadas");
+            tracing::info!("librespot: using cached credentials");
             cached
         }
         None => {
-            tracing::info!("librespot: usando OAuth token (primera vez)");
+            tracing::info!("librespot: using OAuth token for first login");
             Credentials::with_access_token(&audio_token)
         }
     };
@@ -88,7 +88,7 @@ async fn run_player(
         Some(b) => b,
         None => {
             let _ = event_tx.try_send(SpotifyPlayerEvent::Error(
-                "No se encontró un backend de audio compatible".to_string(),
+                "No compatible audio backend was found".to_string(),
             ));
             return;
         }

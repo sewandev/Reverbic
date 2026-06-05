@@ -226,7 +226,7 @@ impl AudioPlayer {
 
     pub async fn send(&self, cmd: PlayerCommand) -> bool {
         if self.cmd_tx.send(cmd).await.is_err() {
-            error!("AudioPlayer: canal cerrado — el audio thread puede haber fallado");
+            error!("AudioPlayer: channel closed; the audio thread may have failed");
             false
         } else {
             true
@@ -241,6 +241,7 @@ impl AudioPlayer {
         self.cmd_tx.clone()
     }
 
+    #[cfg(target_os = "windows")]
     pub fn subscribe(&self) -> watch::Receiver<PlayerState> {
         self.state_rx.clone()
     }
@@ -277,16 +278,16 @@ fn process_icy_titles(
                     let delay = backoff_duration(st.reconnect_count, 1, 30);
                     if st.od.active {
                         if download_done {
-                            info!("On-demand: descarga completa, reproduciendo desde buffer");
+                            info!("On-demand: download complete, playing from buffer");
                         } else {
                             let pos = st.od.current_pos();
                             let duration =
                                 state_tx.borrow().playback_duration_secs.unwrap_or(f32::MAX);
                             if pos >= duration * 0.97 {
-                                info!("On-demand: fin de archivo — deteniendo");
+                                info!("On-demand: end of file, stopping");
                             } else {
                                 warn!(
-                                    "On-demand: stream cortado en {pos:.0}s \u{2014} reconectando en {:.1}s (intento {})",
+                                    "On-demand: stream cut at {pos:.0}s, reconnecting in {:.1}s (attempt {})",
                                     delay.as_secs_f32(), st.reconnect_count + 1
                                 );
                                 st.reconnect_at = Some(std::time::Instant::now() + delay);
@@ -295,8 +296,9 @@ fn process_icy_titles(
                         }
                     } else {
                         warn!(
-                            "Stream terminado inesperadamente \u{2014} reconectando en {:.1}s (intento {})",
-                            delay.as_secs_f32(), st.reconnect_count + 1
+                            "Stream ended unexpectedly; reconnecting in {:.1}s (attempt {})",
+                            delay.as_secs_f32(),
+                            st.reconnect_count + 1
                         );
                         st.reconnect_at = Some(std::time::Instant::now() + delay);
                         st.reconnect_count += 1;
@@ -501,7 +503,7 @@ fn check_stream_stall(st: &mut AudioLoopState) {
             MAX_RETRY_DELAY_SECS,
         );
         warn!(
-            "Stream sin datos por {}s — reconectando en {:.1}s (intento {})",
+            "Stream had no data for {}s; reconnecting in {:.1}s (attempt {})",
             stall_threshold,
             delay.as_secs_f32(),
             st.reconnect_count + 1
@@ -596,7 +598,7 @@ fn schedule_retry(
     if retry_count <= MAX_STREAM_RETRIES {
         let delay = backoff_duration(retry_count - 1, BASE_RETRY_DELAY_SECS, MAX_RETRY_DELAY_SECS);
         warn!(
-            "Error al decodificar stream (intento {}/{}): {error_msg}. Reintentando en {:.1}s",
+            "Error decoding stream (attempt {}/{}): {error_msg}. Retrying in {:.1}s",
             retry_count,
             MAX_STREAM_RETRIES,
             delay.as_secs_f32()
@@ -609,12 +611,9 @@ fn schedule_retry(
             ..Default::default()
         });
     } else {
-        error!(
-            "Stream falló después de {} intentos: {error_msg}",
-            retry_count
-        );
+        error!("Stream failed after {} attempts: {error_msg}", retry_count);
         let _ = state_tx.send(PlayerState {
-            status: PlayerStatus::Error(format!("Stream: {} intentos fallidos", retry_count)),
+            status: PlayerStatus::Error(format!("Stream: {} failed attempts", retry_count)),
             station: Some(station),
             volume: st.current_volume,
             ..Default::default()
@@ -647,7 +646,7 @@ fn handle_play_cmd(
         p.stop();
     }
 
-    info!("Conectando a: {}", station.name);
+    info!("Connecting to: {}", station.name);
     let _ = state_tx.send(PlayerState {
         status: PlayerStatus::Connecting,
         station: Some(station.clone()),
@@ -668,7 +667,7 @@ fn handle_play_cmd(
             st.title_rx = Some(conn.title_rx);
             st.stream_last_chunk = Some(conn.last_chunk);
             st.stream_download_done = Some(conn.download_done);
-            info!(station = %station.name, url = %station.url, on_demand = st.od.active, "Reproducción iniciada");
+            info!(station = %station.name, url = %station.url, on_demand = st.od.active, "Playback started");
             let _ = state_tx.send(playing_state(
                 station,
                 st.current_volume,
@@ -727,7 +726,7 @@ fn handle_crossfade_cmd(
                 });
             }
             st.player = Some(conn.player);
-            info!(station = %station.name, "Crossfade: reproducción iniciada");
+            info!(station = %station.name, "Crossfade: playback started");
             let _ = state_tx.send(playing_state(
                 station,
                 st.current_volume,
@@ -833,7 +832,7 @@ fn handle_seek_cmd(
                 s.playback_pos_secs = Some(target_secs);
             });
         }
-        Err(e) => warn!("Seek: error al redecodificar desde byte {byte_offset}: {e}"),
+        Err(e) => warn!("Seek: error re-decoding from byte {byte_offset}: {e}"),
     }
 }
 
@@ -864,7 +863,7 @@ fn handle_device_change(
         match DeviceSinkBuilder::open_default_sink() {
             Ok(new_sink) => {
                 *device_sink = new_sink;
-                info!("audio: dispositivo de audio reconectado");
+                info!("audio: audio device reconnected");
                 if st.current_station.is_some() {
                     st.reconnect_at =
                         Some(std::time::Instant::now() + std::time::Duration::from_millis(200));
@@ -877,7 +876,7 @@ fn handle_device_change(
                 if attempt < 4 {
                     std::thread::sleep(std::time::Duration::from_millis(400));
                 } else {
-                    warn!("audio: no se pudo reconectar al dispositivo de audio: {e}");
+                    warn!("audio: failed to reconnect audio device: {e}");
                     update_state(state_tx, |s| {
                         s.status = PlayerStatus::Error(format!("Audio: {e}"));
                     });
@@ -902,7 +901,7 @@ fn audio_loop(
     let sink = match DeviceSinkBuilder::open_default_sink() {
         Ok(s) => s,
         Err(e) => {
-            error!("No se pudo abrir dispositivo de audio: {e}");
+            error!("Failed to open audio device: {e}");
             let _ = state_tx.send(PlayerState {
                 status: PlayerStatus::Error(format!("Audio device: {e}")),
                 ..Default::default()
@@ -1079,7 +1078,7 @@ fn audio_loop(
                         p.set_volume(pre_duck);
                     }
                     info!(
-                        "Preview detenido (volumen radio restaurado → {:.0}%)",
+                        "Preview stopped (radio volume restored -> {:.0}%)",
                         pre_duck * 100.0
                     );
                 }
@@ -1130,7 +1129,7 @@ fn audio_loop(
                     volume: st.current_volume,
                     ..Default::default()
                 });
-                info!("Reproducción detenida");
+                info!("Playback stopped");
             }
         }
     }

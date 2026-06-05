@@ -13,7 +13,7 @@ pub fn save_track(title: &str, station_key: &str) -> SaveResult {
 
     if let Ok(content) = std::fs::read_to_string(&path) {
         if content.lines().any(|line| line == title) {
-            tracing::debug!("Track ya guardado, ignorando duplicado: {title}");
+            tracing::debug!("Track already saved, ignoring duplicate: {title}");
             return SaveResult::AlreadySaved;
         }
     }
@@ -22,7 +22,7 @@ pub fn save_track(title: &str, station_key: &str) -> SaveResult {
         return SaveResult::AlreadySaved;
     };
     if let Err(e) = std::fs::create_dir_all(dir) {
-        tracing::error!("save_track: no se pudo crear directorio: {e}");
+        tracing::error!("save_track: failed to create directory: {e}");
         return SaveResult::AlreadySaved;
     }
 
@@ -30,15 +30,15 @@ pub fn save_track(title: &str, station_key: &str) -> SaveResult {
     match OpenOptions::new().append(true).create(true).open(&path) {
         Ok(mut f) => {
             if let Err(e) = f.write_all(line.as_bytes()) {
-                tracing::error!("save_track: error escribiendo: {e}");
+                tracing::error!("save_track: write error: {e}");
                 SaveResult::AlreadySaved
             } else {
-                tracing::info!("Track guardado en {:?}: {}", path, title);
+                tracing::info!("Track saved to {:?}: {}", path, title);
                 SaveResult::Saved
             }
         }
         Err(e) => {
-            tracing::error!("save_track: error abriendo archivo: {e}");
+            tracing::error!("save_track: failed to open file: {e}");
             SaveResult::AlreadySaved
         }
     }
@@ -61,5 +61,91 @@ pub fn load_saved_tracks(station_key: &str) -> Vec<String> {
 fn library_path(station_key: &str) -> PathBuf {
     reverbic_dir()
         .join("library")
-        .join(format!("{station_key}.txt"))
+        .join(format!("{}.txt", library_filename_stem(station_key)))
+}
+
+fn library_filename_stem(station_key: &str) -> String {
+    let mut stem = String::new();
+    for byte in station_key.bytes() {
+        match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'_' | b'-' => stem.push(byte as char),
+            _ => stem.push_str(&format!("%{byte:02X}")),
+        }
+    }
+
+    if stem.is_empty() {
+        stem.push('_');
+    }
+
+    if is_windows_reserved_filename_stem(&stem) {
+        stem.insert(0, '_');
+    }
+
+    stem
+}
+
+fn is_windows_reserved_filename_stem(stem: &str) -> bool {
+    let lower = stem.to_ascii_lowercase();
+    matches!(
+        lower.as_str(),
+        "con"
+            | "prn"
+            | "aux"
+            | "nul"
+            | "com1"
+            | "com2"
+            | "com3"
+            | "com4"
+            | "com5"
+            | "com6"
+            | "com7"
+            | "com8"
+            | "com9"
+            | "lpt1"
+            | "lpt2"
+            | "lpt3"
+            | "lpt4"
+            | "lpt5"
+            | "lpt6"
+            | "lpt7"
+            | "lpt8"
+            | "lpt9"
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn library_filename_stem_keeps_existing_safe_keys() {
+        assert_eq!(
+            library_filename_stem("tomorrowland_owr"),
+            "tomorrowland_owr"
+        );
+        assert_eq!(
+            library_filename_stem("ondemand_123-abc"),
+            "ondemand_123-abc"
+        );
+    }
+
+    #[test]
+    fn library_filename_stem_escapes_path_and_filesystem_separators() {
+        assert_eq!(
+            library_filename_stem("../foo\\bar:baz"),
+            "%2E%2E%2Ffoo%5Cbar%3Abaz"
+        );
+    }
+
+    #[test]
+    fn library_filename_stem_escapes_percent_and_unicode_bytes() {
+        assert_eq!(library_filename_stem("rock%ñ"), "rock%25%C3%B1");
+    }
+
+    #[test]
+    fn library_filename_stem_handles_empty_and_windows_reserved_names() {
+        assert_eq!(library_filename_stem(""), "_");
+        assert_eq!(library_filename_stem("CON"), "_CON");
+        assert_eq!(library_filename_stem("lpt1"), "_lpt1");
+    }
 }

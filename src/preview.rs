@@ -112,14 +112,14 @@ pub async fn deezer_preview(raw: &str) -> Option<(String, String)> {
 
     let data = json["data"].as_array()?;
     if data.is_empty() {
-        tracing::warn!("Deezer: sin resultado para query '{q}'");
+        tracing::warn!("Deezer: no result for query '{q}'");
         log_deezer_not_found(raw, &q);
         return None;
     }
     let track = data.first()?;
     let preview_url = track["preview"].as_str()?;
     if preview_url.is_empty() {
-        tracing::warn!("Deezer: track encontrado pero sin preview URL");
+        tracing::warn!("Deezer: track found but missing preview URL");
         return None;
     }
 
@@ -132,7 +132,7 @@ pub async fn deezer_preview(raw: &str) -> Option<(String, String)> {
     };
 
     tracing::info!(
-        "Deezer: preview encontrado para '{}' — {preview_url}",
+        "Deezer: preview found for '{}' - {preview_url}",
         display_title
     );
     Some((preview_url.to_string(), display_title))
