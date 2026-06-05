@@ -12,6 +12,20 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ---
 
+## [1.3.1] — 2026-06-04
+
+### Changed
+- Overlay: song title and recent tracks are now brighter and more legible
+- Overlay: clock and bitrate use the brand font (bold, larger) for better visibility
+- Overlay: station name and now-playing title show more characters before truncating
+- Overlay: DUCK indicator added to show auto-duck state at a glance
+- Favorites sub-tab now shows the total count next to the label
+
+### Fixed
+- Removed leftover debug log from Spotify device auto-selection
+
+---
+
 ## [1.3.0] — 2026-06-04
 
 ### Added

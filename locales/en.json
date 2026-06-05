@@ -209,6 +209,7 @@
   "hint.fav": "Remove",
   "modal.radio.subtab.search": "[ Search ]",
   "modal.radio.subtab.favorites": "[ Favorites ]",
+  "modal.radio.subtab.favorites.label": "Favorites",
   "modal.favorites.empty": "No favorites. Press Alt+F to add one.",
   "config.setting.discord_rpc": "Discord Rich Presence",
   "config.tooltip.discord_rpc": "Shows the current station and track on your Discord profile."

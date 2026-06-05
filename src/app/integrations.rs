@@ -279,10 +279,6 @@ impl App {
                     if self.spotify.active_device_id.is_none() {
                         if let Some(dev) = self.spotify.devices.get(selected) {
                             self.spotify.active_device_id = dev.id.clone();
-                            tracing::info!(
-                                "spotify: dispositivo auto-seleccionado: {:?}",
-                                dev.name
-                            );
                         }
                     }
                 }

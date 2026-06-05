@@ -152,7 +152,14 @@ impl<'a> SearchModalWidget<'a> {
         Paragraph::new(Line::from(vec![
             Span::styled(t("modal.radio.subtab.search"), search_st),
             Span::styled("  ", Style::default()),
-            Span::styled(t("modal.radio.subtab.favorites"), fav_st),
+            Span::styled(
+                format!(
+                    "[ {} ({}) ]",
+                    t("modal.radio.subtab.favorites.label"),
+                    self.favorites.len()
+                ),
+                fav_st,
+            ),
         ]))
         .render(Rect::new(text_x, area.y, text_w, 1), buf);
     }

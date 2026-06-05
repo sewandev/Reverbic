@@ -66,8 +66,8 @@ const C_BRAND: COLORREF = rgb(0xE8, 0xE8, 0xE8);
 const C_SEPARATOR: COLORREF = rgb(0x2A, 0x2A, 0x2A);
 const C_STATION: COLORREF = rgb(0x44, 0xCC, 0x44);
 const C_SHOW: COLORREF = rgb(0xCC, 0xA0, 0x30);
-const C_TITLE: COLORREF = rgb(0xAA, 0xAA, 0xAA);
-const C_RECENT: COLORREF = rgb(0x55, 0x55, 0x55);
+const C_TITLE: COLORREF = rgb(0xF0, 0xF0, 0xF0);
+const C_RECENT: COLORREF = rgb(0xFF, 0xFF, 0xFF);
 const C_ST_OK: COLORREF = rgb(0x44, 0xCC, 0x33);
 const C_ST_BUF: COLORREF = rgb(0xCC, 0x99, 0x00);
 const C_ST_RECO: COLORREF = rgb(0xFF, 0x80, 0x00);
@@ -95,6 +95,7 @@ struct State {
     bitrate_kbps: Option<u16>,
     recent: Vec<String>,
     overlay_position: crate::config::OverlayPosition,
+    duck_enabled: bool,
 }
 
 static MEDIA_VK_TX: std::sync::OnceLock<std::sync::mpsc::SyncSender<u32>> =
@@ -151,6 +152,7 @@ unsafe fn run(
         bitrate_kbps: None,
         recent: Vec::new(),
         overlay_position: config_rx.borrow().overlay_position,
+        duck_enabled: config_rx.borrow().duck_enabled,
     }));
     let raw = Arc::into_raw(Arc::clone(&shared));
 
@@ -289,6 +291,7 @@ unsafe fn run(
                 s.volume = ps.volume;
                 s.bitrate_kbps = ps.station.as_ref().and_then(|st| st.bitrate_kbps);
                 s.recent = ps.recent_titles.iter().take(3).cloned().collect();
+                s.duck_enabled = cfg.duck_enabled;
                 s.ostatus = match ps.status {
                     PlayerStatus::Buffering(f) => OStatus::Buffering(f),
                     PlayerStatus::Reconnecting(n) => OStatus::Reconnecting(n),
@@ -493,7 +496,7 @@ unsafe fn paint(hdc: HDC, s: &State) {
     let f_brand = font(13, true);
     let f_small = font(11, false);
     let f_station = font(16, true);
-    let f_detail = font(12, false);
+    let f_detail = font(12, true);
     let f_recent = font(11, false);
 
     let prev = SelectObject(hdc, HGDIOBJ(f_brand.0));
@@ -502,15 +505,15 @@ unsafe fn paint(hdc: HDC, s: &State) {
     SetTextColor(hdc, C_BRAND);
     let _ = TextOutW(hdc, PAD_L, 5, &wide("REVERBIC"));
 
-    SelectObject(hdc, HGDIOBJ(f_small.0));
     let clock = chrono::Local::now().format("%H:%M").to_string();
     let prev_align = SetTextAlign(hdc, TA_RIGHT);
-    SetTextColor(hdc, C_TITLE);
+    SetTextColor(hdc, C_BRAND);
     let _ = TextOutW(hdc, OW - PAD_R, 5, &wide(&clock));
 
+    SelectObject(hdc, HGDIOBJ(f_small.0));
     let (status_str, status_color) = status_label(s.ostatus);
     SetTextColor(hdc, status_color);
-    let _ = TextOutW(hdc, OW - PAD_R - 44, 5, &wide(&status_str));
+    let _ = TextOutW(hdc, OW - PAD_R - 60, 5, &wide(&status_str));
     let _ = SetTextAlign(hdc, TEXT_ALIGN_OPTIONS(prev_align));
 
     fill(
@@ -527,13 +530,12 @@ unsafe fn paint(hdc: HDC, s: &State) {
     // ── station row ────────────────────────────────────────────────
     SelectObject(hdc, HGDIOBJ(f_station.0));
     SetTextColor(hdc, C_STATION);
-    let _ = TextOutW(hdc, PAD_L, 27, &wide_truncated(&s.station, 22));
+    let _ = TextOutW(hdc, PAD_L, 27, &wide_truncated(&s.station, 34));
 
     if let Some(kbps) = s.bitrate_kbps {
-        SelectObject(hdc, HGDIOBJ(f_small.0));
-        SetTextColor(hdc, C_TITLE);
+        SetTextColor(hdc, C_BRAND);
         let prev_a = SetTextAlign(hdc, TA_RIGHT);
-        let _ = TextOutW(hdc, OW - PAD_R, 32, &wide(&format!("{}k", kbps)));
+        let _ = TextOutW(hdc, OW - PAD_R, 30, &wide(&format!("{}k", kbps)));
         let _ = SetTextAlign(hdc, TEXT_ALIGN_OPTIONS(prev_a));
     }
 
@@ -553,7 +555,7 @@ unsafe fn paint(hdc: HDC, s: &State) {
     let has_show = !s.show.is_empty();
     if has_show {
         SetTextColor(hdc, C_SHOW);
-        let _ = TextOutW(hdc, PAD_L, 50, &wide_truncated(&s.show, 42));
+        let _ = TextOutW(hdc, PAD_L, 50, &wide_truncated(&s.show, 46));
     }
     let y_title = if has_show { 64 } else { 50 };
     SetTextColor(hdc, C_TITLE);
@@ -562,7 +564,7 @@ unsafe fn paint(hdc: HDC, s: &State) {
     } else {
         s.title.as_str()
     };
-    let _ = TextOutW(hdc, PAD_L, y_title, &wide_truncated(title, 44));
+    let _ = TextOutW(hdc, PAD_L, y_title, &wide_truncated(title, 50));
 
     fill(
         hdc,
@@ -584,7 +586,7 @@ unsafe fn paint(hdc: HDC, s: &State) {
             hdc,
             PAD_L,
             y,
-            &wide_truncated(&format!("\u{21B3} {}", track), 47),
+            &wide_truncated(&format!("\u{21B3} {}", track), 52),
         );
     }
 
@@ -680,6 +682,16 @@ unsafe fn paint(hdc: HDC, s: &State) {
         &wide(&format!("{}%", vol_pct)),
     );
 
+    let duck_color = if s.duck_enabled {
+        C_ACCENT
+    } else {
+        rgb(0x3A, 0x3A, 0x3A)
+    };
+    SetTextColor(hdc, duck_color);
+    let prev_a = SetTextAlign(hdc, TA_RIGHT);
+    let _ = TextOutW(hdc, OW - PAD_R, VU_Y + 3, &wide("DUCK"));
+    let _ = SetTextAlign(hdc, TEXT_ALIGN_OPTIONS(prev_a));
+
     SelectObject(hdc, prev);
     let _ = DeleteObject(HGDIOBJ(f_brand.0));
     let _ = DeleteObject(HGDIOBJ(f_small.0));
@@ -690,7 +702,7 @@ unsafe fn paint(hdc: HDC, s: &State) {
 
 fn status_label(os: OStatus) -> (String, COLORREF) {
     match os {
-        OStatus::Playing => ("● PLAYING".into(), C_ST_OK),
+        OStatus::Playing => ("●".into(), C_ST_OK),
         OStatus::Buffering(f) => (format!("◌ {:.0}%", f * 100.0), C_ST_BUF),
         OStatus::Reconnecting(n) => (format!("↻ x{n}"), C_ST_RECO),
     }

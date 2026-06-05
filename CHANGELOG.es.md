@@ -12,6 +12,20 @@ Versionado: [Semantic Versioning](https://semver.org/)
 
 ---
 
+## [1.3.1] — 2026-06-04
+
+### Cambiado
+- Overlay: el título de la canción y las canciones recientes ahora son más brillantes y legibles
+- Overlay: el reloj y el bitrate usan la fuente de marca (negrita, más grande) para mayor visibilidad
+- Overlay: el nombre de la estación y el título en reproducción muestran más caracteres antes de truncar
+- Overlay: indicador DUCK agregado para mostrar el estado del auto-duck de un vistazo
+- La sub-pestaña Favoritas ahora muestra el total entre paréntesis junto al label
+
+### Corregido
+- Eliminado log de depuración sobrante de la auto-selección de dispositivo Spotify
+
+---
+
 ## [1.3.0] — 2026-06-04
 
 ### Agregado
