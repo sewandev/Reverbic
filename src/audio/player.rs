@@ -241,6 +241,7 @@ impl AudioPlayer {
         self.cmd_tx.clone()
     }
 
+    #[cfg(target_os = "windows")]
     pub fn subscribe(&self) -> watch::Receiver<PlayerState> {
         self.state_rx.clone()
     }
