@@ -1,6 +1,7 @@
 #![deny(warnings)]
 
 use std::panic;
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
@@ -75,11 +76,18 @@ async fn main() -> Result<()> {
     tracing::info!("reverbic stopping");
     result
 }
-fn init_logging() -> Option<tracing_appender::non_blocking::WorkerGuard> {
-    std::fs::create_dir_all("logs")
-        .unwrap_or_else(|e| eprintln!("No se pudo crear directorio logs: {e}"));
+fn log_file_path() -> PathBuf {
+    config::reverbic_dir().join("logs").join("reverbic.log")
+}
 
-    match std::fs::File::create("logs/reverbic.log") {
+fn init_logging() -> Option<tracing_appender::non_blocking::WorkerGuard> {
+    let log_path = log_file_path();
+    if let Some(parent) = log_path.parent() {
+        std::fs::create_dir_all(parent)
+            .unwrap_or_else(|e| eprintln!("Could not create logs directory: {e}"));
+    }
+
+    match std::fs::File::create(&log_path) {
         Ok(file) => {
             let (non_blocking, guard) = tracing_appender::non_blocking(file);
             fmt()
@@ -93,13 +101,34 @@ fn init_logging() -> Option<tracing_appender::non_blocking::WorkerGuard> {
             Some(guard)
         }
         Err(e) => {
-            eprintln!("No se pudo crear log file: {e}. Logging a stderr.");
+            eprintln!(
+                "Could not create log file at {}: {e}. Logging to stderr.",
+                log_path.display()
+            );
             fmt()
                 .with_env_filter(EnvFilter::from_default_env())
                 .with_writer(std::io::stderr)
                 .init();
             None
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn log_file_path_uses_reverbic_dir() {
+        assert_eq!(
+            log_file_path(),
+            config::reverbic_dir().join("logs").join("reverbic.log")
+        );
+    }
+
+    #[test]
+    fn log_file_path_is_not_relative_to_working_directory() {
+        assert_ne!(log_file_path(), PathBuf::from("logs").join("reverbic.log"));
     }
 }
 
