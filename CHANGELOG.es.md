@@ -12,6 +12,21 @@ Versionado: [Semantic Versioning](https://semver.org/)
 
 ---
 
+## [1.4.0] — 2026-06-05
+
+### Agregado
+- Pestaña de YouTube nativa usando `yt-dlp` (búsqueda y reproducción)
+- Instalación automática de `yt-dlp` en el primer uso
+- Soporte para streaming bajo demanda en YouTube (reanuda la canción en lugar de reiniciarla tras un corte de red)
+
+### Corregido
+- Solucionada vulnerabilidad de inyección de rutas en PowerShell durante la instalación
+- La persistencia del token de Spotify ahora usa correctamente el Credential Manager de Windows sin causar un panic si falta la configuración local
+- Mejorada la lógica `on_demand` para clasificar correctamente los streams de YouTube
+- Solucionadas rutas multiplataforma (macOS) para los binarios de `yt-dlp`
+
+---
+
 ## [1.3.1] — 2026-06-04
 
 ### Cambiado
