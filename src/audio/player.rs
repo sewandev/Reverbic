@@ -419,6 +419,18 @@ fn on_demand_byte_offset(target_secs: f32, station: &Station) -> u64 {
     (target_secs * bytes_per_sec) as u64
 }
 
+fn is_on_demand_station_key(key: &str) -> bool {
+    key.starts_with("ondemand_") || key.starts_with("youtube:")
+}
+
+#[cfg(test)]
+#[test]
+fn classifies_on_demand_station_keys() {
+    assert!(is_on_demand_station_key("ondemand_123"));
+    assert!(is_on_demand_station_key("youtube:abc123"));
+    assert!(!is_on_demand_station_key("radio-browser:abc123"));
+}
+
 fn update_state(tx: &watch::Sender<PlayerState>, f: impl FnOnce(&mut PlayerState)) {
     let mut s = tx.borrow().clone();
     f(&mut s);
@@ -531,7 +543,7 @@ fn open_stream(
     state_tx: &watch::Sender<PlayerState>,
     st: &mut AudioLoopState,
 ) -> Result<StreamConnection, Option<String>> {
-    let is_on_demand = station.key.starts_with("ondemand_");
+    let is_on_demand = is_on_demand_station_key(&station.key);
     let url = station.url.to_string();
     let ch_size = if is_on_demand { 4096 } else { 64 };
     let (mut stream_reader, title_rx) = StreamReader::connect(url, 0, ch_size, handle.clone());
