@@ -409,6 +409,7 @@ const BASE_RETRY_DELAY_SECS: u64 = 2;
 const BASE_RECONNECT_DELAY_SECS: u64 = 1;
 const MAX_RETRY_DELAY_SECS: u64 = 30;
 const ONDEMAND_BYTES_PER_SEC: f32 = 16_000.0;
+const YOUTUBE_PREBUFFER_SECS: f32 = 5.0;
 
 fn on_demand_byte_offset(target_secs: f32, station: &Station) -> u64 {
     let bytes_per_sec = station
@@ -423,12 +424,27 @@ fn is_on_demand_station_key(key: &str) -> bool {
     key.starts_with("ondemand_") || key.starts_with("youtube:")
 }
 
+fn prebuffer_secs_for_station_key(key: &str, configured_secs: f32) -> f32 {
+    if key.starts_with("youtube:") {
+        YOUTUBE_PREBUFFER_SECS
+    } else {
+        configured_secs
+    }
+}
+
 #[cfg(test)]
 #[test]
 fn classifies_on_demand_station_keys() {
     assert!(is_on_demand_station_key("ondemand_123"));
     assert!(is_on_demand_station_key("youtube:abc123"));
     assert!(!is_on_demand_station_key("radio-browser:abc123"));
+}
+
+#[cfg(test)]
+#[test]
+fn uses_shorter_youtube_prebuffer() {
+    assert_eq!(prebuffer_secs_for_station_key("youtube:abc123", 30.0), 5.0);
+    assert_eq!(prebuffer_secs_for_station_key("ondemand_123", 30.0), 30.0);
 }
 
 fn update_state(tx: &watch::Sender<PlayerState>, f: impl FnOnce(&mut PlayerState)) {
@@ -558,7 +574,8 @@ fn open_stream(
             volume: st.current_volume,
             ..Default::default()
         });
-        let target = (st.pre_buffer_secs * ONDEMAND_BYTES_PER_SEC) as usize;
+        let prebuffer_secs = prebuffer_secs_for_station_key(&station.key, st.pre_buffer_secs);
+        let target = (prebuffer_secs * ONDEMAND_BYTES_PER_SEC) as usize;
         stream_reader.pre_buffer(target, |pct| {
             update_state(state_tx, |s| s.status = PlayerStatus::Buffering(pct));
         });
@@ -839,7 +856,12 @@ fn handle_seek_cmd(
     st.title_rx = Some(new_title_rx);
     st.stream_last_chunk = Some(stream_reader.last_chunk_arc());
     st.stream_download_done = Some(stream_reader.download_done_arc());
-    let target = (st.pre_buffer_secs * ONDEMAND_BYTES_PER_SEC) as usize;
+    let prebuffer_secs = st
+        .current_station
+        .as_ref()
+        .map(|station| prebuffer_secs_for_station_key(&station.key, st.pre_buffer_secs))
+        .unwrap_or(st.pre_buffer_secs);
+    let target = (prebuffer_secs * ONDEMAND_BYTES_PER_SEC) as usize;
     stream_reader.pre_buffer(target, |pct| {
         update_state(state_tx, |s| s.status = PlayerStatus::Buffering(pct));
     });
