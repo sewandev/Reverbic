@@ -137,6 +137,13 @@
 
 ### Descarga
 
+**Vía Scoop (Recomendado)**
+```powershell
+scoop bucket add reverbic https://github.com/sewandev/scoop-reverbic
+scoop install reverbic
+```
+
+**Descarga directa**
 Los binarios precompilados están disponibles en la [página de Releases](https://github.com/sewandev/Reverbic/releases/latest).
 
 Descarga el archivo `.exe` desde la página de releases y ejecútalo una vez desde cualquier terminal. En el primer arranque, el binario se copia automáticamente a `%LOCALAPPDATA%\Programs\reverbic\` y agrega esa carpeta al PATH del usuario. Luego abre una nueva terminal y escribe `reverbic` desde cualquier lugar.
