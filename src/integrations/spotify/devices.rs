@@ -4,7 +4,7 @@ use crate::integrations::spotify::SpotifyError;
 
 fn spotify_client(timeout_secs: u64) -> Result<reqwest::Client, SpotifyError> {
     crate::http::http_client_timeout(timeout_secs)
-        .ok_or_else(|| SpotifyError::Network("No se pudo crear cliente HTTP".to_string()))
+        .ok_or_else(|| SpotifyError::Network("Failed to create HTTP client".to_string()))
 }
 
 #[derive(Debug, Clone)]
@@ -59,13 +59,10 @@ pub async fn list_devices(token: &str) -> Result<Vec<SpotifyDevice>, SpotifyErro
     let parsed: Wrapper =
         serde_json::from_str(&body).map_err(|e| SpotifyError::Parse(e.to_string()))?;
 
-    tracing::info!(
-        "spotify devices: {} dispositivos encontrados",
-        parsed.devices.len()
-    );
+    tracing::info!("spotify devices: {} devices found", parsed.devices.len());
     for d in &parsed.devices {
         tracing::info!(
-            "  dispositivo: name={:?} id={:?} type={} active={}",
+            "  device: name={:?} id={:?} type={} active={}",
             d.name,
             d.id,
             d.device_type,

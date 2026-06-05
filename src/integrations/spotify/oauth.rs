@@ -42,7 +42,7 @@ pub async fn refresh_search_token(
     refresh_token: &str,
 ) -> Result<(String, String), String> {
     let client = crate::http::http_client_timeout(8)
-        .ok_or_else(|| "No se pudo crear cliente HTTP".to_string())?;
+        .ok_or_else(|| "Failed to create HTTP client".to_string())?;
     let resp = client
         .post("https://accounts.spotify.com/api/token")
         .form(&[
@@ -52,18 +52,18 @@ pub async fn refresh_search_token(
         ])
         .send()
         .await
-        .map_err(|e| format!("Error de red: {e}"))?;
+        .map_err(|e| format!("Network error: {e}"))?;
 
     let status = resp.status();
     let body = resp.text().await.map_err(|e| format!("{e}"))?;
     tracing::debug!("spotify refresh token — status={status}");
 
     let json: serde_json::Value =
-        serde_json::from_str(&body).map_err(|e| format!("JSON inválido: {e}"))?;
+        serde_json::from_str(&body).map_err(|e| format!("Invalid JSON: {e}"))?;
 
     let access = json["access_token"]
         .as_str()
-        .ok_or_else(|| format!("Sin access_token en refresh: {body}"))?
+        .ok_or_else(|| format!("Missing access_token in refresh: {body}"))?
         .to_string();
     let refresh = json["refresh_token"]
         .as_str()
@@ -127,7 +127,7 @@ async fn wait_for_callback(listener: TcpListener) -> Result<String, String> {
     let (mut stream, _) =
         tokio::time::timeout(std::time::Duration::from_secs(120), listener.accept())
             .await
-            .map_err(|_| "Tiempo de espera agotado.".to_string())?
+            .map_err(|_| "Timed out waiting for authorization callback.".to_string())?
             .map_err(|e| e.to_string())?;
 
     let mut buf = [0u8; 4096];
@@ -151,13 +151,13 @@ async fn wait_for_callback(listener: TcpListener) -> Result<String, String> {
                 .and_then(|l| l.split('?').nth(1))
                 .and_then(|qs| qs.split('&').find(|p| p.starts_with("error=")))
                 .and_then(|p| p.strip_prefix("error="))
-                .map(|e| format!("Autorización rechazada: {e}"))
-                .unwrap_or_else(|| "Sin código de autorización".to_string())
+                .map(|e| format!("Authorization rejected: {e}"))
+                .unwrap_or_else(|| "Missing authorization code".to_string())
         })?;
 
     let body = "<html><body style='font-family:sans-serif;text-align:center;padding:60px'>\
-        <h2 style='color:#1DB954'>Autorización exitosa</h2>\
-        <p>Puedes cerrar esta ventana y volver a Reverbic.</p>\
+        <h2 style='color:#1DB954'>Authorization successful</h2>\
+        <p>You can close this window and return to Reverbic.</p>\
         </body></html>";
     let _ = stream
         .write_all(
@@ -178,7 +178,7 @@ async fn exchange_code(
     redirect: &str,
 ) -> Result<(String, String, String), String> {
     let client = crate::http::http_client_timeout(15)
-        .ok_or_else(|| "No se pudo crear cliente HTTP".to_string())?;
+        .ok_or_else(|| "Failed to create HTTP client".to_string())?;
     let resp = client
         .post("https://accounts.spotify.com/api/token")
         .form(&[
@@ -190,14 +190,14 @@ async fn exchange_code(
         ])
         .send()
         .await
-        .map_err(|e| format!("Error de red: {e}"))?;
+        .map_err(|e| format!("Network error: {e}"))?;
 
     let status = resp.status();
     let body = resp.text().await.map_err(|e| format!("{e}"))?;
     tracing::debug!("token exchange ({}) status={status}", &client_id[..8]);
 
     let json: serde_json::Value =
-        serde_json::from_str(&body).map_err(|e| format!("JSON inválido: {e}"))?;
+        serde_json::from_str(&body).map_err(|e| format!("Invalid JSON: {e}"))?;
 
     if let Some(token) = json["access_token"].as_str() {
         let refresh = json["refresh_token"].as_str().unwrap_or("").to_string();
@@ -209,7 +209,7 @@ async fn exchange_code(
         json["error_description"]
             .as_str()
             .or_else(|| json["error"].as_str())
-            .unwrap_or("Error desconocido")
+            .unwrap_or("Unknown error")
     ))
 }
 
@@ -217,7 +217,7 @@ pub async fn fetch_user_profile(
     token: &str,
 ) -> Result<(String, bool, Option<String>, Option<u32>), String> {
     let client = crate::http::http_client_timeout(10)
-        .ok_or_else(|| "No se pudo crear cliente HTTP".to_string())?;
+        .ok_or_else(|| "Failed to create HTTP client".to_string())?;
     let resp = client
         .get("https://api.spotify.com/v1/me")
         .bearer_auth(token)
@@ -233,7 +233,7 @@ pub async fn fetch_user_profile(
         .filter(|s| !s.is_empty())
         .or_else(|| json["id"].as_str())
         .map(str::to_string)
-        .ok_or_else(|| "sin display_name".to_string())?;
+        .ok_or_else(|| "missing display_name".to_string())?;
     let is_premium = json["product"].as_str() == Some("premium");
     let country = json["country"].as_str().map(str::to_string);
     let followers = json["followers"]["total"].as_u64().map(|n| n as u32);

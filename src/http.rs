@@ -10,7 +10,7 @@ pub fn http_client_timeout(secs: u64) -> Option<reqwest::Client> {
     {
         Ok(client) => Some(client),
         Err(e) => {
-            tracing::error!("No se pudo construir el cliente HTTP: {e}");
+            tracing::error!("Failed to build HTTP client: {e}");
             None
         }
     }

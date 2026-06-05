@@ -77,19 +77,19 @@ pub(super) fn render_screensaver(frame: &mut Frame, area: Rect, ctx: Screensaver
     let recent_rows: u16 = if has_recent { 1 + n_recent } else { 0 };
 
     let clock_h: u16 = if show_clock { 5 + 1 } else { 0 };
-    let ph = 2u16                                           // bordes
-        + 1                                                 // margen superior
-        + clock_h                                           // reloj + gap
-        + 1                                                 // nombre estación
-        + title_block_h                                     // título canción (o artista+título+álbum)
+    let ph = 2u16                                           // borders
+        + 1                                                 // top margin
+        + clock_h                                           // clock + gap
+        + 1                                                 // station name
+        + title_block_h                                     // song title (or artist+title+album)
         + u16::from(spotify_name.is_some())                 // spotify
         + 1                                                 // gap
-        + 1                                                 // visualizador
+        + 1                                                 // visualizer
         + 1                                                 // gap
-        + if has_details { 1 + detail_rows } else { 0 }    // sep + detalles
-        + if has_recent  { 1 + recent_rows } else { 0 }    // sep + recientes
+        + if has_details { 1 + detail_rows } else { 0 }    // separator + details
+        + if has_recent  { 1 + recent_rows } else { 0 }    // separator + recent
         + 1                                                 // gap
-        + 1; // barra inferior
+        + 1; // bottom bar
 
     let px = area.x + area.width.saturating_sub(pw) / 2;
     let py = area.y + area.height.saturating_sub(ph) / 2;

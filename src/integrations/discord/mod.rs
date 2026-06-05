@@ -69,10 +69,10 @@ async fn run(
             match ipc::DiscordIpc::connect() {
                 Some(mut c) => {
                     if c.handshake(CLIENT_ID).await {
-                        tracing::info!("Discord RPC: conectado");
+                        tracing::info!("Discord RPC: connected");
                         conn = Some(c);
                     } else {
-                        tracing::debug!("Discord RPC: handshake fallido, reintentando...");
+                        tracing::debug!("Discord RPC: handshake failed, retrying...");
                         reconnect_deadline = Some(tokio::time::Instant::now() + RECONNECT_DELAY);
                         continue;
                     }
@@ -93,7 +93,7 @@ async fn run(
         if ok {
             last_activity_json = new_json;
         } else {
-            tracing::warn!("Discord RPC: pipe roto, reconectando...");
+            tracing::warn!("Discord RPC: pipe broken, reconnecting...");
             conn = None;
             last_activity_json = None;
             reconnect_deadline = Some(tokio::time::Instant::now() + RECONNECT_DELAY);

@@ -77,7 +77,7 @@ async fn main() -> Result<()> {
 }
 fn init_logging() -> Option<tracing_appender::non_blocking::WorkerGuard> {
     std::fs::create_dir_all("logs")
-        .unwrap_or_else(|e| eprintln!("No se pudo crear directorio logs: {e}"));
+        .unwrap_or_else(|e| eprintln!("Failed to create logs directory: {e}"));
 
     match std::fs::File::create("logs/reverbic.log") {
         Ok(file) => {
@@ -93,7 +93,7 @@ fn init_logging() -> Option<tracing_appender::non_blocking::WorkerGuard> {
             Some(guard)
         }
         Err(e) => {
-            eprintln!("No se pudo crear log file: {e}. Logging a stderr.");
+            eprintln!("Failed to create log file: {e}. Logging to stderr.");
             fmt()
                 .with_env_filter(EnvFilter::from_default_env())
                 .with_writer(std::io::stderr)

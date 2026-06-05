@@ -89,7 +89,7 @@ pub async fn fetch_shows_for_playlist(playlist_id: &str) -> Option<Vec<OnDemandS
     let resp = client.get(&url).send().await.ok()?;
     if !resp.status().is_success() {
         tracing::warn!(
-            "Omny API HTTP {} para playlist {}",
+            "Omny API HTTP {} for playlist {}",
             resp.status(),
             playlist_id
         );
@@ -119,7 +119,7 @@ pub async fn fetch_shows_for_playlist(playlist_id: &str) -> Option<Vec<OnDemandS
         .collect();
 
     tracing::info!(
-        "Omny API: {} episodios cargados para playlist {}",
+        "Omny API: {} episodes loaded for playlist {}",
         clips.len(),
         playlist_id
     );

@@ -8,7 +8,7 @@ pub fn open_url(url: &str) {
             .stderr(Stdio::null())
             .spawn();
         if let Err(e) = result {
-            tracing::error!("open_url: no se pudo abrir el navegador: {e}");
+            tracing::error!("open_url: failed to open browser: {e}");
         }
     }
     #[cfg(not(target_os = "windows"))]
@@ -20,7 +20,7 @@ pub fn open_url(url: &str) {
             .stderr(Stdio::null())
             .spawn();
         if let Err(e) = result {
-            tracing::error!("open_url: no se pudo abrir el navegador: {e}");
+            tracing::error!("open_url: failed to open browser: {e}");
         }
     }
 }

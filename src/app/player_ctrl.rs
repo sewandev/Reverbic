@@ -102,7 +102,7 @@ impl App {
 
         if let Some(enrichment) = find_enrichment(&station.name) {
             enrich(&mut station, enrichment);
-            tracing::info!("Enriquecimiento activado para '{}'", station.name);
+            tracing::info!("Enrichment enabled for '{}'", station.name);
         }
 
         self.play_station(station).await;

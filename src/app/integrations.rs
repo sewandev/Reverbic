@@ -286,7 +286,7 @@ impl App {
                     tracing::warn!("spotify devices: {e}");
                     self.spotify.devices_loading = false;
                     if !matches!(e, SpotifyError::RateLimit(_)) {
-                        self.save_notice = Some(format!("Dispositivos Spotify: {e}"));
+                        self.save_notice = Some(format!("Spotify devices: {e}"));
                     }
                 }
                 Err(std::sync::mpsc::TryRecvError::Empty) => {
@@ -338,7 +338,7 @@ impl App {
                     d.is_active = d.id.as_deref() == Some(&device_id);
                 }
                 self.start_playback_polling();
-                tracing::info!("spotify: dispositivo activo → {device_id}");
+                tracing::info!("spotify: active device -> {device_id}");
             }
             Err(e) => {
                 tracing::warn!("transfer playback: {e}");
@@ -379,10 +379,10 @@ impl App {
                     self.config.save();
                     self.spotify.token_refreshed_at = Some(std::time::Instant::now());
                     self.start_playback_polling();
-                    tracing::info!("spotify: access_token renovado");
+                    tracing::info!("spotify: access_token refreshed");
                 }
                 Ok(Err(e)) => {
-                    tracing::warn!("spotify token refresh fallido: {e}");
+                    tracing::warn!("spotify token refresh failed: {e}");
                     self.spotify.token_refreshed_at =
                         Some(std::time::Instant::now() - std::time::Duration::from_secs(50 * 60));
                 }

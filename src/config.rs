@@ -301,11 +301,11 @@ impl Config {
         };
         let mut config = match serde_json::from_str::<Self>(&data) {
             Ok(c) => {
-                tracing::info!("Config cargada desde {:?}", path);
+                tracing::info!("Config loaded from {:?}", path);
                 c
             }
             Err(e) => {
-                tracing::warn!("Config inválida ({e}), usando defaults");
+                tracing::warn!("Invalid config ({e}), using defaults");
                 Self::default()
             }
         };
@@ -330,8 +330,8 @@ impl Config {
         }
         let path = Self::path();
         match save_json_atomic(&path, self) {
-            Ok(()) => tracing::info!("Config guardada en {:?}", path),
-            Err(e) => tracing::error!("No se pudo guardar config: {e}"),
+            Ok(()) => tracing::info!("Config saved to {:?}", path),
+            Err(e) => tracing::error!("Failed to save config: {e}"),
         }
     }
 

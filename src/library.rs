@@ -13,7 +13,7 @@ pub fn save_track(title: &str, station_key: &str) -> SaveResult {
 
     if let Ok(content) = std::fs::read_to_string(&path) {
         if content.lines().any(|line| line == title) {
-            tracing::debug!("Track ya guardado, ignorando duplicado: {title}");
+            tracing::debug!("Track already saved, ignoring duplicate: {title}");
             return SaveResult::AlreadySaved;
         }
     }
@@ -22,7 +22,7 @@ pub fn save_track(title: &str, station_key: &str) -> SaveResult {
         return SaveResult::AlreadySaved;
     };
     if let Err(e) = std::fs::create_dir_all(dir) {
-        tracing::error!("save_track: no se pudo crear directorio: {e}");
+        tracing::error!("save_track: failed to create directory: {e}");
         return SaveResult::AlreadySaved;
     }
 
@@ -30,15 +30,15 @@ pub fn save_track(title: &str, station_key: &str) -> SaveResult {
     match OpenOptions::new().append(true).create(true).open(&path) {
         Ok(mut f) => {
             if let Err(e) = f.write_all(line.as_bytes()) {
-                tracing::error!("save_track: error escribiendo: {e}");
+                tracing::error!("save_track: write error: {e}");
                 SaveResult::AlreadySaved
             } else {
-                tracing::info!("Track guardado en {:?}: {}", path, title);
+                tracing::info!("Track saved to {:?}: {}", path, title);
                 SaveResult::Saved
             }
         }
         Err(e) => {
-            tracing::error!("save_track: error abriendo archivo: {e}");
+            tracing::error!("save_track: failed to open file: {e}");
             SaveResult::AlreadySaved
         }
     }

@@ -10,7 +10,7 @@ pub async fn search_tracks(
     }
 
     let client = crate::http::http_client_timeout(10)
-        .ok_or_else(|| SpotifyError::Network("No se pudo crear cliente HTTP".to_string()))?;
+        .ok_or_else(|| SpotifyError::Network("Failed to create HTTP client".to_string()))?;
 
     let encoded = query.bytes().fold(String::new(), |mut s, b| {
         match b {
@@ -50,7 +50,7 @@ pub async fn search_tracks(
     );
 
     if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
-        tracing::warn!("spotify search: rate limit activo, reintenta en {retry_after}s");
+        tracing::warn!("spotify search: rate limit active, retry in {retry_after}s");
         return Err(SpotifyError::RateLimit(retry_after));
     }
 
@@ -82,7 +82,7 @@ fn parse_track(item: &serde_json::Value) -> Option<SpotifyTrack> {
         .as_array()
         .and_then(|arr| arr.first())
         .and_then(|a| a["name"].as_str())
-        .unwrap_or("Desconocido")
+        .unwrap_or("Unknown")
         .to_string();
     let album = item["album"]["name"].as_str().unwrap_or("").to_string();
     let duration_ms = item["duration_ms"].as_u64().unwrap_or(0) as u32;

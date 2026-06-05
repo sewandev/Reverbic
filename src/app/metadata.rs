@@ -104,7 +104,7 @@ impl App {
                     }
                     Ok(None) => {}
                     Err(_) => {
-                        tracing::warn!("station_details fetch timeout para {key}");
+                        tracing::warn!("station_details fetch timed out for {key}");
                     }
                 }
             });
