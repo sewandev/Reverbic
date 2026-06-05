@@ -7,6 +7,8 @@ pub async fn fetch_latest_version() -> Option<String> {
     let url = format!("https://api.github.com/repos/{REPO}/releases/latest");
     let client = reqwest::Client::builder()
         .user_agent(concat!("reverbic/", env!("CARGO_PKG_VERSION")))
+        .connect_timeout(std::time::Duration::from_secs(10))
+        .timeout(std::time::Duration::from_secs(15))
         .build()
         .ok()?;
     let resp = client.get(&url).send().await.ok()?;
@@ -27,20 +29,31 @@ pub async fn download_update(version: &str) -> Option<PathBuf> {
     let name = format!("reverbic-v{version}-x86_64-windows.exe");
     let url = format!("https://github.com/{REPO}/releases/download/v{version}/{name}");
     let path = std::env::temp_dir().join(format!("reverbic-update-v{version}.exe"));
-    if path.exists() {
-        return Some(path);
+
+    if let Ok(meta) = std::fs::metadata(&path) {
+        if meta.len() > 1_000_000 {
+            return Some(path);
+        }
+        let _ = std::fs::remove_file(&path);
     }
+
     let client = reqwest::Client::builder()
         .user_agent(concat!("reverbic/", env!("CARGO_PKG_VERSION")))
+        .connect_timeout(std::time::Duration::from_secs(10))
+        .timeout(std::time::Duration::from_secs(120))
         .build()
         .ok()?;
     let resp = client.get(&url).send().await.ok()?;
     if !resp.status().is_success() {
         return None;
     }
-    let bytes = resp.bytes().await.ok()?;
-    std::fs::write(&path, bytes).ok()?;
-    Some(path)
+
+    if stream_to_file(resp, &path).await {
+        Some(path)
+    } else {
+        let _ = tokio::fs::remove_file(&path).await;
+        None
+    }
 }
 
 pub fn apply_update(new_exe: &Path) {
@@ -52,8 +65,8 @@ pub fn apply_update(new_exe: &Path) {
     };
     let old_name = format!("{}.old", file_name.to_string_lossy());
     let old = current.with_file_name(old_name);
-    if std::fs::rename(&current, &old).is_ok() {
-        let _ = std::fs::copy(new_exe, &current);
+    if std::fs::rename(&current, &old).is_ok() && std::fs::copy(new_exe, &current).is_err() {
+        let _ = std::fs::rename(&old, &current);
     }
 }
 
@@ -71,6 +84,27 @@ pub fn cleanup_stale() {
     if old.exists() {
         let _ = std::fs::remove_file(old);
     }
+}
+
+async fn stream_to_file(resp: reqwest::Response, path: &Path) -> bool {
+    use futures_util::StreamExt;
+    use tokio::io::AsyncWriteExt;
+    let Ok(mut file) = tokio::fs::File::create(path).await else {
+        return false;
+    };
+    let mut stream = resp.bytes_stream();
+    loop {
+        match stream.next().await {
+            Some(Ok(chunk)) => {
+                if file.write_all(&chunk).await.is_err() {
+                    return false;
+                }
+            }
+            Some(Err(_)) => return false,
+            None => break,
+        }
+    }
+    file.flush().await.is_ok()
 }
 
 fn is_newer(latest: &str, current: &str) -> bool {
