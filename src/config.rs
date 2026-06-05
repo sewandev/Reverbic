@@ -309,15 +309,24 @@ impl Config {
                 Self::default()
             }
         };
-        let _ = load_spotify_refresh_token(&mut config, spotify_token_entry());
+        if let Err(error) = load_spotify_refresh_token(&mut config, spotify_token_entry()) {
+            tracing::warn!(
+                "Failed to load Spotify refresh token from keyring: {}",
+                error.message()
+            );
+        }
         config
     }
 
     pub fn save(&self) {
-        let _ = save_spotify_refresh_token(
-            self.spotify.refresh_token.as_deref(),
-            spotify_token_entry(),
-        );
+        if let Err(error) =
+            save_spotify_refresh_token(self.spotify.refresh_token.as_deref(), spotify_token_entry())
+        {
+            tracing::warn!(
+                "Failed to update Spotify refresh token in keyring: {}",
+                error.message()
+            );
+        }
         let path = Self::path();
         match save_json_atomic(&path, self) {
             Ok(()) => tracing::info!("Config guardada en {:?}", path),
@@ -382,17 +391,12 @@ fn load_spotify_refresh_token<S: SpotifyTokenStore>(
         Ok(entry) => match entry.get_password() {
             Ok(token) => {
                 config.spotify.refresh_token = Some(token);
+                Ok(())
             }
-            Err(error) => {
-                let error = SpotifyTokenPersistenceError::LoadFailed(error);
-                let _ = error.message();
-            }
+            Err(error) => Err(SpotifyTokenPersistenceError::LoadFailed(error)),
         },
-        Err(error) => {
-            let _ = error.message();
-        }
+        Err(error) => Err(error),
     }
-    Ok(())
 }
 
 fn save_spotify_refresh_token<S: SpotifyTokenStore>(
@@ -401,24 +405,15 @@ fn save_spotify_refresh_token<S: SpotifyTokenStore>(
 ) -> Result<(), SpotifyTokenPersistenceError> {
     match entry {
         Ok(entry) => match refresh_token {
-            Some(token) => {
-                if let Err(error) = entry.set_password(token) {
-                    let error = SpotifyTokenPersistenceError::SaveFailed(error);
-                    let _ = error.message();
-                }
-            }
-            None => {
-                if let Err(error) = entry.delete_credential() {
-                    let error = SpotifyTokenPersistenceError::DeleteFailed(error);
-                    let _ = error.message();
-                }
-            }
+            Some(token) => entry
+                .set_password(token)
+                .map_err(SpotifyTokenPersistenceError::SaveFailed),
+            None => entry
+                .delete_credential()
+                .map_err(SpotifyTokenPersistenceError::DeleteFailed),
         },
-        Err(error) => {
-            let _ = error.message();
-        }
+        Err(error) => Err(error),
     }
-    Ok(())
 }
 
 pub fn save_json_atomic<T: Serialize + ?Sized>(
