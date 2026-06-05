@@ -137,7 +137,12 @@
 
 ### Descarga
 
-**Vía Scoop (Recomendado)**
+**Instalación rápida en 1 paso (PowerShell)**
+```powershell
+irm https://raw.githubusercontent.com/sewandev/Reverbic/main/install.ps1 | iex
+```
+
+**Vía Scoop**
 ```powershell
 scoop bucket add reverbic https://github.com/sewandev/scoop-reverbic
 scoop install reverbic
@@ -223,3 +228,11 @@ La configuración se guarda en `~/.reverbic/config.json`.
 | [tokio](https://tokio.rs) | Runtime asíncrono |
 | [crossterm](https://github.com/crossterm-rs/crossterm) | Entrada/salida de terminal multiplataforma |
 | [serde](https://serde.rs) | Serialización de configuración |
+
+---
+
+## Contribuidores
+
+<a href="https://github.com/sewandev/Reverbic/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=sewandev/Reverbic" />
+</a>
