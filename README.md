@@ -2,11 +2,11 @@
   <img src="assets/logo.svg" alt="Reverbic" width="340">
 </p>
 
-<p align="center">Terminal radio player &amp; Spotify remote for Windows.</p>
+<p align="center">Terminal radio player &amp; Spotify remote for Windows, macOS, and Linux.</p>
 
 <p align="center">
   <img alt="Version" src="https://img.shields.io/badge/version-1.4.0-blueviolet?style=flat-square" />
-  <img alt="Platform" src="https://img.shields.io/badge/platform-Windows-0078d4?style=flat-square" />
+  <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-0078d4?style=flat-square" />
   <img alt="Built with Rust" src="https://img.shields.io/badge/built_with-Rust-CE422B?style=flat-square" />
   <img alt="License" src="https://img.shields.io/badge/license-MIT-green?style=flat-square" />
 </p>
@@ -44,7 +44,7 @@
 - Sub-tabs: Search and Devices
 - Rate-limit handling with countdown
 
-**Windows**
+**Windows / Desktop**
 - Floating overlay — always on top, configurable position (4 corners) and transparency
 - System tray icon with balloon notifications
 - Media key support (Play/Pause, Stop)
@@ -99,7 +99,7 @@
 
 ### Requirements
 
-- Windows 10 or 11
+- Windows 10/11, macOS, or Linux
 - [Rust](https://rustup.rs/) (latest stable)
 
 > [!IMPORTANT]
