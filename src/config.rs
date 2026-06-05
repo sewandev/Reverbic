@@ -309,24 +309,23 @@ impl Config {
                 Self::default()
             }
         };
-        if let Ok(entry) = keyring::Entry::new("reverbic", "spotify_refresh_token") {
-            if let Ok(token) = entry.get_password() {
-                config.spotify.refresh_token = Some(token);
-            }
+        if let Err(error) = load_spotify_refresh_token(&mut config, spotify_token_entry()) {
+            tracing::warn!(
+                "Failed to load Spotify refresh token from keyring: {}",
+                error.message()
+            );
         }
         config
     }
 
     pub fn save(&self) {
-        if let Ok(entry) = keyring::Entry::new("reverbic", "spotify_refresh_token") {
-            match &self.spotify.refresh_token {
-                Some(token) => {
-                    let _ = entry.set_password(token);
-                }
-                None => {
-                    let _ = entry.delete_credential();
-                }
-            }
+        if let Err(error) =
+            save_spotify_refresh_token(self.spotify.refresh_token.as_deref(), spotify_token_entry())
+        {
+            tracing::warn!(
+                "Failed to update Spotify refresh token in keyring: {}",
+                error.message()
+            );
         }
         let path = Self::path();
         match save_json_atomic(&path, self) {
@@ -337,6 +336,83 @@ impl Config {
 
     fn path() -> PathBuf {
         reverbic_dir().join("config.json")
+    }
+}
+
+#[derive(Debug)]
+enum SpotifyTokenPersistenceError {
+    KeyringUnavailable(String),
+    LoadFailed(String),
+    SaveFailed(String),
+    DeleteFailed(String),
+}
+
+impl SpotifyTokenPersistenceError {
+    fn message(&self) -> &str {
+        match self {
+            Self::KeyringUnavailable(message)
+            | Self::LoadFailed(message)
+            | Self::SaveFailed(message)
+            | Self::DeleteFailed(message) => message,
+        }
+    }
+}
+
+trait SpotifyTokenStore {
+    fn get_password(&self) -> Result<String, String>;
+    fn set_password(&self, token: &str) -> Result<(), String>;
+    fn delete_credential(&self) -> Result<(), String>;
+}
+
+impl SpotifyTokenStore for keyring::Entry {
+    fn get_password(&self) -> Result<String, String> {
+        keyring::Entry::get_password(self).map_err(|e| e.to_string())
+    }
+
+    fn set_password(&self, token: &str) -> Result<(), String> {
+        keyring::Entry::set_password(self, token).map_err(|e| e.to_string())
+    }
+
+    fn delete_credential(&self) -> Result<(), String> {
+        keyring::Entry::delete_credential(self).map_err(|e| e.to_string())
+    }
+}
+
+fn spotify_token_entry() -> Result<keyring::Entry, SpotifyTokenPersistenceError> {
+    keyring::Entry::new("reverbic", "spotify_refresh_token")
+        .map_err(|e| SpotifyTokenPersistenceError::KeyringUnavailable(e.to_string()))
+}
+
+fn load_spotify_refresh_token<S: SpotifyTokenStore>(
+    config: &mut Config,
+    entry: Result<S, SpotifyTokenPersistenceError>,
+) -> Result<(), SpotifyTokenPersistenceError> {
+    match entry {
+        Ok(entry) => match entry.get_password() {
+            Ok(token) => {
+                config.spotify.refresh_token = Some(token);
+                Ok(())
+            }
+            Err(error) => Err(SpotifyTokenPersistenceError::LoadFailed(error)),
+        },
+        Err(error) => Err(error),
+    }
+}
+
+fn save_spotify_refresh_token<S: SpotifyTokenStore>(
+    refresh_token: Option<&str>,
+    entry: Result<S, SpotifyTokenPersistenceError>,
+) -> Result<(), SpotifyTokenPersistenceError> {
+    match entry {
+        Ok(entry) => match refresh_token {
+            Some(token) => entry
+                .set_password(token)
+                .map_err(SpotifyTokenPersistenceError::SaveFailed),
+            None => entry
+                .delete_credential()
+                .map_err(SpotifyTokenPersistenceError::DeleteFailed),
+        },
+        Err(error) => Err(error),
     }
 }
 
@@ -395,10 +471,134 @@ pub(crate) fn reverbic_dir() -> PathBuf {
 
 #[cfg(test)]
 mod tests {
-    use super::save_json_atomic;
+    use super::*;
     use serde_json::json;
     use std::path::PathBuf;
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    struct MockSpotifyTokenStore {
+        get_password: Result<String, String>,
+        set_password: Result<(), String>,
+        delete_credential: Result<(), String>,
+    }
+
+    impl MockSpotifyTokenStore {
+        fn ok() -> Self {
+            Self {
+                get_password: Ok("refresh-token".to_string()),
+                set_password: Ok(()),
+                delete_credential: Ok(()),
+            }
+        }
+
+        fn with_get_error(message: &str) -> Self {
+            Self {
+                get_password: Err(message.to_string()),
+                ..Self::ok()
+            }
+        }
+
+        fn with_set_error(message: &str) -> Self {
+            Self {
+                set_password: Err(message.to_string()),
+                ..Self::ok()
+            }
+        }
+
+        fn with_delete_error(message: &str) -> Self {
+            Self {
+                delete_credential: Err(message.to_string()),
+                ..Self::ok()
+            }
+        }
+    }
+
+    impl SpotifyTokenStore for MockSpotifyTokenStore {
+        fn get_password(&self) -> Result<String, String> {
+            self.get_password.clone()
+        }
+
+        fn set_password(&self, _token: &str) -> Result<(), String> {
+            self.set_password.clone()
+        }
+
+        fn delete_credential(&self) -> Result<(), String> {
+            self.delete_credential.clone()
+        }
+    }
+
+    #[test]
+    fn loads_refresh_token_from_keyring() {
+        let mut config = Config::default();
+
+        let result = load_spotify_refresh_token(&mut config, Ok(MockSpotifyTokenStore::ok()));
+
+        assert!(result.is_ok());
+        assert_eq!(
+            config.spotify.refresh_token.as_deref(),
+            Some("refresh-token")
+        );
+    }
+
+    #[test]
+    fn reports_keyring_entry_creation_failure_when_loading_refresh_token() {
+        let mut config = Config::default();
+
+        let result = load_spotify_refresh_token::<MockSpotifyTokenStore>(
+            &mut config,
+            Err(SpotifyTokenPersistenceError::KeyringUnavailable(
+                "no keyring backend".to_string(),
+            )),
+        );
+
+        assert!(matches!(
+            result,
+            Err(SpotifyTokenPersistenceError::KeyringUnavailable(_))
+        ));
+        assert!(config.spotify.refresh_token.is_none());
+    }
+
+    #[test]
+    fn reports_keyring_read_failure_when_loading_refresh_token() {
+        let mut config = Config::default();
+
+        let result = load_spotify_refresh_token(
+            &mut config,
+            Ok(MockSpotifyTokenStore::with_get_error("read failed")),
+        );
+
+        assert!(matches!(
+            result,
+            Err(SpotifyTokenPersistenceError::LoadFailed(_))
+        ));
+        assert!(config.spotify.refresh_token.is_none());
+    }
+
+    #[test]
+    fn reports_keyring_write_failure_when_saving_refresh_token() {
+        let result = save_spotify_refresh_token(
+            Some("refresh-token"),
+            Ok(MockSpotifyTokenStore::with_set_error("write failed")),
+        );
+
+        assert!(matches!(
+            result,
+            Err(SpotifyTokenPersistenceError::SaveFailed(_))
+        ));
+    }
+
+    #[test]
+    fn reports_keyring_delete_failure_when_clearing_refresh_token() {
+        let result = save_spotify_refresh_token(
+            None,
+            Ok(MockSpotifyTokenStore::with_delete_error("delete failed")),
+        );
+
+        assert!(matches!(
+            result,
+            Err(SpotifyTokenPersistenceError::DeleteFailed(_))
+        ));
+    }
 
     #[test]
     fn save_json_atomic_overwrites_existing_file() {
