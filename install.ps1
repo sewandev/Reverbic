@@ -27,9 +27,12 @@ $tempPath = Join-Path $tempDir $fileName
 Write-Host "[2/3] Descargando $($releaseData.tag_name) ($fileName)..."
 Invoke-WebRequest -Uri $downloadUrl -OutFile $tempPath -UseBasicParsing
 
-Write-Host "[3/3] Ejecutando Reverbic para autoinstalacion..."
-# Ejecutamos el binario para que haga su propia magia (copiarse a AppData y agregarse al PATH)
-Start-Process -FilePath $tempPath -Wait
+Write-Host "[3/3] Instalando e iniciando Reverbic..."
+# Usamos el operador '&' para que corra DENTRO de la consola actual (Windows Terminal/PS7)
+& $tempPath
+
+# Refrescar el PATH en la sesion actual para no tener que cerrar la consola
+$env:PATH = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
 
 Write-Host ""
 Write-Host "======================================================" -ForegroundColor Green
@@ -37,5 +40,5 @@ Write-Host "¡Instalacion completada con exito!" -ForegroundColor Green
 Write-Host "======================================================" -ForegroundColor Green
 Write-Host ""
 Write-Host "Reverbic se ha copiado a tu carpeta local y se ha anadido a tu PATH." -ForegroundColor Yellow
-Write-Host "Por favor, CIERRA ESTA TERMINAL, abre una nueva y escribe 'reverbic' para comenzar." -ForegroundColor Yellow
+Write-Host "Ya puedes escribir 'reverbic' desde esta o cualquier otra terminal." -ForegroundColor Yellow
 Write-Host ""
