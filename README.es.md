@@ -102,6 +102,8 @@
 - Windows 10 u 11
 - [Rust](https://rustup.rs/) (última versión estable)
 
+> **Terminal recomendada:** [Windows Terminal](https://aka.ms/terminal) con PowerShell 7+. Reverbic funciona en CMD pero algunos iconos, animaciones y caracteres Unicode pueden no verse correctamente. Windows Terminal ofrece la mejor experiencia visual.
+
 ### Descarga
 
 Los binarios precompilados están disponibles en la [página de Releases](https://github.com/sewandev/Reverbic/releases/latest).
