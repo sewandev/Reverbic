@@ -193,7 +193,7 @@ All settings are accessible inside the app via `Alt+O`. No config file editing r
 | Spotify: go to Spotify on connect | Switch to the Spotify tab automatically on connect |
 | Spotify: Client ID | Your Spotify app Client ID (press Space to edit) |
 
-Config is stored at `%APPDATA%\reverbic\config.json`.
+Config is stored at `~/.reverbic/config.json`.
 
 ---
 
@@ -216,4 +216,3 @@ Config is stored at `%APPDATA%\reverbic\config.json`.
 | [tokio](https://tokio.rs) | Async runtime |
 | [crossterm](https://github.com/crossterm-rs/crossterm) | Cross-platform terminal input/output |
 | [serde](https://serde.rs) | Config serialization |
-

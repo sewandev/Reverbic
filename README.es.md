@@ -193,7 +193,7 @@ Todos los ajustes son accesibles desde la aplicación con `Alt+O`. No es necesar
 | Spotify: ir a Spotify al conectar | Cambia a la pestaña Spotify automáticamente al conectarse |
 | Spotify: Client ID | Tu Client ID de la app de Spotify (presiona Espacio para editar) |
 
-La configuración se guarda en `%APPDATA%\reverbic\config.json`.
+La configuración se guarda en `~/.reverbic/config.json`.
 
 ---
 
@@ -216,4 +216,3 @@ La configuración se guarda en `%APPDATA%\reverbic\config.json`.
 | [tokio](https://tokio.rs) | Runtime asíncrono |
 | [crossterm](https://github.com/crossterm-rs/crossterm) | Entrada/salida de terminal multiplataforma |
 | [serde](https://serde.rs) | Serialización de configuración |
-
