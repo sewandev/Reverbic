@@ -14,6 +14,14 @@ impl App {
     }
 
     pub(super) async fn play_station(&mut self, station: Station) {
+        self.play_station_with_persistence(station, true).await;
+    }
+
+    pub(super) async fn play_station_transient(&mut self, station: Station) {
+        self.play_station_with_persistence(station, false).await;
+    }
+
+    async fn play_station_with_persistence(&mut self, station: Station, persist_last: bool) {
         if let Some(handle) = &self.spotify.player_tx {
             handle.pause();
         }
@@ -37,13 +45,15 @@ impl App {
             self.spotify.player_status = SpotifyPlayerStatus::Paused;
         }
         self.stop_playback_polling();
-        self.config.last_station = Some(LastStation {
-            key: station.key.clone(),
-            name: station.name.clone(),
-            url: station.url.clone(),
-            bitrate_kbps: station.bitrate_kbps,
-        });
-        self.save_config();
+        if persist_last {
+            self.config.last_station = Some(LastStation {
+                key: station.key.clone(),
+                name: station.name.clone(),
+                url: station.url.clone(),
+                bitrate_kbps: station.bitrate_kbps,
+            });
+            self.save_config();
+        }
         self.stop_metadata_polling();
 
         let fade = self.config.crossfade_secs;

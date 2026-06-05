@@ -12,6 +12,21 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ---
 
+## [1.4.0] — 2026-06-05
+
+### Added
+- First-class YouTube tab powered by `yt-dlp` (search, resolve, playback)
+- Auto-provision `yt-dlp` on first use
+- On-demand streaming support for YouTube (resumes instead of restarting after a reconnect)
+
+### Fixed
+- Fixed PowerShell path injection vulnerability during self-installation
+- Spotify token persistence now correctly uses the Windows Credential Manager without panicking on missing config
+- `on_demand` bug correctly classifying YouTube streams to allow seeking and resume
+- Improved macOS cross-platform path handling for `yt-dlp` binaries
+
+---
+
 ## [1.3.1] — 2026-06-04
 
 ### Changed

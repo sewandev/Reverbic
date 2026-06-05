@@ -5,7 +5,7 @@
 <p align="center">Reproductor de radio en terminal y control remoto de Spotify para Windows.</p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-1.3.1-blueviolet?style=flat-square" />
+  <img alt="Version" src="https://img.shields.io/badge/version-1.4.0-blueviolet?style=flat-square" />
   <img alt="Platform" src="https://img.shields.io/badge/platform-Windows-0078d4?style=flat-square" />
   <img alt="Built with Rust" src="https://img.shields.io/badge/built_with-Rust-CE422B?style=flat-square" />
   <img alt="License" src="https://img.shields.io/badge/license-MIT-green?style=flat-square" />
@@ -137,6 +137,13 @@
 
 ### Descarga
 
+**Vía Scoop (Recomendado)**
+```powershell
+scoop bucket add reverbic https://github.com/sewandev/scoop-reverbic
+scoop install reverbic
+```
+
+**Descarga directa**
 Los binarios precompilados están disponibles en la [página de Releases](https://github.com/sewandev/Reverbic/releases/latest).
 
 Descarga el archivo `.exe` desde la página de releases y ejecútalo una vez desde cualquier terminal. En el primer arranque, el binario se copia automáticamente a `%LOCALAPPDATA%\Programs\reverbic\` y agrega esa carpeta al PATH del usuario. Luego abre una nueva terminal y escribe `reverbic` desde cualquier lugar.
