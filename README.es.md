@@ -102,16 +102,17 @@
 - Windows 10 u 11
 - [Rust](https://rustup.rs/) (última versión estable)
 
+> [!IMPORTANT]
 > **Terminal recomendada:** [Windows Terminal](https://aka.ms/terminal) con PowerShell 7+. Reverbic funciona en CMD pero algunos iconos, animaciones y caracteres Unicode pueden no verse correctamente. Windows Terminal ofrece la mejor experiencia visual.
 
 <table>
   <tr>
     <td align="center">
-      <a href="https://apps.microsoft.com/detail/9n0dx20hk701?hl"><img src="assets/Terminal Windows.PNG" alt="Terminal Windows" width="280"></a><br>
+      <a href="https://apps.microsoft.com/detail/9n0dx20hk701?hl"><img src="assets/Terminal Windows.PNG" alt="Terminal Windows" width="180"></a><br>
       <sub>Terminal Windows</sub>
     </td>
     <td align="center">
-      <a href="https://apps.microsoft.com/detail/9mz1snwt0n5d?hl"><img src="assets/Powershell.PNG" alt="Powershell 7" width="240"></a><br>
+      <a href="https://apps.microsoft.com/detail/9mz1snwt0n5d?hl"><img src="assets/Powershell.PNG" alt="Powershell 7" width="180"></a><br>
       <sub>Powershell 7</sub>
     </td>
   </tr>

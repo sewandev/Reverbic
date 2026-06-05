@@ -102,6 +102,7 @@
 - Windows 10 or 11
 - [Rust](https://rustup.rs/) (latest stable)
 
+> [!IMPORTANT]
 > **Recommended terminal:** [Windows Terminal](https://aka.ms/terminal) with PowerShell 7+. Reverbic works in CMD but some icons, animations, and Unicode characters may not render correctly. Windows Terminal provides the best visual experience.
 
 <table>
