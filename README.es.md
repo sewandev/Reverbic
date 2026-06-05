@@ -34,7 +34,7 @@
 - Lista de estaciones curada con metadatos enriquecidos (codec, bitrate, etiquetas, web oficial)
 - Favoritas con soporte de renombrado
 - Historial de canciones recientes
-- Crossfade entre estaciones (1–10 s)
+- Crossfade entre estaciones (1–3 s)
 - Guardar canciones en una lista local
 - Catálogo de programas on-demand
 
