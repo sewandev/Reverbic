@@ -60,7 +60,7 @@ pub fn apply_update(new_exe: &Path) {
     #[cfg(target_os = "windows")]
     {
         if let Err(err) = spawn_windows_update_helper(new_exe) {
-            tracing::error!("No se pudo preparar la aplicacion del update: {err}");
+            tracing::error!("Failed to prepare update application: {err}");
         }
     }
 
