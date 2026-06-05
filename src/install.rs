@@ -57,13 +57,11 @@ fn install_dir_in_user_path(dir: &std::path::Path) -> bool {
 
 #[cfg(target_os = "windows")]
 fn add_to_user_path(dir: &std::path::Path) {
-    let dir_str = dir.to_string_lossy();
-    let script = format!(
-        "$p = [Environment]::GetEnvironmentVariable('PATH', 'User'); \
-         [Environment]::SetEnvironmentVariable('PATH', \"$p;{}\", 'User')",
-        dir_str
-    );
+    let script = "$p = [Environment]::GetEnvironmentVariable('PATH', 'User'); \
+                  $dir = $env:REVERBIC_INSTALL_DIR; \
+                  [Environment]::SetEnvironmentVariable('PATH', \"$p;$dir\", 'User')";
     let _ = std::process::Command::new("powershell")
-        .args(["-NoProfile", "-Command", &script])
+        .env("REVERBIC_INSTALL_DIR", dir)
+        .args(["-NoProfile", "-Command", script])
         .output();
 }
