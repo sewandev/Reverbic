@@ -15,6 +15,10 @@ use crate::station::Station;
 
 pub enum PlayerCommand {
     Play(Station),
+    PlayWithDuration {
+        station: Station,
+        duration_secs: f32,
+    },
     CrossfadeTo {
         station: Station,
         secs: u8,
@@ -30,7 +34,6 @@ pub enum PlayerCommand {
         show: String,
         recent: Vec<String>,
     },
-    SetPlaybackDuration(Option<f32>),
     PlayPreview {
         url: String,
         title: String,
@@ -448,6 +451,20 @@ fn uses_shorter_youtube_prebuffer() {
     assert_eq!(prebuffer_secs_for_station_key("ondemand_123", 30.0), 30.0);
 }
 
+#[cfg(test)]
+#[test]
+fn uses_playback_duration_fallback_when_decoder_has_none() {
+    assert_eq!(
+        playback_duration_or_fallback(None, Some(300.0)),
+        Some(300.0)
+    );
+    assert_eq!(
+        playback_duration_or_fallback(Some(120.0), Some(300.0)),
+        Some(120.0)
+    );
+    assert_eq!(playback_duration_or_fallback(None, Some(0.0)), None);
+}
+
 fn update_state(tx: &watch::Sender<PlayerState>, f: impl FnOnce(&mut PlayerState)) {
     let mut s = tx.borrow().clone();
     f(&mut s);
@@ -480,6 +497,15 @@ fn playing_state(
         playback_duration_secs: duration_secs,
         ..Default::default()
     }
+}
+
+fn playback_duration_or_fallback(
+    decoded_duration_secs: Option<f32>,
+    fallback_duration_secs: Option<f32>,
+) -> Option<f32> {
+    decoded_duration_secs
+        .filter(|d| *d > 0.0)
+        .or_else(|| fallback_duration_secs.filter(|d| *d > 0.0))
 }
 
 fn tick_crossfade(st: &mut AudioLoopState) {
@@ -664,6 +690,7 @@ fn handle_play_cmd(
     st: &mut AudioLoopState,
     station: Station,
     is_auto_reconnect: bool,
+    fallback_duration_secs: Option<f32>,
     handle: &tokio::runtime::Handle,
     device_sink: &MixerDeviceSink,
     state_tx: &watch::Sender<PlayerState>,
@@ -711,7 +738,7 @@ fn handle_play_cmd(
                 station,
                 st.current_volume,
                 st.od.active,
-                conn.duration_secs,
+                playback_duration_or_fallback(conn.duration_secs, fallback_duration_secs),
             ));
             st.player = Some(conn.player);
         }
@@ -1067,6 +1094,22 @@ fn audio_loop(
                     &mut st,
                     station,
                     is_auto_reconnect,
+                    None,
+                    &handle,
+                    &device_sink,
+                    &state_tx,
+                );
+            }
+
+            PlayerCommand::PlayWithDuration {
+                station,
+                duration_secs,
+            } => {
+                handle_play_cmd(
+                    &mut st,
+                    station,
+                    is_auto_reconnect,
+                    Some(duration_secs),
                     &handle,
                     &device_sink,
                     &state_tx,
@@ -1119,12 +1162,6 @@ fn audio_loop(
                     if has_recent {
                         s.recent_titles = recent;
                     }
-                });
-            }
-
-            PlayerCommand::SetPlaybackDuration(duration_secs) => {
-                update_state(&state_tx, |s| {
-                    s.playback_duration_secs = duration_secs.filter(|d| *d > 0.0);
                 });
             }
 

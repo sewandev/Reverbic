@@ -177,7 +177,12 @@ impl App {
             bitrate_kbps: None,
         };
 
-        self.play_station_transient(station).await;
+        if video.duration_secs > 0 {
+            self.play_station_transient_with_duration(station, video.duration_secs as f32)
+                .await;
+        } else {
+            self.play_station_transient(station).await;
+        }
         let _ = self
             .player
             .send(PlayerCommand::ApiMetadata {
@@ -187,13 +192,5 @@ impl App {
                 recent: Vec::new(),
             })
             .await;
-        if video.duration_secs > 0 {
-            let _ = self
-                .player
-                .send(PlayerCommand::SetPlaybackDuration(Some(
-                    video.duration_secs as f32,
-                )))
-                .await;
-        }
     }
 }

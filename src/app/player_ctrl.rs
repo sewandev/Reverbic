@@ -14,14 +14,30 @@ impl App {
     }
 
     pub(super) async fn play_station(&mut self, station: Station) {
-        self.play_station_with_persistence(station, true).await;
+        self.play_station_with_persistence(station, true, None)
+            .await;
     }
 
     pub(super) async fn play_station_transient(&mut self, station: Station) {
-        self.play_station_with_persistence(station, false).await;
+        self.play_station_with_persistence(station, false, None)
+            .await;
     }
 
-    async fn play_station_with_persistence(&mut self, station: Station, persist_last: bool) {
+    pub(super) async fn play_station_transient_with_duration(
+        &mut self,
+        station: Station,
+        duration_secs: f32,
+    ) {
+        self.play_station_with_persistence(station, false, Some(duration_secs))
+            .await;
+    }
+
+    async fn play_station_with_persistence(
+        &mut self,
+        station: Station,
+        persist_last: bool,
+        playback_duration_secs: Option<f32>,
+    ) {
         if let Some(handle) = &self.spotify.player_tx {
             handle.pause();
         }
@@ -62,11 +78,18 @@ impl App {
             PlayerStatus::Playing | PlayerStatus::Buffering(_) | PlayerStatus::Reconnecting(_)
         );
 
-        if fade > 0 && is_active {
+        if fade > 0 && is_active && playback_duration_secs.is_none() {
             self.player
                 .send(PlayerCommand::CrossfadeTo {
                     station: station.clone(),
                     secs: fade,
+                })
+                .await;
+        } else if let Some(duration_secs) = playback_duration_secs.filter(|d| *d > 0.0) {
+            self.player
+                .send(PlayerCommand::PlayWithDuration {
+                    station: station.clone(),
+                    duration_secs,
                 })
                 .await;
         } else {

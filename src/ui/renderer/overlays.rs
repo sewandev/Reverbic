@@ -180,8 +180,8 @@ pub(super) fn render_modal_np_strip(
     };
     let title_lines = wrap_into_lines(&raw_title, content_w, 2);
     let title_line_count = title_lines.len() as u16;
-    let has_progress = state.playback_pos_secs.is_some() && content_w >= 5;
-    let panel_h = 2 + 1 + title_line_count + u16::from(has_progress) + 1;
+    let has_progress = state.playback_pos_secs.is_some();
+    let panel_h = 2 + 1 + title_line_count + 1;
     if panel_h > strip.height {
         return;
     }
@@ -222,19 +222,6 @@ pub(super) fn render_modal_np_strip(
             );
         }
     }
-    if has_progress {
-        let prog_y = inner.y + 1 + title_line_count;
-        if prog_y < inner.bottom() {
-            if let Some(progress_line) =
-                playback_progress_line(state, cw, border_color, theme::PANEL_BG)
-            {
-                frame.render_widget(
-                    Paragraph::new(progress_line).style(Style::default().bg(theme::PANEL_BG)),
-                    Rect::new(cx, prog_y, cw, 1),
-                );
-            }
-        }
-    }
     let viz_row = inner.bottom().saturating_sub(1);
     if viz_row >= inner.y && viz_row < inner.bottom() {
         let vol_pct = (state.volume.clamp(0.0, 1.0) * 100.0).round() as u32;
@@ -248,9 +235,26 @@ pub(super) fn render_modal_np_strip(
         let vol_prefix = "  ";
         let vol_w =
             vol_prefix.len() + filled.chars().count() + empty.chars().count() + pct_str.len();
-        let viz_w = (cw as usize).saturating_sub(vol_w + 1);
-        let viz_line = visualizer_spans(state.level_db, viz_w, theme::PANEL_BG);
-        let mut spans = viz_line;
+        let progress_text = if has_progress {
+            playback_progress_text(state)
+        } else {
+            None
+        };
+        let progress_w = progress_text
+            .as_ref()
+            .map(|text| text.chars().count() + 2)
+            .unwrap_or(0);
+        let viz_w = (cw as usize).saturating_sub(progress_w + vol_w + 1);
+        let mut spans = visualizer_spans(state.level_db, viz_w, theme::PANEL_BG);
+        if let Some(text) = progress_text {
+            if !spans.is_empty() {
+                spans.push(Span::raw("  "));
+            }
+            spans.push(Span::styled(
+                text,
+                Style::default().fg(theme::MUTED).bg(theme::PANEL_BG),
+            ));
+        }
         spans.push(Span::raw(vol_prefix));
         spans.push(Span::styled(filled, Style::default().fg(vol_color)));
         spans.push(Span::styled(empty, Style::default().fg(theme::MUTED)));
@@ -356,6 +360,16 @@ pub(super) fn playback_progress_line(
         ),
         Span::styled(suffix, Style::default().fg(theme::MUTED).bg(bg)),
     ]))
+}
+
+fn playback_progress_text(state: &PlayerState) -> Option<String> {
+    let pos = state.playback_pos_secs?;
+    let elapsed = fmt_secs(pos);
+    state
+        .playback_duration_secs
+        .filter(|d| *d > 0.0)
+        .map(|duration| format!("{elapsed} -{}", fmt_secs((duration - pos).max(0.0))))
+        .or(Some(elapsed))
 }
 
 fn fmt_secs(secs: f32) -> String {
@@ -731,7 +745,7 @@ pub(super) fn wrap_into_lines(text: &str, width: usize, max_lines: usize) -> Vec
 mod tests {
     use ratatui::style::Color;
 
-    use super::{fmt_secs, playback_progress_line};
+    use super::{fmt_secs, playback_progress_line, playback_progress_text};
     use crate::audio::{PlayerState, PlayerStatus};
 
     fn line_text(line: &ratatui::text::Line<'_>) -> String {
@@ -759,6 +773,21 @@ mod tests {
             playback_progress_line(&state, 20, Color::Green, Color::Black).expect("progress line");
 
         assert!(line_text(&line).contains("-0:00"));
+    }
+
+    #[test]
+    fn compact_playback_progress_includes_remaining_time() {
+        let state = PlayerState {
+            status: PlayerStatus::Playing,
+            playback_pos_secs: Some(65.0),
+            playback_duration_secs: Some(185.0),
+            ..Default::default()
+        };
+
+        assert_eq!(
+            playback_progress_text(&state),
+            Some("1:05 -2:00".to_string())
+        );
     }
 
     #[test]
