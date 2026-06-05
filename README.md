@@ -104,6 +104,19 @@
 
 > **Recommended terminal:** [Windows Terminal](https://aka.ms/terminal) with PowerShell 7+. Reverbic works in CMD but some icons, animations, and Unicode characters may not render correctly. Windows Terminal provides the best visual experience.
 
+<table>
+  <tr>
+    <td align="center">
+      <a href="https://apps.microsoft.com/detail/9n0dx20hk701?hl"><img src="assets/Terminal Windows.PNG" alt="Terminal Windows" width="280"></a><br>
+      <sub>Terminal Windows</sub>
+    </td>
+    <td align="center">
+      <a href="https://apps.microsoft.com/detail/9mz1snwt0n5d?hl"><img src="assets/Powershell.PNG" alt="Powershell 7" width="240"></a><br>
+      <sub>Powershell 7</sub>
+    </td>
+  </tr>
+</table>
+
 ### Download
 
 Pre-built binaries are available on the [Releases page](https://github.com/sewandev/Reverbic/releases/latest).
