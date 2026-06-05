@@ -74,6 +74,7 @@ pub(super) fn render_screensaver(frame: &mut Frame, area: Rect, ctx: Screensaver
     } else {
         title_rows
     };
+    let has_playback_progress = state.playback_pos_secs.is_some();
     let recent_rows: u16 = if has_recent { 1 + n_recent } else { 0 };
 
     let clock_h: u16 = if show_clock { 5 + 1 } else { 0 };
@@ -83,6 +84,7 @@ pub(super) fn render_screensaver(frame: &mut Frame, area: Rect, ctx: Screensaver
         + 1                                                 // station name
         + title_block_h                                     // song title (or artist+title+album)
         + u16::from(spotify_name.is_some())                 // spotify
+        + u16::from(has_playback_progress)                  // progreso on-demand
         + 1                                                 // gap
         + 1                                                 // visualizer
         + 1                                                 // gap
@@ -257,6 +259,17 @@ pub(super) fn render_screensaver(frame: &mut Frame, area: Rect, ctx: Screensaver
             Rect::new(cx, row, cw, 1),
         );
         row += 1;
+    }
+    if has_playback_progress {
+        if let Some(progress_line) =
+            super::overlays::playback_progress_line(state, cw, border_color, BG)
+        {
+            frame.render_widget(
+                Paragraph::new(progress_line).style(Style::default().bg(BG)),
+                Rect::new(cx, row, cw, 1),
+            );
+            row += 1;
+        }
     }
     row += 1;
     frame.render_widget(

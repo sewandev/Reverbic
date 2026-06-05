@@ -187,5 +187,13 @@ impl App {
                 recent: Vec::new(),
             })
             .await;
+        if video.duration_secs > 0 {
+            let _ = self
+                .player
+                .send(PlayerCommand::SetPlaybackDuration(Some(
+                    video.duration_secs as f32,
+                )))
+                .await;
+        }
     }
 }

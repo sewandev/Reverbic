@@ -30,6 +30,7 @@ pub enum PlayerCommand {
         show: String,
         recent: Vec<String>,
     },
+    SetPlaybackDuration(Option<f32>),
     PlayPreview {
         url: String,
         title: String,
@@ -1118,6 +1119,12 @@ fn audio_loop(
                     if has_recent {
                         s.recent_titles = recent;
                     }
+                });
+            }
+
+            PlayerCommand::SetPlaybackDuration(duration_secs) => {
+                update_state(&state_tx, |s| {
+                    s.playback_duration_secs = duration_secs.filter(|d| *d > 0.0);
                 });
             }
 
