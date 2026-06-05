@@ -34,7 +34,7 @@
 - Curated station list with rich metadata (codec, bitrate, tags, homepage)
 - Favorites with rename support
 - Recent tracks history
-- Crossfade between stations (1–10 s)
+- Crossfade between stations (1–3 s)
 - Save tracks to a local list
 - On-demand show catalog
 
