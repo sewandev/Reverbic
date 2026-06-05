@@ -408,6 +408,18 @@ const BASE_RECONNECT_DELAY_SECS: u64 = 1;
 const MAX_RETRY_DELAY_SECS: u64 = 30;
 const ONDEMAND_BYTES_PER_SEC: f32 = 16_000.0;
 
+fn is_on_demand_station_key(key: &str) -> bool {
+    key.starts_with("ondemand_") || key.starts_with("youtube:")
+}
+
+#[cfg(test)]
+#[test]
+fn classifies_on_demand_station_keys() {
+    assert!(is_on_demand_station_key("ondemand_123"));
+    assert!(is_on_demand_station_key("youtube:abc123"));
+    assert!(!is_on_demand_station_key("radio-browser:abc123"));
+}
+
 fn update_state(tx: &watch::Sender<PlayerState>, f: impl FnOnce(&mut PlayerState)) {
     let mut s = tx.borrow().clone();
     f(&mut s);
@@ -520,7 +532,7 @@ fn open_stream(
     state_tx: &watch::Sender<PlayerState>,
     st: &mut AudioLoopState,
 ) -> Result<StreamConnection, Option<String>> {
-    let is_on_demand = station.key.starts_with("ondemand_");
+    let is_on_demand = is_on_demand_station_key(&station.key);
     let url = station.url.to_string();
     let ch_size = if is_on_demand { 4096 } else { 64 };
     let (mut stream_reader, title_rx) = StreamReader::connect(url, 0, ch_size, handle.clone());
