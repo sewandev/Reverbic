@@ -57,7 +57,7 @@ jobs:
           body: |
             ## Reverbic ${{ github.ref_name }}
 
-            ### Instalación rápida
+            ### Quick install
 
             **Scoop**
             ```powershell
@@ -65,13 +65,13 @@ jobs:
             scoop install reverbic
             ```
 
-            **Descarga directa**
-            Descarga `reverbic-${{ github.ref_name }}-x86_64-windows.exe`, colócalo en una carpeta de tu PATH y ejecútalo desde la terminal.
+            **Direct download**
+            Download `reverbic-${{ github.ref_name }}-x86_64-windows.exe`, place it in a folder on your PATH, and run it from a terminal.
 
             **SHA256:** `${{ steps.sha256.outputs.hash }}`
 
             ---
-            Consulta el [README](https://github.com/sewandev/Reverbic#readme) para la configuración de Spotify.
+            See the [README](https://github.com/sewandev/Reverbic#readme) for Spotify setup instructions.
           files: reverbic-${{ github.ref_name }}-x86_64-windows.exe
           draft: false
           prerelease: ${{ contains(github.ref_name, '-') }}
