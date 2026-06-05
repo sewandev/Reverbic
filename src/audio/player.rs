@@ -408,8 +408,13 @@ const BASE_RECONNECT_DELAY_SECS: u64 = 1;
 const MAX_RETRY_DELAY_SECS: u64 = 30;
 const ONDEMAND_BYTES_PER_SEC: f32 = 16_000.0;
 
-fn on_demand_byte_offset(target_secs: f32, _station: &Station) -> u64 {
-    (target_secs * ONDEMAND_BYTES_PER_SEC) as u64
+fn on_demand_byte_offset(target_secs: f32, station: &Station) -> u64 {
+    let bytes_per_sec = station
+        .bitrate_kbps
+        .map(|kbps| kbps as f32 * 1_000.0 / 8.0)
+        .unwrap_or(ONDEMAND_BYTES_PER_SEC);
+
+    (target_secs * bytes_per_sec) as u64
 }
 
 fn update_state(tx: &watch::Sender<PlayerState>, f: impl FnOnce(&mut PlayerState)) {
