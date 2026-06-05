@@ -48,3 +48,10 @@ jobs:
 
       - name: cargo fmt
         run: cargo fmt --check
+
+  required_check:
+    name: Check & lint
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "All checks passed!"
