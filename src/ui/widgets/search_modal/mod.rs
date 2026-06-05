@@ -17,6 +17,7 @@ mod helpers;
 mod settings;
 mod spotify;
 mod tabs;
+mod youtube;
 
 pub(super) const BG: Color = theme::PANEL_BG;
 pub(super) const OVERLAY_BG: Color = theme::OVERLAY_COLOR;
@@ -64,6 +65,11 @@ pub struct SearchModalWidget<'a> {
     pub spotify_sub_tab: crate::app::SpotifySubTab,
     pub spotify_loading_more: bool,
     pub spotify_client_id: &'a str,
+    pub youtube_status: &'a crate::app::YoutubeStatus,
+    pub youtube_query: &'a str,
+    pub youtube_results: &'a [crate::integrations::youtube::YoutubeVideo],
+    pub youtube_loading: bool,
+    pub youtube_selected: usize,
     pub radio_sub_tab: crate::app::RadioSubTab,
     pub favorites: &'a [crate::favorites::FavoriteStation],
     pub radio_fav_selected: usize,
@@ -117,7 +123,7 @@ impl Widget for SearchModalWidget<'_> {
             }
             SearchMode::Settings => self.render_settings_body(body_area, content_x, content_w, buf),
             SearchMode::Spotify => self.render_spotify_body(body_area, content_x, content_w, buf),
-            SearchMode::Youtube => self.render_coming_soon(body_area, buf),
+            SearchMode::Youtube => self.render_youtube_body(body_area, content_x, content_w, buf),
         }
     }
 }
@@ -125,6 +131,7 @@ impl Widget for SearchModalWidget<'_> {
 impl<'a> From<&'a crate::app::App> for SearchModalWidget<'a> {
     fn from(app: &'a crate::app::App) -> Self {
         let sp = &app.spotify;
+        let yt = &app.youtube;
         Self {
             query: &app.search_query,
             results: &app.search_results,
@@ -174,6 +181,11 @@ impl<'a> From<&'a crate::app::App> for SearchModalWidget<'a> {
             spotify_sub_tab: sp.sub_tab,
             spotify_loading_more: sp.search_loading_more,
             spotify_client_id: &app.config.spotify.client_id,
+            youtube_status: &yt.status,
+            youtube_query: &yt.query,
+            youtube_results: &yt.results,
+            youtube_loading: yt.loading,
+            youtube_selected: yt.selected,
             radio_sub_tab: app.radio_sub_tab,
             favorites: &app.favorites,
             radio_fav_selected: app.radio_fav_selected,
@@ -193,15 +205,6 @@ impl<'a> From<&'a crate::app::App> for SearchModalWidget<'a> {
 }
 
 impl SearchModalWidget<'_> {
-    fn render_coming_soon(&self, area: Rect, buf: &mut Buffer) {
-        use ratatui::widgets::Paragraph;
-        let cy = area.y + area.height / 2;
-        Paragraph::new(t("modal.coming_soon"))
-            .alignment(Alignment::Center)
-            .style(Style::default().fg(theme::MUTED))
-            .render(Rect::new(area.x, cy, area.width, 1), buf);
-    }
-
     fn bottom_hint(&self) -> Vec<Span<'static>> {
         if let Some(ref notice) = self.save_notice {
             return vec![
@@ -308,10 +311,16 @@ impl SearchModalWidget<'_> {
             ],
             SearchMode::Youtube => vec![
                 Span::raw(" "),
+                key("[↵]"),
+                sep_s(format!(" {}  ", t("hint.play"))),
+                key("[↑↓]"),
+                sep_s(format!(" {}  ", t("hint.nav"))),
                 key("[Tab]"),
-                sep_s(format!(" {}  ", t("hint.next_tab"))),
+                sep_s(format!(" {}  ", t("hint.tabs"))),
                 key("[Esc]"),
-                sep_s(format!(" {} ", t("hint.close"))),
+                sep_s(format!(" {}  ", t("hint.close"))),
+                key("[?]"),
+                sep_s(format!(" {} ", t("hint.help"))),
             ],
             SearchMode::Spotify => {
                 use crate::app::{SpotifyAuthStatus, SpotifySubTab};
