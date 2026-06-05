@@ -352,7 +352,38 @@ pub fn save_json_atomic<T: Serialize + ?Sized>(
     let json = serde_json::to_string_pretty(data)
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
     std::fs::write(&tmp, &json)?;
-    std::fs::rename(&tmp, path)
+    replace_file(&tmp, path)
+}
+
+fn replace_file(src: &std::path::Path, dst: &std::path::Path) -> std::io::Result<()> {
+    if !dst.exists() {
+        return std::fs::rename(src, dst);
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let backup = dst.with_extension("old");
+        if backup.exists() {
+            let _ = std::fs::remove_file(&backup);
+        }
+
+        std::fs::rename(dst, &backup)?;
+        match std::fs::rename(src, dst) {
+            Ok(()) => {
+                let _ = std::fs::remove_file(&backup);
+                Ok(())
+            }
+            Err(err) => {
+                let _ = std::fs::rename(&backup, dst);
+                Err(err)
+            }
+        }
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        std::fs::rename(src, dst)
+    }
 }
 
 pub(crate) fn reverbic_dir() -> PathBuf {
@@ -360,4 +391,43 @@ pub(crate) fn reverbic_dir() -> PathBuf {
         .or_else(|_| std::env::var("HOME"))
         .unwrap_or_else(|_| ".".to_string());
     PathBuf::from(home).join(".reverbic")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::save_json_atomic;
+    use serde_json::json;
+    use std::path::PathBuf;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn save_json_atomic_overwrites_existing_file() {
+        let dir = temp_test_dir();
+        std::fs::create_dir_all(&dir).expect("test temp dir should be created");
+        let path = dir.join("config.json");
+
+        save_json_atomic(&path, &json!({ "volume": 1 }))
+            .expect("first save should create the config file");
+        save_json_atomic(&path, &json!({ "volume": 2 }))
+            .expect("second save should replace the config file");
+
+        let saved = std::fs::read_to_string(&path).expect("saved config should be readable");
+        assert!(saved.contains("\"volume\": 2"));
+        assert!(!path.with_extension("tmp").exists());
+        assert!(!path.with_extension("old").exists());
+
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    fn temp_test_dir() -> PathBuf {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time should be after unix epoch")
+            .as_nanos();
+        std::env::temp_dir().join(format!(
+            "reverbic-save-json-{}-{}",
+            std::process::id(),
+            unique
+        ))
+    }
 }
