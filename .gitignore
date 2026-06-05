@@ -1,46 +1,36 @@
 # Rust build artifacts
 /target
+*.exe
+*.pdb
 
-# Cargo lock solo se ignora en librerías, no en binarios/aplicaciones
-# (mantener Cargo.lock en VCS para reproducibilidad)
-
-# Logs generados por la app
+# App generated logs
 /logs
 
-# Configuración local de usuario (no compartir entre devs)
+# Local user configuration
 .env
 .env.local
 
-# Archivos de IDE
+# IDE files
 .idea/
 .vscode/
 *.iml
 
-# Windows
+# OS
 Thumbs.db
 Desktop.ini
-
-# macOS
 .DS_Store
 
-# Binarios compilados sueltos
-*.exe
-*.pdb
-
-# Archivos temporales del sistema
+# Temporary files
 *.tmp
 *.temp
-C*AppData*
-C*Users*
 
-# Otros
-plan.md
-CLAUDE.md
-.gitnexus
-.claude
-.playwright-mcp
-CLAUDE.md
-.agents
-skills-lock.json
+# Local design/planning documents
 FUTURE_FEATURES.md
 CLAUDE.md
+
+# AI Agent directories
+.agents/
+.claude/
+.gitnexus/
+.playwright-mcp/
+skills-lock.json
