@@ -137,7 +137,12 @@
 
 ### Download
 
-**Via Scoop (Recommended)**
+**Quick Install Script (PowerShell)**
+```powershell
+irm https://raw.githubusercontent.com/sewandev/Reverbic/main/install.ps1 | iex
+```
+
+**Via Scoop**
 ```powershell
 scoop bucket add reverbic https://github.com/sewandev/scoop-reverbic
 scoop install reverbic
