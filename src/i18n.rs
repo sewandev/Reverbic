@@ -28,9 +28,9 @@ pub fn init(lang: Language) {
     let en_src = include_str!("../locales/en.json");
 
     let es_map: HashMap<String, String> =
-        serde_json::from_str(es_src).expect("locales/es.json inválido");
+        serde_json::from_str(es_src).expect("locales/es.json is invalid");
     let en_map: HashMap<String, String> =
-        serde_json::from_str(en_src).expect("locales/en.json inválido");
+        serde_json::from_str(en_src).expect("locales/en.json is invalid");
 
     let _ = ES.set(es_map);
     let _ = EN.set(en_map);

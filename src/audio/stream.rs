@@ -188,7 +188,7 @@ async fn download_stream(
     download_done: Arc<AtomicBool>,
     dead_url: Arc<AtomicBool>,
 ) -> Result<(), reqwest::Error> {
-    tracing::info!("Conectando a stream: {url} (start_byte={start_byte})");
+    tracing::info!("Connecting to stream: {url} (start_byte={start_byte})");
 
     let mut req_headers = reqwest::header::HeaderMap::new();
     req_headers.insert(
@@ -221,7 +221,7 @@ async fn download_stream(
         Ok(Ok(r)) => r,
         Ok(Err(e)) => return Err(e),
         Err(_) => {
-            tracing::warn!("Timeout al conectar a {url} (5s sin respuesta)");
+            tracing::warn!("Timed out connecting to {url} (5s without response)");
             return Ok(());
         }
     };
@@ -230,7 +230,7 @@ async fn download_stream(
 
     let status = resp.status();
     if !status.is_success() {
-        tracing::error!("HTTP error {status} para URL: {url}");
+        tracing::error!("HTTP error {status} for URL: {url}");
         if status == reqwest::StatusCode::NOT_FOUND {
             dead_url.store(true, Ordering::Release);
         }
@@ -266,17 +266,17 @@ async fn download_stream(
                 total_audio_bytes += audio.len();
 
                 if audio_tx.send(Bytes::from(audio)).is_err() {
-                    tracing::debug!("Receiver cerrado ({total_audio_bytes} bytes enviados)");
+                    tracing::debug!("Receiver closed ({total_audio_bytes} bytes sent)");
                     break;
                 }
             }
             Err(e) => {
-                tracing::warn!("Error en chunk ({total_audio_bytes} bytes recibidos): {e}");
+                tracing::warn!("Chunk error ({total_audio_bytes} bytes received): {e}");
             }
         }
     }
 
-    tracing::info!("Stream terminado: {total_audio_bytes} bytes de audio totales");
+    tracing::info!("Stream ended: {total_audio_bytes} total audio bytes");
     download_done.store(true, Ordering::Release);
     Ok(())
 }
@@ -285,7 +285,7 @@ async fn download_preview(
     url: String,
     audio_tx: mpsc::SyncSender<Bytes>,
 ) -> Result<(), reqwest::Error> {
-    tracing::info!("Preview: iniciando descarga desde {url}");
+    tracing::info!("Preview: starting download from {url}");
 
     let client = reqwest::Client::builder()
         .user_agent("reverbic/0.1")
@@ -303,7 +303,7 @@ async fn download_preview(
         .headers()
         .get(reqwest::header::CONTENT_TYPE)
         .and_then(|v| v.to_str().ok())
-        .unwrap_or("desconocido")
+        .unwrap_or("unknown")
         .to_string();
     let transfer_encoding = resp
         .headers()
@@ -318,7 +318,7 @@ async fn download_preview(
     );
 
     if !status.is_success() {
-        tracing::warn!("Preview: HTTP {status} — abortando descarga");
+        tracing::warn!("Preview: HTTP {status} - aborting download");
         return Ok(());
     }
 
@@ -336,8 +336,8 @@ async fn download_preview(
             Ok(c) => c,
             Err(e) => {
                 tracing::error!(
-                    "Preview: error en chunk #{chunk_count} \
-                     (raw={total_raw} audio={total_audio} esperado={content_length:?}): {e}"
+                    "Preview: chunk #{chunk_count} error \
+                     (raw={total_raw} audio={total_audio} expected={content_length:?}): {e}"
                 );
                 break;
             }
@@ -363,14 +363,14 @@ async fn download_preview(
                     | (header_buf[9] as usize);
                 skip_remaining = 10 + id3_body;
                 tracing::info!(
-                    "Preview: ID3v2 detectado — tag={skip_remaining}B \
-                     ({:.1}% del archivo estimado)",
+                    "Preview: ID3v2 detected - tag={skip_remaining}B \
+                     ({:.1}% of estimated file)",
                     content_length
                         .map(|cl| skip_remaining as f32 / cl as f32 * 100.0)
                         .unwrap_or(0.0)
                 );
             } else {
-                tracing::debug!("Preview: sin ID3v2 — audio comienza en byte 0");
+                tracing::debug!("Preview: no ID3v2 tag; audio starts at byte 0");
             }
             header_analyzed = true;
 
@@ -401,7 +401,7 @@ async fn download_preview(
         total_audio += to_send.len();
         if audio_tx.send(to_send).is_err() {
             tracing::info!(
-                "Preview: decoder cerró el canal — \
+                "Preview: decoder closed the channel - \
                  raw={total_raw} audio={total_audio} chunks={chunk_count}"
             );
             return Ok(());
@@ -411,20 +411,20 @@ async fn download_preview(
     match content_length {
         Some(expected) if total_raw < expected => {
             tracing::warn!(
-                "Preview: descarga TRUNCADA — recibido={total_raw}B esperado={expected}B \
-                 diferencia={}B | audio_enviado={total_audio}B chunks={chunk_count}",
+                "Preview: truncated download - received={total_raw}B expected={expected}B \
+                 missing={}B | audio_sent={total_audio}B chunks={chunk_count}",
                 expected.saturating_sub(total_raw)
             );
         }
         Some(expected) => {
             tracing::info!(
-                "Preview: descarga completa — raw={total_raw}B/{expected}B \
+                "Preview: download complete - raw={total_raw}B/{expected}B \
                  audio={total_audio}B chunks={chunk_count}"
             );
         }
         None => {
             tracing::info!(
-                "Preview: descarga completa (sin Content-Length) — \
+                "Preview: download complete (no Content-Length) - \
                  raw={total_raw}B audio={total_audio}B chunks={chunk_count}"
             );
         }
@@ -450,7 +450,7 @@ fn log_response_diagnostics(url: &str, resp: &reqwest::Response) {
         icy_genre  = ?resp.headers().get("icy-genre"),
         icy_br     = ?resp.headers().get("icy-br"),
         icy_metaint = ?resp.headers().get("icy-metaint"),
-        "Respuesta HTTP recibida"
+        "HTTP response received"
     );
 }
 
@@ -460,12 +460,12 @@ fn log_first_chunk(bytes: &Bytes) {
         Ok(text) => tracing::warn!(
             first_bytes_utf8 = text,
             total_chunk_len = bytes.len(),
-            "Primer chunk es texto — posible respuesta HTML"
+            "First chunk is text - possible HTML response"
         ),
         Err(_) => tracing::info!(
             first_bytes_hex = %preview.iter().map(|b| format!("{b:02X}")).collect::<Vec<_>>().join(" "),
             total_chunk_len = bytes.len(),
-            "Primer chunk es binario — parece audio"
+            "First chunk is binary - looks like audio"
         ),
     }
 }
@@ -590,7 +590,7 @@ mod tests {
         let mut out = Vec::new();
         s.process(&input, &mut out);
         assert_eq!(out, audio);
-        let title = rx.try_recv().expect("debería haber un título");
+        let title = rx.try_recv().expect("title should have been emitted");
         assert_eq!(title, "Test Artist - Test Track");
     }
 
@@ -603,7 +603,7 @@ mod tests {
         s.process(&input, &mut out);
 
         assert_eq!(out, [1, 2, 3, 4, 5, 6, 7, 8]);
-        assert!(rx.try_recv().is_err(), "no title expected con meta_len=0");
+        assert!(rx.try_recv().is_err(), "no title expected with meta_len=0");
     }
 
     #[test]
@@ -632,7 +632,7 @@ mod tests {
 
         let title = rx
             .try_recv()
-            .expect("título emitido tras completar el bloque");
+            .expect("title emitted after completing the block");
         assert_eq!(title, "Chunked");
     }
 }

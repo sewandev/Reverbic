@@ -43,7 +43,7 @@ pub fn load() -> Vec<FavoriteStation> {
         Ok(data) => match serde_json::from_str(&data) {
             Ok(favs) => favs,
             Err(e) => {
-                tracing::warn!("Archivo de favoritos corrupto, usando lista vacía: {e}");
+                tracing::warn!("Favorites file is corrupt, using an empty list: {e}");
                 Vec::new()
             }
         },

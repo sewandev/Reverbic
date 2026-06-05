@@ -55,7 +55,7 @@ async fn handle(mut stream: tokio::net::TcpStream, state: Arc<Mutex<Dota2State>>
             apply(&json, &state);
         }
         Err(e) => {
-            tracing::warn!("Dota2 GSI: JSON inválido ({} bytes): {e}", body.len());
+            tracing::warn!("Dota2 GSI: invalid JSON ({} bytes): {e}", body.len());
         }
     }
 
@@ -74,7 +74,7 @@ fn apply(json: &serde_json::Value, state: &Arc<Mutex<Dota2State>>) {
         tracing::debug!("Dota2 GSI: game_state={gs:?} phase={:?}", s.phase);
     } else {
         s.phase = DotaPhase::None;
-        tracing::debug!("Dota2 GSI: heartbeat (sin mapa)");
+        tracing::debug!("Dota2 GSI: heartbeat (no map)");
     }
 
     if let Some(p) = json.get("player") {

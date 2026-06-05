@@ -47,7 +47,7 @@ fn last_sunday_of_month(year: i32, month: u32) -> u32 {
     };
     let last = NaiveDate::from_ymd_opt(ny, nm, 1)
         .and_then(|d| d.pred_opt())
-        .unwrap_or_else(|| panic!("fecha inválida: year={ny}, month={nm}"));
+        .unwrap_or_else(|| panic!("invalid date: year={ny}, month={nm}"));
     last.day()
         .saturating_sub(last.weekday().num_days_from_sunday())
 }
@@ -72,7 +72,7 @@ pub fn utc_to_local_hhmm(utc_str: &str) -> String {
     match DateTime::parse_from_rfc3339(utc_str) {
         Ok(dt) => dt.with_timezone(&Local).format("%H:%M").to_string(),
         Err(e) => {
-            tracing::warn!("Timestamp RFC3339 inválido '{utc_str}': {e}");
+            tracing::warn!("Invalid RFC3339 timestamp '{utc_str}': {e}");
             "??:??".to_string()
         }
     }
@@ -195,13 +195,13 @@ pub async fn poll_metadata_loop(
     cmd_tx: mpsc::Sender<PlayerCommand>,
 ) {
     let Some(client) = crate::http::http_client() else {
-        tracing::error!("No se pudo crear cliente HTTP para metadata");
+        tracing::error!("Failed to create HTTP client for metadata");
         return;
     };
     let schedule = if let Some(ref s_url) = schedule_url {
         let s = fetch_schedule(&client, s_url).await;
         if s.is_none() {
-            tracing::warn!("No se pudo obtener el schedule; se mostrará solo el nombre del show");
+            tracing::warn!("Failed to fetch schedule; only the show name will be displayed");
         }
         s
     } else {
@@ -233,18 +233,15 @@ pub async fn poll_metadata_loop(
                             parse_api_response(&body, history_body.as_deref(), schedule.as_ref())
                         {
                             if cmd_tx.send(cmd).await.is_err() {
-                                break; // canal cerrado — audio thread muerto
+                                break; // channel closed; audio thread stopped
                             }
                         }
                     }
-                    Err(e) => tracing::warn!("Error leyendo body de metadata API: {e}"),
+                    Err(e) => tracing::warn!("Error reading metadata API body: {e}"),
                 }
             }
-            Ok(resp) => tracing::warn!(
-                "Metadata API HTTP {}: usando ICY como fallback",
-                resp.status()
-            ),
-            Err(e) => tracing::warn!("Metadata API no disponible ({e}): usando ICY como fallback"),
+            Ok(resp) => tracing::warn!("Metadata API HTTP {}: falling back to ICY", resp.status()),
+            Err(e) => tracing::warn!("Metadata API unavailable ({e}): falling back to ICY"),
         }
         tokio::time::sleep(std::time::Duration::from_secs(30)).await;
     }

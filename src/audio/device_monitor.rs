@@ -54,7 +54,7 @@ pub fn spawn_monitor(changed: Arc<AtomicBool>) {
                 tracing::warn!("audio-device-monitor: {e}");
             }
         })
-        .expect("fallo al iniciar audio-device-monitor");
+        .expect("failed to start audio-device-monitor");
 }
 
 fn register_and_block(changed: Arc<AtomicBool>) -> windows::core::Result<()> {
