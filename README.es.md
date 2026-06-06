@@ -66,11 +66,11 @@
 <table align="center">
   <tr>
     <td align="center">
-      <img src="assets/overlay.png" alt="Overlay para juegos" width="280"><br>
+      <img src="assets/Overlay.gif" alt="Overlay para juegos" width="280"><br>
       <sub>Overlay para juegos</sub>
     </td>
     <td align="center">
-      <img src="assets/RPC.png" alt="Discord Rich Presence" width="240"><br>
+      <img src="assets/Discord-Rich-Presence.gif" alt="Discord Rich Presence" width="240"><br>
       <sub>Discord Rich Presence</sub>
     </td>
   </tr>

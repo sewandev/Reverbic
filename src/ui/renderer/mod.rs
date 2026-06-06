@@ -65,7 +65,7 @@ pub fn spotify_screensaver_progress_rect(
 use crate::app::App;
 use overlays::{
     render_client_id_overlay, render_game_strip, render_help_overlay, render_modal_np_strip,
-    render_modal_spotify_strip, render_rename_overlay, render_update_badge,
+    render_modal_spotify_strip, render_rename_overlay, render_update_toast,
 };
 use screensaver::{
     render_logo_above, render_screensaver, render_spotify_screensaver, ScreensaverCtx, LOGO_W,
@@ -105,6 +105,9 @@ pub fn render(frame: &mut Frame, app: &App) {
                     app.config.screensaver_clock,
                     app.border_tick,
                 );
+                if let Some(ref version) = app.update_available {
+                    render_update_toast(frame, version, app.update_path.is_some(), app.show_search_modal, area);
+                }
                 return;
             }
         }
@@ -127,6 +130,9 @@ pub fn render(frame: &mut Frame, app: &App) {
                 border_tick: app.border_tick,
             },
         );
+        if let Some(ref version) = app.update_available {
+            render_update_toast(frame, version, app.update_path.is_some(), app.show_search_modal, area);
+        }
         return;
     }
 
@@ -188,7 +194,7 @@ pub fn render(frame: &mut Frame, app: &App) {
     }
 
     if let Some(ref version) = app.update_available {
-        render_update_badge(frame, version, full_area);
+        render_update_toast(frame, version, app.update_path.is_some(), app.show_search_modal, full_area);
     }
 
     if app.show_help {

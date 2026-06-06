@@ -222,5 +222,7 @@
   "modal.radio.subtab.favorites.label": "Favoritas",
   "modal.favorites.empty": "Sin favoritas. Presiona Alt+F para agregar una.",
   "config.setting.discord_rpc": "Discord Rich Presence",
-  "config.tooltip.discord_rpc": "Muestra la estación y canción actual en tu perfil de Discord."
+  "config.tooltip.discord_rpc": "Muestra la estación y canción actual en tu perfil de Discord.",
+  "update.toast.downloading": " [ Descargando v{}... ] ",
+  "update.toast.ready": " [ v{} Lista (Cierra la app) ] "
 }
