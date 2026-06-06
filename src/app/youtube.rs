@@ -1,10 +1,15 @@
-use std::sync::mpsc;
+use std::{
+    sync::mpsc,
+    time::{Duration, Instant},
+};
 
 use crate::audio::PlayerCommand;
 use crate::integrations::youtube::{install, resolve, search, ResolvedYoutubePlayback};
 use crate::station::Station;
 
 use super::{abort_task, App, YoutubeStatus};
+
+const YOUTUBE_SEARCH_DEBOUNCE: Duration = Duration::from_millis(700);
 
 impl App {
     pub fn ensure_youtube_ready(&mut self) {
@@ -29,7 +34,36 @@ impl App {
     }
 
     pub fn perform_youtube_search(&mut self) {
+        self.schedule_youtube_search();
+    }
+
+    pub fn schedule_youtube_search(&mut self) {
         let query = self.youtube.query.trim().to_string();
+        if query.is_empty() {
+            self.youtube.results.clear();
+            self.youtube.loading = false;
+            self.youtube.selected = 0;
+            self.youtube.search_pending_until = None;
+            abort_task(&mut self.youtube.search_task);
+            self.youtube.search_rx = None;
+            return;
+        }
+
+        self.youtube.loading = true;
+        self.youtube.results.clear();
+        self.youtube.selected = 0;
+        self.youtube.search_pending_until = Some(Instant::now() + YOUTUBE_SEARCH_DEBOUNCE);
+        abort_task(&mut self.youtube.search_task);
+        self.youtube.search_rx = None;
+
+        if !install::is_installed() {
+            self.ensure_youtube_ready();
+        }
+    }
+
+    pub fn start_youtube_search_now(&mut self) {
+        let query = self.youtube.query.trim().to_string();
+        self.youtube.search_pending_until = None;
         if query.is_empty() {
             self.youtube.results.clear();
             self.youtube.loading = false;
@@ -59,6 +93,16 @@ impl App {
         }));
     }
 
+    pub fn poll_youtube_search_debounce(&mut self) {
+        let Some(pending_until) = self.youtube.search_pending_until else {
+            return;
+        };
+
+        if Instant::now() >= pending_until {
+            self.start_youtube_search_now();
+        }
+    }
+
     pub fn poll_youtube_install(&mut self) {
         if let Some(rx) = self.youtube.install_rx.take() {
             match rx.try_recv() {
@@ -66,7 +110,7 @@ impl App {
                     self.youtube.install_task = None;
                     self.youtube.status = YoutubeStatus::Ready;
                     if !self.youtube.query.trim().is_empty() {
-                        self.perform_youtube_search();
+                        self.schedule_youtube_search();
                     }
                 }
                 Ok(Err(err)) => {
@@ -192,5 +236,17 @@ impl App {
                 recent: Vec::new(),
             })
             .await;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use super::YOUTUBE_SEARCH_DEBOUNCE;
+
+    #[test]
+    fn youtube_search_debounce_waits_after_last_keypress() {
+        assert_eq!(YOUTUBE_SEARCH_DEBOUNCE, Duration::from_millis(700));
     }
 }

@@ -435,7 +435,9 @@ impl App {
             self.youtube.results.clear();
             self.youtube.selected = 0;
             self.youtube.loading = false;
+            self.youtube.search_pending_until = None;
             abort_task(&mut self.youtube.search_task);
+            self.youtube.search_rx = None;
             if matches!(self.modal_mode, SearchMode::Spotify)
                 && matches!(self.spotify.status, SpotifyAuthStatus::LoggedIn)
                 && self.spotify.devices.is_empty()
@@ -1332,6 +1334,9 @@ impl App {
                     self.youtube.results.clear();
                     self.youtube.selected = 0;
                     self.youtube.loading = false;
+                    self.youtube.search_pending_until = None;
+                    abort_task(&mut self.youtube.search_task);
+                    self.youtube.search_rx = None;
                     if crate::integrations::youtube::install::is_installed() {
                         self.youtube.status = super::YoutubeStatus::Ready;
                     } else {
@@ -1354,6 +1359,8 @@ impl App {
             KeyCode::Enter => {
                 if !self.youtube.results.is_empty() {
                     self.start_youtube_resolve();
+                } else if !self.youtube.query.trim().is_empty() {
+                    self.start_youtube_search_now();
                 } else {
                     self.ensure_youtube_ready();
                 }

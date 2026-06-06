@@ -178,6 +178,7 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
         app.poll_spotify_devices();
         app.poll_remote_playback();
         app.poll_youtube_install();
+        app.poll_youtube_search_debounce();
         app.poll_youtube_search();
         app.poll_youtube_resolve().await;
         if app

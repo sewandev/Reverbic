@@ -18,6 +18,7 @@ pub struct YoutubeState {
     pub results: Vec<YoutubeVideo>,
     pub loading: bool,
     pub selected: usize,
+    pub(super) search_pending_until: Option<std::time::Instant>,
     pub(super) install_task: Option<tokio::task::JoinHandle<()>>,
     pub(super) install_rx: Option<InstallRx>,
     pub(super) search_task: Option<tokio::task::JoinHandle<()>>,
@@ -37,6 +38,7 @@ impl YoutubeState {
         abort(&mut self.install_task);
         abort(&mut self.search_task);
         abort(&mut self.resolve_task);
+        self.search_pending_until = None;
     }
 }
 
@@ -48,6 +50,7 @@ impl Default for YoutubeState {
             results: Vec::new(),
             loading: false,
             selected: 0,
+            search_pending_until: None,
             install_task: None,
             install_rx: None,
             search_task: None,
