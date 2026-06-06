@@ -154,12 +154,12 @@ mod tests {
 
     #[test]
     fn modal_rect_does_not_exceed_small_terminal_area() {
-        let area = Rect::new(0, 0, 80, MODAL_MIN_HEIGHT - 4);
+        let area = Rect::new(0, 0, 40, MODAL_MIN_HEIGHT - 4);
         let modal = modal_rect(area);
 
         assert!(modal.right() <= area.right());
         assert!(modal.bottom() <= area.bottom());
-        assert_eq!(modal.width, 80);
+        assert_eq!(modal.width, 40);
         assert_eq!(modal.height, MODAL_MIN_HEIGHT - 4);
     }
 

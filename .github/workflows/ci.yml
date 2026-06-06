@@ -30,6 +30,9 @@ jobs:
         with:
           components: clippy, rustfmt
 
+      - name: cargo fmt
+        run: cargo fmt --check
+
       - name: Cache cargo registry
         uses: actions/cache@v4
         with:
@@ -43,11 +46,11 @@ jobs:
       - name: cargo check
         run: cargo check --all-features
 
+      - name: cargo test
+        run: cargo test --all-features
+
       - name: cargo clippy
         run: cargo clippy --all-features -- -D warnings
-
-      - name: cargo fmt
-        run: cargo fmt --check
 
   required_check:
     name: Check & lint

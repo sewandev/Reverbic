@@ -609,7 +609,9 @@ mod asset_selection_tests {
 
 #[cfg(all(test, target_os = "windows"))]
 mod tests {
+    #[cfg(target_os = "windows")]
     use super::{build_update_script, escape_batch_path};
+    #[cfg(target_os = "windows")]
     use std::path::Path;
 
     #[test]
