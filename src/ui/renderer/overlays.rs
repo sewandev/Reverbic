@@ -587,7 +587,9 @@ pub(super) fn render_update_toast(
     };
 
     let style = if is_ready {
-        Style::default().fg(theme::OVERLAY_COLOR).bg(theme::SPOTIFY_GREEN)
+        Style::default()
+            .fg(theme::OVERLAY_COLOR)
+            .bg(theme::SPOTIFY_GREEN)
     } else {
         Style::default().fg(theme::OVERLAY_COLOR).bg(theme::WARNING)
     };

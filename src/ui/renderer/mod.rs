@@ -106,7 +106,13 @@ pub fn render(frame: &mut Frame, app: &App) {
                     app.border_tick,
                 );
                 if let Some(ref version) = app.update_available {
-                    render_update_toast(frame, version, app.update_path.is_some(), app.show_search_modal, area);
+                    render_update_toast(
+                        frame,
+                        version,
+                        app.update_path.is_some(),
+                        app.show_search_modal,
+                        area,
+                    );
                 }
                 return;
             }
@@ -131,7 +137,13 @@ pub fn render(frame: &mut Frame, app: &App) {
             },
         );
         if let Some(ref version) = app.update_available {
-            render_update_toast(frame, version, app.update_path.is_some(), app.show_search_modal, area);
+            render_update_toast(
+                frame,
+                version,
+                app.update_path.is_some(),
+                app.show_search_modal,
+                area,
+            );
         }
         return;
     }
@@ -194,7 +206,13 @@ pub fn render(frame: &mut Frame, app: &App) {
     }
 
     if let Some(ref version) = app.update_available {
-        render_update_toast(frame, version, app.update_path.is_some(), app.show_search_modal, full_area);
+        render_update_toast(
+            frame,
+            version,
+            app.update_path.is_some(),
+            app.show_search_modal,
+            full_area,
+        );
     }
 
     if app.show_help {
