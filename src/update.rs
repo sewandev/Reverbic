@@ -207,7 +207,9 @@ fn parse_semver(v: &str) -> Option<(u32, u32, u32)> {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(target_os = "windows")]
     use super::{build_update_script, escape_batch_path};
+    #[cfg(target_os = "windows")]
     use std::path::Path;
 
     #[cfg(target_os = "windows")]
