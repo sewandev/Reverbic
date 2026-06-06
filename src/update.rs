@@ -450,7 +450,7 @@ mod payload_validation_tests {
     #[test]
     fn validates_payload_size_and_sha256() {
         let path = test_path("valid");
-        std::fs::write(&path, b"hello").unwrap();
+        std::fs::write(&path, b"hello").expect("test payload should be written");
         let asset = asset_with(5, Some(format!("sha256:{HELLO_SHA256}")));
 
         let result = validate_update_payload(&path, &asset);
@@ -462,7 +462,7 @@ mod payload_validation_tests {
     #[test]
     fn rejects_payload_with_hash_mismatch() {
         let path = test_path("hash-mismatch");
-        std::fs::write(&path, b"hello").unwrap();
+        std::fs::write(&path, b"hello").expect("test payload should be written");
         let asset = asset_with(
             5,
             Some(
@@ -480,7 +480,7 @@ mod payload_validation_tests {
     #[test]
     fn rejects_payload_with_size_mismatch() {
         let path = test_path("size-mismatch");
-        std::fs::write(&path, b"hello").unwrap();
+        std::fs::write(&path, b"hello").expect("test payload should be written");
         let asset = asset_with(6, Some(format!("sha256:{HELLO_SHA256}")));
 
         let result = validate_update_payload(&path, &asset);
@@ -499,8 +499,9 @@ mod payload_validation_tests {
             ),
         );
         let path = update_download_path(&asset);
-        let file = std::fs::File::create(&path).unwrap();
-        file.set_len(1_000_001).unwrap();
+        let file = std::fs::File::create(&path).expect("stale test payload should be created");
+        file.set_len(1_000_001)
+            .expect("stale test payload size should be set");
 
         let result = download_update(&asset).await;
         let _ = std::fs::remove_file(path);
@@ -526,7 +527,10 @@ mod download_path_tests {
     #[test]
     fn update_download_path_uses_asset_name_without_part_suffix() {
         let path = update_download_path(&update_asset());
-        let file_name = path.file_name().unwrap().to_string_lossy();
+        let file_name = path
+            .file_name()
+            .expect("update path should include a file name")
+            .to_string_lossy();
 
         assert_eq!(
             file_name,
@@ -540,8 +544,14 @@ mod download_path_tests {
         let path = update_download_path(&update_asset());
         let first = unique_part_path(&path);
         let second = unique_part_path(&path);
-        let first_name = first.file_name().unwrap().to_string_lossy();
-        let second_name = second.file_name().unwrap().to_string_lossy();
+        let first_name = first
+            .file_name()
+            .expect("first part path should include a file name")
+            .to_string_lossy();
+        let second_name = second
+            .file_name()
+            .expect("second part path should include a file name")
+            .to_string_lossy();
 
         assert!(first_name.starts_with("reverbic-update-reverbic-v2.0.0-x86_64-windows.exe."));
         assert!(first_name.ends_with(".part"));
@@ -565,7 +575,8 @@ mod asset_selection_tests {
 
     #[test]
     fn selects_update_asset_for_windows_x86_64() {
-        let target = UpdateTarget::from_parts("windows", "x86_64").unwrap();
+        let target = UpdateTarget::from_parts("windows", "x86_64")
+            .expect("windows x86_64 should be a supported update target");
         let selected = select_compatible_asset(
             vec![
                 asset("reverbic-v2.0.0-x86_64-macos.tar.gz"),
@@ -574,34 +585,37 @@ mod asset_selection_tests {
             "2.0.0",
             target,
         )
-        .unwrap();
+        .expect("windows release asset should be selected");
 
         assert_eq!(selected.name, "reverbic-v2.0.0-x86_64-windows.exe");
     }
 
     #[test]
     fn rejects_update_asset_for_linux() {
-        let err = UpdateTarget::from_parts("linux", "x86_64").unwrap_err();
+        let err = UpdateTarget::from_parts("linux", "x86_64")
+            .expect_err("linux update target should be unsupported");
 
         assert_eq!(err, AssetSelectionError::UnsupportedPlatform);
     }
 
     #[test]
     fn rejects_update_asset_for_macos_until_archives_are_installable() {
-        let err = UpdateTarget::from_parts("macos", "aarch64").unwrap_err();
+        let err = UpdateTarget::from_parts("macos", "aarch64")
+            .expect_err("macos update target should be unsupported until archives are installable");
 
         assert_eq!(err, AssetSelectionError::UnsupportedPlatform);
     }
 
     #[test]
     fn rejects_update_asset_when_compatible_asset_is_missing() {
-        let target = UpdateTarget::from_parts("windows", "x86_64").unwrap();
+        let target = UpdateTarget::from_parts("windows", "x86_64")
+            .expect("windows x86_64 should be a supported update target");
         let err = select_compatible_asset(
             vec![asset("reverbic-v2.0.0-aarch64-macos.tar.gz")],
             "2.0.0",
             target,
         )
-        .unwrap_err();
+        .expect_err("missing compatible asset should be rejected");
 
         assert_eq!(err, AssetSelectionError::NoCompatibleAsset);
     }
