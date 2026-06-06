@@ -176,6 +176,12 @@ pub async fn download_update(asset: &UpdateAsset) -> Option<PathBuf> {
         return None;
     }
 
+    if let Err(err) = validate_update_payload(&part_path, asset) {
+        tracing::warn!(?err, asset = %asset.name, "Rejected update payload");
+        let _ = tokio::fs::remove_file(&part_path).await;
+        return None;
+    }
+
     let _ = tokio::fs::remove_file(&path).await;
     if tokio::fs::rename(&part_path, &path).await.is_err() {
         let _ = tokio::fs::remove_file(&part_path).await;
@@ -211,6 +217,63 @@ fn unique_part_path(path: &Path) -> PathBuf {
         timestamp,
         counter
     ))
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum PayloadValidationError {
+    MissingDigest,
+    UnsupportedDigest,
+    SizeMismatch,
+    HashMismatch,
+    ReadFailed,
+}
+
+fn validate_update_payload(path: &Path, asset: &UpdateAsset) -> Result<(), PayloadValidationError> {
+    let metadata = std::fs::metadata(path).map_err(|_| PayloadValidationError::ReadFailed)?;
+    if metadata.len() != asset.size {
+        return Err(PayloadValidationError::SizeMismatch);
+    }
+
+    let expected = expected_sha256(asset.digest.as_deref())?;
+    let actual = sha256_file(path)?;
+    if actual.eq_ignore_ascii_case(expected) {
+        Ok(())
+    } else {
+        Err(PayloadValidationError::HashMismatch)
+    }
+}
+
+fn expected_sha256(digest: Option<&str>) -> Result<&str, PayloadValidationError> {
+    let digest = digest.ok_or(PayloadValidationError::MissingDigest)?;
+    let hash = digest
+        .strip_prefix("sha256:")
+        .ok_or(PayloadValidationError::UnsupportedDigest)?;
+
+    if hash.len() == 64 && hash.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        Ok(hash)
+    } else {
+        Err(PayloadValidationError::UnsupportedDigest)
+    }
+}
+
+fn sha256_file(path: &Path) -> Result<String, PayloadValidationError> {
+    use sha2::{Digest, Sha256};
+    use std::io::Read;
+
+    let mut file = std::fs::File::open(path).map_err(|_| PayloadValidationError::ReadFailed)?;
+    let mut hasher = Sha256::new();
+    let mut buffer = [0; 16 * 1024];
+    loop {
+        let read = file
+            .read(&mut buffer)
+            .map_err(|_| PayloadValidationError::ReadFailed)?;
+        if read == 0 {
+            break;
+        }
+        hasher.update(&buffer[..read]);
+    }
+
+    Ok(format!("{:x}", hasher.finalize()))
 }
 
 pub fn apply_update(new_exe: &Path) {
@@ -360,6 +423,102 @@ fn parse_semver(v: &str) -> Option<(u32, u32, u32)> {
     let minor = it.next()?.parse().ok()?;
     let patch = it.next()?.parse().ok()?;
     Some((major, minor, patch))
+}
+
+#[cfg(test)]
+mod payload_validation_tests {
+    use super::{
+        download_update, update_download_path, validate_update_payload, PayloadValidationError,
+        UpdateAsset,
+    };
+    use std::path::PathBuf;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    const HELLO_SHA256: &str = "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824";
+
+    fn next_id() -> u64 {
+        static COUNTER: AtomicU64 = AtomicU64::new(0);
+        COUNTER.fetch_add(1, Ordering::Relaxed)
+    }
+
+    fn test_path(label: &str) -> PathBuf {
+        std::env::temp_dir().join(format!(
+            "reverbic-update-test-{}-{}-{label}",
+            std::process::id(),
+            next_id()
+        ))
+    }
+
+    fn asset_with(size: u64, digest: Option<String>) -> UpdateAsset {
+        UpdateAsset {
+            version: "2.0.0".to_owned(),
+            name: format!("reverbic-v2.0.0-test-{}.exe", next_id()),
+            download_url: "http://127.0.0.1:1/reverbic.exe".to_owned(),
+            size,
+            digest,
+        }
+    }
+
+    #[test]
+    fn validates_payload_size_and_sha256() {
+        let path = test_path("valid");
+        std::fs::write(&path, b"hello").unwrap();
+        let asset = asset_with(5, Some(format!("sha256:{HELLO_SHA256}")));
+
+        let result = validate_update_payload(&path, &asset);
+        let _ = std::fs::remove_file(path);
+
+        assert_eq!(result, Ok(()));
+    }
+
+    #[test]
+    fn rejects_payload_with_hash_mismatch() {
+        let path = test_path("hash-mismatch");
+        std::fs::write(&path, b"hello").unwrap();
+        let asset = asset_with(
+            5,
+            Some(
+                "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+                    .to_owned(),
+            ),
+        );
+
+        let result = validate_update_payload(&path, &asset);
+        let _ = std::fs::remove_file(path);
+
+        assert_eq!(result, Err(PayloadValidationError::HashMismatch));
+    }
+
+    #[test]
+    fn rejects_payload_with_size_mismatch() {
+        let path = test_path("size-mismatch");
+        std::fs::write(&path, b"hello").unwrap();
+        let asset = asset_with(6, Some(format!("sha256:{HELLO_SHA256}")));
+
+        let result = validate_update_payload(&path, &asset);
+        let _ = std::fs::remove_file(path);
+
+        assert_eq!(result, Err(PayloadValidationError::SizeMismatch));
+    }
+
+    #[tokio::test]
+    async fn download_update_does_not_reuse_existing_temp_payload() {
+        let asset = asset_with(
+            1_000_001,
+            Some(
+                "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+                    .to_owned(),
+            ),
+        );
+        let path = update_download_path(&asset);
+        let file = std::fs::File::create(&path).unwrap();
+        file.set_len(1_000_001).unwrap();
+
+        let result = download_update(&asset).await;
+        let _ = std::fs::remove_file(path);
+
+        assert!(result.is_none());
+    }
 }
 
 #[cfg(test)]
