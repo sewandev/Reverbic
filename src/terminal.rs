@@ -1,5 +1,5 @@
 use crossterm::{
-    event::{EnableBracketedPaste, EnableMouseCapture},
+    event::{DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture},
     execute,
     terminal::{
         disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen, SetTitle,
@@ -21,12 +21,23 @@ pub fn init() -> Result<Tui> {
         EnableMouseCapture,
         EnableBracketedPaste
     )
-    .map_err(|e| AppError::Terminal(e.to_string()))?;
+    .map_err(|e| {
+        restore();
+        AppError::Terminal(e.to_string())
+    })?;
     let backend = CrosstermBackend::new(io::stdout());
-    let terminal = Terminal::new(backend).map_err(|e| AppError::Terminal(e.to_string()))?;
+    let terminal = Terminal::new(backend).map_err(|e| {
+        restore();
+        AppError::Terminal(e.to_string())
+    })?;
     Ok(terminal)
 }
 pub fn restore() {
+    let _ = execute!(
+        io::stdout(),
+        DisableMouseCapture,
+        DisableBracketedPaste,
+        LeaveAlternateScreen
+    );
     let _ = disable_raw_mode();
-    let _ = execute!(io::stdout(), LeaveAlternateScreen);
 }
