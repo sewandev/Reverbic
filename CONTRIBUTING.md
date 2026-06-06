@@ -1,12 +1,23 @@
 # Contributing to Reverbic
 
-Thanks for your interest in contributing. This is a personal project maintained by a single developer — contributions are welcome but the maintainer has final say on everything that gets merged.
+Thanks for your interest in contributing. This is an open-source project maintained in the author's free time — contributions are welcome but the maintainer has final say on everything that gets merged. Reviews and merges might take a few days, so please bear with us.
+
+## Current Priorities (What We're Focusing On)
+
+Right now, our main focus is on **security hardening** (specially around the auto-updater and credential management) and finishing full **native support for macOS**. Because of this, massive new features might take a backseat or take a bit longer to get reviewed.
+
+## Branching Strategy & CI
+
+- **`develop` is our default branch.** All new features, bug fixes, and refactors MUST be PR'd against `develop`.
+- Please **do not open Pull Requests against `main`**. `main` is strictly reserved for production releases.
+- **CI is Mandatory**: We do not bypass GitHub Actions. Your PR will not be merged until the `cargo fmt` and `cargo clippy` checks are perfectly green.
+- **Merge Conflicts**: If your PR has merge conflicts, please resolve them locally, verify compilation with `cargo check` and `cargo fmt`, and push the fix. If you can't, a maintainer might create a "PR Bridge" to resolve it for you while keeping your author credits.
 
 ## Issues
 
 Open an issue for:
 - **Bug reports** — include OS version, terminal, steps to reproduce, and what you expected vs. what happened
-- **Feature requests** — describe the use case, not just the feature
+- **Feature requests** — describe the use case, not just the feature. Dealing with third-party APIs, cookies, and tokens requires careful security decisions. Let's talk about it first so you don't waste your time building something we might not be able to merge safely.
 
 ## Pull Requests
 
