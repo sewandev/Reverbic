@@ -80,6 +80,11 @@ impl App {
             return;
         }
 
+        if self.theme_picker_open {
+            self.on_key_theme_picker(event.code);
+            return;
+        }
+
         if event.modifiers.contains(KeyModifiers::ALT) {
             self.handle_alt_key(event.code).await;
             return;
@@ -628,16 +633,52 @@ impl App {
             KeyCode::Down | KeyCode::Char('j') => {
                 self.settings_selected = cycle_next(self.settings_selected, count);
             }
-            KeyCode::Enter | KeyCode::Char(' ') => {
+            KeyCode::Enter => {
                 let items = settings_items(self.config.duck_enabled);
-                if let Some(&super::modal::SettingItem::SpotifyClientId) =
-                    items.get(self.settings_selected)
-                {
-                    self.client_id_input = self.config.spotify.client_id.clone();
-                    self.editing_client_id = true;
-                } else {
-                    self.apply_settings_toggle(self.settings_selected);
+                match items.get(self.settings_selected) {
+                    Some(super::modal::SettingItem::SpotifyClientId) => {
+                        self.client_id_input = self.config.spotify.client_id.clone();
+                        self.editing_client_id = true;
+                    }
+                    Some(super::modal::SettingItem::Theme) => self.open_theme_picker(),
+                    Some(_) => self.apply_settings_toggle(self.settings_selected),
+                    None => {}
                 }
+            }
+            KeyCode::Char(' ') => self.apply_settings_toggle(self.settings_selected),
+            _ => {}
+        }
+    }
+
+    fn open_theme_picker(&mut self) {
+        self.theme_picker_selected = crate::ui::theme::ThemeId::all()
+            .iter()
+            .position(|theme| *theme == self.config.theme)
+            .unwrap_or(0);
+        self.theme_picker_open = true;
+    }
+
+    fn on_key_theme_picker(&mut self, key: KeyCode) {
+        let themes = crate::ui::theme::ThemeId::all();
+        match key {
+            KeyCode::Esc | KeyCode::Left => {
+                self.theme_picker_open = false;
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                self.theme_picker_selected = cycle_prev(self.theme_picker_selected, themes.len());
+            }
+            KeyCode::Down | KeyCode::Char('j') => {
+                self.theme_picker_selected = cycle_next(self.theme_picker_selected, themes.len());
+            }
+            KeyCode::Enter => {
+                if let Some(theme) = themes.get(self.theme_picker_selected).copied() {
+                    self.config.theme = theme;
+                    self.save_config();
+                    if let Some(ref tx) = self.windows_tx {
+                        let _ = tx.send(self.config.clone());
+                    }
+                }
+                self.theme_picker_open = false;
             }
             _ => {}
         }

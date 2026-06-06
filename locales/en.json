@@ -123,6 +123,8 @@
   "lang.display.es": "Spanish",
   "lang.display.en": "English",
   "theme.reverbic": "Reverbic",
+  "theme.picker.title": " Theme ",
+  "theme.picker.hint": " [↑↓] Pick  [↵] Apply  [Esc] Cancel ",
   "help.recent": "[↵] Save  [p] Preview  [Esc] Back",
   "help.station_search": "[↵] Play  [Backspace] Delete  [Esc] Cancel",
   "help.demand.hint": "[↵] Play  [[] -1min  []] +1min  [p] Show  [Esc] Back",

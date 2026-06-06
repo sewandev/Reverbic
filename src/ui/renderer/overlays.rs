@@ -8,7 +8,7 @@ use ratatui::{
 
 use crate::audio::{PlayerState, PlayerStatus};
 use crate::i18n::t;
-use crate::ui::theme::{self, Palette};
+use crate::ui::theme::{self, Palette, ThemeId};
 
 pub(super) fn render_rename_overlay(frame: &mut Frame, input: &str, palette: &Palette) {
     let area = frame.area();
@@ -110,6 +110,73 @@ pub(super) fn render_client_id_overlay(frame: &mut Frame, input: &str, palette: 
         ])),
         text_area,
     );
+}
+
+pub(super) fn render_theme_picker_overlay(
+    frame: &mut Frame,
+    current: ThemeId,
+    selected: usize,
+    palette: &Palette,
+) {
+    let themes = ThemeId::all();
+    let area = frame.area();
+    let w = area.width.clamp(34, 46);
+    let h = (themes.len() as u16 + 4).clamp(5, area.height);
+    let x = area.width.saturating_sub(w) / 2;
+    let y = area.height.saturating_sub(h) / 2;
+    let panel = Rect::new(x, y, w, h);
+
+    frame.render_widget(Clear, panel);
+
+    let block = Block::default()
+        .title_top(
+            Line::from(Span::styled(
+                t("theme.picker.title"),
+                Style::default()
+                    .fg(palette.highlight)
+                    .add_modifier(Modifier::BOLD),
+            ))
+            .alignment(Alignment::Center),
+        )
+        .title_bottom(
+            Line::from(Span::styled(
+                t("theme.picker.hint"),
+                Style::default().fg(palette.muted),
+            ))
+            .alignment(Alignment::Center),
+        )
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(palette.accent))
+        .style(Style::default().bg(palette.panel_bg));
+
+    let inner = block.inner(panel);
+    frame.render_widget(block, panel);
+
+    for (i, theme) in themes.iter().copied().enumerate() {
+        let y = inner.y + 1 + i as u16;
+        if y >= inner.bottom() {
+            break;
+        }
+        let active = i == selected;
+        let is_current = theme == current;
+        let marker = if active { ">" } else { " " };
+        let current_marker = if is_current { "*" } else { " " };
+        let style = if active {
+            Style::default()
+                .fg(palette.playing)
+                .add_modifier(Modifier::BOLD)
+        } else if is_current {
+            Style::default().fg(palette.accent)
+        } else {
+            Style::default().fg(palette.highlight)
+        };
+        let label = format!(" {marker} {current_marker} {}", theme.display());
+        frame.render_widget(
+            Paragraph::new(Span::styled(label, style)).style(Style::default().bg(palette.panel_bg)),
+            Rect::new(inner.x + 1, y, inner.width.saturating_sub(2), 1),
+        );
+    }
 }
 
 pub(super) fn render_game_strip(

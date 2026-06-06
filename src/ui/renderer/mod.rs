@@ -66,7 +66,8 @@ use crate::app::App;
 use crate::ui::theme;
 use overlays::{
     render_client_id_overlay, render_game_strip, render_help_overlay, render_modal_np_strip,
-    render_modal_spotify_strip, render_rename_overlay, render_update_badge,
+    render_modal_spotify_strip, render_rename_overlay, render_theme_picker_overlay,
+    render_update_badge,
 };
 use screensaver::{
     render_logo_above, render_screensaver, render_spotify_screensaver, ScreensaverCtx, LOGO_W,
@@ -192,6 +193,10 @@ pub fn render(frame: &mut Frame, app: &App) {
 
     if app.editing_client_id {
         render_client_id_overlay(frame, &app.client_id_input, palette);
+    }
+
+    if app.theme_picker_open {
+        render_theme_picker_overlay(frame, app.config.theme, app.theme_picker_selected, palette);
     }
 
     if let Some(ref version) = app.update_available {

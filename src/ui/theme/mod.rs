@@ -11,6 +11,12 @@ pub enum ThemeId {
 }
 
 impl ThemeId {
+    const ALL: &'static [Self] = &[Self::Reverbic];
+
+    pub fn all() -> &'static [Self] {
+        Self::ALL
+    }
+
     pub fn display(self) -> String {
         use crate::i18n::t;
         match self {
