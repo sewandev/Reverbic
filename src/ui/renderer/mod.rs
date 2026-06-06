@@ -71,12 +71,11 @@ use screensaver::{
     render_logo_above, render_screensaver, render_spotify_screensaver, ScreensaverCtx, LOGO_W,
 };
 
-const MIN_WIDTH: u16 = 52;
-const MIN_HEIGHT: u16 = 5;
-
 pub fn render(frame: &mut Frame, app: &App) {
     let area = frame.area();
-    if area.width < MIN_WIDTH || area.height < MIN_HEIGHT {
+    if area.width < crate::ui::widgets::search_modal::MODAL_MIN_WIDTH
+        || area.height < crate::ui::widgets::search_modal::MODAL_MIN_HEIGHT
+    {
         use ratatui::{
             style::{Color, Style},
             text::{Line, Span},
@@ -135,17 +134,14 @@ pub fn render(frame: &mut Frame, app: &App) {
     let full_area = frame.area();
     frame.render_widget(SearchModalWidget::from(app), full_area);
 
-    let modal_w = (full_area.width * 78 / 100).clamp(52, 120);
-    let modal_h = (full_area.height * 75 / 100).clamp(14, 30);
-    let modal_x = full_area.x + full_area.width.saturating_sub(modal_w) / 2;
-    let modal_y = full_area.y + full_area.height.saturating_sub(modal_h) / 2;
+    let modal = crate::ui::widgets::search_modal::modal_rect(full_area);
 
-    if modal_y >= 3 {
+    if modal.y >= 3 {
         render_logo_above(
             frame,
-            modal_x,
-            modal_w.max(LOGO_W),
-            modal_y - 1,
+            modal.x,
+            modal.width.max(LOGO_W),
+            modal.y - 1,
             crate::ui::theme::OVERLAY_COLOR,
             app.border_tick,
         );
@@ -153,20 +149,20 @@ pub fn render(frame: &mut Frame, app: &App) {
 
     if let Some((ref name, ref genre)) = crate::game_detect::get() {
         let panel_h: u16 = 3;
-        let game_y = modal_y.saturating_sub(panel_h);
+        let game_y = modal.y.saturating_sub(panel_h);
         render_game_strip(
             frame,
-            Rect::new(modal_x, game_y, modal_w, panel_h),
+            Rect::new(modal.x, game_y, modal.width, panel_h),
             name,
             genre,
             app.border_tick,
         );
     }
 
-    let strip_y = modal_y + modal_h;
+    let strip_y = modal.y + modal.height;
     let remaining_h = full_area.bottom().saturating_sub(strip_y);
     if remaining_h >= 3 {
-        let strip = Rect::new(modal_x, strip_y, modal_w, remaining_h);
+        let strip = Rect::new(modal.x, strip_y, modal.width, remaining_h);
         if matches!(app.modal_mode, crate::app::SearchMode::Spotify)
             && (app.spotify.playback.is_some() || app.spotify.now_playing.is_some())
         {
