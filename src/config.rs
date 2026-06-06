@@ -605,6 +605,23 @@ mod tests {
     }
 
     #[test]
+    fn theme_defaults_for_old_configs_and_serializes_for_persistence() {
+        let old_config = json!({
+            "volume": 0.75,
+            "last_selected": 3
+        });
+
+        let config: Config =
+            serde_json::from_value(old_config).expect("old config without theme should load");
+
+        assert_eq!(config.theme, ThemeId::Reverbic);
+
+        let saved = serde_json::to_value(&config).expect("config should serialize");
+
+        assert_eq!(saved["theme"], json!("reverbic"));
+    }
+
+    #[test]
     fn save_json_atomic_overwrites_existing_file() {
         let dir = temp_test_dir();
         std::fs::create_dir_all(&dir).expect("test temp dir should be created");
