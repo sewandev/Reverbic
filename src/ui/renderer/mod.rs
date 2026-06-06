@@ -146,6 +146,7 @@ pub fn render(frame: &mut Frame, app: &App) {
             modal.y - 1,
             palette.overlay_color,
             app.border_tick,
+            palette,
         );
     }
 

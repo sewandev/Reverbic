@@ -20,11 +20,14 @@ pub struct Palette {
     pub highlight: Color,
     pub danger: Color,
     pub warning: Color,
+    pub buffering: Color,
     pub spotify: Color,
     pub caution: Color,
     pub panel_bg: Color,
     pub overlay_color: Color,
     pub border_cycle: &'static [(u8, u8, u8)],
+    pub spectrum: &'static [Color],
+    pub logo_letters: &'static [Color],
 }
 
 pub fn palette(theme_id: ThemeId) -> &'static Palette {

@@ -11,7 +11,7 @@ use crate::audio::{PlayerState, PlayerStatus};
 use crate::i18n::t;
 use crate::station::StationDetails;
 use crate::ui::strings;
-use crate::ui::theme;
+use crate::ui::theme::{self, Palette};
 
 pub(super) struct ScreensaverCtx<'a> {
     pub state: &'a PlayerState,
@@ -99,7 +99,15 @@ pub(super) fn render_screensaver(frame: &mut Frame, area: Rect, ctx: Screensaver
     let panel = Rect::new(px, py, pw, ph.min(area.height));
 
     if py >= 3 {
-        render_logo_above(frame, area.x, area.width, py - 1, OVERLAY, border_tick);
+        render_logo_above(
+            frame,
+            area.x,
+            area.width,
+            py - 1,
+            OVERLAY,
+            border_tick,
+            palette,
+        );
     }
 
     if let Some((ref name, ref genre)) = crate::game_detect::get() {
@@ -119,9 +127,7 @@ pub(super) fn render_screensaver(frame: &mut Frame, area: Rect, ctx: Screensaver
     let border_color = match &state.status {
         PlayerStatus::Playing => theme::border_color(border_tick),
         PlayerStatus::Paused => theme::WARNING,
-        PlayerStatus::Buffering(_) | PlayerStatus::Reconnecting(_) => {
-            ratatui::style::Color::Rgb(80, 80, 80)
-        }
+        PlayerStatus::Buffering(_) | PlayerStatus::Reconnecting(_) => palette.buffering,
         _ => theme::MUTED,
     };
 
@@ -275,7 +281,7 @@ pub(super) fn render_screensaver(frame: &mut Frame, area: Rect, ctx: Screensaver
     }
     row += 1;
     frame.render_widget(
-        Paragraph::new(visualizer_line(state.level_db, cw as usize, BG))
+        Paragraph::new(visualizer_line(state.level_db, cw as usize, BG, palette))
             .style(Style::default().bg(BG)),
         Rect::new(cx, row, cw, 1),
     );
@@ -477,22 +483,11 @@ fn eq_bar_char(level: usize) -> &'static str {
     }
 }
 
-fn logo_lines(bg: ratatui::style::Color, tick: u32) -> [Line<'static>; 2] {
-    use ratatui::style::Color::Rgb;
-    const CYAN: ratatui::style::Color = Rgb(0, 240, 255);
-    const VIOLET: ratatui::style::Color = Rgb(112, 0, 255);
-    const PINK: ratatui::style::Color = Rgb(255, 0, 85);
-    const LETTER_COLORS: [ratatui::style::Color; 8] = [
-        Rgb(0, 240, 255),
-        Rgb(40, 160, 255),
-        Rgb(75, 80, 255),
-        Rgb(112, 0, 255),
-        Rgb(160, 0, 200),
-        Rgb(200, 0, 140),
-        Rgb(235, 0, 100),
-        Rgb(255, 0, 85),
-    ];
+fn logo_lines(bg: ratatui::style::Color, tick: u32, palette: &Palette) -> [Line<'static>; 2] {
     const LETTERS: &[char] = &['R', 'E', 'V', 'E', 'R', 'B', 'I', 'C'];
+    let cyan = palette.logo_letters[0];
+    let violet = palette.logo_letters[3];
+    let pink = palette.logo_letters[7];
 
     let b1 = eq_bar_level(tick, 36, 0, 1, 8);
     let b2 = eq_bar_level(tick, 42, 12, 2, 8);
@@ -510,21 +505,21 @@ fn logo_lines(bg: ratatui::style::Color, tick: u32) -> [Line<'static>; 2] {
 
     let top = Line::from(vec![
         Span::styled("    ", s),
-        Span::styled(top1, s.fg(CYAN)),
+        Span::styled(top1, s.fg(cyan)),
         Span::styled("  ", s),
-        Span::styled(top2, s.fg(VIOLET)),
+        Span::styled(top2, s.fg(violet)),
         Span::styled("  ", s),
-        Span::styled(top3, s.fg(PINK)),
+        Span::styled(top3, s.fg(pink)),
     ]);
 
     let mut spans: Vec<Span<'static>> = vec![
-        Span::styled("▶", s.fg(CYAN)),
+        Span::styled("▶", s.fg(cyan)),
         Span::styled("   ", s),
-        Span::styled(eq_bar_char(b1), s.fg(CYAN)),
+        Span::styled(eq_bar_char(b1), s.fg(cyan)),
         Span::styled("  ", s),
-        Span::styled(eq_bar_char(b2), s.fg(VIOLET)),
+        Span::styled(eq_bar_char(b2), s.fg(violet)),
         Span::styled("  ", s),
-        Span::styled(eq_bar_char(b3), s.fg(PINK)),
+        Span::styled(eq_bar_char(b3), s.fg(pink)),
         Span::styled("   ", s),
     ];
     for (i, &ch) in LETTERS.iter().enumerate() {
@@ -533,7 +528,7 @@ fn logo_lines(bg: ratatui::style::Color, tick: u32) -> [Line<'static>; 2] {
         }
         spans.push(Span::styled(
             ch.to_string(),
-            s.fg(LETTER_COLORS[i]).add_modifier(Modifier::BOLD),
+            s.fg(palette.logo_letters[i]).add_modifier(Modifier::BOLD),
         ));
     }
     [top, Line::from(spans)]
@@ -546,12 +541,13 @@ pub(super) fn render_logo_above(
     y: u16,
     bg: ratatui::style::Color,
     tick: u32,
+    palette: &Palette,
 ) {
     if y < 2 {
         return;
     }
     let logo_x = area_x + area_width.saturating_sub(LOGO_W) / 2;
-    let [l1, l2] = logo_lines(bg, tick);
+    let [l1, l2] = logo_lines(bg, tick, palette);
     let st = Style::default().bg(bg);
     frame.render_widget(
         Paragraph::new(l1).style(st),
@@ -609,19 +605,13 @@ fn build_clock_row(
     Line::from(Span::styled(s, Style::default().fg(color).bg(bg)))
 }
 
-fn visualizer_line(level_db: f32, width: usize, bg: ratatui::style::Color) -> Line<'static> {
-    use ratatui::style::Color::Rgb;
+fn visualizer_line(
+    level_db: f32,
+    width: usize,
+    bg: ratatui::style::Color,
+    palette: &Palette,
+) -> Line<'static> {
     let glyphs = super::visualizer_glyphs();
-    const SPECTRUM: [ratatui::style::Color; 8] = [
-        Rgb(0, 240, 255),
-        Rgb(40, 160, 255),
-        Rgb(75, 80, 255),
-        Rgb(112, 0, 255),
-        Rgb(160, 0, 200),
-        Rgb(200, 0, 140),
-        Rgb(235, 0, 100),
-        Rgb(255, 0, 85),
-    ];
     let base = ((level_db + 60.0) / 60.0).clamp(0.0, 1.0) as f64;
     let ms = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -638,9 +628,9 @@ fn visualizer_line(level_db: f32, width: usize, bg: ratatui::style::Color) -> Li
         let idx = ((h * 7.0) as usize).min(7);
         let pos_idx = (i * 7 / n_bars.saturating_sub(1).max(1)).min(7);
         let color = if h < 0.05 {
-            theme::MUTED
+            palette.muted
         } else {
-            SPECTRUM[pos_idx]
+            palette.spectrum[pos_idx]
         };
         spans.push(Span::styled(
             glyphs[idx].to_string(),
@@ -674,6 +664,7 @@ pub(super) fn render_spotify_screensaver(
     const OVERLAY: ratatui::style::Color = theme::OVERLAY_COLOR;
     const BG: ratatui::style::Color = theme::PANEL_BG;
     const GREEN: ratatui::style::Color = theme::PLAYING;
+    let palette = theme::palette(theme::ThemeId::Reverbic);
 
     frame.render_widget(Clear, area);
     for y in area.top()..area.bottom() {
@@ -703,7 +694,15 @@ pub(super) fn render_spotify_screensaver(
     let panel = Rect::new(px, py, pw, ph.min(area.height));
 
     if py >= 3 {
-        render_logo_above(frame, area.x, area.width, py - 1, OVERLAY, border_tick);
+        render_logo_above(
+            frame,
+            area.x,
+            area.width,
+            py - 1,
+            OVERLAY,
+            border_tick,
+            palette,
+        );
     }
 
     let border_color = if playback.is_playing {
@@ -839,7 +838,8 @@ pub(super) fn render_spotify_screensaver(
     row += 1;
 
     frame.render_widget(
-        Paragraph::new(visualizer_line(-60.0, cw as usize, BG)).style(Style::default().bg(BG)),
+        Paragraph::new(visualizer_line(-60.0, cw as usize, BG, palette))
+            .style(Style::default().bg(BG)),
         Rect::new(cx, row, cw, 1),
     );
     row += 1;

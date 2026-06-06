@@ -194,9 +194,7 @@ pub(super) fn render_modal_np_strip(
     let border_color = match &state.status {
         PlayerStatus::Playing => theme::border_color_for(palette, border_tick),
         PlayerStatus::Paused => palette.warning,
-        PlayerStatus::Buffering(_) | PlayerStatus::Reconnecting(_) => {
-            ratatui::style::Color::Rgb(80, 80, 80)
-        }
+        PlayerStatus::Buffering(_) | PlayerStatus::Reconnecting(_) => palette.buffering,
         _ => palette.muted,
     };
 
@@ -281,18 +279,7 @@ fn visualizer_spans(
     bg: ratatui::style::Color,
     palette: &Palette,
 ) -> Vec<Span<'static>> {
-    use ratatui::style::Color::Rgb;
     let glyphs = super::visualizer_glyphs();
-    const SPECTRUM: [ratatui::style::Color; 8] = [
-        Rgb(0, 240, 255),
-        Rgb(40, 160, 255),
-        Rgb(75, 80, 255),
-        Rgb(112, 0, 255),
-        Rgb(160, 0, 200),
-        Rgb(200, 0, 140),
-        Rgb(235, 0, 100),
-        Rgb(255, 0, 85),
-    ];
     if width == 0 {
         return vec![];
     }
@@ -314,7 +301,7 @@ fn visualizer_spans(
         let color = if h < 0.05 {
             palette.muted
         } else {
-            SPECTRUM[pos_idx]
+            palette.spectrum[pos_idx]
         };
         spans.push(Span::styled(
             glyphs[idx].to_string(),
