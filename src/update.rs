@@ -205,12 +205,11 @@ fn parse_semver(v: &str) -> Option<(u32, u32, u32)> {
     Some((major, minor, patch))
 }
 
-#[cfg(test)]
+#[cfg(all(test, target_os = "windows"))]
 mod tests {
     use super::{build_update_script, escape_batch_path};
     use std::path::Path;
 
-    #[cfg(target_os = "windows")]
     #[test]
     fn build_update_script_contains_replace_and_cleanup_steps() {
         let script = build_update_script(
@@ -226,7 +225,6 @@ mod tests {
         assert!(script.contains("del /F /Q \"%~f0\""));
     }
 
-    #[cfg(target_os = "windows")]
     #[test]
     fn escape_batch_path_escapes_percent() {
         let escaped = escape_batch_path(Path::new(r"C:\Temp\100%\reverbic.exe"));
