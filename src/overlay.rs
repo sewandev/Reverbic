@@ -36,10 +36,11 @@ use windows::{
 };
 
 use crate::audio::{PlayerCommand, PlayerState, PlayerStatus};
-use crate::config::{Config, OverlayMode, OverlayPosition};
+use crate::config::{Config, OverlayMode, OverlayPosition, OverlayStyle};
 
 const OW: i32 = 380;
 const OH: i32 = 145;
+const OH_COMPACT: i32 = 52;
 const ACCENT_W: i32 = 3;
 const PAD_L: i32 = ACCENT_W + 10;
 const PAD_R: i32 = 8;
@@ -95,6 +96,7 @@ struct State {
     bitrate_kbps: Option<u16>,
     recent: Vec<String>,
     overlay_position: crate::config::OverlayPosition,
+    overlay_style: crate::config::OverlayStyle,
     duck_enabled: bool,
 }
 
@@ -152,6 +154,7 @@ unsafe fn run(
         bitrate_kbps: None,
         recent: Vec::new(),
         overlay_position: config_rx.borrow().overlay_position,
+        overlay_style: config_rx.borrow().overlay_style,
         duck_enabled: config_rx.borrow().duck_enabled,
     }));
     let raw = Arc::into_raw(Arc::clone(&shared));
@@ -165,7 +168,12 @@ unsafe fn run(
     };
     RegisterClassExW(&wc);
 
-    let (init_x, init_y) = overlay_coords(GetConsoleWindow(), config_rx.borrow().overlay_position);
+    let init_style = config_rx.borrow().overlay_style;
+    let init_oh = match init_style {
+        OverlayStyle::Compact => OH_COMPACT,
+        OverlayStyle::Full => OH,
+    };
+    let (init_x, init_y) = overlay_coords(GetConsoleWindow(), config_rx.borrow().overlay_position, init_oh);
     let hwnd = CreateWindowExW(
         WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW,
         class,
@@ -174,7 +182,7 @@ unsafe fn run(
         init_x,
         init_y,
         OW,
-        OH,
+        init_oh,
         None,
         None,
         hinstance,
@@ -192,6 +200,7 @@ unsafe fn run(
     let mut playing = false;
     let mut last_title = String::new();
     let mut prev_position = cfg.overlay_position;
+    let mut prev_style = cfg.overlay_style;
 
     let (media_tx, media_rx) = std::sync::mpsc::sync_channel::<u32>(4);
     let _ = MEDIA_VK_TX.set(media_tx);
@@ -258,13 +267,27 @@ unsafe fn run(
             }
             let new_alpha: u8 = (cfg.overlay_alpha.min(100) as u32 * 255 / 100) as u8;
             let _ = SetLayeredWindowAttributes(hwnd, COLORREF(0), new_alpha, LWA_ALPHA);
-            if cfg.overlay_position != prev_position {
+            if cfg.overlay_style != prev_style || cfg.overlay_position != prev_position {
+                prev_style = cfg.overlay_style;
                 prev_position = cfg.overlay_position;
-                let (x, y) = overlay_coords(hwnd, cfg.overlay_position);
-                let _ = SetWindowPos(hwnd, HWND_TOPMOST, x, y, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE);
+                let new_h = match cfg.overlay_style {
+                    OverlayStyle::Compact => OH_COMPACT,
+                    OverlayStyle::Full => OH,
+                };
+                let (x, y) = overlay_coords(hwnd, cfg.overlay_position, new_h);
+                let _ = SetWindowPos(
+                    hwnd,
+                    HWND_TOPMOST,
+                    x,
+                    y,
+                    OW,
+                    new_h,
+                    SWP_NOACTIVATE,
+                );
             }
             if let Ok(mut s) = shared.lock() {
                 s.overlay_position = cfg.overlay_position;
+                s.overlay_style = cfg.overlay_style;
             }
         }
 
@@ -412,9 +435,12 @@ unsafe extern "system" fn wnd_proc(
             let ptr = GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *const Mutex<State>;
             if !ptr.is_null() {
                 if let Ok(s) = (*ptr).lock() {
-                    let (x, y) = overlay_coords(hwnd, s.overlay_position);
-                    let _ =
-                        SetWindowPos(hwnd, HWND_TOPMOST, x, y, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE);
+                    let h = match s.overlay_style {
+                        OverlayStyle::Compact => OH_COMPACT,
+                        OverlayStyle::Full => OH,
+                    };
+                    let (x, y) = overlay_coords(hwnd, s.overlay_position, h);
+                    let _ = SetWindowPos(hwnd, HWND_TOPMOST, x, y, OW, h, SWP_NOACTIVATE);
                 }
             }
             LRESULT(0)
@@ -426,7 +452,10 @@ unsafe extern "system" fn wnd_proc(
             let hdc = BeginPaint(hwnd, &mut ps);
             if !ptr.is_null() {
                 if let Ok(s) = (*ptr).lock() {
-                    paint(hdc, &s);
+                    match s.overlay_style {
+                        OverlayStyle::Compact => paint_compact(hdc, &s),
+                        OverlayStyle::Full => paint(hdc, &s),
+                    }
                 }
             }
             let _ = EndPaint(hwnd, &ps);
@@ -700,6 +729,64 @@ unsafe fn paint(hdc: HDC, s: &State) {
     let _ = DeleteObject(HGDIOBJ(f_recent.0));
 }
 
+unsafe fn paint_compact(hdc: HDC, s: &State) {
+    fill(
+        hdc,
+        RECT { left: 0, top: 0, right: OW, bottom: OH_COMPACT },
+        C_BG,
+    );
+    fill(
+        hdc,
+        RECT { left: 0, top: 0, right: ACCENT_W, bottom: OH_COMPACT },
+        C_ACCENT,
+    );
+
+    SetBkMode(hdc, TRANSPARENT);
+
+    let f_station = font(14, true);
+    let f_detail = font(12, false);
+
+    let prev = SelectObject(hdc, HGDIOBJ(f_station.0));
+
+    // ── row 1: status dot + station ──────────────────────────────────
+    let (status_str, status_color) = status_label(s.ostatus);
+    SetTextColor(hdc, status_color);
+    let _ = TextOutW(hdc, PAD_L, 6, &wide(&status_str));
+
+    let dot_w = 14_i32;
+    SetTextColor(hdc, C_STATION);
+    let _ = TextOutW(
+        hdc,
+        PAD_L + dot_w,
+        5,
+        &wide_truncated(&s.station, 28),
+    );
+
+    // clock right-aligned
+    SetTextColor(hdc, C_BRAND);
+    let prev_align = SetTextAlign(hdc, TA_RIGHT);
+    let clock = chrono::Local::now().format("%H:%M").to_string();
+    let _ = TextOutW(hdc, OW - PAD_R, 5, &wide(&clock));
+    let _ = SetTextAlign(hdc, TEXT_ALIGN_OPTIONS(prev_align));
+
+    // ── separator ────────────────────────────────────────────────────
+    fill(
+        hdc,
+        RECT { left: PAD_L, top: 24, right: OW - PAD_R, bottom: 25 },
+        C_SEPARATOR,
+    );
+
+    // ── row 2: track title ───────────────────────────────────────────
+    SelectObject(hdc, HGDIOBJ(f_detail.0));
+    SetTextColor(hdc, C_TITLE);
+    let title = if s.title.is_empty() { "—" } else { s.title.as_str() };
+    let _ = TextOutW(hdc, PAD_L, 30, &wide_truncated(title, 50));
+
+    SelectObject(hdc, prev);
+    let _ = DeleteObject(HGDIOBJ(f_station.0));
+    let _ = DeleteObject(HGDIOBJ(f_detail.0));
+}
+
 fn status_label(os: OStatus) -> (String, COLORREF) {
     match os {
         OStatus::Playing => ("●".into(), C_ST_OK),
@@ -863,7 +950,7 @@ unsafe fn is_fullscreen_foreground(overlay_hwnd: HWND) -> bool {
     w >= sw && h >= sh
 }
 
-unsafe fn overlay_coords(hwnd: HWND, pos: OverlayPosition) -> (i32, i32) {
+unsafe fn overlay_coords(hwnd: HWND, pos: OverlayPosition, oh: i32) -> (i32, i32) {
     const MARGIN: i32 = 16;
     let monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
     let mut info = MONITORINFO {
@@ -884,8 +971,8 @@ unsafe fn overlay_coords(hwnd: HWND, pos: OverlayPosition) -> (i32, i32) {
     match pos {
         OverlayPosition::TopLeft => (ox + MARGIN, oy + MARGIN),
         OverlayPosition::TopRight => (ox + sw - OW - MARGIN, oy + MARGIN),
-        OverlayPosition::BottomLeft => (ox + MARGIN, oy + sh - OH - MARGIN),
-        OverlayPosition::BottomRight => (ox + sw - OW - MARGIN, oy + sh - OH - MARGIN),
+        OverlayPosition::BottomLeft => (ox + MARGIN, oy + sh - oh - MARGIN),
+        OverlayPosition::BottomRight => (ox + sw - OW - MARGIN, oy + sh - oh - MARGIN),
     }
 }
 

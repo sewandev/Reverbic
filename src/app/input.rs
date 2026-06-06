@@ -1078,6 +1078,9 @@ impl App {
             super::modal::SettingItem::OverlayPosition => {
                 self.config.overlay_position = self.config.overlay_position.next()
             }
+            super::modal::SettingItem::OverlayStyle => {
+                self.config.overlay_style = self.config.overlay_style.next()
+            }
             super::modal::SettingItem::Screensaver => self.config.screensaver_next(),
             super::modal::SettingItem::ScreensaverClock => {
                 self.config.screensaver_clock = !self.config.screensaver_clock
