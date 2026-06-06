@@ -12,6 +12,25 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ---
 
+## [1.4.2] — 2026-06-06
+
+### Added
+- Extract UI theme into a modular palette system allowing dynamic themes
+- New compact overlay style mode (`compact`)
+- Require CI testing and strict GitHub Actions branch protection on `develop`
+
+### Fixed
+- Fixed broken unit test assertion for modal layout width
+
+---
+
+## [1.4.1] — 2026-06-06
+
+### Added
+- Harden updater payload validation against security risks
+
+---
+
 ## [1.4.0] — 2026-06-05
 
 ### Added
