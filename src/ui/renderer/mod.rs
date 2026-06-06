@@ -3,6 +3,32 @@ mod screensaver;
 
 use ratatui::{layout::Rect, Frame};
 
+const UNICODE_VISUALIZER_GLYPHS: [char; 8] = [
+    '\u{2581}', '\u{2582}', '\u{2583}', '\u{2584}', '\u{2585}', '\u{2586}', '\u{2587}', '\u{2588}',
+];
+const ASCII_VISUALIZER_GLYPHS: [char; 8] = ['.', ':', '-', '=', '+', '*', '#', '@'];
+
+fn visualizer_glyphs() -> &'static [char; 8] {
+    visualizer_glyphs_for_legacy_console(uses_legacy_windows_console())
+}
+
+fn visualizer_glyphs_for_legacy_console(legacy_console: bool) -> &'static [char; 8] {
+    if legacy_console {
+        &ASCII_VISUALIZER_GLYPHS
+    } else {
+        &UNICODE_VISUALIZER_GLYPHS
+    }
+}
+
+fn uses_legacy_windows_console() -> bool {
+    cfg!(windows)
+        && std::env::var_os("WT_SESSION").is_none()
+        && std::env::var_os("TERM_PROGRAM").is_none()
+        && std::env::var_os("TERM").is_none()
+        && std::env::var_os("ConEmuANSI").is_none()
+        && std::env::var_os("ANSICON").is_none()
+}
+
 pub fn spotify_screensaver_progress_rect(
     area: Rect,
     profile_rows: u16,
@@ -177,6 +203,30 @@ pub fn render(frame: &mut Frame, app: &App) {
             &app.modal_mode,
             spotify_logged_in,
             app.update_available.as_deref(),
+        );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::visualizer_glyphs_for_legacy_console;
+
+    #[test]
+    fn legacy_console_visualizer_uses_ascii_fallback() {
+        assert_eq!(
+            visualizer_glyphs_for_legacy_console(true),
+            &['.', ':', '-', '=', '+', '*', '#', '@']
+        );
+    }
+
+    #[test]
+    fn modern_terminal_visualizer_uses_unicode_blocks() {
+        assert_eq!(
+            visualizer_glyphs_for_legacy_console(false),
+            &[
+                '\u{2581}', '\u{2582}', '\u{2583}', '\u{2584}', '\u{2585}', '\u{2586}', '\u{2587}',
+                '\u{2588}'
+            ]
         );
     }
 }
