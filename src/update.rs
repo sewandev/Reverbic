@@ -41,13 +41,11 @@ impl GitHubAsset {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum UpdateOs {
     Windows,
-    Macos,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum UpdateArch {
     X86_64,
-    Aarch64,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -68,22 +66,19 @@ impl UpdateTarget {
     }
 
     fn from_parts(os: &str, arch: &str) -> Result<Self, AssetSelectionError> {
-        let arch = match arch {
-            "x86_64" => UpdateArch::X86_64,
-            "aarch64" => UpdateArch::Aarch64,
-            _ => return Err(AssetSelectionError::NoCompatibleAsset),
-        };
-
         let os = match os {
             "windows" => UpdateOs::Windows,
-            "macos" => UpdateOs::Macos,
+            // macOS release archives need extraction/apply support before self-update can enable them.
             _ => return Err(AssetSelectionError::UnsupportedPlatform),
         };
 
+        let arch = match arch {
+            "x86_64" => UpdateArch::X86_64,
+            _ => return Err(AssetSelectionError::NoCompatibleAsset),
+        };
+
         match (os, arch) {
-            (UpdateOs::Windows, UpdateArch::X86_64)
-            | (UpdateOs::Macos, UpdateArch::X86_64 | UpdateArch::Aarch64) => Ok(Self { os, arch }),
-            (UpdateOs::Windows, UpdateArch::Aarch64) => Err(AssetSelectionError::NoCompatibleAsset),
+            (UpdateOs::Windows, UpdateArch::X86_64) => Ok(Self { os, arch }),
         }
     }
 
@@ -92,13 +87,6 @@ impl UpdateTarget {
             (UpdateOs::Windows, UpdateArch::X86_64) => {
                 format!("reverbic-v{version}-x86_64-windows.exe")
             }
-            (UpdateOs::Macos, UpdateArch::X86_64) => {
-                format!("reverbic-v{version}-x86_64-macos.tar.gz")
-            }
-            (UpdateOs::Macos, UpdateArch::Aarch64) => {
-                format!("reverbic-v{version}-aarch64-macos.tar.gz")
-            }
-            (UpdateOs::Windows, UpdateArch::Aarch64) => unreachable!("unsupported target"),
         }
     }
 }
@@ -592,22 +580,6 @@ mod asset_selection_tests {
     }
 
     #[test]
-    fn selects_update_asset_for_macos_arch() {
-        let target = UpdateTarget::from_parts("macos", "aarch64").unwrap();
-        let selected = select_compatible_asset(
-            vec![
-                asset("reverbic-v2.0.0-x86_64-windows.exe"),
-                asset("reverbic-v2.0.0-aarch64-macos.tar.gz"),
-            ],
-            "2.0.0",
-            target,
-        )
-        .unwrap();
-
-        assert_eq!(selected.name, "reverbic-v2.0.0-aarch64-macos.tar.gz");
-    }
-
-    #[test]
     fn rejects_update_asset_for_linux() {
         let err = UpdateTarget::from_parts("linux", "x86_64").unwrap_err();
 
@@ -615,10 +587,17 @@ mod asset_selection_tests {
     }
 
     #[test]
+    fn rejects_update_asset_for_macos_until_archives_are_installable() {
+        let err = UpdateTarget::from_parts("macos", "aarch64").unwrap_err();
+
+        assert_eq!(err, AssetSelectionError::UnsupportedPlatform);
+    }
+
+    #[test]
     fn rejects_update_asset_when_compatible_asset_is_missing() {
-        let target = UpdateTarget::from_parts("macos", "x86_64").unwrap();
+        let target = UpdateTarget::from_parts("windows", "x86_64").unwrap();
         let err = select_compatible_asset(
-            vec![asset("reverbic-v2.0.0-x86_64-windows.exe")],
+            vec![asset("reverbic-v2.0.0-aarch64-macos.tar.gz")],
             "2.0.0",
             target,
         )
