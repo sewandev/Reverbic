@@ -51,6 +51,7 @@ pub struct SearchModalWidget<'a> {
     pub settings_selected: usize,
     pub autoplay_last: bool,
     pub overlay_mode: String,
+    pub overlay_style: String,
     pub overlay_position: String,
     pub crossfade: String,
     pub media_keys: bool,
@@ -146,6 +147,31 @@ impl Widget for SearchModalWidget<'_> {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::{modal_rect, MODAL_MIN_HEIGHT, MODAL_MIN_WIDTH};
+    use ratatui::layout::Rect;
+
+    #[test]
+    fn modal_rect_does_not_exceed_small_terminal_area() {
+        let area = Rect::new(0, 0, 80, MODAL_MIN_HEIGHT - 4);
+        let modal = modal_rect(area);
+
+        assert!(modal.right() <= area.right());
+        assert!(modal.bottom() <= area.bottom());
+        assert_eq!(modal.width, 80);
+        assert_eq!(modal.height, MODAL_MIN_HEIGHT - 4);
+    }
+
+    #[test]
+    fn modal_rect_uses_minimum_size_when_area_allows_it() {
+        let area = Rect::new(0, 0, MODAL_MIN_WIDTH, MODAL_MIN_HEIGHT);
+        let modal = modal_rect(area);
+
+        assert_eq!(modal, area);
+    }
+}
+
 impl<'a> SearchModalWidget<'a> {
     pub(in crate::ui) fn from_app(app: &'a crate::app::App, palette: &'a Palette) -> Self {
         let sp = &app.spotify;
@@ -165,6 +191,7 @@ impl<'a> SearchModalWidget<'a> {
             settings_selected: app.settings_selected,
             autoplay_last: app.config.autoplay_last,
             overlay_mode: app.config.overlay_mode.display(),
+            overlay_style: app.config.overlay_style.display(),
             overlay_position: app.config.overlay_position.display(),
             crossfade: app.config.crossfade_display(),
             media_keys: app.config.media_keys,
@@ -407,30 +434,5 @@ impl SearchModalWidget<'_> {
                 }
             }
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{modal_rect, MODAL_MIN_HEIGHT, MODAL_MIN_WIDTH};
-    use ratatui::layout::Rect;
-
-    #[test]
-    fn modal_rect_does_not_exceed_small_terminal_area() {
-        let area = Rect::new(0, 0, 80, MODAL_MIN_HEIGHT - 4);
-        let modal = modal_rect(area);
-
-        assert!(modal.right() <= area.right());
-        assert!(modal.bottom() <= area.bottom());
-        assert_eq!(modal.width, 80);
-        assert_eq!(modal.height, MODAL_MIN_HEIGHT - 4);
-    }
-
-    #[test]
-    fn modal_rect_uses_minimum_size_when_area_allows_it() {
-        let area = Rect::new(0, 0, MODAL_MIN_WIDTH, MODAL_MIN_HEIGHT);
-        let modal = modal_rect(area);
-
-        assert_eq!(modal, area);
     }
 }

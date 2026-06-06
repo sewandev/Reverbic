@@ -35,6 +35,7 @@ impl<'a> SearchModalWidget<'a> {
             SettingItem::VolumeStep => format!("{}%", self.volume_step),
             SettingItem::Prebuffer => format!("{}s", self.prebuffer_secs),
             SettingItem::OverlayMode => self.overlay_mode.clone(),
+            SettingItem::OverlayStyle => self.overlay_style.clone(),
             SettingItem::OverlayAlpha => format!("{}%", self.overlay_alpha),
             SettingItem::OverlayPosition => self.overlay_position.clone(),
             SettingItem::Screensaver => screensaver_display(self.screensaver_secs),

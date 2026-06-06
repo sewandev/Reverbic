@@ -636,20 +636,47 @@ pub(super) fn render_modal_spotify_strip(
     }
 }
 
-pub(super) fn render_update_badge(frame: &mut Frame, version: &str, area: Rect, palette: &Palette) {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    let blink = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_millis() % 1000 < 500)
-        .unwrap_or(false);
-    let dot = if blink { "• " } else { "  " };
-    let text = format!("{dot}v{version}");
-    let w = (text.chars().count() as u16 + 1).min(area.width);
-    let x = area.x + area.width.saturating_sub(w);
-    frame.render_widget(
-        Paragraph::new(text).style(Style::default().fg(palette.warning)),
-        Rect::new(x, area.y, w, 1),
-    );
+pub(super) fn render_update_toast(
+    frame: &mut Frame,
+    version: &str,
+    is_ready: bool,
+    is_modal_open: bool,
+    full_area: Rect,
+    palette: &Palette,
+) {
+    use crate::i18n::t;
+    let text = if is_ready {
+        t("update.toast.ready").replace("{}", version)
+    } else {
+        t("update.toast.downloading").replace("{}", version)
+    };
+
+    let style = if is_ready {
+        Style::default()
+            .fg(palette.panel_bg)
+            .bg(palette.playing)
+    } else {
+        Style::default().fg(palette.panel_bg).bg(palette.warning)
+    };
+
+    let w = text.chars().count() as u16;
+
+    let x = if is_modal_open {
+        let modal_area = crate::ui::widgets::search_modal::modal_rect(full_area);
+        modal_area.right().saturating_sub(w + 1)
+    } else {
+        full_area.right().saturating_sub(w + 2)
+    };
+
+    let y = if is_modal_open {
+        let modal_area = crate::ui::widgets::search_modal::modal_rect(full_area);
+        modal_area.y.saturating_sub(1)
+    } else {
+        full_area.y + 1
+    };
+
+    let area = Rect::new(x, y, w, 1);
+    frame.render_widget(Paragraph::new(text).style(style), area);
 }
 
 pub(super) fn render_help_overlay(

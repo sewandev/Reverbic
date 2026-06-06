@@ -50,6 +50,7 @@ pub enum SettingItem {
     OverlayMode,
     OverlayAlpha,
     OverlayPosition,
+    OverlayStyle,
     Screensaver,
     DuckEnabled,
     DuckVolume,
@@ -77,6 +78,7 @@ impl SettingItem {
             Self::OverlayMode => t("config.setting.overlay"),
             Self::OverlayAlpha => t("config.setting.overlay_alpha"),
             Self::OverlayPosition => t("config.setting.overlay_position"),
+            Self::OverlayStyle => t("config.setting.overlay_style"),
             Self::Screensaver => t("config.setting.screensaver"),
             Self::DuckEnabled => t("config.setting.duck"),
             Self::DuckVolume => t("config.setting.duck_volume"),
@@ -104,6 +106,7 @@ impl SettingItem {
             Self::OverlayMode => "config.tooltip.overlay",
             Self::OverlayAlpha => "config.tooltip.overlay_alpha",
             Self::OverlayPosition => "config.tooltip.overlay_position",
+            Self::OverlayStyle => "config.tooltip.overlay_style",
             Self::Screensaver => "config.tooltip.screensaver",
             Self::DuckEnabled => "config.tooltip.duck",
             Self::DuckVolume => "config.tooltip.duck_volume",
@@ -131,6 +134,7 @@ impl SettingItem {
             Self::OverlayMode
             | Self::OverlayAlpha
             | Self::OverlayPosition
+            | Self::OverlayStyle
             | Self::Screensaver
             | Self::ScreensaverClock => "config.group.overlay",
             Self::DuckEnabled | Self::DuckVolume => "config.group.game",
@@ -155,6 +159,7 @@ pub fn settings_items(duck_enabled: bool) -> Vec<SettingItem> {
         SettingItem::VolumeStep,
         SettingItem::Prebuffer,
         SettingItem::OverlayMode,
+        SettingItem::OverlayStyle,
         SettingItem::OverlayAlpha,
         SettingItem::OverlayPosition,
         SettingItem::Screensaver,

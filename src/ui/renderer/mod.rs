@@ -67,7 +67,7 @@ use crate::ui::theme;
 use overlays::{
     render_client_id_overlay, render_game_strip, render_help_overlay, render_modal_np_strip,
     render_modal_spotify_strip, render_rename_overlay, render_theme_picker_overlay,
-    render_update_badge,
+    render_update_toast,
 };
 use screensaver::{
     render_logo_above, render_screensaver, render_spotify_screensaver, ScreensaverCtx, LOGO_W,
@@ -109,6 +109,16 @@ pub fn render(frame: &mut Frame, app: &App) {
                     app.border_tick,
                     palette,
                 );
+                if let Some(ref version) = app.update_available {
+                    render_update_toast(
+                        frame,
+                        version,
+                        app.update_path.is_some(),
+                        app.show_search_modal,
+                        area,
+                        palette,
+                    );
+                }
                 return;
             }
         }
@@ -132,6 +142,16 @@ pub fn render(frame: &mut Frame, app: &App) {
                 border_tick: app.border_tick,
             },
         );
+        if let Some(ref version) = app.update_available {
+            render_update_toast(
+                frame,
+                version,
+                app.update_path.is_some(),
+                app.show_search_modal,
+                area,
+                palette,
+            );
+        }
         return;
     }
 
@@ -200,7 +220,14 @@ pub fn render(frame: &mut Frame, app: &App) {
     }
 
     if let Some(ref version) = app.update_available {
-        render_update_badge(frame, version, full_area, palette);
+        render_update_toast(
+            frame,
+            version,
+            app.update_path.is_some(),
+            app.show_search_modal,
+            full_area,
+            palette,
+        );
     }
 
     if app.show_help {
