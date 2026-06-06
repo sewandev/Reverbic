@@ -151,20 +151,14 @@ fn select_compatible_asset(
 }
 
 pub async fn download_update(asset: &UpdateAsset) -> Option<PathBuf> {
-    let path = std::env::temp_dir().join(format!("reverbic-update-{}", asset.name));
+    let path = update_download_path(asset);
+    let part_path = unique_part_path(&path);
     tracing::debug!(
         asset = %asset.name,
         size = asset.size,
         digest = asset.digest.as_deref().unwrap_or(""),
         "Downloading update asset"
     );
-
-    if let Ok(meta) = std::fs::metadata(&path) {
-        if meta.len() > 1_000_000 {
-            return Some(path);
-        }
-        let _ = std::fs::remove_file(&path);
-    }
 
     let client = reqwest::Client::builder()
         .user_agent(concat!("reverbic/", env!("CARGO_PKG_VERSION")))
@@ -177,12 +171,46 @@ pub async fn download_update(asset: &UpdateAsset) -> Option<PathBuf> {
         return None;
     }
 
-    if stream_to_file(resp, &path).await {
-        Some(path)
-    } else {
-        let _ = tokio::fs::remove_file(&path).await;
-        None
+    if !stream_to_file(resp, &part_path).await {
+        let _ = tokio::fs::remove_file(&part_path).await;
+        return None;
     }
+
+    let _ = tokio::fs::remove_file(&path).await;
+    if tokio::fs::rename(&part_path, &path).await.is_err() {
+        let _ = tokio::fs::remove_file(&part_path).await;
+        return None;
+    }
+
+    Some(path)
+}
+
+fn update_download_path(asset: &UpdateAsset) -> PathBuf {
+    std::env::temp_dir().join(format!("reverbic-update-{}", asset.name))
+}
+
+fn unique_part_path(path: &Path) -> PathBuf {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    static PART_COUNTER: AtomicU64 = AtomicU64::new(0);
+
+    let file_name = path
+        .file_name()
+        .map(|name| name.to_string_lossy())
+        .unwrap_or_else(|| "reverbic-update".into());
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_nanos())
+        .unwrap_or_default();
+    let counter = PART_COUNTER.fetch_add(1, Ordering::Relaxed);
+
+    path.with_file_name(format!(
+        "{file_name}.{}.{}.{}.part",
+        std::process::id(),
+        timestamp,
+        counter
+    ))
 }
 
 pub fn apply_update(new_exe: &Path) {
@@ -332,6 +360,47 @@ fn parse_semver(v: &str) -> Option<(u32, u32, u32)> {
     let minor = it.next()?.parse().ok()?;
     let patch = it.next()?.parse().ok()?;
     Some((major, minor, patch))
+}
+
+#[cfg(test)]
+mod download_path_tests {
+    use super::{unique_part_path, update_download_path, UpdateAsset};
+
+    fn update_asset() -> UpdateAsset {
+        UpdateAsset {
+            version: "2.0.0".to_owned(),
+            name: "reverbic-v2.0.0-x86_64-windows.exe".to_owned(),
+            download_url: "https://example.com/reverbic.exe".to_owned(),
+            size: 42,
+            digest: Some("sha256:abc".to_owned()),
+        }
+    }
+
+    #[test]
+    fn update_download_path_uses_asset_name_without_part_suffix() {
+        let path = update_download_path(&update_asset());
+        let file_name = path.file_name().unwrap().to_string_lossy();
+
+        assert_eq!(
+            file_name,
+            "reverbic-update-reverbic-v2.0.0-x86_64-windows.exe"
+        );
+        assert!(!file_name.ends_with(".part"));
+    }
+
+    #[test]
+    fn unique_part_path_appends_part_suffix_and_changes_each_call() {
+        let path = update_download_path(&update_asset());
+        let first = unique_part_path(&path);
+        let second = unique_part_path(&path);
+        let first_name = first.file_name().unwrap().to_string_lossy();
+        let second_name = second.file_name().unwrap().to_string_lossy();
+
+        assert!(first_name.starts_with("reverbic-update-reverbic-v2.0.0-x86_64-windows.exe."));
+        assert!(first_name.ends_with(".part"));
+        assert!(second_name.ends_with(".part"));
+        assert_ne!(first, second);
+    }
 }
 
 #[cfg(test)]
