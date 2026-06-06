@@ -46,9 +46,9 @@ pub struct Palette {
     pub caution: Color,
     pub panel_bg: Color,
     pub overlay_color: Color,
-    pub border_cycle: &'static [(u8, u8, u8)],
-    pub spectrum: &'static [Color],
-    pub logo_letters: &'static [Color],
+    pub border_cycle: [(u8, u8, u8); 3],
+    pub spectrum: [Color; 8],
+    pub logo_letters: [Color; 8],
 }
 
 pub fn palette(theme_id: ThemeId) -> &'static Palette {

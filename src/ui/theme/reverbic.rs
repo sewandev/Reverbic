@@ -28,7 +28,7 @@ pub const PALETTE: Palette = Palette {
     caution: Color::Rgb(180, 130, 30),
     panel_bg: Color::Rgb(13, 13, 13),
     overlay_color: Color::Rgb(5, 5, 5),
-    border_cycle: &BORDER_COLORS,
-    spectrum: &SPECTRUM,
-    logo_letters: &SPECTRUM,
+    border_cycle: BORDER_COLORS,
+    spectrum: SPECTRUM,
+    logo_letters: SPECTRUM,
 };
