@@ -652,9 +652,7 @@ pub(super) fn render_update_toast(
     };
 
     let style = if is_ready {
-        Style::default()
-            .fg(palette.panel_bg)
-            .bg(palette.playing)
+        Style::default().fg(palette.panel_bg).bg(palette.playing)
     } else {
         Style::default().fg(palette.panel_bg).bg(palette.warning)
     };
