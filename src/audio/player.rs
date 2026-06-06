@@ -413,7 +413,7 @@ const BASE_RETRY_DELAY_SECS: u64 = 2;
 const BASE_RECONNECT_DELAY_SECS: u64 = 1;
 const MAX_RETRY_DELAY_SECS: u64 = 30;
 const ONDEMAND_BYTES_PER_SEC: f32 = 16_000.0;
-const YOUTUBE_PREBUFFER_SECS: f32 = 5.0;
+const YOUTUBE_PREBUFFER_SECS: f32 = 7.0;
 
 fn on_demand_byte_offset(target_secs: f32, station: &Station) -> u64 {
     let bytes_per_sec = station
@@ -447,7 +447,7 @@ fn classifies_on_demand_station_keys() {
 #[cfg(test)]
 #[test]
 fn uses_shorter_youtube_prebuffer() {
-    assert_eq!(prebuffer_secs_for_station_key("youtube:abc123", 30.0), 5.0);
+    assert_eq!(prebuffer_secs_for_station_key("youtube:abc123", 30.0), 7.0);
     assert_eq!(prebuffer_secs_for_station_key("ondemand_123", 30.0), 30.0);
 }
 
