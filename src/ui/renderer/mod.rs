@@ -63,7 +63,7 @@ pub fn spotify_screensaver_progress_rect(
 }
 
 use crate::app::App;
-use crate::ui::theme::{self, ThemeId};
+use crate::ui::theme;
 use overlays::{
     render_client_id_overlay, render_game_strip, render_help_overlay, render_modal_np_strip,
     render_modal_spotify_strip, render_rename_overlay, render_update_badge,
@@ -90,7 +90,7 @@ pub fn render(frame: &mut Frame, app: &App) {
         return;
     }
 
-    let palette = theme::palette(ThemeId::Reverbic);
+    let palette = theme::palette(app.config.theme);
     let player_state = app.player_state();
 
     if app.screensaver_active() {

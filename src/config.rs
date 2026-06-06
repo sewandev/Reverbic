@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 pub use crate::i18n::Language;
+pub use crate::ui::theme::ThemeId;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LastStation {
@@ -125,6 +126,8 @@ pub struct Config {
     pub notifications: bool,
     #[serde(default)]
     pub language: Language,
+    #[serde(default)]
+    pub theme: ThemeId,
     #[serde(default = "default_true")]
     pub restore_volume: bool,
     #[serde(default)]
@@ -200,6 +203,7 @@ impl Default for Config {
             tray_icon: false,
             notifications: false,
             language: Language::default(),
+            theme: ThemeId::default(),
             restore_volume: true,
             duck_enabled: false,
             duck_volume: 40,

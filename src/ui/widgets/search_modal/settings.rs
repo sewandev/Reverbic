@@ -78,6 +78,7 @@ impl<'a> SearchModalWidget<'a> {
                 Language::Es => t("lang.display.es"),
                 Language::En => t("lang.display.en"),
             },
+            SettingItem::Theme => self.theme.display(),
             SettingItem::SpotifyStopOnQuit => {
                 if self.spotify_stop_on_quit {
                     on

@@ -1108,6 +1108,9 @@ impl App {
                 self.config.language = self.config.language.next();
                 i18n::set_language(self.config.language);
             }
+            super::modal::SettingItem::Theme => {
+                self.config.theme = self.config.theme.next();
+            }
             super::modal::SettingItem::SpotifyStopOnQuit => {
                 self.config.spotify.stop_on_quit = !self.config.spotify.stop_on_quit;
             }

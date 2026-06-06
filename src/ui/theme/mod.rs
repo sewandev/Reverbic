@@ -1,11 +1,28 @@
 use ratatui::style::{Color, Modifier, Style};
+use serde::{Deserialize, Serialize};
 
 mod reverbic;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
 pub enum ThemeId {
     #[default]
     Reverbic,
+}
+
+impl ThemeId {
+    pub fn display(self) -> String {
+        use crate::i18n::t;
+        match self {
+            Self::Reverbic => t("theme.reverbic"),
+        }
+    }
+
+    pub fn next(self) -> Self {
+        match self {
+            Self::Reverbic => Self::Reverbic,
+        }
+    }
 }
 
 #[derive(Debug)]
