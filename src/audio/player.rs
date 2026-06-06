@@ -15,6 +15,10 @@ use crate::station::Station;
 
 pub enum PlayerCommand {
     Play(Station),
+    PlayWithDuration {
+        station: Station,
+        duration_secs: f32,
+    },
     CrossfadeTo {
         station: Station,
         secs: u8,
@@ -409,6 +413,7 @@ const BASE_RETRY_DELAY_SECS: u64 = 2;
 const BASE_RECONNECT_DELAY_SECS: u64 = 1;
 const MAX_RETRY_DELAY_SECS: u64 = 30;
 const ONDEMAND_BYTES_PER_SEC: f32 = 16_000.0;
+const YOUTUBE_PREBUFFER_SECS: f32 = 7.0;
 
 fn on_demand_byte_offset(target_secs: f32, station: &Station) -> u64 {
     let bytes_per_sec = station
@@ -423,12 +428,41 @@ fn is_on_demand_station_key(key: &str) -> bool {
     key.starts_with("ondemand_") || key.starts_with("youtube:")
 }
 
+fn prebuffer_secs_for_station_key(key: &str, configured_secs: f32) -> f32 {
+    if key.starts_with("youtube:") {
+        YOUTUBE_PREBUFFER_SECS
+    } else {
+        configured_secs
+    }
+}
+
 #[cfg(test)]
 #[test]
 fn classifies_on_demand_station_keys() {
     assert!(is_on_demand_station_key("ondemand_123"));
     assert!(is_on_demand_station_key("youtube:abc123"));
     assert!(!is_on_demand_station_key("radio-browser:abc123"));
+}
+
+#[cfg(test)]
+#[test]
+fn uses_shorter_youtube_prebuffer() {
+    assert_eq!(prebuffer_secs_for_station_key("youtube:abc123", 30.0), 7.0);
+    assert_eq!(prebuffer_secs_for_station_key("ondemand_123", 30.0), 30.0);
+}
+
+#[cfg(test)]
+#[test]
+fn uses_playback_duration_fallback_when_decoder_has_none() {
+    assert_eq!(
+        playback_duration_or_fallback(None, Some(300.0)),
+        Some(300.0)
+    );
+    assert_eq!(
+        playback_duration_or_fallback(Some(120.0), Some(300.0)),
+        Some(120.0)
+    );
+    assert_eq!(playback_duration_or_fallback(None, Some(0.0)), None);
 }
 
 fn update_state(tx: &watch::Sender<PlayerState>, f: impl FnOnce(&mut PlayerState)) {
@@ -463,6 +497,15 @@ fn playing_state(
         playback_duration_secs: duration_secs,
         ..Default::default()
     }
+}
+
+fn playback_duration_or_fallback(
+    decoded_duration_secs: Option<f32>,
+    fallback_duration_secs: Option<f32>,
+) -> Option<f32> {
+    decoded_duration_secs
+        .filter(|d| *d > 0.0)
+        .or_else(|| fallback_duration_secs.filter(|d| *d > 0.0))
 }
 
 fn tick_crossfade(st: &mut AudioLoopState) {
@@ -558,7 +601,8 @@ fn open_stream(
             volume: st.current_volume,
             ..Default::default()
         });
-        let target = (st.pre_buffer_secs * ONDEMAND_BYTES_PER_SEC) as usize;
+        let prebuffer_secs = prebuffer_secs_for_station_key(&station.key, st.pre_buffer_secs);
+        let target = (prebuffer_secs * ONDEMAND_BYTES_PER_SEC) as usize;
         stream_reader.pre_buffer(target, |pct| {
             update_state(state_tx, |s| s.status = PlayerStatus::Buffering(pct));
         });
@@ -646,6 +690,7 @@ fn handle_play_cmd(
     st: &mut AudioLoopState,
     station: Station,
     is_auto_reconnect: bool,
+    fallback_duration_secs: Option<f32>,
     handle: &tokio::runtime::Handle,
     device_sink: &MixerDeviceSink,
     state_tx: &watch::Sender<PlayerState>,
@@ -693,7 +738,7 @@ fn handle_play_cmd(
                 station,
                 st.current_volume,
                 st.od.active,
-                conn.duration_secs,
+                playback_duration_or_fallback(conn.duration_secs, fallback_duration_secs),
             ));
             st.player = Some(conn.player);
         }
@@ -839,7 +884,12 @@ fn handle_seek_cmd(
     st.title_rx = Some(new_title_rx);
     st.stream_last_chunk = Some(stream_reader.last_chunk_arc());
     st.stream_download_done = Some(stream_reader.download_done_arc());
-    let target = (st.pre_buffer_secs * ONDEMAND_BYTES_PER_SEC) as usize;
+    let prebuffer_secs = st
+        .current_station
+        .as_ref()
+        .map(|station| prebuffer_secs_for_station_key(&station.key, st.pre_buffer_secs))
+        .unwrap_or(st.pre_buffer_secs);
+    let target = (prebuffer_secs * ONDEMAND_BYTES_PER_SEC) as usize;
     stream_reader.pre_buffer(target, |pct| {
         update_state(state_tx, |s| s.status = PlayerStatus::Buffering(pct));
     });
@@ -856,45 +906,6 @@ fn handle_seek_cmd(
             });
         }
         Err(e) => warn!("Seek: error re-decoding from byte {byte_offset}: {e}"),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn station_with_bitrate(bitrate_kbps: Option<u16>) -> Station {
-        Station {
-            key: "test".into(),
-            name: "Test".into(),
-            url: "https://example.com/audio.mp3".into(),
-            metadata_api_url: None,
-            history_api_url: None,
-            schedule_url: None,
-            show_countdown: false,
-            bitrate_kbps,
-        }
-    }
-
-    #[test]
-    fn on_demand_seek_uses_station_bitrate_when_available() {
-        let station = station_with_bitrate(Some(256));
-
-        assert_eq!(on_demand_byte_offset(10.0, &station), 320_000);
-    }
-
-    #[test]
-    fn on_demand_seek_keeps_128_kbps_behavior() {
-        let station = station_with_bitrate(Some(128));
-
-        assert_eq!(on_demand_byte_offset(10.0, &station), 160_000);
-    }
-
-    #[test]
-    fn on_demand_seek_falls_back_to_default_when_bitrate_is_unknown() {
-        let station = station_with_bitrate(None);
-
-        assert_eq!(on_demand_byte_offset(10.0, &station), 160_000);
     }
 }
 
@@ -1044,6 +1055,22 @@ fn audio_loop(
                     &mut st,
                     station,
                     is_auto_reconnect,
+                    None,
+                    &handle,
+                    &device_sink,
+                    &state_tx,
+                );
+            }
+
+            PlayerCommand::PlayWithDuration {
+                station,
+                duration_secs,
+            } => {
+                handle_play_cmd(
+                    &mut st,
+                    station,
+                    is_auto_reconnect,
+                    Some(duration_secs),
                     &handle,
                     &device_sink,
                     &state_tx,
@@ -1194,5 +1221,44 @@ fn audio_loop(
                 info!("Playback stopped");
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn station_with_bitrate(bitrate_kbps: Option<u16>) -> Station {
+        Station {
+            key: "test".into(),
+            name: "Test".into(),
+            url: "https://example.com/audio.mp3".into(),
+            metadata_api_url: None,
+            history_api_url: None,
+            schedule_url: None,
+            show_countdown: false,
+            bitrate_kbps,
+        }
+    }
+
+    #[test]
+    fn on_demand_seek_uses_station_bitrate_when_available() {
+        let station = station_with_bitrate(Some(256));
+
+        assert_eq!(on_demand_byte_offset(10.0, &station), 320_000);
+    }
+
+    #[test]
+    fn on_demand_seek_keeps_128_kbps_behavior() {
+        let station = station_with_bitrate(Some(128));
+
+        assert_eq!(on_demand_byte_offset(10.0, &station), 160_000);
+    }
+
+    #[test]
+    fn on_demand_seek_falls_back_to_default_when_bitrate_is_unknown() {
+        let station = station_with_bitrate(None);
+
+        assert_eq!(on_demand_byte_offset(10.0, &station), 160_000);
     }
 }

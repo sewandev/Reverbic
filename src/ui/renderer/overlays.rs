@@ -179,7 +179,9 @@ pub(super) fn render_modal_np_strip(
         _ => String::new(),
     };
     let title_lines = wrap_into_lines(&raw_title, content_w, 2);
-    let panel_h = 2 + 1 + title_lines.len() as u16 + 1;
+    let title_line_count = title_lines.len() as u16;
+    let has_progress = state.playback_pos_secs.is_some();
+    let panel_h = 2 + 1 + title_line_count + 1;
     if panel_h > strip.height {
         return;
     }
@@ -233,9 +235,26 @@ pub(super) fn render_modal_np_strip(
         let vol_prefix = "  ";
         let vol_w =
             vol_prefix.len() + filled.chars().count() + empty.chars().count() + pct_str.len();
-        let viz_w = (cw as usize).saturating_sub(vol_w + 1);
-        let viz_line = visualizer_spans(state.level_db, viz_w, theme::PANEL_BG);
-        let mut spans = viz_line;
+        let progress_text = if has_progress {
+            playback_progress_text(state)
+        } else {
+            None
+        };
+        let progress_w = progress_text
+            .as_ref()
+            .map(|text| text.chars().count() + 2)
+            .unwrap_or(0);
+        let viz_w = (cw as usize).saturating_sub(progress_w + vol_w + 1);
+        let mut spans = visualizer_spans(state.level_db, viz_w, theme::PANEL_BG);
+        if let Some(text) = progress_text {
+            if !spans.is_empty() {
+                spans.push(Span::raw("  "));
+            }
+            spans.push(Span::styled(
+                text,
+                Style::default().fg(theme::MUTED).bg(theme::PANEL_BG),
+            ));
+        }
         spans.push(Span::raw(vol_prefix));
         spans.push(Span::styled(filled, Style::default().fg(vol_color)));
         spans.push(Span::styled(empty, Style::default().fg(theme::MUTED)));
@@ -298,6 +317,64 @@ fn visualizer_spans(level_db: f32, width: usize, bg: ratatui::style::Color) -> V
         }
     }
     spans
+}
+
+pub(super) fn playback_progress_line(
+    state: &PlayerState,
+    width: u16,
+    active_color: ratatui::style::Color,
+    bg: ratatui::style::Color,
+) -> Option<Line<'static>> {
+    let pos = state.playback_pos_secs?;
+    let elapsed = fmt_secs(pos);
+    let Some(duration) = state.playback_duration_secs.filter(|d| *d > 0.0) else {
+        return Some(Line::from(Span::styled(
+            elapsed,
+            Style::default().fg(theme::MUTED).bg(bg),
+        )));
+    };
+
+    let remaining = (duration - pos).max(0.0);
+    let prefix = format!("{elapsed} ");
+    let suffix = format!(" -{}", fmt_secs(remaining));
+    let bar_w = (width as usize).saturating_sub(prefix.len() + suffix.len());
+    if bar_w == 0 {
+        return Some(Line::from(Span::styled(
+            format!("{elapsed}  {}", suffix.trim()),
+            Style::default().fg(theme::MUTED).bg(bg),
+        )));
+    }
+
+    let ratio = (pos / duration).clamp(0.0, 1.0);
+    let filled = (ratio * bar_w as f32).round() as usize;
+    let empty = bar_w.saturating_sub(filled);
+    Some(Line::from(vec![
+        Span::styled(prefix, Style::default().fg(theme::MUTED).bg(bg)),
+        Span::styled(
+            "â–ˆ".repeat(filled),
+            Style::default().fg(active_color).bg(bg),
+        ),
+        Span::styled(
+            "â–‘".repeat(empty),
+            Style::default().fg(theme::MUTED).bg(bg),
+        ),
+        Span::styled(suffix, Style::default().fg(theme::MUTED).bg(bg)),
+    ]))
+}
+
+fn playback_progress_text(state: &PlayerState) -> Option<String> {
+    let pos = state.playback_pos_secs?;
+    let elapsed = fmt_secs(pos);
+    state
+        .playback_duration_secs
+        .filter(|d| *d > 0.0)
+        .map(|duration| format!("{elapsed} -{}", fmt_secs((duration - pos).max(0.0))))
+        .or(Some(elapsed))
+}
+
+fn fmt_secs(secs: f32) -> String {
+    let secs = secs.max(0.0).round() as u32;
+    format!("{}:{:02}", secs / 60, secs % 60)
 }
 
 pub(super) fn build_modal_station_line(state: &PlayerState) -> Line<'static> {
@@ -662,4 +739,69 @@ pub(super) fn wrap_into_lines(text: &str, width: usize, max_lines: usize) -> Vec
         offset = end;
     }
     lines
+}
+
+#[cfg(test)]
+mod tests {
+    use ratatui::style::Color;
+
+    use super::{fmt_secs, playback_progress_line, playback_progress_text};
+    use crate::audio::{PlayerState, PlayerStatus};
+
+    fn line_text(line: &ratatui::text::Line<'_>) -> String {
+        line.spans
+            .iter()
+            .map(|span| span.content.as_ref())
+            .collect::<String>()
+    }
+
+    #[test]
+    fn formats_seconds_as_minutes_and_seconds() {
+        assert_eq!(fmt_secs(65.0), "1:05");
+    }
+
+    #[test]
+    fn playback_progress_saturates_remaining_time() {
+        let state = PlayerState {
+            status: PlayerStatus::Playing,
+            playback_pos_secs: Some(70.0),
+            playback_duration_secs: Some(65.0),
+            ..Default::default()
+        };
+
+        let line =
+            playback_progress_line(&state, 20, Color::Green, Color::Black).expect("progress line");
+
+        assert!(line_text(&line).contains("-0:00"));
+    }
+
+    #[test]
+    fn compact_playback_progress_includes_remaining_time() {
+        let state = PlayerState {
+            status: PlayerStatus::Playing,
+            playback_pos_secs: Some(65.0),
+            playback_duration_secs: Some(185.0),
+            ..Default::default()
+        };
+
+        assert_eq!(
+            playback_progress_text(&state),
+            Some("1:05 -2:00".to_string())
+        );
+    }
+
+    #[test]
+    fn playback_progress_without_duration_shows_elapsed_only() {
+        let state = PlayerState {
+            status: PlayerStatus::Playing,
+            playback_pos_secs: Some(65.0),
+            playback_duration_secs: None,
+            ..Default::default()
+        };
+
+        let line =
+            playback_progress_line(&state, 20, Color::Green, Color::Black).expect("progress line");
+
+        assert_eq!(line_text(&line), "1:05");
+    }
 }

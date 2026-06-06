@@ -114,24 +114,6 @@ fn init_logging() -> Option<tracing_appender::non_blocking::WorkerGuard> {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn log_file_path_uses_reverbic_dir() {
-        assert_eq!(
-            log_file_path(),
-            config::reverbic_dir().join("logs").join("reverbic.log")
-        );
-    }
-
-    #[test]
-    fn log_file_path_is_not_relative_to_working_directory() {
-        assert_ne!(log_file_path(), PathBuf::from("logs").join("reverbic.log"));
-    }
-}
-
 async fn run(tui: &mut terminal::Tui) -> Result<()> {
     let mut app = App::new().await;
 
@@ -308,5 +290,23 @@ async fn handle_event(app: &mut App, maybe_event: Option<std::io::Result<Event>>
         }
         Some(Err(e)) => tracing::error!("Error leyendo evento: {e}"),
         _ => {}
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn log_file_path_uses_reverbic_dir() {
+        assert_eq!(
+            log_file_path(),
+            config::reverbic_dir().join("logs").join("reverbic.log")
+        );
+    }
+
+    #[test]
+    fn log_file_path_is_not_relative_to_working_directory() {
+        assert_ne!(log_file_path(), PathBuf::from("logs").join("reverbic.log"));
     }
 }
