@@ -106,6 +106,7 @@ pub fn render(frame: &mut Frame, app: &App) {
                     app.spotify.is_premium,
                     app.config.screensaver_clock,
                     app.border_tick,
+                    palette,
                 );
                 return;
             }
@@ -119,6 +120,7 @@ pub fn render(frame: &mut Frame, app: &App) {
             frame,
             area,
             ScreensaverCtx {
+                palette,
                 state: &player_state,
                 details: app.station_details.as_ref(),
                 is_favorite: is_fav,

@@ -32,12 +32,3 @@ pub const PALETTE: Palette = Palette {
     spectrum: &SPECTRUM,
     logo_letters: &SPECTRUM,
 };
-
-pub const ACCENT: Color = PALETTE.accent;
-pub const PLAYING: Color = PALETTE.playing;
-pub const MUTED: Color = PALETTE.muted;
-pub const DIM: Color = PALETTE.dim;
-pub const HIGHLIGHT: Color = PALETTE.highlight;
-pub const WARNING: Color = PALETTE.warning;
-pub const PANEL_BG: Color = PALETTE.panel_bg;
-pub const OVERLAY_COLOR: Color = PALETTE.overlay_color;

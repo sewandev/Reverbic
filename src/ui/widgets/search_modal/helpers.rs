@@ -8,7 +8,8 @@ use ratatui::{
 
 use crate::i18n::t;
 use crate::station::filter_items;
-use crate::ui::theme::Palette;
+use crate::ui::theme as ui_palette;
+use ui_palette::Palette;
 
 pub(super) const EXAMPLES: &[&str] = &[
     "The Jazz Radio",

@@ -2,8 +2,6 @@ use ratatui::style::{Color, Modifier, Style};
 
 mod reverbic;
 
-pub use reverbic::{ACCENT, DIM, HIGHLIGHT, MUTED, OVERLAY_COLOR, PANEL_BG, PLAYING, WARNING};
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ThemeId {
     #[default]
@@ -34,10 +32,6 @@ pub fn palette(theme_id: ThemeId) -> &'static Palette {
     match theme_id {
         ThemeId::Reverbic => &reverbic::PALETTE,
     }
-}
-
-pub fn border_color(tick: u32) -> Color {
-    border_color_for(palette(ThemeId::Reverbic), tick)
 }
 
 pub fn border_color_for(palette: &Palette, tick: u32) -> Color {
