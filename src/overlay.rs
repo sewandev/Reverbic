@@ -173,7 +173,11 @@ unsafe fn run(
         OverlayStyle::Compact => OH_COMPACT,
         OverlayStyle::Full => OH,
     };
-    let (init_x, init_y) = overlay_coords(GetConsoleWindow(), config_rx.borrow().overlay_position, init_oh);
+    let (init_x, init_y) = overlay_coords(
+        GetConsoleWindow(),
+        config_rx.borrow().overlay_position,
+        init_oh,
+    );
     let hwnd = CreateWindowExW(
         WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW,
         class,
@@ -275,15 +279,7 @@ unsafe fn run(
                     OverlayStyle::Full => OH,
                 };
                 let (x, y) = overlay_coords(hwnd, cfg.overlay_position, new_h);
-                let _ = SetWindowPos(
-                    hwnd,
-                    HWND_TOPMOST,
-                    x,
-                    y,
-                    OW,
-                    new_h,
-                    SWP_NOACTIVATE,
-                );
+                let _ = SetWindowPos(hwnd, HWND_TOPMOST, x, y, OW, new_h, SWP_NOACTIVATE);
             }
             if let Ok(mut s) = shared.lock() {
                 s.overlay_position = cfg.overlay_position;
@@ -732,12 +728,22 @@ unsafe fn paint(hdc: HDC, s: &State) {
 unsafe fn paint_compact(hdc: HDC, s: &State) {
     fill(
         hdc,
-        RECT { left: 0, top: 0, right: OW, bottom: OH_COMPACT },
+        RECT {
+            left: 0,
+            top: 0,
+            right: OW,
+            bottom: OH_COMPACT,
+        },
         C_BG,
     );
     fill(
         hdc,
-        RECT { left: 0, top: 0, right: ACCENT_W, bottom: OH_COMPACT },
+        RECT {
+            left: 0,
+            top: 0,
+            right: ACCENT_W,
+            bottom: OH_COMPACT,
+        },
         C_ACCENT,
     );
 
@@ -755,12 +761,7 @@ unsafe fn paint_compact(hdc: HDC, s: &State) {
 
     let dot_w = 14_i32;
     SetTextColor(hdc, C_STATION);
-    let _ = TextOutW(
-        hdc,
-        PAD_L + dot_w,
-        5,
-        &wide_truncated(&s.station, 28),
-    );
+    let _ = TextOutW(hdc, PAD_L + dot_w, 5, &wide_truncated(&s.station, 28));
 
     // clock right-aligned
     SetTextColor(hdc, C_BRAND);
@@ -772,14 +773,23 @@ unsafe fn paint_compact(hdc: HDC, s: &State) {
     // ── separator ────────────────────────────────────────────────────
     fill(
         hdc,
-        RECT { left: PAD_L, top: 24, right: OW - PAD_R, bottom: 25 },
+        RECT {
+            left: PAD_L,
+            top: 24,
+            right: OW - PAD_R,
+            bottom: 25,
+        },
         C_SEPARATOR,
     );
 
     // ── row 2: track title ───────────────────────────────────────────
     SelectObject(hdc, HGDIOBJ(f_detail.0));
     SetTextColor(hdc, C_TITLE);
-    let title = if s.title.is_empty() { "—" } else { s.title.as_str() };
+    let title = if s.title.is_empty() {
+        "—"
+    } else {
+        s.title.as_str()
+    };
     let _ = TextOutW(hdc, PAD_L, 30, &wide_truncated(title, 50));
 
     SelectObject(hdc, prev);
