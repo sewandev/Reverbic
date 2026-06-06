@@ -12,6 +12,18 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ---
 
+## [1.4.1] — 2026-06-06
+
+### Added
+- YouTube on-demand playback progress bar in the mini player and screensaver
+
+### Fixed
+- Fixed heavy typing lag in YouTube search by adding a 700ms debounce
+- Restored visualizer block graphics on legacy Windows CMD consoles with a smart ASCII fallback
+- Hardened the terminal resize guard to prevent out-of-bounds rendering crashes on very small windows
+
+---
+
 ## [1.4.0] — 2026-06-05
 
 ### Added

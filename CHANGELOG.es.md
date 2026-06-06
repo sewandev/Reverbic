@@ -12,6 +12,18 @@ Versionado: [Semantic Versioning](https://semver.org/)
 
 ---
 
+## [1.4.1] — 2026-06-06
+
+### Agregado
+- Barra de progreso para reproducción bajo demanda de YouTube en el mini reproductor y el screensaver
+
+### Corregido
+- Solucionado el lag al escribir en la búsqueda de YouTube agregando un debounce de 700ms
+- Restaurados los gráficos del visualizador en consolas antiguas (CMD) mediante un fallback inteligente ASCII
+- Fortalecida la validación de tamaño de terminal para prevenir crasheos por desbordamiento en ventanas muy pequeñas
+
+---
+
 ## [1.4.0] — 2026-06-05
 
 ### Agregado
