@@ -38,6 +38,71 @@ impl GitHubAsset {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum UpdateOs {
+    Windows,
+    Macos,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum UpdateArch {
+    X86_64,
+    Aarch64,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct UpdateTarget {
+    os: UpdateOs,
+    arch: UpdateArch,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum AssetSelectionError {
+    UnsupportedPlatform,
+    NoCompatibleAsset,
+}
+
+impl UpdateTarget {
+    fn current() -> Result<Self, AssetSelectionError> {
+        Self::from_parts(std::env::consts::OS, std::env::consts::ARCH)
+    }
+
+    fn from_parts(os: &str, arch: &str) -> Result<Self, AssetSelectionError> {
+        let arch = match arch {
+            "x86_64" => UpdateArch::X86_64,
+            "aarch64" => UpdateArch::Aarch64,
+            _ => return Err(AssetSelectionError::NoCompatibleAsset),
+        };
+
+        let os = match os {
+            "windows" => UpdateOs::Windows,
+            "macos" => UpdateOs::Macos,
+            _ => return Err(AssetSelectionError::UnsupportedPlatform),
+        };
+
+        match (os, arch) {
+            (UpdateOs::Windows, UpdateArch::X86_64)
+            | (UpdateOs::Macos, UpdateArch::X86_64 | UpdateArch::Aarch64) => Ok(Self { os, arch }),
+            (UpdateOs::Windows, UpdateArch::Aarch64) => Err(AssetSelectionError::NoCompatibleAsset),
+        }
+    }
+
+    fn asset_name(self, version: &str) -> String {
+        match (self.os, self.arch) {
+            (UpdateOs::Windows, UpdateArch::X86_64) => {
+                format!("reverbic-v{version}-x86_64-windows.exe")
+            }
+            (UpdateOs::Macos, UpdateArch::X86_64) => {
+                format!("reverbic-v{version}-x86_64-macos.tar.gz")
+            }
+            (UpdateOs::Macos, UpdateArch::Aarch64) => {
+                format!("reverbic-v{version}-aarch64-macos.tar.gz")
+            }
+            (UpdateOs::Windows, UpdateArch::Aarch64) => unreachable!("unsupported target"),
+        }
+    }
+}
+
 pub async fn fetch_latest_update() -> Option<UpdateAsset> {
     let url = format!("https://api.github.com/repos/{REPO}/releases/latest");
     let client = reqwest::Client::builder()
@@ -53,19 +118,40 @@ pub async fn fetch_latest_update() -> Option<UpdateAsset> {
     let release: GitHubRelease = resp.json().await.ok()?;
     let version = release.tag_name.trim_start_matches('v');
     if is_newer(version, CURRENT) {
-        let name = format!("reverbic-v{version}-x86_64-windows.exe");
-        release
-            .assets
-            .into_iter()
-            .find(|asset| asset.name == name)
-            .map(|asset| asset.into_update_asset(version))
+        let target = match UpdateTarget::current() {
+            Ok(target) => target,
+            Err(err) => {
+                tracing::debug!(?err, "No compatible updater target");
+                return None;
+            }
+        };
+        match select_compatible_asset(release.assets, version, target) {
+            Ok(asset) => Some(asset),
+            Err(err) => {
+                tracing::debug!(?err, "No compatible update asset");
+                None
+            }
+        }
     } else {
         None
     }
 }
 
+fn select_compatible_asset(
+    assets: Vec<GitHubAsset>,
+    version: &str,
+    target: UpdateTarget,
+) -> Result<UpdateAsset, AssetSelectionError> {
+    let name = target.asset_name(version);
+    assets
+        .into_iter()
+        .find(|asset| asset.name == name)
+        .map(|asset| asset.into_update_asset(version))
+        .ok_or(AssetSelectionError::NoCompatibleAsset)
+}
+
 pub async fn download_update(asset: &UpdateAsset) -> Option<PathBuf> {
-    let path = std::env::temp_dir().join(format!("reverbic-update-v{}.exe", asset.version));
+    let path = std::env::temp_dir().join(format!("reverbic-update-{}", asset.name));
     tracing::debug!(
         asset = %asset.name,
         size = asset.size,
@@ -246,6 +332,72 @@ fn parse_semver(v: &str) -> Option<(u32, u32, u32)> {
     let minor = it.next()?.parse().ok()?;
     let patch = it.next()?.parse().ok()?;
     Some((major, minor, patch))
+}
+
+#[cfg(test)]
+mod asset_selection_tests {
+    use super::{select_compatible_asset, AssetSelectionError, GitHubAsset, UpdateTarget};
+
+    fn asset(name: &str) -> GitHubAsset {
+        GitHubAsset {
+            name: name.to_owned(),
+            browser_download_url: format!("https://example.com/{name}"),
+            size: 42,
+            digest: Some("sha256:abc".to_owned()),
+        }
+    }
+
+    #[test]
+    fn selects_update_asset_for_windows_x86_64() {
+        let target = UpdateTarget::from_parts("windows", "x86_64").unwrap();
+        let selected = select_compatible_asset(
+            vec![
+                asset("reverbic-v2.0.0-x86_64-macos.tar.gz"),
+                asset("reverbic-v2.0.0-x86_64-windows.exe"),
+            ],
+            "2.0.0",
+            target,
+        )
+        .unwrap();
+
+        assert_eq!(selected.name, "reverbic-v2.0.0-x86_64-windows.exe");
+    }
+
+    #[test]
+    fn selects_update_asset_for_macos_arch() {
+        let target = UpdateTarget::from_parts("macos", "aarch64").unwrap();
+        let selected = select_compatible_asset(
+            vec![
+                asset("reverbic-v2.0.0-x86_64-windows.exe"),
+                asset("reverbic-v2.0.0-aarch64-macos.tar.gz"),
+            ],
+            "2.0.0",
+            target,
+        )
+        .unwrap();
+
+        assert_eq!(selected.name, "reverbic-v2.0.0-aarch64-macos.tar.gz");
+    }
+
+    #[test]
+    fn rejects_update_asset_for_linux() {
+        let err = UpdateTarget::from_parts("linux", "x86_64").unwrap_err();
+
+        assert_eq!(err, AssetSelectionError::UnsupportedPlatform);
+    }
+
+    #[test]
+    fn rejects_update_asset_when_compatible_asset_is_missing() {
+        let target = UpdateTarget::from_parts("macos", "x86_64").unwrap();
+        let err = select_compatible_asset(
+            vec![asset("reverbic-v2.0.0-x86_64-windows.exe")],
+            "2.0.0",
+            target,
+        )
+        .unwrap_err();
+
+        assert_eq!(err, AssetSelectionError::NoCompatibleAsset);
+    }
 }
 
 #[cfg(all(test, target_os = "windows"))]
