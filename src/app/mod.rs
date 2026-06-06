@@ -151,9 +151,9 @@ pub struct App {
     pub update_available: Option<String>,
     pub update_path: Option<std::path::PathBuf>,
     update_check_task: Option<tokio::task::JoinHandle<()>>,
-    update_check_rx: Option<std::sync::mpsc::Receiver<Option<String>>>,
+    update_check_rx: Option<std::sync::mpsc::Receiver<Option<crate::update::UpdateAsset>>>,
     update_download_task: Option<tokio::task::JoinHandle<()>>,
-    update_download_rx: Option<std::sync::mpsc::Receiver<std::path::PathBuf>>,
+    update_download_rx: Option<std::sync::mpsc::Receiver<Option<std::path::PathBuf>>>,
     fav_enrich_task: Option<tokio::task::JoinHandle<()>>,
     fav_enrich_rx: Option<std::sync::mpsc::Receiver<Vec<FavoriteStation>>>,
 }
