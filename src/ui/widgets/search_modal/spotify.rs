@@ -9,10 +9,9 @@ use ratatui::{
 use crate::app::SpotifyAuthStatus;
 use crate::i18n::t;
 use crate::ui::strings;
-use crate::ui::theme;
 
 use super::helpers::{render_filter_input, spin_frame};
-use super::{SearchModalWidget, BG};
+use super::SearchModalWidget;
 
 fn fmt_duration(ms: u32) -> String {
     let secs = ms / 1000;
@@ -64,14 +63,14 @@ impl<'a> SearchModalWidget<'a> {
             let (search_st, devices_st) = match self.spotify_sub_tab {
                 SpotifySubTab::Search => (
                     Style::default()
-                        .fg(theme::ACCENT)
+                        .fg(self.palette.accent)
                         .add_modifier(Modifier::BOLD),
-                    Style::default().fg(theme::DIM),
+                    Style::default().fg(self.palette.dim),
                 ),
                 SpotifySubTab::Devices => (
-                    Style::default().fg(theme::DIM),
+                    Style::default().fg(self.palette.dim),
                     Style::default()
-                        .fg(theme::ACCENT)
+                        .fg(self.palette.accent)
                         .add_modifier(Modifier::BOLD),
                 ),
             };
@@ -95,13 +94,14 @@ impl<'a> SearchModalWidget<'a> {
 
                 buf[(content_x, input_row.y)]
                     .set_symbol("┃")
-                    .set_fg(theme::ACCENT)
-                    .set_bg(BG);
+                    .set_fg(self.palette.accent)
+                    .set_bg(self.palette.panel_bg);
                 let text_area = Rect::new(text_x, input_row.y, text_w, 1);
                 render_filter_input(
                     self.spotify_query,
                     &t("modal.spotify.placeholder"),
                     text_area,
+                    self.palette,
                     buf,
                 );
 
@@ -113,7 +113,7 @@ impl<'a> SearchModalWidget<'a> {
                         Paragraph::new(Span::styled(
                             badge,
                             Style::default()
-                                .fg(theme::ACCENT)
+                                .fg(self.palette.accent)
                                 .add_modifier(Modifier::BOLD),
                         ))
                         .render(Rect::new(bx, input_row.y, badge_len, 1), buf);
@@ -122,8 +122,8 @@ impl<'a> SearchModalWidget<'a> {
 
                 buf[(content_x, cap_row.y)]
                     .set_symbol("╹")
-                    .set_fg(theme::ACCENT)
-                    .set_bg(BG);
+                    .set_fg(self.palette.accent)
+                    .set_bg(self.palette.panel_bg);
 
                 self.render_spotify_list(list_area, text_x, text_w, buf);
             }
@@ -141,7 +141,7 @@ impl<'a> SearchModalWidget<'a> {
         Paragraph::new(Span::styled(
             "SPOTIFY",
             Style::default()
-                .fg(theme::PLAYING)
+                .fg(self.palette.playing)
                 .add_modifier(Modifier::BOLD),
         ))
         .alignment(ratatui::layout::Alignment::Center)
@@ -153,7 +153,7 @@ impl<'a> SearchModalWidget<'a> {
         Paragraph::new(Span::styled(
             t("modal.spotify.remote_feature"),
             Style::default()
-                .fg(theme::HIGHLIGHT)
+                .fg(self.palette.highlight)
                 .add_modifier(Modifier::BOLD),
         ))
         .render(Rect::new(lx, y, lw, 1), buf);
@@ -164,7 +164,7 @@ impl<'a> SearchModalWidget<'a> {
         }
         Paragraph::new(Span::styled(
             t("modal.spotify.remote_subtitle"),
-            Style::default().fg(theme::MUTED),
+            Style::default().fg(self.palette.muted),
         ))
         .wrap(Wrap { trim: true })
         .render(
@@ -177,7 +177,7 @@ impl<'a> SearchModalWidget<'a> {
         }
         Paragraph::new(Span::styled(
             "─".repeat(lw as usize),
-            Style::default().fg(theme::DIM),
+            Style::default().fg(self.palette.dim),
         ))
         .render(Rect::new(lx, y, lw, 1), buf);
         y += 1;
@@ -188,13 +188,13 @@ impl<'a> SearchModalWidget<'a> {
             Span::styled(
                 "[↵]  ",
                 Style::default()
-                    .fg(theme::ACCENT)
+                    .fg(self.palette.accent)
                     .add_modifier(Modifier::BOLD),
             ),
             Span::styled(
                 t("modal.spotify.connect_action"),
                 Style::default()
-                    .fg(theme::HIGHLIGHT)
+                    .fg(self.palette.highlight)
                     .add_modifier(Modifier::BOLD),
             ),
         ]))
@@ -205,7 +205,7 @@ impl<'a> SearchModalWidget<'a> {
         }
         Paragraph::new(Span::styled(
             t("modal.spotify.experimental"),
-            Style::default().fg(theme::CAUTION),
+            Style::default().fg(self.palette.caution),
         ))
         .wrap(Wrap { trim: true })
         .render(Rect::new(lx, y, lw, area.bottom().saturating_sub(y)), buf);
@@ -217,10 +217,10 @@ impl<'a> SearchModalWidget<'a> {
             return;
         }
         Paragraph::new(Line::from(vec![
-            Span::styled(spin_frame(), Style::default().fg(theme::ACCENT)),
+            Span::styled(spin_frame(), Style::default().fg(self.palette.accent)),
             Span::styled(
                 format!("  {}", t("integrations.spotify.web.waiting")),
-                Style::default().fg(theme::MUTED),
+                Style::default().fg(self.palette.muted),
             ),
         ]))
         .render(Rect::new(lx, y, lw, 1), buf);
@@ -228,7 +228,7 @@ impl<'a> SearchModalWidget<'a> {
         if y < area.bottom() {
             Paragraph::new(Span::styled(
                 t("integrations.spotify.web.waiting2"),
-                Style::default().fg(theme::DIM),
+                Style::default().fg(self.palette.dim),
             ))
             .render(Rect::new(lx, y, lw, 1), buf);
         }
@@ -242,7 +242,7 @@ impl<'a> SearchModalWidget<'a> {
 
         Paragraph::new(Span::styled(
             strings::truncate(msg, lw as usize),
-            Style::default().fg(theme::WARNING),
+            Style::default().fg(self.palette.warning),
         ))
         .render(Rect::new(lx, y, lw, 1), buf);
 
@@ -250,7 +250,7 @@ impl<'a> SearchModalWidget<'a> {
         if y < area.bottom() {
             Paragraph::new(Span::styled(
                 t("integrations.spotify.error.hint"),
-                Style::default().fg(theme::DIM),
+                Style::default().fg(self.palette.dim),
             ))
             .render(Rect::new(lx, y, lw, 1), buf);
         }
@@ -261,13 +261,13 @@ impl<'a> SearchModalWidget<'a> {
                 Span::styled(
                     "[↵]  ",
                     Style::default()
-                        .fg(theme::ACCENT)
+                        .fg(self.palette.accent)
                         .add_modifier(Modifier::BOLD),
                 ),
                 Span::styled(
                     t("modal.spotify.connect_action"),
                     Style::default()
-                        .fg(theme::HIGHLIGHT)
+                        .fg(self.palette.highlight)
                         .add_modifier(Modifier::BOLD),
                 ),
             ]))
@@ -279,7 +279,7 @@ impl<'a> SearchModalWidget<'a> {
         if self.spotify_loading {
             Paragraph::new(Span::styled(
                 format!("{}  {}", spin_frame(), t("modal.loading.spotify")),
-                Style::default().fg(theme::MUTED),
+                Style::default().fg(self.palette.muted),
             ))
             .render(Rect::new(list_x, area.y, list_w, 1), buf);
             return;
@@ -300,7 +300,7 @@ impl<'a> SearchModalWidget<'a> {
             Paragraph::new(Span::styled(
                 countdown,
                 Style::default()
-                    .fg(theme::WARNING)
+                    .fg(self.palette.warning)
                     .add_modifier(Modifier::BOLD),
             ))
             .render(Rect::new(list_x, y, list_w, 1), buf);
@@ -309,7 +309,7 @@ impl<'a> SearchModalWidget<'a> {
                 use ratatui::widgets::Wrap;
                 Paragraph::new(Span::styled(
                     t("modal.spotify.rate_limited"),
-                    Style::default().fg(theme::WARNING),
+                    Style::default().fg(self.palette.warning),
                 ))
                 .wrap(Wrap { trim: true })
                 .render(
@@ -324,7 +324,7 @@ impl<'a> SearchModalWidget<'a> {
             if !self.spotify_query.is_empty() {
                 Paragraph::new(Span::styled(
                     t("modal.empty.no_results"),
-                    Style::default().fg(theme::MUTED),
+                    Style::default().fg(self.palette.muted),
                 ))
                 .render(Rect::new(list_x, area.y, list_w, 1), buf);
             }
@@ -351,9 +351,9 @@ impl<'a> SearchModalWidget<'a> {
                     let meta_raw = format!("{} · {}", track.artist, track.album);
                     let meta = strings::truncate(&meta_raw, meta_max);
                     let name_st = Style::default()
-                        .fg(theme::PLAYING)
+                        .fg(self.palette.playing)
                         .add_modifier(Modifier::BOLD);
-                    let meta_st = Style::default().fg(theme::ACCENT);
+                    let meta_st = Style::default().fg(self.palette.accent);
                     ListItem::new(vec![
                         Line::from(vec![
                             Span::styled("▶  ", name_st),
@@ -370,8 +370,8 @@ impl<'a> SearchModalWidget<'a> {
                     let name = strings::truncate(&track.name, name_max);
                     let artist_max = list_w.saturating_sub(3) as usize;
                     let artist = strings::truncate(&track.artist, artist_max);
-                    let name_st = Style::default().fg(theme::HIGHLIGHT);
-                    let artist_st = Style::default().fg(theme::MUTED);
+                    let name_st = Style::default().fg(self.palette.highlight);
+                    let artist_st = Style::default().fg(self.palette.muted);
                     ListItem::new(vec![
                         Line::from(vec![
                             Span::styled("   ", name_st),
@@ -408,7 +408,7 @@ impl<'a> SearchModalWidget<'a> {
                         super::helpers::spin_frame(),
                         t("modal.spotify.load_more")
                     ),
-                    Style::default().fg(theme::DIM),
+                    Style::default().fg(self.palette.dim),
                 ))
                 .render(Rect::new(list_area.x, indicator_y, list_area.width, 1), buf);
             }
@@ -429,7 +429,7 @@ impl<'a> SearchModalWidget<'a> {
 
         Paragraph::new(Line::from(vec![Span::styled(
             t("modal.spotify.devices_header"),
-            Style::default().fg(theme::MUTED),
+            Style::default().fg(self.palette.muted),
         )]))
         .render(Rect::new(list_x, y, list_w, 1), buf);
         y += 2; // gap equal to spacing between tabs and subtabs
@@ -442,7 +442,7 @@ impl<'a> SearchModalWidget<'a> {
                         super::helpers::spin_frame(),
                         t("modal.spotify.devices_loading")
                     ),
-                    Style::default().fg(theme::MUTED),
+                    Style::default().fg(self.palette.muted),
                 ))
                 .render(Rect::new(list_x, y, list_w, 1), buf);
             }
@@ -453,7 +453,7 @@ impl<'a> SearchModalWidget<'a> {
             if y < area.bottom() {
                 Paragraph::new(Span::styled(
                     t("modal.spotify.no_devices"),
-                    Style::default().fg(theme::DIM),
+                    Style::default().fg(self.palette.dim),
                 ))
                 .render(Rect::new(list_x, y, list_w, 1), buf);
             }
@@ -495,23 +495,23 @@ impl<'a> SearchModalWidget<'a> {
                     (
                         "▶  ",
                         Style::default()
-                            .fg(theme::PLAYING)
+                            .fg(self.palette.playing)
                             .add_modifier(Modifier::BOLD),
-                        Style::default().fg(theme::ACCENT),
+                        Style::default().fg(self.palette.accent),
                     )
                 } else if playing {
                     (
                         "▶  ",
                         Style::default()
-                            .fg(theme::HIGHLIGHT)
+                            .fg(self.palette.highlight)
                             .add_modifier(Modifier::BOLD),
-                        Style::default().fg(theme::ACCENT),
+                        Style::default().fg(self.palette.accent),
                     )
                 } else {
                     (
                         "   ",
-                        Style::default().fg(theme::HIGHLIGHT),
-                        Style::default().fg(theme::MUTED),
+                        Style::default().fg(self.palette.highlight),
+                        Style::default().fg(self.palette.muted),
                     )
                 };
 

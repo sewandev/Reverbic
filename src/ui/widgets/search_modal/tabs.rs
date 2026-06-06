@@ -10,24 +10,23 @@ use crate::app::SearchMode;
 use crate::i18n::t;
 use crate::station::{COUNTRIES, GENRES};
 use crate::ui::strings;
-use crate::ui::theme;
 
 use super::helpers::{placeholder_example, render_filter_list_body, spin_frame, FilterListParams};
-use super::{SearchModalWidget, BG};
+use super::SearchModalWidget;
 
 impl<'a> SearchModalWidget<'a> {
     pub(super) fn render_tabs(&self, area: Rect, content_x: u16, content_w: u16, buf: &mut Buffer) {
         let tab_area = Rect::new(content_x, area.y, content_w, 1);
         let radio_active = Style::default()
-            .fg(theme::RADIO_ACCENT)
+            .fg(self.palette.radio_accent)
             .add_modifier(Modifier::BOLD);
         let spotify_active = Style::default()
-            .fg(theme::SPOTIFY_GREEN)
+            .fg(self.palette.spotify)
             .add_modifier(Modifier::BOLD);
         let youtube_active = Style::default()
-            .fg(theme::DANGER)
+            .fg(self.palette.danger)
             .add_modifier(Modifier::BOLD);
-        let inactive = Style::default().fg(theme::MUTED);
+        let inactive = Style::default().fg(self.palette.muted);
 
         let radio_st = match self.mode {
             SearchMode::Name | SearchMode::Genre | SearchMode::Country => radio_active,
@@ -87,8 +86,8 @@ impl<'a> SearchModalWidget<'a> {
 
         buf[(content_x, input_row.y)]
             .set_symbol("┃")
-            .set_fg(theme::ACCENT)
-            .set_bg(BG);
+            .set_fg(self.palette.accent)
+            .set_bg(self.palette.panel_bg);
 
         let text_x = content_x + 2;
         let text_w = content_w.saturating_sub(2);
@@ -97,7 +96,7 @@ impl<'a> SearchModalWidget<'a> {
         if self.query.is_empty() {
             Paragraph::new(Span::styled(
                 placeholder_example(),
-                Style::default().fg(theme::MUTED),
+                Style::default().fg(self.palette.muted),
             ))
             .render(text_area, buf);
         } else {
@@ -115,11 +114,11 @@ impl<'a> SearchModalWidget<'a> {
                 self.query.to_owned()
             };
             Paragraph::new(Line::from(vec![
-                Span::styled(visible, Style::default().fg(theme::HIGHLIGHT)),
+                Span::styled(visible, Style::default().fg(self.palette.highlight)),
                 Span::styled(
                     "_",
                     Style::default()
-                        .fg(theme::ACCENT)
+                        .fg(self.palette.accent)
                         .add_modifier(Modifier::BOLD),
                 ),
             ]))
@@ -128,8 +127,8 @@ impl<'a> SearchModalWidget<'a> {
 
         buf[(content_x, cap_row.y)]
             .set_symbol("╹")
-            .set_fg(theme::ACCENT)
-            .set_bg(BG);
+            .set_fg(self.palette.accent)
+            .set_bg(self.palette.panel_bg);
 
         self.render_results(list_area, content_x, content_w, buf);
     }
@@ -140,9 +139,9 @@ impl<'a> SearchModalWidget<'a> {
         let text_w = content_w.saturating_sub(2);
 
         let active = Style::default()
-            .fg(theme::RADIO_ACCENT)
+            .fg(self.palette.radio_accent)
             .add_modifier(Modifier::BOLD);
-        let inactive = Style::default().fg(theme::DIM);
+        let inactive = Style::default().fg(self.palette.dim);
 
         let (search_st, fav_st) = match self.radio_sub_tab {
             RadioSubTab::Search => (active, inactive),
@@ -173,7 +172,7 @@ impl<'a> SearchModalWidget<'a> {
         if self.favorites.is_empty() {
             Paragraph::new(Span::styled(
                 t("modal.favorites.empty"),
-                Style::default().fg(theme::MUTED),
+                Style::default().fg(self.palette.muted),
             ))
             .render(Rect::new(text_x, list_area.y, text_w, 1), buf);
             return;
@@ -198,26 +197,26 @@ impl<'a> SearchModalWidget<'a> {
                     (
                         "▶  ",
                         Style::default()
-                            .fg(theme::PLAYING)
+                            .fg(self.palette.playing)
                             .add_modifier(Modifier::BOLD),
                         Style::default()
-                            .fg(theme::PLAYING)
+                            .fg(self.palette.playing)
                             .add_modifier(Modifier::BOLD),
-                        Style::default().fg(theme::PLAYING),
+                        Style::default().fg(self.palette.playing),
                     )
                 } else if is_playing {
                     (
                         "   ",
-                        Style::default().fg(theme::PLAYING),
-                        Style::default().fg(theme::ACCENT),
-                        Style::default().fg(theme::MUTED),
+                        Style::default().fg(self.palette.playing),
+                        Style::default().fg(self.palette.accent),
+                        Style::default().fg(self.palette.muted),
                     )
                 } else {
                     (
                         "   ",
-                        Style::default().fg(theme::HIGHLIGHT),
-                        Style::default().fg(theme::ACCENT),
-                        Style::default().fg(theme::MUTED),
+                        Style::default().fg(self.palette.highlight),
+                        Style::default().fg(self.palette.accent),
+                        Style::default().fg(self.palette.muted),
                     )
                 };
                 let display_name = strings::title_case(&fav.name);
@@ -283,14 +282,14 @@ impl<'a> SearchModalWidget<'a> {
 
             let header = Rect::new(content_x, header_row.y, content_w, 1);
             Paragraph::new(Line::from(vec![
-                Span::styled("< ", Style::default().fg(theme::MUTED)),
+                Span::styled("< ", Style::default().fg(self.palette.muted)),
                 Span::styled(
                     self.genre_query,
                     Style::default()
-                        .fg(theme::ACCENT)
+                        .fg(self.palette.accent)
                         .add_modifier(Modifier::BOLD),
                 ),
-                Span::styled("  >", Style::default().fg(theme::MUTED)),
+                Span::styled("  >", Style::default().fg(self.palette.muted)),
             ]))
             .render(header, buf);
 
@@ -307,6 +306,7 @@ impl<'a> SearchModalWidget<'a> {
                 loading: self.loading,
                 loading_text: &t("modal.loading.genre"),
             },
+            self.palette,
             area,
             content_x,
             content_w,
@@ -330,14 +330,14 @@ impl<'a> SearchModalWidget<'a> {
                 Layout::vertical([Constraint::Length(1), Constraint::Fill(1)]).areas(area);
             let header = Rect::new(content_x, header_row.y, content_w, 1);
             Paragraph::new(Line::from(vec![
-                Span::styled("< ", Style::default().fg(theme::MUTED)),
+                Span::styled("< ", Style::default().fg(self.palette.muted)),
                 Span::styled(
                     self.genre_query,
                     Style::default()
-                        .fg(theme::ACCENT)
+                        .fg(self.palette.accent)
                         .add_modifier(Modifier::BOLD),
                 ),
-                Span::styled("  >", Style::default().fg(theme::MUTED)),
+                Span::styled("  >", Style::default().fg(self.palette.muted)),
             ]))
             .render(header, buf);
             self.render_results(list_area, content_x, content_w, buf);
@@ -353,6 +353,7 @@ impl<'a> SearchModalWidget<'a> {
                 loading: self.loading,
                 loading_text: &t("modal.loading.country"),
             },
+            self.palette,
             area,
             content_x,
             content_w,
@@ -381,7 +382,7 @@ impl<'a> SearchModalWidget<'a> {
         if self.loading {
             Paragraph::new(Span::styled(
                 format!("{}  {}", spin_frame(), t("modal.loading")),
-                Style::default().fg(theme::MUTED),
+                Style::default().fg(self.palette.muted),
             ))
             .render(items_area, buf);
             return;
@@ -391,7 +392,7 @@ impl<'a> SearchModalWidget<'a> {
             if !self.query.is_empty() {
                 Paragraph::new(Span::styled(
                     t("modal.empty.no_results"),
-                    Style::default().fg(theme::MUTED),
+                    Style::default().fg(self.palette.muted),
                 ))
                 .render(items_area, buf);
             }
@@ -420,14 +421,14 @@ impl<'a> SearchModalWidget<'a> {
                 let (name_st, meta_st) = if active {
                     (
                         Style::default()
-                            .fg(theme::PLAYING)
+                            .fg(self.palette.playing)
                             .add_modifier(Modifier::BOLD),
-                        Style::default().fg(theme::ACCENT),
+                        Style::default().fg(self.palette.accent),
                     )
                 } else {
                     (
-                        Style::default().fg(theme::HIGHLIGHT),
-                        Style::default().fg(theme::MUTED),
+                        Style::default().fg(self.palette.highlight),
+                        Style::default().fg(self.palette.muted),
                     )
                 };
                 ListItem::new(Line::from(vec![
@@ -482,15 +483,18 @@ impl<'a> SearchModalWidget<'a> {
         for row in 0..track_h {
             let sy = list_area.y + row as u16;
             let (sym, fg) = if row == 0 && offset > 0 {
-                ("▲", theme::DIM)
+                ("▲", self.palette.dim)
             } else if row == track_h - 1 && offset + track_h < total {
-                ("▼", theme::DIM)
+                ("▼", self.palette.dim)
             } else if row == thumb {
-                ("┃", theme::ACCENT)
+                ("┃", self.palette.accent)
             } else {
-                ("│", theme::MUTED)
+                ("│", self.palette.muted)
             };
-            buf[(sb_x, sy)].set_symbol(sym).set_fg(fg).set_bg(BG);
+            buf[(sb_x, sy)]
+                .set_symbol(sym)
+                .set_fg(fg)
+                .set_bg(self.palette.panel_bg);
         }
     }
 }

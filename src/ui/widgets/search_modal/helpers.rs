@@ -8,9 +8,8 @@ use ratatui::{
 
 use crate::i18n::t;
 use crate::station::filter_items;
-use crate::ui::theme;
-
-use super::BG;
+use crate::ui::theme as ui_palette;
+use ui_palette::Palette;
 
 pub(super) const EXAMPLES: &[&str] = &[
     "The Jazz Radio",
@@ -50,17 +49,17 @@ pub(super) fn screensaver_display(secs: u16) -> String {
     }
 }
 
-pub(super) fn key(s: &'static str) -> Span<'static> {
+pub(super) fn key(palette: &Palette, s: &'static str) -> Span<'static> {
     Span::styled(
         s,
         Style::default()
-            .fg(theme::HIGHLIGHT)
+            .fg(palette.highlight)
             .add_modifier(Modifier::BOLD),
     )
 }
 
-pub(super) fn sep_s(s: String) -> Span<'static> {
-    Span::styled(s, Style::default().fg(theme::MUTED))
+pub(super) fn sep_s(palette: &Palette, s: String) -> Span<'static> {
+    Span::styled(s, Style::default().fg(palette.muted))
 }
 
 pub(super) struct FilterListParams<'a> {
@@ -74,6 +73,7 @@ pub(super) struct FilterListParams<'a> {
 
 pub(super) fn render_filter_list_body(
     p: FilterListParams<'_>,
+    palette: &Palette,
     area: Rect,
     content_x: u16,
     content_w: u16,
@@ -97,24 +97,24 @@ pub(super) fn render_filter_list_body(
 
     buf[(content_x, input_row.y)]
         .set_symbol("┃")
-        .set_fg(theme::ACCENT)
-        .set_bg(BG);
+        .set_fg(palette.accent)
+        .set_bg(palette.panel_bg);
 
     let text_x = content_x + 2;
     let text_w = content_w.saturating_sub(2);
     let text_area = Rect::new(text_x, input_row.y, text_w, 1);
 
-    render_filter_input(filter, placeholder, text_area, buf);
+    render_filter_input(filter, placeholder, text_area, palette, buf);
 
     buf[(content_x, cap_row.y)]
         .set_symbol("╹")
-        .set_fg(theme::ACCENT)
-        .set_bg(BG);
+        .set_fg(palette.accent)
+        .set_bg(palette.panel_bg);
 
     if loading {
         Paragraph::new(Span::styled(
             format!("{}  {}", spin_frame(), loading_text),
-            Style::default().fg(theme::MUTED),
+            Style::default().fg(palette.muted),
         ))
         .render(Rect::new(text_x, list_body.y, text_w, 1), buf);
         return (false, Rect::default(), 0);
@@ -127,7 +127,7 @@ pub(super) fn render_filter_list_body(
     if filtered.is_empty() {
         Paragraph::new(Span::styled(
             t("modal.empty.no_match"),
-            Style::default().fg(theme::MUTED),
+            Style::default().fg(palette.muted),
         ))
         .render(list_area, buf);
         return (false, list_area, 0);
@@ -146,11 +146,11 @@ pub(super) fn render_filter_list_body(
                 (
                     "▶  ",
                     Style::default()
-                        .fg(theme::PLAYING)
+                        .fg(palette.playing)
                         .add_modifier(Modifier::BOLD),
                 )
             } else {
-                ("   ", Style::default().fg(theme::HIGHLIGHT))
+                ("   ", Style::default().fg(palette.highlight))
             };
             ListItem::new(Line::from(vec![
                 Span::styled(prefix, style),
@@ -168,18 +168,22 @@ pub(super) fn render_filter_input(
     filter: &str,
     placeholder: &str,
     text_area: Rect,
+    palette: &Palette,
     buf: &mut Buffer,
 ) {
     if filter.is_empty() {
-        Paragraph::new(Span::styled(placeholder, Style::default().fg(theme::MUTED)))
-            .render(text_area, buf);
+        Paragraph::new(Span::styled(
+            placeholder,
+            Style::default().fg(palette.muted),
+        ))
+        .render(text_area, buf);
     } else {
         Paragraph::new(Line::from(vec![
-            Span::styled(filter, Style::default().fg(theme::HIGHLIGHT)),
+            Span::styled(filter, Style::default().fg(palette.highlight)),
             Span::styled(
                 "_",
                 Style::default()
-                    .fg(theme::ACCENT)
+                    .fg(palette.accent)
                     .add_modifier(Modifier::BOLD),
             ),
         ]))

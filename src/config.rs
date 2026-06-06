@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 pub use crate::i18n::Language;
+pub use crate::ui::theme::ThemeId;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LastStation {
@@ -150,6 +151,8 @@ pub struct Config {
     pub notifications: bool,
     #[serde(default)]
     pub language: Language,
+    #[serde(default)]
+    pub theme: ThemeId,
     #[serde(default = "default_true")]
     pub restore_volume: bool,
     #[serde(default)]
@@ -227,6 +230,7 @@ impl Default for Config {
             tray_icon: false,
             notifications: false,
             language: Language::default(),
+            theme: ThemeId::default(),
             restore_volume: true,
             duck_enabled: false,
             duck_volume: 40,
@@ -626,6 +630,23 @@ mod tests {
             result,
             Err(SpotifyTokenPersistenceError::DeleteFailed(_))
         ));
+    }
+
+    #[test]
+    fn theme_defaults_for_old_configs_and_serializes_for_persistence() {
+        let old_config = json!({
+            "volume": 0.75,
+            "last_selected": 3
+        });
+
+        let config: Config =
+            serde_json::from_value(old_config).expect("old config without theme should load");
+
+        assert_eq!(config.theme, ThemeId::Reverbic);
+
+        let saved = serde_json::to_value(&config).expect("config should serialize");
+
+        assert_eq!(saved["theme"], json!("reverbic"));
     }
 
     #[test]
