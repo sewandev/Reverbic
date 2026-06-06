@@ -52,6 +52,31 @@ impl OverlayMode {
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
+pub enum OverlayStyle {
+    #[default]
+    Full,
+    Compact,
+}
+
+impl OverlayStyle {
+    pub fn display(self) -> String {
+        use crate::i18n::t;
+        match self {
+            Self::Full => t("overlay.style.full"),
+            Self::Compact => t("overlay.style.compact"),
+        }
+    }
+
+    pub fn next(self) -> Self {
+        match self {
+            Self::Full => Self::Compact,
+            Self::Compact => Self::Full,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
 pub enum OverlayPosition {
     #[default]
     TopLeft,
@@ -135,6 +160,8 @@ pub struct Config {
     pub overlay_alpha: u8,
     #[serde(default)]
     pub overlay_position: OverlayPosition,
+    #[serde(default)]
+    pub overlay_style: OverlayStyle,
     #[serde(default = "default_screensaver_secs")]
     pub screensaver_secs: u16,
     #[serde(default)]
@@ -205,6 +232,7 @@ impl Default for Config {
             duck_volume: 40,
             overlay_alpha: 90,
             overlay_position: OverlayPosition::TopLeft,
+            overlay_style: OverlayStyle::Full,
             screensaver_secs: 10,
             game_integrations: GameIntegrationsConfig::default(),
             spotify: SpotifyConfig::default(),
