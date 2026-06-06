@@ -27,17 +27,20 @@ impl App {
             if let Some(asset) = result {
                 self.update_available = Some(asset.version.clone());
                 self.start_update_download(asset);
+            } else {
+                tracing::debug!("No compatible update available");
+                self.update_available = None;
+                self.update_path = None;
             }
         }
     }
 
     fn start_update_download(&mut self, asset: UpdateAsset) {
-        let (tx, rx): (mpsc::SyncSender<PathBuf>, _) = mpsc::sync_channel(1);
+        let (tx, rx): (mpsc::SyncSender<Option<PathBuf>>, _) = mpsc::sync_channel(1);
         self.update_download_rx = Some(rx);
         self.update_download_task = Some(tokio::spawn(async move {
-            if let Some(path) = crate::update::download_update(&asset).await {
-                let _ = tx.send(path);
-            }
+            let result = crate::update::download_update(&asset).await;
+            let _ = tx.send(result);
         }));
     }
 
@@ -45,10 +48,16 @@ impl App {
         let Some(rx) = &self.update_download_rx else {
             return;
         };
-        if let Ok(path) = rx.try_recv() {
+        if let Ok(result) = rx.try_recv() {
             self.update_download_rx = None;
             self.update_download_task = None;
-            self.update_path = Some(path);
+            if let Some(path) = result {
+                self.update_path = Some(path);
+            } else {
+                tracing::debug!("Update download failed or was rejected");
+                self.update_available = None;
+                self.update_path = None;
+            }
         }
     }
 }
