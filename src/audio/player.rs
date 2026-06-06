@@ -909,45 +909,6 @@ fn handle_seek_cmd(
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn station_with_bitrate(bitrate_kbps: Option<u16>) -> Station {
-        Station {
-            key: "test".into(),
-            name: "Test".into(),
-            url: "https://example.com/audio.mp3".into(),
-            metadata_api_url: None,
-            history_api_url: None,
-            schedule_url: None,
-            show_countdown: false,
-            bitrate_kbps,
-        }
-    }
-
-    #[test]
-    fn on_demand_seek_uses_station_bitrate_when_available() {
-        let station = station_with_bitrate(Some(256));
-
-        assert_eq!(on_demand_byte_offset(10.0, &station), 320_000);
-    }
-
-    #[test]
-    fn on_demand_seek_keeps_128_kbps_behavior() {
-        let station = station_with_bitrate(Some(128));
-
-        assert_eq!(on_demand_byte_offset(10.0, &station), 160_000);
-    }
-
-    #[test]
-    fn on_demand_seek_falls_back_to_default_when_bitrate_is_unknown() {
-        let station = station_with_bitrate(None);
-
-        assert_eq!(on_demand_byte_offset(10.0, &station), 160_000);
-    }
-}
-
 #[cfg(target_os = "windows")]
 fn handle_device_change(
     st: &mut AudioLoopState,
@@ -1260,5 +1221,44 @@ fn audio_loop(
                 info!("Playback stopped");
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn station_with_bitrate(bitrate_kbps: Option<u16>) -> Station {
+        Station {
+            key: "test".into(),
+            name: "Test".into(),
+            url: "https://example.com/audio.mp3".into(),
+            metadata_api_url: None,
+            history_api_url: None,
+            schedule_url: None,
+            show_countdown: false,
+            bitrate_kbps,
+        }
+    }
+
+    #[test]
+    fn on_demand_seek_uses_station_bitrate_when_available() {
+        let station = station_with_bitrate(Some(256));
+
+        assert_eq!(on_demand_byte_offset(10.0, &station), 320_000);
+    }
+
+    #[test]
+    fn on_demand_seek_keeps_128_kbps_behavior() {
+        let station = station_with_bitrate(Some(128));
+
+        assert_eq!(on_demand_byte_offset(10.0, &station), 160_000);
+    }
+
+    #[test]
+    fn on_demand_seek_falls_back_to_default_when_bitrate_is_unknown() {
+        let station = station_with_bitrate(None);
+
+        assert_eq!(on_demand_byte_offset(10.0, &station), 160_000);
     }
 }

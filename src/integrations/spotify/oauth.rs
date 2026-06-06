@@ -225,6 +225,7 @@ fn client_id_log_prefix(client_id: &str) -> &str {
 }
 
 #[cfg(test)]
+#[expect(clippy::items_after_test_module)]
 mod tests {
     use super::*;
 
