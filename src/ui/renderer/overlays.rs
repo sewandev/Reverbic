@@ -8,9 +8,9 @@ use ratatui::{
 
 use crate::audio::{PlayerState, PlayerStatus};
 use crate::i18n::t;
-use crate::ui::theme;
+use crate::ui::theme::{self, Palette};
 
-pub(super) fn render_rename_overlay(frame: &mut Frame, input: &str) {
+pub(super) fn render_rename_overlay(frame: &mut Frame, input: &str, palette: &Palette) {
     let area = frame.area();
     let w = area.width.clamp(30, 50);
     let h: u16 = 5;
@@ -25,7 +25,7 @@ pub(super) fn render_rename_overlay(frame: &mut Frame, input: &str) {
             Line::from(Span::styled(
                 t("modal.rename.title"),
                 Style::default()
-                    .fg(theme::HIGHLIGHT)
+                    .fg(palette.highlight)
                     .add_modifier(Modifier::BOLD),
             ))
             .alignment(ratatui::layout::Alignment::Center),
@@ -33,14 +33,14 @@ pub(super) fn render_rename_overlay(frame: &mut Frame, input: &str) {
         .title_bottom(
             Line::from(Span::styled(
                 t("modal.rename.hint"),
-                Style::default().fg(theme::MUTED),
+                Style::default().fg(palette.muted),
             ))
             .alignment(ratatui::layout::Alignment::Center),
         )
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
-        .border_style(Style::default().fg(theme::ACCENT))
-        .style(Style::default().bg(theme::PANEL_BG));
+        .border_style(Style::default().fg(palette.accent))
+        .style(Style::default().bg(palette.panel_bg));
 
     let inner = block.inner(panel);
     frame.render_widget(block, panel);
@@ -49,11 +49,11 @@ pub(super) fn render_rename_overlay(frame: &mut Frame, input: &str) {
         ratatui::layout::Rect::new(inner.x + 1, inner.y + 1, inner.width.saturating_sub(2), 1);
     frame.render_widget(
         Paragraph::new(Line::from(vec![
-            Span::styled(input.to_owned(), Style::default().fg(theme::HIGHLIGHT)),
+            Span::styled(input.to_owned(), Style::default().fg(palette.highlight)),
             Span::styled(
                 "_",
                 Style::default()
-                    .fg(theme::ACCENT)
+                    .fg(palette.accent)
                     .add_modifier(Modifier::BOLD),
             ),
         ])),
@@ -61,7 +61,7 @@ pub(super) fn render_rename_overlay(frame: &mut Frame, input: &str) {
     );
 }
 
-pub(super) fn render_client_id_overlay(frame: &mut Frame, input: &str) {
+pub(super) fn render_client_id_overlay(frame: &mut Frame, input: &str, palette: &Palette) {
     let area = frame.area();
     let w = area.width.clamp(40, 60);
     let h: u16 = 5;
@@ -76,7 +76,7 @@ pub(super) fn render_client_id_overlay(frame: &mut Frame, input: &str) {
             Line::from(Span::styled(
                 t("modal.client_id.title"),
                 Style::default()
-                    .fg(theme::HIGHLIGHT)
+                    .fg(palette.highlight)
                     .add_modifier(Modifier::BOLD),
             ))
             .alignment(ratatui::layout::Alignment::Center),
@@ -84,14 +84,14 @@ pub(super) fn render_client_id_overlay(frame: &mut Frame, input: &str) {
         .title_bottom(
             Line::from(Span::styled(
                 t("modal.client_id.hint"),
-                Style::default().fg(theme::MUTED),
+                Style::default().fg(palette.muted),
             ))
             .alignment(ratatui::layout::Alignment::Center),
         )
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
-        .border_style(Style::default().fg(theme::ACCENT))
-        .style(Style::default().bg(theme::PANEL_BG));
+        .border_style(Style::default().fg(palette.accent))
+        .style(Style::default().bg(palette.panel_bg));
 
     let inner = block.inner(panel);
     frame.render_widget(block, panel);
@@ -100,11 +100,11 @@ pub(super) fn render_client_id_overlay(frame: &mut Frame, input: &str) {
         ratatui::layout::Rect::new(inner.x + 1, inner.y + 1, inner.width.saturating_sub(2), 1);
     frame.render_widget(
         Paragraph::new(Line::from(vec![
-            Span::styled(input.to_owned(), Style::default().fg(theme::HIGHLIGHT)),
+            Span::styled(input.to_owned(), Style::default().fg(palette.highlight)),
             Span::styled(
                 "_",
                 Style::default()
-                    .fg(theme::ACCENT)
+                    .fg(palette.accent)
                     .add_modifier(Modifier::BOLD),
             ),
         ])),
@@ -118,10 +118,11 @@ pub(super) fn render_game_strip(
     name: &str,
     genre: &str,
     border_tick: u32,
+    palette: &Palette,
 ) {
     const H_PAD: u16 = 2;
 
-    let border_color = theme::border_color(border_tick);
+    let border_color = theme::border_color_for(palette, border_tick);
     let block = Block::default()
         .title_top(
             Line::from(Span::styled(
@@ -135,22 +136,23 @@ pub(super) fn render_game_strip(
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(border_color))
-        .style(Style::default().bg(theme::PANEL_BG));
+        .style(Style::default().bg(palette.panel_bg));
     let inner = block.inner(area);
     frame.render_widget(block, area);
 
     let cx = inner.x + H_PAD;
     let cw = inner.width.saturating_sub(H_PAD * 2);
-    let mut spans: Vec<Span<'static>> = vec![Span::styled(name.to_owned(), theme::PLAYING_STYLE)];
+    let mut spans: Vec<Span<'static>> =
+        vec![Span::styled(name.to_owned(), theme::playing_style(palette))];
     if !genre.is_empty() {
-        spans.push(Span::styled("  ·  ", Style::default().fg(theme::MUTED)));
+        spans.push(Span::styled("  ·  ", Style::default().fg(palette.muted)));
         spans.push(Span::styled(
             genre.to_owned(),
-            Style::default().fg(theme::DIM),
+            Style::default().fg(palette.dim),
         ));
     }
     frame.render_widget(
-        Paragraph::new(Line::from(spans)).style(Style::default().bg(theme::PANEL_BG)),
+        Paragraph::new(Line::from(spans)).style(Style::default().bg(palette.panel_bg)),
         Rect::new(cx, inner.y, cw, 1),
     );
 }
@@ -160,6 +162,7 @@ pub(super) fn render_modal_np_strip(
     strip: Rect,
     state: &PlayerState,
     border_tick: u32,
+    palette: &Palette,
 ) {
     const H_PAD: u16 = 2;
 
@@ -178,7 +181,7 @@ pub(super) fn render_modal_np_strip(
         }
         _ => String::new(),
     };
-    let title_lines = wrap_into_lines(&raw_title, content_w, 2);
+    let title_lines = wrap_into_lines(&raw_title, content_w, 2, palette);
     let title_line_count = title_lines.len() as u16;
     let has_progress = state.playback_pos_secs.is_some();
     let panel_h = 2 + 1 + title_line_count + 1;
@@ -189,35 +192,35 @@ pub(super) fn render_modal_np_strip(
     let panel = Rect::new(strip.x, strip.y, strip.width, panel_h);
 
     let border_color = match &state.status {
-        PlayerStatus::Playing => theme::border_color(border_tick),
-        PlayerStatus::Paused => theme::WARNING,
+        PlayerStatus::Playing => theme::border_color_for(palette, border_tick),
+        PlayerStatus::Paused => palette.warning,
         PlayerStatus::Buffering(_) | PlayerStatus::Reconnecting(_) => {
             ratatui::style::Color::Rgb(80, 80, 80)
         }
-        _ => theme::MUTED,
+        _ => palette.muted,
     };
 
     let block = Block::default()
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(border_color))
-        .style(Style::default().bg(theme::PANEL_BG));
+        .style(Style::default().bg(palette.panel_bg));
 
     let inner = block.inner(panel);
     frame.render_widget(block, panel);
 
     let cx = inner.x + H_PAD;
     let cw = inner.width.saturating_sub(H_PAD * 2);
-    let station_line = build_modal_station_line(state);
+    let station_line = build_modal_station_line(state, palette);
     frame.render_widget(
-        Paragraph::new(station_line).style(Style::default().bg(theme::PANEL_BG)),
+        Paragraph::new(station_line).style(Style::default().bg(palette.panel_bg)),
         Rect::new(cx, inner.y, cw, 1),
     );
     for (i, tline) in title_lines.into_iter().enumerate() {
         let row_y = inner.y + 1 + i as u16;
         if row_y < inner.bottom() {
             frame.render_widget(
-                Paragraph::new(tline).style(Style::default().bg(theme::PANEL_BG)),
+                Paragraph::new(tline).style(Style::default().bg(palette.panel_bg)),
                 Rect::new(cx, row_y, cw, 1),
             );
         }
@@ -226,9 +229,9 @@ pub(super) fn render_modal_np_strip(
     if viz_row >= inner.y && viz_row < inner.bottom() {
         let vol_pct = (state.volume.clamp(0.0, 1.0) * 100.0).round() as u32;
         let vol_color = if state.volume > 0.85 {
-            theme::WARNING
+            palette.warning
         } else {
-            theme::ACCENT
+            palette.accent
         };
         let (filled, empty) = volume_bar_spans(state.volume, 8);
         let pct_str = format!("  {:>3}%", vol_pct);
@@ -245,22 +248,22 @@ pub(super) fn render_modal_np_strip(
             .map(|text| text.chars().count() + 2)
             .unwrap_or(0);
         let viz_w = (cw as usize).saturating_sub(progress_w + vol_w + 1);
-        let mut spans = visualizer_spans(state.level_db, viz_w, theme::PANEL_BG);
+        let mut spans = visualizer_spans(state.level_db, viz_w, palette.panel_bg, palette);
         if let Some(text) = progress_text {
             if !spans.is_empty() {
                 spans.push(Span::raw("  "));
             }
             spans.push(Span::styled(
                 text,
-                Style::default().fg(theme::MUTED).bg(theme::PANEL_BG),
+                Style::default().fg(palette.muted).bg(palette.panel_bg),
             ));
         }
         spans.push(Span::raw(vol_prefix));
         spans.push(Span::styled(filled, Style::default().fg(vol_color)));
-        spans.push(Span::styled(empty, Style::default().fg(theme::MUTED)));
+        spans.push(Span::styled(empty, Style::default().fg(palette.muted)));
         spans.push(Span::styled(pct_str, Style::default().fg(vol_color)));
         frame.render_widget(
-            Paragraph::new(Line::from(spans)).style(Style::default().bg(theme::PANEL_BG)),
+            Paragraph::new(Line::from(spans)).style(Style::default().bg(palette.panel_bg)),
             Rect::new(cx, viz_row, cw, 1),
         );
     }
@@ -272,7 +275,12 @@ fn volume_bar_spans(vol: f32, bar_width: usize) -> (String, String) {
     ("█".repeat(filled), "░".repeat(bar_width - filled))
 }
 
-fn visualizer_spans(level_db: f32, width: usize, bg: ratatui::style::Color) -> Vec<Span<'static>> {
+fn visualizer_spans(
+    level_db: f32,
+    width: usize,
+    bg: ratatui::style::Color,
+    palette: &Palette,
+) -> Vec<Span<'static>> {
     use ratatui::style::Color::Rgb;
     let glyphs = super::visualizer_glyphs();
     const SPECTRUM: [ratatui::style::Color; 8] = [
@@ -304,7 +312,7 @@ fn visualizer_spans(level_db: f32, width: usize, bg: ratatui::style::Color) -> V
         let idx = ((h * 7.0) as usize).min(7);
         let pos_idx = (i * 7 / n_bars.saturating_sub(1).max(1)).min(7);
         let color = if h < 0.05 {
-            theme::MUTED
+            palette.muted
         } else {
             SPECTRUM[pos_idx]
         };
@@ -324,13 +332,14 @@ pub(super) fn playback_progress_line(
     width: u16,
     active_color: ratatui::style::Color,
     bg: ratatui::style::Color,
+    palette: &Palette,
 ) -> Option<Line<'static>> {
     let pos = state.playback_pos_secs?;
     let elapsed = fmt_secs(pos);
     let Some(duration) = state.playback_duration_secs.filter(|d| *d > 0.0) else {
         return Some(Line::from(Span::styled(
             elapsed,
-            Style::default().fg(theme::MUTED).bg(bg),
+            Style::default().fg(palette.muted).bg(bg),
         )));
     };
 
@@ -341,7 +350,7 @@ pub(super) fn playback_progress_line(
     if bar_w == 0 {
         return Some(Line::from(Span::styled(
             format!("{elapsed}  {}", suffix.trim()),
-            Style::default().fg(theme::MUTED).bg(bg),
+            Style::default().fg(palette.muted).bg(bg),
         )));
     }
 
@@ -349,16 +358,16 @@ pub(super) fn playback_progress_line(
     let filled = (ratio * bar_w as f32).round() as usize;
     let empty = bar_w.saturating_sub(filled);
     Some(Line::from(vec![
-        Span::styled(prefix, Style::default().fg(theme::MUTED).bg(bg)),
+        Span::styled(prefix, Style::default().fg(palette.muted).bg(bg)),
         Span::styled(
             "\u{2588}".repeat(filled),
             Style::default().fg(active_color).bg(bg),
         ),
         Span::styled(
             "\u{2591}".repeat(empty),
-            Style::default().fg(theme::MUTED).bg(bg),
+            Style::default().fg(palette.muted).bg(bg),
         ),
-        Span::styled(suffix, Style::default().fg(theme::MUTED).bg(bg)),
+        Span::styled(suffix, Style::default().fg(palette.muted).bg(bg)),
     ]))
 }
 
@@ -377,7 +386,7 @@ fn fmt_secs(secs: f32) -> String {
     format!("{}:{:02}", secs / 60, secs % 60)
 }
 
-pub(super) fn build_modal_station_line(state: &PlayerState) -> Line<'static> {
+pub(super) fn build_modal_station_line(state: &PlayerState, palette: &Palette) -> Line<'static> {
     let name = state
         .station
         .as_ref()
@@ -385,8 +394,8 @@ pub(super) fn build_modal_station_line(state: &PlayerState) -> Line<'static> {
         .unwrap_or_default();
     match &state.status {
         PlayerStatus::Connecting | PlayerStatus::Reconnecting(_) => Line::from(vec![
-            Span::styled("…  ", Style::default().fg(theme::ACCENT)),
-            Span::styled(name, Style::default().fg(theme::MUTED)),
+            Span::styled("…  ", Style::default().fg(palette.accent)),
+            Span::styled(name, Style::default().fg(palette.muted)),
         ]),
         PlayerStatus::Buffering(_) | PlayerStatus::Playing | PlayerStatus::Paused => {
             let icon = if matches!(state.status, PlayerStatus::Paused) {
@@ -395,8 +404,8 @@ pub(super) fn build_modal_station_line(state: &PlayerState) -> Line<'static> {
                 "▶  "
             };
             Line::from(vec![
-                Span::styled(icon, Style::default().fg(theme::ACCENT)),
-                Span::styled(name, theme::PLAYING_STYLE),
+                Span::styled(icon, Style::default().fg(palette.accent)),
+                Span::styled(name, theme::playing_style(palette)),
             ])
         }
         _ => Line::default(),
@@ -410,6 +419,7 @@ pub(super) fn render_modal_spotify_strip(
     now_playing: Option<&crate::integrations::spotify::SpotifyTrack>,
     player_status: &crate::app::SpotifyPlayerStatus,
     border_tick: u32,
+    palette: &Palette,
 ) {
     use crate::app::SpotifyPlayerStatus;
     const H_PAD: u16 = 2;
@@ -463,7 +473,7 @@ pub(super) fn render_modal_spotify_strip(
     } else {
         format!("{track_name} · {album}")
     };
-    let title_lines = wrap_into_lines(&track_meta, content_w, 2);
+    let title_lines = wrap_into_lines(&track_meta, content_w, 2, palette);
 
     let panel_h = 2 + 1 + title_lines.len() as u16 + u16::from(has_progress) + 1;
     if panel_h > strip.height {
@@ -473,16 +483,16 @@ pub(super) fn render_modal_spotify_strip(
     let panel = Rect::new(strip.x, strip.y, strip.width, panel_h);
 
     let border_color = if is_playing {
-        theme::border_color(border_tick)
+        theme::border_color_for(palette, border_tick)
     } else {
-        theme::WARNING
+        palette.warning
     };
 
     let block = Block::default()
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(border_color))
-        .style(Style::default().bg(theme::PANEL_BG));
+        .style(Style::default().bg(palette.panel_bg));
 
     let inner = block.inner(panel);
     frame.render_widget(block, panel);
@@ -494,10 +504,10 @@ pub(super) fn render_modal_spotify_strip(
     let artist_display = crate::ui::strings::truncate(artist, cw.saturating_sub(3) as usize);
     frame.render_widget(
         Paragraph::new(Line::from(vec![
-            Span::styled(icon, Style::default().fg(theme::PLAYING)),
-            Span::styled(artist_display, theme::PLAYING_STYLE),
+            Span::styled(icon, Style::default().fg(palette.playing)),
+            Span::styled(artist_display, theme::playing_style(palette)),
         ]))
-        .style(Style::default().bg(theme::PANEL_BG)),
+        .style(Style::default().bg(palette.panel_bg)),
         Rect::new(cx, inner.y, cw, 1),
     );
 
@@ -506,7 +516,7 @@ pub(super) fn render_modal_spotify_strip(
         let row_y = inner.y + 1 + i as u16;
         if row_y < inner.bottom() {
             frame.render_widget(
-                Paragraph::new(tline).style(Style::default().bg(theme::PANEL_BG)),
+                Paragraph::new(tline).style(Style::default().bg(palette.panel_bg)),
                 Rect::new(cx, row_y, cw, 1),
             );
             last_row = row_y;
@@ -528,25 +538,25 @@ pub(super) fn render_modal_spotify_strip(
             let empty = bar_w.saturating_sub(filled);
             frame.render_widget(
                 Paragraph::new(Line::from(vec![
-                    Span::styled(prefix, ratatui::style::Style::default().fg(theme::MUTED)),
+                    Span::styled(prefix, ratatui::style::Style::default().fg(palette.muted)),
                     Span::styled(
                         "█".repeat(filled),
                         ratatui::style::Style::default().fg(border_color),
                     ),
                     Span::styled(
                         "░".repeat(empty),
-                        ratatui::style::Style::default().fg(theme::MUTED),
+                        ratatui::style::Style::default().fg(palette.muted),
                     ),
-                    Span::styled(suffix, ratatui::style::Style::default().fg(theme::MUTED)),
+                    Span::styled(suffix, ratatui::style::Style::default().fg(palette.muted)),
                 ]))
-                .style(ratatui::style::Style::default().bg(theme::PANEL_BG)),
+                .style(ratatui::style::Style::default().bg(palette.panel_bg)),
                 Rect::new(cx, prog_y, cw, 1),
             );
         }
     }
     let viz_row = inner.bottom().saturating_sub(1);
     if viz_row >= inner.y && viz_row < inner.bottom() {
-        let vol_color = theme::PLAYING;
+        let vol_color = palette.playing;
         let vol_w = if let Some(v) = volume_pct {
             let (f, e) = volume_bar_spans(v as f32 / 100.0, 8);
             2 + f.chars().count() + e.chars().count() + format!("  {:>3}%", v).len()
@@ -554,25 +564,25 @@ pub(super) fn render_modal_spotify_strip(
             0
         };
         let viz_w = (cw as usize).saturating_sub(vol_w + 1);
-        let mut spans = visualizer_spans(-60.0, viz_w, theme::PANEL_BG);
+        let mut spans = visualizer_spans(-60.0, viz_w, palette.panel_bg, palette);
         if let Some(v) = volume_pct {
             let (filled, empty) = volume_bar_spans(v as f32 / 100.0, 8);
             spans.push(Span::raw("  "));
             spans.push(Span::styled(filled, Style::default().fg(vol_color)));
-            spans.push(Span::styled(empty, Style::default().fg(theme::MUTED)));
+            spans.push(Span::styled(empty, Style::default().fg(palette.muted)));
             spans.push(Span::styled(
                 format!("  {:>3}%", v),
                 Style::default().fg(vol_color),
             ));
         }
         frame.render_widget(
-            Paragraph::new(Line::from(spans)).style(Style::default().bg(theme::PANEL_BG)),
+            Paragraph::new(Line::from(spans)).style(Style::default().bg(palette.panel_bg)),
             Rect::new(cx, viz_row, cw, 1),
         );
     }
 }
 
-pub(super) fn render_update_badge(frame: &mut Frame, version: &str, area: Rect) {
+pub(super) fn render_update_badge(frame: &mut Frame, version: &str, area: Rect, palette: &Palette) {
     use std::time::{SystemTime, UNIX_EPOCH};
     let blink = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -583,7 +593,7 @@ pub(super) fn render_update_badge(frame: &mut Frame, version: &str, area: Rect) 
     let w = (text.chars().count() as u16 + 1).min(area.width);
     let x = area.x + area.width.saturating_sub(w);
     frame.render_widget(
-        Paragraph::new(text).style(Style::default().fg(theme::WARNING)),
+        Paragraph::new(text).style(Style::default().fg(palette.warning)),
         Rect::new(x, area.y, w, 1),
     );
 }
@@ -593,6 +603,7 @@ pub(super) fn render_help_overlay(
     mode: &crate::app::SearchMode,
     spotify_logged_in: bool,
     update_available: Option<&str>,
+    palette: &Palette,
 ) {
     use crate::app::SearchMode;
 
@@ -658,8 +669,8 @@ pub(super) fn render_help_overlay(
         .title(format!(" {} ", t("help.overlay.title")))
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
-        .border_style(Style::default().fg(theme::ACCENT))
-        .style(Style::default().bg(theme::PANEL_BG));
+        .border_style(Style::default().fg(palette.accent))
+        .style(Style::default().bg(palette.panel_bg));
     let inner = block.inner(rect);
     frame.render_widget(block, rect);
 
@@ -673,12 +684,12 @@ pub(super) fn render_help_overlay(
                 Span::styled(
                     format!("  {:9}", key_str),
                     Style::default()
-                        .fg(theme::ACCENT)
+                        .fg(palette.accent)
                         .add_modifier(Modifier::BOLD),
                 ),
-                Span::styled(desc, Style::default().fg(theme::HIGHLIGHT)),
+                Span::styled(desc, Style::default().fg(palette.highlight)),
             ]))
-            .style(Style::default().bg(theme::PANEL_BG)),
+            .style(Style::default().bg(palette.panel_bg)),
             ratatui::layout::Rect::new(inner.x, row_y, inner.width, 1),
         );
     }
@@ -686,8 +697,8 @@ pub(super) fn render_help_overlay(
     if sep_y < inner.bottom() {
         let sep = "─".repeat(inner.width as usize);
         frame.render_widget(
-            Paragraph::new(Span::styled(sep, Style::default().fg(theme::DIM)))
-                .style(Style::default().bg(theme::PANEL_BG)),
+            Paragraph::new(Span::styled(sep, Style::default().fg(palette.dim)))
+                .style(Style::default().bg(palette.panel_bg)),
             ratatui::layout::Rect::new(inner.x, sep_y, inner.width, 1),
         );
     }
@@ -700,10 +711,10 @@ pub(super) fn render_help_overlay(
                 Paragraph::new(Span::styled(
                     notice,
                     Style::default()
-                        .fg(theme::WARNING)
+                        .fg(palette.warning)
                         .add_modifier(Modifier::BOLD),
                 ))
-                .style(Style::default().bg(theme::PANEL_BG)),
+                .style(Style::default().bg(palette.panel_bg)),
                 ratatui::layout::Rect::new(inner.x, row_y, inner.width, 1),
             );
         }
@@ -715,14 +726,19 @@ pub(super) fn render_help_overlay(
             break;
         }
         frame.render_widget(
-            Paragraph::new(Span::styled(*line, Style::default().fg(theme::MUTED)))
-                .style(Style::default().bg(theme::PANEL_BG)),
+            Paragraph::new(Span::styled(*line, Style::default().fg(palette.muted)))
+                .style(Style::default().bg(palette.panel_bg)),
             ratatui::layout::Rect::new(inner.x + 2, row_y, inner.width.saturating_sub(2), 1),
         );
     }
 }
 
-pub(super) fn wrap_into_lines(text: &str, width: usize, max_lines: usize) -> Vec<Line<'static>> {
+pub(super) fn wrap_into_lines(
+    text: &str,
+    width: usize,
+    max_lines: usize,
+    palette: &Palette,
+) -> Vec<Line<'static>> {
     if text.is_empty() || width == 0 {
         return vec![];
     }
@@ -734,7 +750,7 @@ pub(super) fn wrap_into_lines(text: &str, width: usize, max_lines: usize) -> Vec
         let slice: String = chars[offset..end].iter().collect();
         lines.push(Line::from(Span::styled(
             slice,
-            Style::default().fg(theme::HIGHLIGHT),
+            Style::default().fg(palette.highlight),
         )));
         offset = end;
     }
@@ -747,6 +763,7 @@ mod tests {
 
     use super::{fmt_secs, playback_progress_line, playback_progress_text};
     use crate::audio::{PlayerState, PlayerStatus};
+    use crate::ui::theme::{self, ThemeId};
 
     fn line_text(line: &ratatui::text::Line<'_>) -> String {
         line.spans
@@ -769,8 +786,14 @@ mod tests {
             ..Default::default()
         };
 
-        let line =
-            playback_progress_line(&state, 20, Color::Green, Color::Black).expect("progress line");
+        let line = playback_progress_line(
+            &state,
+            20,
+            Color::Green,
+            Color::Black,
+            theme::palette(ThemeId::Reverbic),
+        )
+        .expect("progress line");
 
         assert!(line_text(&line).contains("-0:00"));
     }
@@ -784,8 +807,14 @@ mod tests {
             ..Default::default()
         };
 
-        let line =
-            playback_progress_line(&state, 20, Color::Green, Color::Black).expect("progress line");
+        let line = playback_progress_line(
+            &state,
+            20,
+            Color::Green,
+            Color::Black,
+            theme::palette(ThemeId::Reverbic),
+        )
+        .expect("progress line");
         let text = line_text(&line);
 
         assert!(text.contains('\u{2588}'));
@@ -817,8 +846,14 @@ mod tests {
             ..Default::default()
         };
 
-        let line =
-            playback_progress_line(&state, 20, Color::Green, Color::Black).expect("progress line");
+        let line = playback_progress_line(
+            &state,
+            20,
+            Color::Green,
+            Color::Black,
+            theme::palette(ThemeId::Reverbic),
+        )
+        .expect("progress line");
 
         assert_eq!(line_text(&line), "1:05");
     }

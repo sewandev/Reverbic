@@ -1,4 +1,4 @@
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::Color;
 
 use super::Palette;
 
@@ -21,17 +21,10 @@ pub const PALETTE: Palette = Palette {
 };
 
 pub const ACCENT: Color = PALETTE.accent;
-pub const RADIO_ACCENT: Color = PALETTE.radio_accent;
 pub const PLAYING: Color = PALETTE.playing;
 pub const MUTED: Color = PALETTE.muted;
 pub const DIM: Color = PALETTE.dim;
 pub const HIGHLIGHT: Color = PALETTE.highlight;
-pub const DANGER: Color = PALETTE.danger;
 pub const WARNING: Color = PALETTE.warning;
-pub const PLAYING_STYLE: Style = Style::new().fg(PLAYING).add_modifier(Modifier::BOLD);
-
-pub const SPOTIFY_GREEN: Color = PALETTE.spotify;
-
-pub const CAUTION: Color = PALETTE.caution;
 pub const PANEL_BG: Color = PALETTE.panel_bg;
 pub const OVERLAY_COLOR: Color = PALETTE.overlay_color;

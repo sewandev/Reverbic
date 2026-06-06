@@ -1,11 +1,8 @@
-use ratatui::style::Color;
+use ratatui::style::{Color, Modifier, Style};
 
 mod reverbic;
 
-pub use reverbic::{
-    ACCENT, CAUTION, DANGER, DIM, HIGHLIGHT, MUTED, OVERLAY_COLOR, PANEL_BG, PLAYING,
-    PLAYING_STYLE, RADIO_ACCENT, SPOTIFY_GREEN, WARNING,
-};
+pub use reverbic::{ACCENT, DIM, HIGHLIGHT, MUTED, OVERLAY_COLOR, PANEL_BG, PLAYING, WARNING};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ThemeId {
@@ -48,4 +45,10 @@ pub fn border_color_for(palette: &Palette, tick: u32) -> Color {
     let (r2, g2, b2) = palette.border_cycle[(seg + 1) % palette.border_cycle.len()];
     let lerp = |a: u8, b: u8| (a as f32 + (b as f32 - a as f32) * t) as u8;
     Color::Rgb(lerp(r1, r2), lerp(g1, g2), lerp(b1, b2))
+}
+
+pub fn playing_style(palette: &Palette) -> Style {
+    Style::new()
+        .fg(palette.playing)
+        .add_modifier(Modifier::BOLD)
 }

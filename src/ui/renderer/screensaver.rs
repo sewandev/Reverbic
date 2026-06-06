@@ -37,6 +37,7 @@ pub(super) fn render_screensaver(frame: &mut Frame, area: Rect, ctx: Screensaver
     } = ctx;
     const OVERLAY: ratatui::style::Color = theme::OVERLAY_COLOR;
     const BG: ratatui::style::Color = theme::PANEL_BG;
+    let palette = theme::palette(theme::ThemeId::Reverbic);
 
     frame.render_widget(Clear, area);
     for y in area.top()..area.bottom() {
@@ -110,6 +111,7 @@ pub(super) fn render_screensaver(frame: &mut Frame, area: Rect, ctx: Screensaver
                 name,
                 genre,
                 border_tick,
+                palette,
             );
         }
     }
@@ -262,7 +264,7 @@ pub(super) fn render_screensaver(frame: &mut Frame, area: Rect, ctx: Screensaver
     }
     if has_playback_progress {
         if let Some(progress_line) =
-            super::overlays::playback_progress_line(state, cw, border_color, BG)
+            super::overlays::playback_progress_line(state, cw, border_color, BG, palette)
         {
             frame.render_widget(
                 Paragraph::new(progress_line).style(Style::default().bg(BG)),

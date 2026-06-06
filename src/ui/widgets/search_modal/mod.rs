@@ -1,7 +1,7 @@
 use ratatui::{
     buffer::Buffer,
     layout::{Alignment, Constraint, Layout, Rect},
-    style::{Color, Style},
+    style::Style,
     text::{Line, Span},
     widgets::{Block, BorderType, Borders, Clear, Widget},
 };
@@ -9,7 +9,7 @@ use ratatui::{
 use crate::app::{SearchMode, SpotifyAuthStatus};
 use crate::i18n::t;
 use crate::station::DynamicStation;
-use crate::ui::theme;
+use crate::ui::theme::{self, Palette};
 
 use helpers::{key, sep_s};
 
@@ -19,8 +19,6 @@ mod spotify;
 mod tabs;
 mod youtube;
 
-pub(super) const BG: Color = theme::PANEL_BG;
-pub(super) const OVERLAY_BG: Color = theme::OVERLAY_COLOR;
 pub(in crate::ui) const MODAL_MIN_WIDTH: u16 = 52;
 pub(in crate::ui) const MODAL_MIN_HEIGHT: u16 = 14;
 const MODAL_MAX_WIDTH: u16 = 120;
@@ -39,6 +37,7 @@ pub(in crate::ui) fn modal_rect(area: Rect) -> Rect {
 }
 
 pub struct SearchModalWidget<'a> {
+    pub palette: &'a Palette,
     pub query: &'a str,
     pub results: &'a [DynamicStation],
     pub loading: bool,
@@ -101,7 +100,7 @@ impl Widget for SearchModalWidget<'_> {
         Clear.render(area, buf);
         for y in area.top()..area.bottom() {
             for x in area.left()..area.right() {
-                buf[(x, y)].set_bg(OVERLAY_BG);
+                buf[(x, y)].set_bg(self.palette.overlay_color);
             }
         }
 
@@ -118,8 +117,10 @@ impl Widget for SearchModalWidget<'_> {
             .title_bottom(Line::from(bottom_hint).alignment(Alignment::Center))
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
-            .border_style(Style::default().fg(theme::border_color(self.border_tick)))
-            .style(Style::default().bg(BG));
+            .border_style(
+                Style::default().fg(theme::border_color_for(self.palette, self.border_tick)),
+            )
+            .style(Style::default().bg(self.palette.panel_bg));
 
         let inner = block.inner(panel);
         block.render(panel, buf);
@@ -144,11 +145,12 @@ impl Widget for SearchModalWidget<'_> {
     }
 }
 
-impl<'a> From<&'a crate::app::App> for SearchModalWidget<'a> {
-    fn from(app: &'a crate::app::App) -> Self {
+impl<'a> SearchModalWidget<'a> {
+    pub(in crate::ui) fn from_app(app: &'a crate::app::App, palette: &'a Palette) -> Self {
         let sp = &app.spotify;
         let yt = &app.youtube;
         Self {
+            palette,
             query: &app.search_query,
             results: &app.search_results,
             loading: app.search_loading,
@@ -228,12 +230,14 @@ impl SearchModalWidget<'_> {
                 Span::styled(
                     notice.clone(),
                     ratatui::style::Style::default()
-                        .fg(theme::PLAYING)
+                        .fg(self.palette.playing)
                         .add_modifier(ratatui::style::Modifier::BOLD),
                 ),
                 Span::raw("  "),
             ];
         }
+        let key = |s| key(self.palette, s);
+        let sep_s = |s| sep_s(self.palette, s);
         let showing = !self.results.is_empty();
         if showing {
             return vec![
