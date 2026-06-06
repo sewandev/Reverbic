@@ -63,9 +63,11 @@ pub fn spotify_screensaver_progress_rect(
 }
 
 use crate::app::App;
+use crate::ui::theme;
 use overlays::{
     render_client_id_overlay, render_game_strip, render_help_overlay, render_modal_np_strip,
-    render_modal_spotify_strip, render_rename_overlay, render_update_badge,
+    render_modal_spotify_strip, render_rename_overlay, render_theme_picker_overlay,
+    render_update_toast,
 };
 use screensaver::{
     render_logo_above, render_screensaver, render_spotify_screensaver, ScreensaverCtx, LOGO_W,
@@ -89,6 +91,7 @@ pub fn render(frame: &mut Frame, app: &App) {
         return;
     }
 
+    let palette = theme::palette(app.config.theme);
     let player_state = app.player_state();
 
     if app.screensaver_active() {
@@ -104,7 +107,18 @@ pub fn render(frame: &mut Frame, app: &App) {
                     app.spotify.is_premium,
                     app.config.screensaver_clock,
                     app.border_tick,
+                    palette,
                 );
+                if let Some(ref version) = app.update_available {
+                    render_update_toast(
+                        frame,
+                        version,
+                        app.update_path.is_some(),
+                        app.show_search_modal,
+                        area,
+                        palette,
+                    );
+                }
                 return;
             }
         }
@@ -117,6 +131,7 @@ pub fn render(frame: &mut Frame, app: &App) {
             frame,
             area,
             ScreensaverCtx {
+                palette,
                 state: &player_state,
                 details: app.station_details.as_ref(),
                 is_favorite: is_fav,
@@ -127,12 +142,22 @@ pub fn render(frame: &mut Frame, app: &App) {
                 border_tick: app.border_tick,
             },
         );
+        if let Some(ref version) = app.update_available {
+            render_update_toast(
+                frame,
+                version,
+                app.update_path.is_some(),
+                app.show_search_modal,
+                area,
+                palette,
+            );
+        }
         return;
     }
 
     use crate::ui::widgets::search_modal::SearchModalWidget;
     let full_area = frame.area();
-    frame.render_widget(SearchModalWidget::from(app), full_area);
+    frame.render_widget(SearchModalWidget::from_app(app, palette), full_area);
 
     let modal = crate::ui::widgets::search_modal::modal_rect(full_area);
 
@@ -142,8 +167,9 @@ pub fn render(frame: &mut Frame, app: &App) {
             modal.x,
             modal.width.max(LOGO_W),
             modal.y - 1,
-            crate::ui::theme::OVERLAY_COLOR,
+            palette.overlay_color,
             app.border_tick,
+            palette,
         );
     }
 
@@ -156,6 +182,7 @@ pub fn render(frame: &mut Frame, app: &App) {
             name,
             genre,
             app.border_tick,
+            palette,
         );
     }
 
@@ -173,22 +200,34 @@ pub fn render(frame: &mut Frame, app: &App) {
                 app.spotify.now_playing.as_ref(),
                 &app.spotify.player_status,
                 app.border_tick,
+                palette,
             );
         } else {
-            render_modal_np_strip(frame, strip, &player_state, app.border_tick);
+            render_modal_np_strip(frame, strip, &player_state, app.border_tick, palette);
         }
     }
 
     if app.renaming_favorite.is_some() {
-        render_rename_overlay(frame, &app.rename_input);
+        render_rename_overlay(frame, &app.rename_input, palette);
     }
 
     if app.editing_client_id {
-        render_client_id_overlay(frame, &app.client_id_input);
+        render_client_id_overlay(frame, &app.client_id_input, palette);
+    }
+
+    if app.theme_picker_open {
+        render_theme_picker_overlay(frame, app.config.theme, app.theme_picker_selected, palette);
     }
 
     if let Some(ref version) = app.update_available {
-        render_update_badge(frame, version, full_area);
+        render_update_toast(
+            frame,
+            version,
+            app.update_path.is_some(),
+            app.show_search_modal,
+            full_area,
+            palette,
+        );
     }
 
     if app.show_help {
@@ -199,6 +238,7 @@ pub fn render(frame: &mut Frame, app: &App) {
             &app.modal_mode,
             spotify_logged_in,
             app.update_available.as_deref(),
+            palette,
         );
     }
 }

@@ -8,7 +8,6 @@ use ratatui::{
 
 use crate::app::{settings_items, SettingItem};
 use crate::i18n::{current_language, t, Language};
-use crate::ui::theme;
 
 use super::helpers::screensaver_display;
 use super::SearchModalWidget;
@@ -36,6 +35,7 @@ impl<'a> SearchModalWidget<'a> {
             SettingItem::VolumeStep => format!("{}%", self.volume_step),
             SettingItem::Prebuffer => format!("{}s", self.prebuffer_secs),
             SettingItem::OverlayMode => self.overlay_mode.clone(),
+            SettingItem::OverlayStyle => self.overlay_style.clone(),
             SettingItem::OverlayAlpha => format!("{}%", self.overlay_alpha),
             SettingItem::OverlayPosition => self.overlay_position.clone(),
             SettingItem::Screensaver => screensaver_display(self.screensaver_secs),
@@ -79,6 +79,7 @@ impl<'a> SearchModalWidget<'a> {
                 Language::Es => t("lang.display.es"),
                 Language::En => t("lang.display.en"),
             },
+            SettingItem::Theme => self.theme.display(),
             SettingItem::SpotifyStopOnQuit => {
                 if self.spotify_stop_on_quit {
                     on
@@ -187,23 +188,23 @@ impl<'a> SearchModalWidget<'a> {
                 let padding = lbl_col_w.saturating_sub(label_chars) as usize;
                 let label_st = if active {
                     Style::default()
-                        .fg(theme::RADIO_ACCENT)
+                        .fg(self.palette.radio_accent)
                         .add_modifier(Modifier::BOLD)
                 } else {
-                    Style::default().fg(theme::HIGHLIGHT)
+                    Style::default().fg(self.palette.highlight)
                 };
                 let is_on = Self::is_on_value(value);
                 let is_off = value == t("config.value.off").as_str();
                 let val_st = if active {
                     Style::default()
-                        .fg(theme::PLAYING)
+                        .fg(self.palette.playing)
                         .add_modifier(Modifier::BOLD)
                 } else if is_on {
-                    Style::default().fg(theme::PLAYING)
+                    Style::default().fg(self.palette.playing)
                 } else if is_off {
-                    Style::default().fg(theme::MUTED)
+                    Style::default().fg(self.palette.muted)
                 } else {
-                    Style::default().fg(theme::ACCENT)
+                    Style::default().fg(self.palette.accent)
                 };
 
                 Paragraph::new(Line::from(vec![
@@ -219,16 +220,16 @@ impl<'a> SearchModalWidget<'a> {
                 let label_chars = label_upper.chars().count() as u16;
                 let right_dashes = list_w.saturating_sub(3 + label_chars + 1) as usize;
                 Paragraph::new(Line::from(vec![
-                    Span::styled("── ", Style::default().fg(theme::DIM)),
+                    Span::styled("── ", Style::default().fg(self.palette.dim)),
                     Span::styled(
                         label_upper,
                         Style::default()
-                            .fg(theme::MUTED)
+                            .fg(self.palette.muted)
                             .add_modifier(Modifier::BOLD),
                     ),
                     Span::styled(
                         format!(" {}", "─".repeat(right_dashes)),
-                        Style::default().fg(theme::DIM),
+                        Style::default().fg(self.palette.dim),
                     ),
                 ]))
                 .render(Rect::new(list_x, y, list_w, 1), buf);
@@ -240,7 +241,7 @@ impl<'a> SearchModalWidget<'a> {
             self.render_scrollbar(scroll_area, rows.len(), selected_row, buf);
         }
         let sep = "─".repeat(content_w as usize);
-        Paragraph::new(Span::styled(sep, Style::default().fg(theme::DIM)))
+        Paragraph::new(Span::styled(sep, Style::default().fg(self.palette.dim)))
             .render(Rect::new(content_x, tooltip_area.y, content_w, 1), buf);
 
         let tooltip = settings_items(self.duck_enabled)
@@ -249,7 +250,7 @@ impl<'a> SearchModalWidget<'a> {
             .unwrap_or_default();
         Paragraph::new(tooltip)
             .wrap(Wrap { trim: true })
-            .style(Style::default().fg(theme::DIM))
+            .style(Style::default().fg(self.palette.dim))
             .render(Rect::new(list_x, tooltip_area.y + 1, list_w, 2), buf);
     }
 }

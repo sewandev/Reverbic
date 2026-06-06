@@ -5,7 +5,7 @@
 <p align="center">Reproductor de radio en terminal y control remoto de Spotify para Windows, macOS y Linux.</p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-1.4.1-blueviolet?style=flat-square" />
+  <img alt="Version" src="https://img.shields.io/badge/version-1.4.0-blueviolet?style=flat-square" />
   <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-0078d4?style=flat-square" />
   <img alt="Built with Rust" src="https://img.shields.io/badge/built_with-Rust-CE422B?style=flat-square" />
   <img alt="License" src="https://img.shields.io/badge/license-MIT-green?style=flat-square" />
@@ -66,11 +66,11 @@
 <table align="center">
   <tr>
     <td align="center">
-      <img src="assets/overlay.png" alt="Overlay para juegos" width="280"><br>
+      <img src="assets/Overlay.gif" alt="Overlay para juegos" width="280"><br>
       <sub>Overlay para juegos</sub>
     </td>
     <td align="center">
-      <img src="assets/RPC.png" alt="Discord Rich Presence" width="240"><br>
+      <img src="assets/Discord-Rich-Presence.gif" alt="Discord Rich Presence" width="240"><br>
       <sub>Discord Rich Presence</sub>
     </td>
   </tr>

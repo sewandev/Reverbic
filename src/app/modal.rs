@@ -50,6 +50,7 @@ pub enum SettingItem {
     OverlayMode,
     OverlayAlpha,
     OverlayPosition,
+    OverlayStyle,
     Screensaver,
     DuckEnabled,
     DuckVolume,
@@ -57,6 +58,7 @@ pub enum SettingItem {
     TrayIcon,
     Notifications,
     Language,
+    Theme,
     ScreensaverClock,
     SpotifyStopOnQuit,
     SpotifyStartOnSpotify,
@@ -76,6 +78,7 @@ impl SettingItem {
             Self::OverlayMode => t("config.setting.overlay"),
             Self::OverlayAlpha => t("config.setting.overlay_alpha"),
             Self::OverlayPosition => t("config.setting.overlay_position"),
+            Self::OverlayStyle => t("config.setting.overlay_style"),
             Self::Screensaver => t("config.setting.screensaver"),
             Self::DuckEnabled => t("config.setting.duck"),
             Self::DuckVolume => t("config.setting.duck_volume"),
@@ -83,6 +86,7 @@ impl SettingItem {
             Self::TrayIcon => t("config.setting.tray"),
             Self::Notifications => t("config.setting.notifications"),
             Self::Language => t("config.setting.language"),
+            Self::Theme => t("config.setting.theme"),
             Self::ScreensaverClock => t("config.setting.screensaver_clock"),
             Self::SpotifyStopOnQuit => t("config.setting.spotify_stop_on_quit"),
             Self::SpotifyStartOnSpotify => t("config.setting.spotify_start_on_spotify"),
@@ -102,6 +106,7 @@ impl SettingItem {
             Self::OverlayMode => "config.tooltip.overlay",
             Self::OverlayAlpha => "config.tooltip.overlay_alpha",
             Self::OverlayPosition => "config.tooltip.overlay_position",
+            Self::OverlayStyle => "config.tooltip.overlay_style",
             Self::Screensaver => "config.tooltip.screensaver",
             Self::DuckEnabled => "config.tooltip.duck",
             Self::DuckVolume => "config.tooltip.duck_volume",
@@ -109,6 +114,7 @@ impl SettingItem {
             Self::TrayIcon => "config.tooltip.tray",
             Self::Notifications => "config.tooltip.notifications",
             Self::Language => "config.tooltip.language",
+            Self::Theme => "config.tooltip.theme",
             Self::ScreensaverClock => "config.tooltip.screensaver_clock",
             Self::SpotifyStopOnQuit => "config.tooltip.spotify_stop_on_quit",
             Self::SpotifyStartOnSpotify => "config.tooltip.spotify_start_on_spotify",
@@ -128,6 +134,7 @@ impl SettingItem {
             Self::OverlayMode
             | Self::OverlayAlpha
             | Self::OverlayPosition
+            | Self::OverlayStyle
             | Self::Screensaver
             | Self::ScreensaverClock => "config.group.overlay",
             Self::DuckEnabled | Self::DuckVolume => "config.group.game",
@@ -136,7 +143,7 @@ impl SettingItem {
             | Self::Notifications
             | Self::AutoUpdate
             | Self::DiscordRpc => "config.group.system",
-            Self::Language => "config.group.appearance",
+            Self::Language | Self::Theme => "config.group.appearance",
             Self::SpotifyStopOnQuit | Self::SpotifyStartOnSpotify | Self::SpotifyClientId => {
                 "config.group.integrations"
             }
@@ -152,6 +159,7 @@ pub fn settings_items(duck_enabled: bool) -> Vec<SettingItem> {
         SettingItem::VolumeStep,
         SettingItem::Prebuffer,
         SettingItem::OverlayMode,
+        SettingItem::OverlayStyle,
         SettingItem::OverlayAlpha,
         SettingItem::OverlayPosition,
         SettingItem::Screensaver,
@@ -168,6 +176,7 @@ pub fn settings_items(duck_enabled: bool) -> Vec<SettingItem> {
         SettingItem::AutoUpdate,
         SettingItem::DiscordRpc,
         SettingItem::Language,
+        SettingItem::Theme,
         SettingItem::SpotifyStopOnQuit,
         SettingItem::SpotifyStartOnSpotify,
         SettingItem::SpotifyClientId,

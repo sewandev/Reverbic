@@ -9,10 +9,9 @@ use ratatui::{
 use crate::app::YoutubeStatus;
 use crate::i18n::t;
 use crate::ui::strings;
-use crate::ui::theme;
 
 use super::helpers::{render_filter_input, spin_frame};
-use super::{SearchModalWidget, BG};
+use super::SearchModalWidget;
 
 fn fmt_duration(secs: u32) -> String {
     if secs == 0 {
@@ -43,20 +42,21 @@ impl<'a> SearchModalWidget<'a> {
 
         buf[(content_x, input_row.y)]
             .set_symbol("┃")
-            .set_fg(theme::ACCENT)
-            .set_bg(BG);
+            .set_fg(self.palette.accent)
+            .set_bg(self.palette.panel_bg);
 
         render_filter_input(
             self.youtube_query,
             &t("modal.youtube.placeholder"),
             Rect::new(text_x, input_row.y, text_w, 1),
+            self.palette,
             buf,
         );
 
         buf[(content_x, cap_row.y)]
             .set_symbol("╹")
-            .set_fg(theme::ACCENT)
-            .set_bg(BG);
+            .set_fg(self.palette.accent)
+            .set_bg(self.palette.panel_bg);
 
         match self.youtube_status {
             YoutubeStatus::Installing => {
@@ -65,7 +65,7 @@ impl<'a> SearchModalWidget<'a> {
                     text_x,
                     text_w,
                     &format!("{}  {}", spin_frame(), t("modal.youtube.installing")),
-                    theme::MUTED,
+                    self.palette.muted,
                     buf,
                 );
             }
@@ -75,7 +75,7 @@ impl<'a> SearchModalWidget<'a> {
                     text_x,
                     text_w,
                     &format!("{}  {}", spin_frame(), t("modal.youtube.resolving")),
-                    theme::MUTED,
+                    self.palette.muted,
                     buf,
                 );
             }
@@ -113,14 +113,14 @@ impl<'a> SearchModalWidget<'a> {
         let mut y = area.y;
         Paragraph::new(Span::styled(
             strings::truncate(message, text_w as usize),
-            Style::default().fg(theme::WARNING),
+            Style::default().fg(self.palette.warning),
         ))
         .render(Rect::new(text_x, y, text_w, 1), buf);
         y += 2;
         if y < area.bottom() {
             Paragraph::new(Span::styled(
                 t("modal.youtube.retry_hint"),
-                Style::default().fg(theme::DIM),
+                Style::default().fg(self.palette.dim),
             ))
             .wrap(Wrap { trim: true })
             .render(
@@ -134,7 +134,7 @@ impl<'a> SearchModalWidget<'a> {
         if self.youtube_loading {
             Paragraph::new(Span::styled(
                 format!("{}  {}", spin_frame(), t("modal.loading.youtube")),
-                Style::default().fg(theme::MUTED),
+                Style::default().fg(self.palette.muted),
             ))
             .render(Rect::new(list_x, area.y, list_w, 1), buf);
             return;
@@ -144,7 +144,7 @@ impl<'a> SearchModalWidget<'a> {
             if !self.youtube_query.is_empty() {
                 Paragraph::new(Span::styled(
                     t("modal.youtube.no_results"),
-                    Style::default().fg(theme::MUTED),
+                    Style::default().fg(self.palette.muted),
                 ))
                 .render(Rect::new(list_x, area.y, list_w, 1), buf);
             }
@@ -170,9 +170,9 @@ impl<'a> SearchModalWidget<'a> {
 
                 if active {
                     let title_st = Style::default()
-                        .fg(theme::PLAYING)
+                        .fg(self.palette.playing)
                         .add_modifier(Modifier::BOLD);
-                    let meta_st = Style::default().fg(theme::ACCENT);
+                    let meta_st = Style::default().fg(self.palette.accent);
                     ListItem::new(vec![
                         Line::from(vec![
                             Span::styled("▶  ", title_st),
@@ -185,8 +185,8 @@ impl<'a> SearchModalWidget<'a> {
                         ]),
                     ])
                 } else {
-                    let title_st = Style::default().fg(theme::HIGHLIGHT);
-                    let meta_st = Style::default().fg(theme::MUTED);
+                    let title_st = Style::default().fg(self.palette.highlight);
+                    let meta_st = Style::default().fg(self.palette.muted);
                     ListItem::new(vec![
                         Line::from(vec![
                             Span::styled("   ", title_st),
