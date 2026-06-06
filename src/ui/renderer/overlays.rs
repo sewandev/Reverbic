@@ -274,7 +274,7 @@ fn volume_bar_spans(vol: f32, bar_width: usize) -> (String, String) {
 
 fn visualizer_spans(level_db: f32, width: usize, bg: ratatui::style::Color) -> Vec<Span<'static>> {
     use ratatui::style::Color::Rgb;
-    const BLOCKS: &[char] = &['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
+    let glyphs = super::visualizer_glyphs();
     const SPECTRUM: [ratatui::style::Color; 8] = [
         Rgb(0, 240, 255),
         Rgb(40, 160, 255),
@@ -309,7 +309,7 @@ fn visualizer_spans(level_db: f32, width: usize, bg: ratatui::style::Color) -> V
             SPECTRUM[pos_idx]
         };
         spans.push(Span::styled(
-            BLOCKS[idx].to_string(),
+            glyphs[idx].to_string(),
             Style::default().fg(color).bg(bg),
         ));
         if i + 1 < n_bars {

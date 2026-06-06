@@ -609,7 +609,7 @@ fn build_clock_row(
 
 fn visualizer_line(level_db: f32, width: usize, bg: ratatui::style::Color) -> Line<'static> {
     use ratatui::style::Color::Rgb;
-    const BLOCKS: &[char] = &['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
+    let glyphs = super::visualizer_glyphs();
     const SPECTRUM: [ratatui::style::Color; 8] = [
         Rgb(0, 240, 255),
         Rgb(40, 160, 255),
@@ -641,7 +641,7 @@ fn visualizer_line(level_db: f32, width: usize, bg: ratatui::style::Color) -> Li
             SPECTRUM[pos_idx]
         };
         spans.push(Span::styled(
-            BLOCKS[idx].to_string(),
+            glyphs[idx].to_string(),
             Style::default().fg(color).bg(bg),
         ));
         if i + 1 < n_bars {
