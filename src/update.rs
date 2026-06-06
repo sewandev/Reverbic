@@ -3,7 +3,42 @@ use std::path::{Path, PathBuf};
 const REPO: &str = "sewandev/Reverbic";
 const CURRENT: &str = env!("CARGO_PKG_VERSION");
 
-pub async fn fetch_latest_version() -> Option<String> {
+#[derive(Clone, Debug)]
+pub struct UpdateAsset {
+    pub version: String,
+    pub name: String,
+    pub download_url: String,
+    pub size: u64,
+    pub digest: Option<String>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct GitHubRelease {
+    tag_name: String,
+    assets: Vec<GitHubAsset>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct GitHubAsset {
+    name: String,
+    browser_download_url: String,
+    size: u64,
+    digest: Option<String>,
+}
+
+impl GitHubAsset {
+    fn into_update_asset(self, version: &str) -> UpdateAsset {
+        UpdateAsset {
+            version: version.to_owned(),
+            name: self.name,
+            download_url: self.browser_download_url,
+            size: self.size,
+            digest: self.digest,
+        }
+    }
+}
+
+pub async fn fetch_latest_update() -> Option<UpdateAsset> {
     let url = format!("https://api.github.com/repos/{REPO}/releases/latest");
     let client = reqwest::Client::builder()
         .user_agent(concat!("reverbic/", env!("CARGO_PKG_VERSION")))
@@ -15,20 +50,28 @@ pub async fn fetch_latest_version() -> Option<String> {
     if !resp.status().is_success() {
         return None;
     }
-    let json: serde_json::Value = resp.json().await.ok()?;
-    let tag = json.get("tag_name")?.as_str()?;
-    let version = tag.trim_start_matches('v');
+    let release: GitHubRelease = resp.json().await.ok()?;
+    let version = release.tag_name.trim_start_matches('v');
     if is_newer(version, CURRENT) {
-        Some(version.to_owned())
+        let name = format!("reverbic-v{version}-x86_64-windows.exe");
+        release
+            .assets
+            .into_iter()
+            .find(|asset| asset.name == name)
+            .map(|asset| asset.into_update_asset(version))
     } else {
         None
     }
 }
 
-pub async fn download_update(version: &str) -> Option<PathBuf> {
-    let name = format!("reverbic-v{version}-x86_64-windows.exe");
-    let url = format!("https://github.com/{REPO}/releases/download/v{version}/{name}");
-    let path = std::env::temp_dir().join(format!("reverbic-update-v{version}.exe"));
+pub async fn download_update(asset: &UpdateAsset) -> Option<PathBuf> {
+    let path = std::env::temp_dir().join(format!("reverbic-update-v{}.exe", asset.version));
+    tracing::debug!(
+        asset = %asset.name,
+        size = asset.size,
+        digest = asset.digest.as_deref().unwrap_or(""),
+        "Downloading update asset"
+    );
 
     if let Ok(meta) = std::fs::metadata(&path) {
         if meta.len() > 1_000_000 {
@@ -43,7 +86,7 @@ pub async fn download_update(version: &str) -> Option<PathBuf> {
         .timeout(std::time::Duration::from_secs(120))
         .build()
         .ok()?;
-    let resp = client.get(&url).send().await.ok()?;
+    let resp = client.get(&asset.download_url).send().await.ok()?;
     if !resp.status().is_success() {
         return None;
     }
