@@ -24,6 +24,13 @@ pub async fn resolve_audio_url(binary: &Path, watch_url: &str) -> Result<String,
         } else {
             stdout.trim().to_string()
         };
+
+        if requires_youtube_sign_in(&msg) {
+            return Err(YoutubeError::Resolve(crate::i18n::t(
+                "modal.youtube.auth_required",
+            )));
+        }
+
         return Err(YoutubeError::Resolve(format!(
             "{}: {}",
             crate::i18n::t("modal.youtube.resolve_failed"),
@@ -32,6 +39,10 @@ pub async fn resolve_audio_url(binary: &Path, watch_url: &str) -> Result<String,
     }
 
     parse_resolve_output(&output.stdout)
+}
+
+fn requires_youtube_sign_in(message: &str) -> bool {
+    message.to_lowercase().contains("sign in to confirm")
 }
 
 pub fn build_resolve_args(watch_url: &str) -> Vec<String> {
