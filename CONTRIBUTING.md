@@ -11,7 +11,8 @@ Right now, our main focus is on **security hardening** (specially around the aut
 - **`develop` is our default branch.** All new features, bug fixes, and refactors MUST be PR'd against `develop`.
 - Please **do not open Pull Requests against `main`**. `main` is strictly reserved for production releases.
 - **CI is Mandatory**: We do not bypass GitHub Actions. Your PR will not be merged until the `cargo fmt` and `cargo clippy` checks are perfectly green.
-- **Merge Conflicts**: If your PR has merge conflicts, please resolve them locally, verify compilation with `cargo check` and `cargo fmt`, and push the fix. If you can't, a maintainer might create a "PR Bridge" to resolve it for you while keeping your author credits.
+- **Merge Conflicts**: If your PR has merge conflicts, please resolve them locally, verify compilation with `cargo check` and `cargo fmt`, and push the fix. If you can't, the maintainer will push the resolution directly to your branch — no "PR Bridges" will be created, to keep the history clean and your authorship intact.
+- PRs are merged using **squash and merge**.
 
 ## Issues
 
@@ -24,13 +25,8 @@ Open an issue for:
 PRs are welcome. Before opening one:
 
 1. **Open an issue first** to discuss the change — this avoids wasted effort on PRs that won't be merged
-2. **Target the `develop` branch** — never open a PR against `main`
-3. **Keep the scope small** — one fix or one feature per PR, no unrelated cleanup
-4. **Write a clear description** — explain what the change does and why it's needed; the diff alone is not enough
-
-PRs are merged using **squash and merge** to keep the history clean.
-
-If your branch has merge conflicts, the maintainer will push the resolution directly to your branch — no bridge PRs will be created.
+2. **Keep the scope small** — one fix or one feature per PR, no unrelated cleanup
+3. **Write a clear description** — explain what the change does and why it's needed; the diff alone is not enough
 
 ### Code conventions
 
