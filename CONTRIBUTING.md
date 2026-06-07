@@ -24,8 +24,13 @@ Open an issue for:
 PRs are welcome. Before opening one:
 
 1. **Open an issue first** to discuss the change — this avoids wasted effort on PRs that won't be merged
-2. **Keep the scope small** — one fix or one feature per PR, no unrelated cleanup
-3. **Write a clear description** — explain what the change does and why it's needed; the diff alone is not enough
+2. **Target the `develop` branch** — never open a PR against `main`
+3. **Keep the scope small** — one fix or one feature per PR, no unrelated cleanup
+4. **Write a clear description** — explain what the change does and why it's needed; the diff alone is not enough
+
+PRs are merged using **squash and merge** to keep the history clean.
+
+If your branch has merge conflicts, the maintainer will push the resolution directly to your branch — no bridge PRs will be created.
 
 ### Code conventions
 
