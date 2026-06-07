@@ -33,6 +33,7 @@
   "modal.youtube.install_failed": "Could not install yt-dlp automatically.",
   "modal.youtube.search_failed": "Could not search YouTube.",
   "modal.youtube.resolve_failed": "Could not resolve the YouTube audio stream.",
+  "modal.youtube.auth_required": "This video requires signing in to YouTube to play; Reverbic does not support that authentication for privacy and security reasons. Try a different video.",
   "modal.youtube.resolving": "Resolving YouTube audio stream…",
   "modal.youtube.no_results": "No YouTube results",
   "modal.youtube.retry_hint": "Type again or press Enter to retry.",
