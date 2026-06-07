@@ -116,6 +116,7 @@ impl<'a> SearchModalWidget<'a> {
                     off
                 }
             }
+            SettingItem::ReplayOnboarding => t("hint.open"),
         }
     }
 

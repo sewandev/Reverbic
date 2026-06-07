@@ -69,9 +69,9 @@ use overlays::{
     render_modal_spotify_strip, render_rename_overlay, render_theme_picker_overlay,
     render_update_toast,
 };
-use screensaver::{
-    render_logo_above, render_screensaver, render_spotify_screensaver, ScreensaverCtx, LOGO_W,
-};
+use screensaver::{render_screensaver, render_spotify_screensaver, ScreensaverCtx};
+
+pub(crate) use screensaver::{render_logo_above, LOGO_W};
 
 pub fn render(frame: &mut Frame, app: &App) {
     let area = frame.area();

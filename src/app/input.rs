@@ -641,6 +641,11 @@ impl App {
                         self.editing_client_id = true;
                     }
                     Some(super::modal::SettingItem::Theme) => self.open_theme_picker(),
+                    Some(super::modal::SettingItem::ReplayOnboarding) => {
+                        self.replay_onboarding = true;
+                        self.show_search_modal = false;
+                        self.modal_mode = SearchMode::Name;
+                    }
                     Some(_) => self.apply_settings_toggle(self.settings_selected),
                     None => {}
                 }
@@ -1162,6 +1167,7 @@ impl App {
                 self.config.spotify.start_on_spotify = !self.config.spotify.start_on_spotify;
             }
             super::modal::SettingItem::SpotifyClientId => {}
+            super::modal::SettingItem::ReplayOnboarding => {}
             super::modal::SettingItem::AutoUpdate => {
                 self.config.auto_update = !self.config.auto_update
             }

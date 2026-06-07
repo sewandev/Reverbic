@@ -10,6 +10,10 @@ Versionado: [Semantic Versioning](https://semver.org/)
 
 ## [Sin publicar]
 
+### Agregado
+- Bienvenida inicial con animación del logo, música ambiental y opciones de configuración inicial (overlay, autoplay, restaurar volumen)
+- Opción "Ver bienvenida de nuevo" en Ajustes para repetir la experiencia de primer inicio
+
 ---
 
 ## [1.4.2] — 2026-06-06

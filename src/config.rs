@@ -350,6 +350,11 @@ impl Config {
         config
     }
 
+    /// True when no config file exists yet — i.e. Reverbic is starting for the first time.
+    pub fn is_first_run() -> bool {
+        !Self::path().exists()
+    }
+
     pub fn save(&self) {
         if let Err(error) =
             save_spotify_refresh_token(self.spotify.refresh_token.as_deref(), spotify_token_entry())

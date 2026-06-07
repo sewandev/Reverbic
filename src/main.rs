@@ -21,6 +21,7 @@ mod install;
 mod integrations;
 mod library;
 mod metadata;
+mod onboarding;
 #[cfg(target_os = "windows")]
 mod overlay;
 mod preview;
@@ -116,6 +117,10 @@ fn init_logging() -> Option<tracing_appender::non_blocking::WorkerGuard> {
 
 async fn run(tui: &mut terminal::Tui) -> Result<()> {
     let mut app = App::new().await;
+
+    if config::Config::is_first_run() {
+        onboarding::run(tui, &mut app.config, &app.player).await?;
+    }
 
     #[cfg(target_os = "windows")]
     unsafe {
@@ -235,6 +240,14 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
         }
         while let Some(Some(maybe_event)) = events.next().now_or_never() {
             handle_event(&mut app, Some(maybe_event), click_count).await;
+        }
+
+        if app.replay_onboarding {
+            app.replay_onboarding = false;
+            onboarding::run(tui, &mut app.config, &app.player).await?;
+            if let Some(ref tx) = app.windows_tx {
+                let _ = tx.send(app.config.clone());
+            }
         }
 
         if SHUTDOWN_REQUESTED.load(Ordering::Relaxed) {

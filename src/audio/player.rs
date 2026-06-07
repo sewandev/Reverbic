@@ -852,6 +852,27 @@ fn handle_play_preview(
     }
 }
 
+/// Detects when a preview source has played through to its end on its own
+/// (as opposed to being stopped via `StopPreview`) and tears it down the same
+/// way, restoring the radio's pre-duck volume so it doesn't stay lowered forever.
+fn check_preview_ended(st: &mut AudioLoopState, state_tx: &watch::Sender<PlayerState>) {
+    if !st.preview_player.as_ref().is_some_and(|p| p.empty()) {
+        return;
+    }
+    st.preview_player = None;
+    if let Some(pre_duck) = st.volume_before_duck.take() {
+        if let Some(ref p) = st.player {
+            p.set_volume(pre_duck);
+        }
+    }
+    update_state(state_tx, |s| {
+        s.preview_title = None;
+        s.preview_searching = false;
+        s.preview_loading_track = None;
+        s.preview_playing_track = None;
+    });
+}
+
 fn handle_seek_cmd(
     st: &mut AudioLoopState,
     target_secs: f32,
@@ -1006,6 +1027,7 @@ fn audio_loop(
         process_icy_titles(&mut st, &state_tx, api_fresh, download_done);
         update_level_and_position(&state_tx, &st);
         check_stream_stall(&mut st);
+        check_preview_ended(&mut st, &state_tx);
 
         let mut is_auto_reconnect = false;
         let cmd = if let Ok(user_cmd) = cmd_rx.try_recv() {

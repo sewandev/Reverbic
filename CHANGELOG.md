@@ -10,6 +10,10 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ## [Unreleased]
 
+### Added
+- First-launch welcome stepper with logo animation, ambient music and initial setup options (overlay, autoplay, volume restore)
+- "Show welcome again" option in Settings to replay the first-launch experience
+
 ---
 
 ## [1.4.2] — 2026-06-06

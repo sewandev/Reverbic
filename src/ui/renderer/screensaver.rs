@@ -460,7 +460,7 @@ pub(super) fn render_screensaver(frame: &mut Frame, area: Rect, ctx: Screensaver
     }
 }
 
-pub(super) const LOGO_W: u16 = 39;
+pub(crate) const LOGO_W: u16 = 39;
 
 fn eq_bar_level(tick: u32, period: u32, phase: u32, min_l: usize, max_l: usize) -> usize {
     let t = tick.wrapping_add(phase) % period;
@@ -538,7 +538,7 @@ fn logo_lines(bg: ratatui::style::Color, tick: u32, palette: &Palette) -> [Line<
     [top, Line::from(spans)]
 }
 
-pub(super) fn render_logo_above(
+pub(crate) fn render_logo_above(
     frame: &mut Frame,
     area_x: u16,
     area_width: u16,
@@ -609,7 +609,7 @@ fn build_clock_row(
     Line::from(Span::styled(s, Style::default().fg(color).bg(bg)))
 }
 
-fn visualizer_line(
+pub(crate) fn visualizer_line(
     level_db: f32,
     width: usize,
     bg: ratatui::style::Color,
