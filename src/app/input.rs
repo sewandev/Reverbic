@@ -8,7 +8,7 @@ use crate::library;
 use crate::preview::{deezer_preview, parse_seek_input};
 use crate::station::{filter_items, Station, COUNTRIES, GENRES};
 
-use super::modal::settings_items;
+use super::modal::{settings_items, SettingItem};
 use super::modal::{AppFocus, RadioSubTab, SearchMode, SpotifyAuthStatus, SpotifyPlayerStatus};
 use super::{abort_task, cycle_next, cycle_prev, scroll_by, App};
 
@@ -635,23 +635,33 @@ impl App {
             }
             KeyCode::Enter => {
                 let items = settings_items(self.config.duck_enabled);
-                match items.get(self.settings_selected) {
-                    Some(super::modal::SettingItem::SpotifyClientId) => {
-                        self.client_id_input = self.config.spotify.client_id.clone();
-                        self.editing_client_id = true;
-                    }
-                    Some(super::modal::SettingItem::Theme) => self.open_theme_picker(),
-                    Some(super::modal::SettingItem::ReplayOnboarding) => {
-                        self.replay_onboarding = true;
-                        self.show_search_modal = false;
-                        self.modal_mode = SearchMode::Name;
-                    }
-                    Some(_) => self.apply_settings_toggle(self.settings_selected),
-                    None => {}
+                if let Some(item) = items.get(self.settings_selected).copied() {
+                    self.activate_setting_item(item);
                 }
             }
-            KeyCode::Char(' ') => self.apply_settings_toggle(self.settings_selected),
+            KeyCode::Char(' ') => {
+                let items = settings_items(self.config.duck_enabled);
+                if let Some(item) = items.get(self.settings_selected).copied() {
+                    self.activate_setting_item(item);
+                }
+            }
             _ => {}
+        }
+    }
+
+    fn activate_setting_item(&mut self, item: SettingItem) {
+        match item {
+            SettingItem::SpotifyClientId => {
+                self.client_id_input = self.config.spotify.client_id.clone();
+                self.editing_client_id = true;
+            }
+            SettingItem::Theme => self.open_theme_picker(),
+            SettingItem::ReplayOnboarding => {
+                self.replay_onboarding = true;
+                self.show_search_modal = false;
+                self.modal_mode = SearchMode::Name;
+            }
+            _ => self.apply_settings_toggle(self.settings_selected),
         }
     }
 
