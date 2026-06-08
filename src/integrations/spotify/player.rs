@@ -1,10 +1,8 @@
 use std::sync::mpsc::SyncSender;
 use std::sync::Arc;
 
-use librespot_connect::{ConnectConfig, LoadRequest, LoadRequestOptions, Spirc};
-use librespot_core::config::DeviceType;
 use librespot_core::{
-    authentication::Credentials, cache::Cache, Session, SessionConfig, SpotifyId,
+    authentication::Credentials, cache::Cache, Session, SessionConfig, SpotifyUri,
 };
 use librespot_metadata::audio::{AudioItem, UniqueFields};
 use librespot_playback::{
@@ -22,8 +20,8 @@ pub struct SpotifyPlayerHandle {
 }
 
 impl SpotifyPlayerHandle {
-    pub fn play(&self, track: SpotifyTrack, uris: Vec<String>) {
-        let _ = self.cmd_tx.send(SpotifyPlayerCmd::Play { track, uris });
+    pub fn play(&self, uris: Vec<String>) {
+        let _ = self.cmd_tx.send(SpotifyPlayerCmd::Play { uris });
     }
 
     pub fn pause(&self) {
@@ -43,9 +41,6 @@ fn track_from_audio_item(item: &AudioItem) -> Option<SpotifyTrack> {
     Some(SpotifyTrack {
         name: item.name.clone(),
         artist: first_artist.map(|a| a.name.clone()).unwrap_or_default(),
-        artist_id: first_artist
-            .and_then(|a| SpotifyId::try_from(&a.id).ok())
-            .and_then(|id| id.to_base62().ok()),
         album: album.clone(),
         duration_ms: item.duration_ms,
         uri: item.uri.clone(),
@@ -96,6 +91,11 @@ async fn run_player(
     };
 
     let session = Session::new(session_config, cache);
+    if let Err(e) = session.connect(credentials, true).await {
+        let _ = event_tx.try_send(SpotifyPlayerEvent::Error(format!("Session connect: {e}")));
+        return;
+    }
+
     let mixer: Arc<dyn Mixer> = Arc::new(match SoftMixer::open(MixerConfig::default()) {
         Ok(m) => m,
         Err(e) => {
@@ -116,52 +116,30 @@ async fn run_player(
     let format = AudioFormat::default();
     let volume_fn = mixer.get_soft_volume();
 
-    let player = Player::new(
-        PlayerConfig::default(),
-        session.clone(),
-        volume_fn,
-        move || (backend)(None, format),
-    );
+    let player = Player::new(PlayerConfig::default(), session, volume_fn, move || {
+        (backend)(None, format)
+    });
 
     let mut librespot_events = player.get_player_event_channel();
-
-    let connect_config = ConnectConfig {
-        name: "Reverbic".to_string(),
-        device_type: DeviceType::Computer,
-        initial_volume: 65535 / 2,
-        is_group: false,
-        disable_volume: false,
-        volume_steps: 64,
-    };
-
-    let (spirc, spirc_task) = match Spirc::new(
-        connect_config,
-        session.clone(),
-        credentials,
-        player.clone(),
-        mixer.clone(),
-    )
-    .await
-    {
-        Ok(r) => r,
-        Err(e) => {
-            let _ = event_tx.try_send(SpotifyPlayerEvent::Error(format!("Spirc init: {e}")));
-            return;
-        }
-    };
-
-    tokio::spawn(spirc_task);
-    let _ = spirc.activate();
 
     loop {
         tokio::select! {
             Some(evt) = librespot_events.recv() => {
                 use librespot_playback::player::PlayerEvent;
                 let mapped = match evt {
-                    PlayerEvent::Playing { .. }    => Some(SpotifyPlayerEvent::Playing),
+                    PlayerEvent::Playing { .. }    => {
+                        tracing::debug!("librespot: Playing fired");
+                        Some(SpotifyPlayerEvent::Playing)
+                    }
                     PlayerEvent::Paused { .. }     => Some(SpotifyPlayerEvent::Paused),
-                    PlayerEvent::Stopped { .. }    => Some(SpotifyPlayerEvent::Stopped),
-                    PlayerEvent::EndOfTrack { .. } => Some(SpotifyPlayerEvent::EndOfTrack),
+                    PlayerEvent::Stopped { .. }    => {
+                        tracing::debug!("librespot: Stopped fired");
+                        Some(SpotifyPlayerEvent::Stopped)
+                    }
+                    PlayerEvent::EndOfTrack { .. } => {
+                        tracing::debug!("librespot: EndOfTrack fired");
+                        Some(SpotifyPlayerEvent::EndOfTrack)
+                    }
                     PlayerEvent::TrackChanged { audio_item } => {
                         track_from_audio_item(&audio_item).map(SpotifyPlayerEvent::TrackChanged)
                     }
@@ -176,26 +154,22 @@ async fn run_player(
             }
             cmd = cmd_rx.recv() => {
                 match cmd {
-                    Some(SpotifyPlayerCmd::Play { track, uris }) => {
-                        let mut final_uris = uris;
-                        if let Some(pos) = final_uris.iter().position(|u| u == &track.uri) {
-                            final_uris = final_uris[pos..].to_vec();
-                        } else {
-                            final_uris = vec![track.uri.clone()];
-                        }
-                        final_uris.truncate(100);
-                        let request = LoadRequest::from_tracks(
-                            final_uris,
-                            LoadRequestOptions { start_playing: true, ..Default::default() },
-                        );
-                        if let Err(e) = spirc.load(request) {
-                            let _ = event_tx.try_send(SpotifyPlayerEvent::Error(
-                                format!("Spirc load: {e}"),
-                            ));
+                    Some(SpotifyPlayerCmd::Play { uris }) => {
+                        if let Some(uri) = uris.into_iter().next() {
+                            match SpotifyUri::from_uri(&uri) {
+                                Ok(spotify_uri) => {
+                                    player.load(spotify_uri, true, 0);
+                                }
+                                Err(e) => {
+                                    let _ = event_tx.try_send(SpotifyPlayerEvent::Error(
+                                        format!("URI parse: {e}"),
+                                    ));
+                                }
+                            }
                         }
                     }
-                    Some(SpotifyPlayerCmd::Pause)  => { let _ = spirc.pause(); }
-                    Some(SpotifyPlayerCmd::Resume) => { let _ = spirc.play(); }
+                    Some(SpotifyPlayerCmd::Pause)  => { player.pause(); }
+                    Some(SpotifyPlayerCmd::Resume) => { player.play(); }
                     None => break,
                 }
             }

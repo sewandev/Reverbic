@@ -28,17 +28,13 @@ pub enum AuthResult {
 pub struct SpotifyTrack {
     pub name: String,
     pub artist: String,
-    pub artist_id: Option<String>,
     pub album: String,
     pub duration_ms: u32,
     pub uri: String,
 }
 
 pub enum SpotifyPlayerCmd {
-    Play {
-        track: SpotifyTrack,
-        uris: Vec<String>,
-    },
+    Play { uris: Vec<String> },
     Pause,
     Resume,
 }

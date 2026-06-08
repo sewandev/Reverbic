@@ -204,26 +204,22 @@ impl App {
                     }
                 }
                 SpotifyPlayerEvent::Stopped => {
-                    let artist_id = self
-                        .spotify
-                        .now_playing
-                        .as_ref()
-                        .and_then(|t| t.artist_id.clone());
-                    let seed_uri = self
-                        .spotify
-                        .now_playing
-                        .as_ref()
-                        .map(|t| t.uri.clone())
-                        .unwrap_or_default();
+                    tracing::debug!(
+                        "spotify event: Stopped (queue={})",
+                        self.spotify.playback_queue.len()
+                    );
                     self.spotify.player_status = SpotifyPlayerStatus::Idle;
-                    self.spotify.now_playing = None;
-                    if self.config.spotify.radio_enabled {
-                        if let Some(id) = artist_id {
-                            self.fetch_radio_tracks(id, seed_uri);
-                        }
+                    if self.spotify.playback_queue.is_empty() && self.spotify.radio_rx.is_none() {
+                        self.spotify.now_playing = None;
                     }
                 }
-                SpotifyPlayerEvent::EndOfTrack => {}
+                SpotifyPlayerEvent::EndOfTrack => {
+                    tracing::debug!(
+                        "spotify event: EndOfTrack (queue={})",
+                        self.spotify.playback_queue.len()
+                    );
+                    self.advance_playback_queue();
+                }
                 SpotifyPlayerEvent::Error(e) => {
                     self.spotify.player_status = SpotifyPlayerStatus::Error(e)
                 }
@@ -231,7 +227,7 @@ impl App {
         }
     }
 
-    fn fetch_radio_tracks(&mut self, artist_id: String, seed_uri: String) {
+    fn fetch_radio_tracks(&mut self, artist_name: String, seed_uri: String) {
         use crate::integrations::spotify::radio::fetch_radio_pool;
         abort_task(&mut self.spotify.radio_task);
         let Some(token) = self.spotify.access_token.clone() else {
@@ -241,7 +237,7 @@ impl App {
         let (tx, rx) = std::sync::mpsc::channel();
         self.spotify.radio_rx = Some(rx);
         let handle = tokio::spawn(async move {
-            match fetch_radio_pool(&artist_id, &seed_uri, recently_played, &token).await {
+            match fetch_radio_pool(&artist_name, &seed_uri, recently_played, &token).await {
                 Ok(tracks) => {
                     let _ = tx.send(tracks);
                 }
@@ -278,7 +274,7 @@ impl App {
         let Some(handle) = &self.spotify.player_tx else {
             return;
         };
-        handle.play(track.clone(), vec![track.uri.clone()]);
+        handle.play(vec![track.uri.clone()]);
         self.spotify.now_playing = Some(track);
         self.spotify.player_status = SpotifyPlayerStatus::Loading;
     }
@@ -631,28 +627,71 @@ impl App {
     pub async fn play_spotify_track_with_queue(
         &mut self,
         track: crate::integrations::spotify::SpotifyTrack,
-        uris: Vec<String>,
+        queue: Vec<crate::integrations::spotify::SpotifyTrack>,
     ) {
         use crate::audio::PlayerCommand;
         self.player.send(PlayerCommand::Stop).await;
+        self.spotify.playback_queue = queue.into_iter().collect();
+        tracing::debug!(
+            "play_spotify_track_with_queue: track='{}' queue_len={}",
+            track.name,
+            self.spotify.playback_queue.len()
+        );
         if let Some(device_id) = self.spotify.active_device_id.clone() {
             let token = self.spotify.access_token.clone().unwrap_or_default();
-            let uri = track.uri.clone();
+            let mut uris: Vec<String> = std::iter::once(track.uri.clone())
+                .chain(self.spotify.playback_queue.iter().map(|t| t.uri.clone()))
+                .collect();
+            uris.truncate(100);
             self.spotify.now_playing = Some(track);
             self.spotify.player_status = SpotifyPlayerStatus::Loading;
             let (tx, rx) = std::sync::mpsc::channel();
             self.spotify.play_result_rx = Some(rx);
             tokio::spawn(async move {
-                let result =
-                    crate::integrations::spotify::devices::play_on_device(&token, &device_id, &uri)
-                        .await;
+                let result = crate::integrations::spotify::devices::play_tracks_on_device(
+                    &token, &device_id, uris,
+                )
+                .await;
                 let _ = tx.send(result);
             });
             self.start_playback_polling();
         } else if let Some(handle) = &self.spotify.player_tx {
-            handle.play(track.clone(), uris);
+            handle.play(vec![track.uri.clone()]);
             self.spotify.now_playing = Some(track);
             self.spotify.player_status = SpotifyPlayerStatus::Loading;
+        }
+    }
+
+    fn advance_playback_queue(&mut self) {
+        tracing::debug!(
+            "advance_playback_queue: queue_len={}",
+            self.spotify.playback_queue.len()
+        );
+        if let Some(next) = self.spotify.playback_queue.pop_front() {
+            tracing::debug!("advance_playback_queue: playing next '{}'", next.name);
+            if let Some(handle) = &self.spotify.player_tx {
+                handle.play(vec![next.uri.clone()]);
+                self.spotify.now_playing = Some(next);
+                self.spotify.player_status = SpotifyPlayerStatus::Loading;
+            } else {
+                tracing::debug!("advance_playback_queue: no player handle");
+            }
+        } else if self.config.spotify.radio_enabled {
+            let artist_name = self
+                .spotify
+                .now_playing
+                .as_ref()
+                .map(|t| t.artist.clone())
+                .filter(|a| !a.is_empty());
+            let seed_uri = self
+                .spotify
+                .now_playing
+                .as_ref()
+                .map(|t| t.uri.clone())
+                .unwrap_or_default();
+            if let Some(name) = artist_name {
+                self.fetch_radio_tracks(name, seed_uri);
+            }
         }
     }
 
@@ -763,10 +802,23 @@ impl App {
         };
         match rx.try_recv() {
             Ok(Ok((tracks, has_more))) => {
+                let loaded_count = tracks.len() as u32;
                 self.spotify.playlist_tracks_loading = false;
                 self.spotify.playlist_tracks = tracks;
                 self.spotify.playlist_tracks_has_more = has_more;
                 self.spotify.playlist_tracks_offset = 50;
+                if let Some(pl) = self.spotify.open_playlist.as_mut() {
+                    if pl.tracks_total == 0 {
+                        pl.tracks_total = loaded_count;
+                    }
+                }
+                if let Some(open_id) = self.spotify.open_playlist.as_ref().map(|p| p.id.clone()) {
+                    if let Some(pl) = self.spotify.playlists.iter_mut().find(|p| p.id == open_id) {
+                        if pl.tracks_total == 0 {
+                            pl.tracks_total = loaded_count;
+                        }
+                    }
+                }
             }
             Ok(Err(e)) => {
                 self.spotify.playlist_tracks_loading = false;

@@ -63,7 +63,7 @@ impl<'a> SearchModalWidget<'a> {
             let tab_style = |active: bool| {
                 if active {
                     Style::default()
-                        .fg(self.palette.accent)
+                        .fg(self.palette.spotify)
                         .add_modifier(Modifier::BOLD)
                 } else {
                     Style::default().fg(self.palette.dim)
@@ -372,9 +372,9 @@ impl<'a> SearchModalWidget<'a> {
                     let meta_raw = format!("{} · {}", track.artist, track.album);
                     let meta = strings::truncate(&meta_raw, meta_max);
                     let name_st = Style::default()
-                        .fg(self.palette.playing)
+                        .fg(self.palette.spotify)
                         .add_modifier(Modifier::BOLD);
-                    let meta_st = Style::default().fg(self.palette.accent);
+                    let meta_st = Style::default().fg(self.palette.spotify);
                     ListItem::new(vec![
                         Line::from(vec![
                             Span::styled("▶  ", name_st),
@@ -597,9 +597,9 @@ impl<'a> SearchModalWidget<'a> {
                     let meta_raw = format!("{} · {}", track.artist, track.album);
                     let meta = strings::truncate(&meta_raw, meta_max);
                     let name_st = Style::default()
-                        .fg(self.palette.playing)
+                        .fg(self.palette.spotify)
                         .add_modifier(Modifier::BOLD);
-                    let meta_st = Style::default().fg(self.palette.accent);
+                    let meta_st = Style::default().fg(self.palette.spotify);
                     ListItem::new(vec![
                         Line::from(vec![
                             Span::styled("▶  ", name_st),
@@ -685,7 +685,7 @@ impl<'a> SearchModalWidget<'a> {
                 let name = strings::truncate(&pl.name, name_max);
                 let st = if active {
                     Style::default()
-                        .fg(self.palette.playing)
+                        .fg(self.palette.spotify)
                         .add_modifier(Modifier::BOLD)
                 } else {
                     Style::default().fg(self.palette.highlight)
@@ -718,14 +718,27 @@ impl<'a> SearchModalWidget<'a> {
         buf: &mut Buffer,
     ) {
         if let Some(pl) = self.spotify_open_playlist {
-            let title = strings::truncate(&pl.name, list_w.saturating_sub(5) as usize);
-            Paragraph::new(Span::styled(
-                format!("< {}", title),
-                Style::default()
-                    .fg(self.palette.accent)
-                    .add_modifier(Modifier::BOLD),
-            ))
-            .render(Rect::new(list_x, area.y, list_w, 1), buf);
+            let esc_hint = "[Esc]";
+            let sep = " <- ";
+            let reserved = (esc_hint.len() + sep.len() + 1) as u16;
+            let title = strings::truncate(&pl.name, list_w.saturating_sub(reserved) as usize);
+            let track_count = if pl.tracks_total > 0 {
+                format!("  ({} tracks)", pl.tracks_total)
+            } else {
+                String::new()
+            };
+            let line = Line::from(vec![
+                Span::styled(esc_hint, Style::default().fg(self.palette.muted)),
+                Span::styled(sep, Style::default().fg(self.palette.dim)),
+                Span::styled(
+                    title,
+                    Style::default()
+                        .fg(self.palette.spotify)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(track_count, Style::default().fg(self.palette.muted)),
+            ]);
+            Paragraph::new(line).render(Rect::new(list_x, area.y, list_w, 1), buf);
         }
         let inner = Rect::new(
             area.x,

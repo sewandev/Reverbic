@@ -83,9 +83,6 @@ pub(crate) fn parse_track(item: &serde_json::Value) -> Option<SpotifyTrack> {
         .and_then(|a| a["name"].as_str())
         .unwrap_or("Unknown")
         .to_string();
-    let artist_id = first_artist
-        .and_then(|a| a["id"].as_str())
-        .map(str::to_string);
     let album = item["album"]["name"].as_str().unwrap_or("").to_string();
     let duration_ms = item["duration_ms"].as_u64().unwrap_or(0) as u32;
     let uri = item["uri"].as_str()?.to_string();
@@ -93,7 +90,6 @@ pub(crate) fn parse_track(item: &serde_json::Value) -> Option<SpotifyTrack> {
     Some(SpotifyTrack {
         name,
         artist,
-        artist_id,
         album,
         duration_ms,
         uri,

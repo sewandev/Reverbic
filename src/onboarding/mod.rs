@@ -23,8 +23,6 @@ use state::{OnboardingState, Step};
 use view::ViewCtx;
 
 const WELCOME_VOLUME: f32 = 0.5;
-// Avoid retrying ambience playback every tick while the audio thread is still
-// waiting for the preview stream/decoder to publish player state.
 const AMBIENCE_START_TIMEOUT: Duration = Duration::from_secs(12);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -37,8 +35,6 @@ enum Outcome {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum AmbiencePlayback {
     Idle,
-    // A play command has been queued, but preview_title may still be empty while
-    // the decoder blocks on the first stream bytes.
     Starting { since: Instant },
     Playing,
 }
@@ -76,8 +72,6 @@ pub async fn run(tui: &mut Tui, config: &mut Config, player: &AudioPlayer) -> Re
     draw(tui, &state, border_tick, ascii_gif.as_ref())?;
 
     if !state.muted {
-        // Resolve the ambience stream in the background so slow YouTube/yt-dlp
-        // lookups never block onboarding input like Esc, M, or navigation.
         start_ambience_resolution(
             &mut ambience_track,
             &ambience_tx,
@@ -168,8 +162,6 @@ fn complete_outcome(
     config: &mut Config,
     original_volume: f32,
 ) -> Option<f32> {
-    // Finish commits explicit onboarding changes; Skip discards them. In both
-    // cases the temporary welcome volume is restored unless the user changed it.
     match outcome {
         Outcome::Finish => {
             state.apply_to(config);
@@ -288,8 +280,6 @@ async fn advance_ambience_playback(
             if ambience_is_published {
                 AmbiencePlayback::Playing
             } else if since.elapsed() >= AMBIENCE_START_TIMEOUT {
-                // Give up quietly instead of filling the bounded audio command
-                // channel with duplicate PlayPreview requests.
                 tracing::debug!("onboarding ambience: start timed out before player state updated");
                 AmbiencePlayback::Idle
             } else {

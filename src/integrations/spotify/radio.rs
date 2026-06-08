@@ -5,7 +5,7 @@ use rand::seq::SliceRandom;
 use super::{search::parse_track, SpotifyError, SpotifyTrack};
 
 pub async fn fetch_radio_pool(
-    artist_id: &str,
+    artist_name: &str,
     seed_uri: &str,
     recently_played: VecDeque<String>,
     access_token: &str,
@@ -13,8 +13,17 @@ pub async fn fetch_radio_pool(
     let client = crate::http::http_client_timeout(10)
         .ok_or_else(|| SpotifyError::Network("Failed to create HTTP client".to_string()))?;
 
-    let url =
-        format!("https://api.spotify.com/v1/artists/{artist_id}/top-tracks?market=from_token");
+    let encoded: String = artist_name
+        .bytes()
+        .flat_map(|b| match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                vec![b as char]
+            }
+            _ => format!("%{b:02X}").chars().collect(),
+        })
+        .collect();
+
+    let url = format!("https://api.spotify.com/v1/search?q=artist%3A{encoded}&type=track&limit=20");
 
     let response = client
         .get(&url)
@@ -46,7 +55,7 @@ pub async fn fetch_radio_pool(
     let json: serde_json::Value =
         serde_json::from_str(&body).map_err(|e| SpotifyError::Parse(e.to_string()))?;
 
-    let mut tracks: Vec<SpotifyTrack> = json["tracks"]
+    let mut tracks: Vec<SpotifyTrack> = json["tracks"]["items"]
         .as_array()
         .map(|items| items.iter().filter_map(parse_track).collect())
         .unwrap_or_default();

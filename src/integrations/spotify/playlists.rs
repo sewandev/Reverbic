@@ -59,7 +59,10 @@ pub async fn get_user_playlists(
                         .as_str()
                         .unwrap_or("")
                         .to_string();
-                    let tracks_total = item["tracks"]["total"].as_u64().unwrap_or(0) as u32;
+                    let tracks_total = item["tracks"]["total"]
+                        .as_u64()
+                        .or_else(|| item["total_tracks"].as_u64())
+                        .unwrap_or(0) as u32;
                     Some(SpotifyPlaylist {
                         id,
                         name,
@@ -111,9 +114,9 @@ pub async fn get_playlist_tracks(
         return Err(SpotifyError::RateLimit(retry_after));
     }
 
-    tracing::warn!(
-        "spotify /v1/playlists/{playlist_id}/tracks — status={status} body={}",
-        &body[..body.len().min(800)]
+    tracing::debug!(
+        "spotify /v1/playlists/{playlist_id}/items — status={status} body={}",
+        &body[..body.len().min(400)]
     );
 
     if !status.is_success() {
@@ -141,7 +144,7 @@ pub async fn get_playlist_tracks(
         })
         .unwrap_or_default();
 
-    tracing::warn!(
+    tracing::debug!(
         "spotify playlist tracks — raw_items={raw_items} parsed={}",
         tracks.len()
     );

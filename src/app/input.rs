@@ -1375,13 +1375,9 @@ impl App {
                     self.save_notice_is_dup = false;
                     self.notice_until =
                         Some(std::time::Instant::now() + std::time::Duration::from_secs(5));
-                    let uris = self
-                        .spotify
-                        .search_results
-                        .iter()
-                        .map(|t| t.uri.clone())
-                        .collect();
-                    self.play_spotify_track_with_queue(track, uris).await;
+                    let sel = self.spotify.search_selected;
+                    let queue = self.spotify.search_results[sel.saturating_add(1)..].to_vec();
+                    self.play_spotify_track_with_queue(track, queue).await;
                 }
             }
             KeyCode::Backspace => {
@@ -1415,11 +1411,8 @@ impl App {
                 let sel = self.spotify.liked_selected;
                 if sel < self.spotify.liked_tracks.len() {
                     let track = self.spotify.liked_tracks[sel].clone();
-                    let uris: Vec<String> = self.spotify.liked_tracks[sel..]
-                        .iter()
-                        .map(|t| t.uri.clone())
-                        .collect();
-                    self.play_spotify_track_with_queue(track, uris).await;
+                    let queue = self.spotify.liked_tracks[sel + 1..].to_vec();
+                    self.play_spotify_track_with_queue(track, queue).await;
                 }
             }
             _ => {}
@@ -1479,11 +1472,8 @@ impl App {
                 let sel = self.spotify.playlist_tracks_selected;
                 if sel < self.spotify.playlist_tracks.len() {
                     let track = self.spotify.playlist_tracks[sel].clone();
-                    let uris: Vec<String> = self.spotify.playlist_tracks[sel..]
-                        .iter()
-                        .map(|t| t.uri.clone())
-                        .collect();
-                    self.play_spotify_track_with_queue(track, uris).await;
+                    let queue = self.spotify.playlist_tracks[sel + 1..].to_vec();
+                    self.play_spotify_track_with_queue(track, queue).await;
                 }
             }
             _ => {}

@@ -73,15 +73,22 @@ pub async fn list_devices(token: &str) -> Result<Vec<SpotifyDevice>, SpotifyErro
     Ok(parsed.devices)
 }
 
-pub async fn play_on_device(token: &str, device_id: &str, uri: &str) -> Result<(), SpotifyError> {
+pub async fn play_tracks_on_device(
+    token: &str,
+    device_id: &str,
+    uris: Vec<String>,
+) -> Result<(), SpotifyError> {
     let client = spotify_client(10)?;
-    tracing::info!("spotify play_on_device: device_id={device_id} uri={uri}");
+    tracing::info!(
+        "spotify play_tracks_on_device: device_id={device_id} count={}",
+        uris.len()
+    );
     let resp = client
         .put(format!(
             "https://api.spotify.com/v1/me/player/play?device_id={device_id}"
         ))
         .bearer_auth(token)
-        .json(&serde_json::json!({ "uris": [uri] }))
+        .json(&serde_json::json!({ "uris": uris }))
         .send()
         .await
         .map_err(|e| SpotifyError::Network(e.to_string()))?;
