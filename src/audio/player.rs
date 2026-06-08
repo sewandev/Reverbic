@@ -38,6 +38,7 @@ pub enum PlayerCommand {
         url: String,
         title: String,
         raw_track: String,
+        start_at_secs: f32,
     },
     StopPreview,
     SetPreviewSearching(bool),
@@ -814,11 +815,16 @@ fn handle_crossfade_cmd(
     }
 }
 
-fn handle_play_preview(
-    st: &mut AudioLoopState,
+struct PreviewSource {
     url: String,
     title: String,
     raw_track: String,
+    start_at_secs: f32,
+}
+
+fn handle_play_preview(
+    st: &mut AudioLoopState,
+    source: PreviewSource,
     handle: &tokio::runtime::Handle,
     device_sink: &MixerDeviceSink,
     state_tx: &watch::Sender<PlayerState>,
@@ -826,7 +832,7 @@ fn handle_play_preview(
     if let Some(p) = st.preview_player.take() {
         p.stop();
     }
-    let preview_reader = StreamReader::connect_preview(url, handle.clone());
+    let preview_reader = StreamReader::connect_preview(source.url, handle.clone());
     let reader = std::io::BufReader::new(preview_reader);
     match Decoder::try_from(reader) {
         Ok(decoder) => {
@@ -834,11 +840,13 @@ fn handle_play_preview(
             if let Some(ref p) = st.player {
                 p.set_volume(0.05);
             }
-            st.preview_player = Some(attach_player(decoder, st.current_volume, device_sink));
+            let audio =
+                decoder.skip_duration(std::time::Duration::from_secs_f32(source.start_at_secs));
+            st.preview_player = Some(attach_player(audio, st.current_volume, device_sink));
             update_state(state_tx, |s| {
-                s.preview_title = Some(title);
+                s.preview_title = Some(source.title);
                 s.preview_searching = false;
-                s.preview_playing_track = Some(raw_track);
+                s.preview_playing_track = Some(source.raw_track);
             });
             info!("Preview streaming iniciado (volumen radio → 5%)");
         }
@@ -851,10 +859,6 @@ fn handle_play_preview(
         }
     }
 }
-
-/// Detects when a preview source has played through to its end on its own
-/// (as opposed to being stopped via `StopPreview`) and tears it down the same
-/// way, restoring the radio's pre-duck volume so it doesn't stay lowered forever.
 fn check_preview_ended(st: &mut AudioLoopState, state_tx: &watch::Sender<PlayerState>) {
     if !st.preview_player.as_ref().is_some_and(|p| p.empty()) {
         return;
@@ -1107,12 +1111,16 @@ fn audio_loop(
                 url,
                 title,
                 raw_track,
+                start_at_secs,
             } => {
                 handle_play_preview(
                     &mut st,
-                    url,
-                    title,
-                    raw_track,
+                    PreviewSource {
+                        url,
+                        title,
+                        raw_track,
+                        start_at_secs,
+                    },
                     &handle,
                     &device_sink,
                     &state_tx,
@@ -1172,6 +1180,9 @@ fn audio_loop(
                     }
                 } else {
                     st.volume_before_duck = Some(st.current_volume);
+                }
+                if let Some(ref p) = st.preview_player {
+                    p.set_volume(st.current_volume);
                 }
                 update_state(&state_tx, |s| s.volume = st.current_volume);
             }

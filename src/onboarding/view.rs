@@ -8,20 +8,21 @@ use ratatui::{
 
 use crate::i18n::t;
 use crate::ui::renderer::{render_logo_above, LOGO_W};
-use crate::ui::strings::truncate;
+use crate::ui::strings::{crossfade_display, screensaver_display, truncate};
 use crate::ui::theme::{self, Palette};
 
+use super::ascii_gif::AsciiGif;
 use super::state::{OnboardingState, Step};
 
 const PANEL_WIDTH: u16 = 88;
-const PANEL_HEIGHT: u16 = 18;
+const PANEL_HEIGHT: u16 = 21;
+const GIF_GAP: u16 = 4;
 
 pub struct ViewCtx<'a> {
     pub palette: &'a Palette,
     pub border_tick: u32,
+    pub ascii_gif: Option<&'a AsciiGif>,
 }
-
-/// Renders the current onboarding step. Reads `OnboardingState` only — never mutates it.
 pub fn render(frame: &mut Frame, area: Rect, state: &OnboardingState, ctx: &ViewCtx<'_>) {
     let palette = ctx.palette;
     let bg = palette.panel_bg;
@@ -31,14 +32,22 @@ pub fn render(frame: &mut Frame, area: Rect, state: &OnboardingState, ctx: &View
             frame.buffer_mut()[(x, y)].set_bg(palette.overlay_color);
         }
     }
-
-    let panel = centered(area, PANEL_WIDTH, PANEL_HEIGHT);
-    let title = format!(
-        " {} · {}/{} ",
-        t("onboarding.title"),
-        state.step.position() + 1,
-        Step::ALL.len()
+    let gif = ctx
+        .ascii_gif
+        .filter(|gif| area.width >= PANEL_WIDTH + GIF_GAP + gif.cols);
+    let content_area = Rect::new(
+        area.x,
+        area.y + 1,
+        area.width,
+        area.height.saturating_sub(1),
     );
+    let group_width = PANEL_WIDTH + gif.map_or(0, |gif| GIF_GAP + gif.cols);
+    let group = centered(content_area, group_width, PANEL_HEIGHT);
+    let panel = Rect::new(group.x, group.y, PANEL_WIDTH.min(group.width), group.height);
+
+    render_maximize_hint(frame, panel, palette);
+
+    let title = format!(" {}/{} ", state.step.position() + 1, Step::ALL.len());
     let block = Block::default()
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
@@ -65,6 +74,30 @@ pub fn render(frame: &mut Frame, area: Rect, state: &OnboardingState, ctx: &View
     }
 
     render_footer(frame, footer, state, palette);
+
+    if let Some(gif) = gif {
+        render_ascii_gif(frame, panel, gif);
+    }
+}
+
+fn render_ascii_gif(frame: &mut Frame, panel: Rect, gif: &AsciiGif) {
+    let x = panel.right() + GIF_GAP;
+    let y = panel.y + panel.height.saturating_sub(gif.rows) / 2;
+    let height = gif.rows.min(panel.bottom().saturating_sub(y));
+    gif.render(frame.buffer_mut(), Rect::new(x, y, gif.cols, height));
+}
+
+fn render_maximize_hint(frame: &mut Frame, panel: Rect, palette: &Palette) {
+    frame.render_widget(
+        Paragraph::new(Span::styled(
+            t("onboarding.maximize_hint"),
+            Style::default()
+                .fg(palette.highlight)
+                .add_modifier(Modifier::BOLD),
+        ))
+        .alignment(Alignment::Center),
+        Rect::new(panel.x, panel.y - 1, panel.width, 1),
+    );
 }
 
 fn centered(area: Rect, width: u16, height: u16) -> Rect {
@@ -111,6 +144,16 @@ fn render_welcome(frame: &mut Frame, area: Rect, ctx: &ViewCtx<'_>) {
                 t("onboarding.welcome.body"),
                 Style::default().fg(palette.highlight),
             )),
+            Line::from(""),
+            Line::from(Span::styled(
+                t("onboarding.welcome.sources"),
+                Style::default().fg(palette.dim),
+            )),
+            Line::from(""),
+            Line::from(Span::styled(
+                t("onboarding.welcome.performance"),
+                Style::default().fg(palette.dim),
+            )),
         ])
         .alignment(Alignment::Center)
         .wrap(Wrap { trim: true })
@@ -121,14 +164,20 @@ fn render_welcome(frame: &mut Frame, area: Rect, ctx: &ViewCtx<'_>) {
 
 fn render_overlay_step(frame: &mut Frame, area: Rect, state: &OnboardingState, palette: &Palette) {
     let rows = [
-        (t("onboarding.overlay.mode"), state.overlay_mode.display()),
+        (
+            t("onboarding.overlay.mode"),
+            state.overlay_mode.display(),
+            t("config.tooltip.overlay"),
+        ),
         (
             t("onboarding.overlay.position"),
             state.overlay_position.display(),
+            t("config.tooltip.overlay_position"),
         ),
         (
             t("onboarding.overlay.alpha"),
             format!("{}%", state.overlay_alpha),
+            t("config.tooltip.overlay_alpha"),
         ),
     ];
     render_option_step(
@@ -139,31 +188,47 @@ fn render_overlay_step(frame: &mut Frame, area: Rect, state: &OnboardingState, p
         state.focused_option,
         palette,
     );
+
+    let note_y = area.y + 3 + rows.len() as u16 * 2;
+    if note_y < area.bottom() {
+        frame.render_widget(
+            Paragraph::new(Line::from(Span::styled(
+                t("onboarding.overlay.windows_only"),
+                Style::default().fg(palette.dim),
+            )))
+            .alignment(Alignment::Center)
+            .style(Style::default().bg(palette.panel_bg)),
+            Rect::new(area.x + 2, note_y, area.width.saturating_sub(4), 1),
+        );
+    }
 }
 
 fn render_playback_step(frame: &mut Frame, area: Rect, state: &OnboardingState, palette: &Palette) {
-    let on = t("config.value.on");
-    let off = t("config.value.off");
     let rows = [
         (
             t("onboarding.playback.autoplay"),
-            if state.autoplay_last {
-                on.clone()
-            } else {
-                off.clone()
-            },
+            on_off_label(state.autoplay_last),
+            t("config.tooltip.autoplay"),
         ),
         (
             t("onboarding.playback.restore_volume"),
-            if state.restore_volume {
-                on.clone()
-            } else {
-                off.clone()
-            },
+            on_off_label(state.restore_volume),
+            t("config.tooltip.restore_volume"),
+        ),
+        (
+            t("onboarding.playback.crossfade"),
+            crossfade_display(state.crossfade_secs),
+            t("config.tooltip.crossfade"),
+        ),
+        (
+            t("onboarding.playback.screensaver"),
+            screensaver_display(state.screensaver_secs),
+            t("config.tooltip.screensaver"),
         ),
         (
             t("onboarding.playback.auto_update"),
-            if state.auto_update { on } else { off },
+            on_off_label(state.auto_update),
+            t("config.tooltip.auto_update"),
         ),
     ];
     render_option_step(
@@ -180,7 +245,7 @@ fn render_option_step(
     frame: &mut Frame,
     area: Rect,
     heading: &str,
-    rows: &[(String, String)],
+    rows: &[(String, String, String)],
     focused: usize,
     palette: &Palette,
 ) {
@@ -199,7 +264,7 @@ fn render_option_step(
         Rect::new(list_x, area.y + 1, list_w, 1),
     );
 
-    for (i, (label, value)) in rows.iter().enumerate() {
+    for (i, (label, value, _)) in rows.iter().enumerate() {
         let y = area.y + 3 + i as u16 * 2;
         if y >= area.bottom() {
             break;
@@ -212,6 +277,32 @@ fn render_option_step(
             i == focused,
             palette,
         );
+    }
+
+    let sep_y = area.bottom().saturating_sub(3);
+    let sep = "─".repeat(list_w as usize);
+    frame.render_widget(
+        Paragraph::new(Span::styled(sep, Style::default().fg(palette.dim))).style(bg_style),
+        Rect::new(list_x, sep_y, list_w, 1),
+    );
+
+    let tooltip = rows
+        .get(focused)
+        .map(|(_, _, tooltip)| tooltip.as_str())
+        .unwrap_or_default();
+    frame.render_widget(
+        Paragraph::new(tooltip)
+            .wrap(Wrap { trim: true })
+            .style(Style::default().fg(palette.dim).bg(palette.panel_bg)),
+        Rect::new(list_x, sep_y + 1, list_w, 2),
+    );
+}
+
+fn on_off_label(value: bool) -> String {
+    if value {
+        t("config.value.on")
+    } else {
+        t("config.value.off")
     }
 }
 
@@ -259,8 +350,6 @@ fn render_radio_row(
 
 fn render_summary(frame: &mut Frame, area: Rect, state: &OnboardingState, palette: &Palette) {
     let bg_style = Style::default().bg(palette.panel_bg);
-    let on = t("config.value.on");
-    let off = t("config.value.off");
     let rows = [
         (t("onboarding.overlay.mode"), state.overlay_mode.display()),
         (
@@ -273,23 +362,15 @@ fn render_summary(frame: &mut Frame, area: Rect, state: &OnboardingState, palett
         ),
         (
             t("onboarding.playback.autoplay"),
-            if state.autoplay_last {
-                on.clone()
-            } else {
-                off.clone()
-            },
+            on_off_label(state.autoplay_last),
         ),
         (
             t("onboarding.playback.restore_volume"),
-            if state.restore_volume {
-                on.clone()
-            } else {
-                off.clone()
-            },
+            on_off_label(state.restore_volume),
         ),
         (
             t("onboarding.playback.auto_update"),
-            if state.auto_update { on } else { off },
+            on_off_label(state.auto_update),
         ),
     ];
 
@@ -339,6 +420,20 @@ fn render_summary(frame: &mut Frame, area: Rect, state: &OnboardingState, palett
             Rect::new(area.x + 2, body_y, area.width.saturating_sub(4), 2),
         );
     }
+
+    let shortcuts_y = body_y + 2;
+    if shortcuts_y < area.bottom() {
+        frame.render_widget(
+            Paragraph::new(Span::styled(
+                t("onboarding.summary.shortcuts"),
+                Style::default().fg(palette.dim),
+            ))
+            .alignment(Alignment::Center)
+            .wrap(Wrap { trim: true })
+            .style(bg_style),
+            Rect::new(area.x + 2, shortcuts_y, area.width.saturating_sub(4), 1),
+        );
+    }
 }
 
 fn hint(palette: &Palette, key: &str, label: String) -> [Span<'static>; 2] {
@@ -351,6 +446,11 @@ fn hint(palette: &Palette, key: &str, label: String) -> [Span<'static>; 2] {
         ),
         Span::styled(format!("{label}  "), Style::default().fg(palette.dim)),
     ]
+}
+
+fn volume_indicator(volume: f32) -> String {
+    let pct = (volume.clamp(0.0, 1.0) * 100.0).round() as u32;
+    format!("♪ {pct}%")
 }
 
 fn render_footer(frame: &mut Frame, area: Rect, state: &OnboardingState, palette: &Palette) {
@@ -375,11 +475,41 @@ fn render_footer(frame: &mut Frame, area: Rect, state: &OnboardingState, palette
     spans.extend(hint(palette, "M", mute_label));
     spans.extend(hint(palette, "Esc", t("onboarding.hint.skip")));
 
+    let bg_style = Style::default().bg(palette.panel_bg);
+
+    let hints_area = if state.step == Step::Welcome {
+        let indicator = volume_indicator(state.volume);
+        let indicator_w = indicator.chars().count() as u16;
+        frame.render_widget(
+            Paragraph::new(Span::styled(
+                indicator,
+                Style::default()
+                    .fg(palette.accent)
+                    .add_modifier(Modifier::BOLD),
+            ))
+            .style(bg_style),
+            Rect::new(
+                area.right().saturating_sub(indicator_w),
+                area.y,
+                indicator_w,
+                1,
+            ),
+        );
+        Rect::new(
+            area.x,
+            area.y,
+            area.width.saturating_sub(indicator_w + 2),
+            area.height,
+        )
+    } else {
+        area
+    };
+
     frame.render_widget(
         Paragraph::new(Line::from(spans))
             .alignment(Alignment::Center)
             .wrap(Wrap { trim: true })
-            .style(Style::default().bg(palette.panel_bg)),
-        area,
+            .style(bg_style),
+        hints_area,
     );
 }

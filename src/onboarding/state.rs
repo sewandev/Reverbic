@@ -17,16 +17,16 @@ impl Step {
     ];
 
     pub fn position(self) -> usize {
-        Self::ALL.iter().position(|step| *step == self).unwrap_or(0)
+        Self::ALL
+            .iter()
+            .position(|step| *step == self)
+            .expect("Step::ALL must list every Step variant")
     }
-
-    /// Number of focusable radio-style options shown on this step,
-    /// shared by `transitions` (to wrap the focus index) and `view` (to render rows).
     pub fn option_count(self) -> usize {
         match self {
             Step::Welcome | Step::Summary => 0,
             Step::OverlayPreferences => 3,
-            Step::PlaybackPreferences => 3,
+            Step::PlaybackPreferences => 5,
         }
     }
 }
@@ -38,8 +38,11 @@ pub struct OnboardingState {
     pub overlay_mode: OverlayMode,
     pub overlay_position: OverlayPosition,
     pub overlay_alpha: u8,
+    pub volume: f32,
     pub autoplay_last: bool,
     pub restore_volume: bool,
+    pub crossfade_secs: u8,
+    pub screensaver_secs: u16,
     pub auto_update: bool,
     pub muted: bool,
 }
@@ -52,8 +55,11 @@ impl OnboardingState {
             overlay_mode: config.overlay_mode,
             overlay_position: config.overlay_position,
             overlay_alpha: config.overlay_alpha,
+            volume: config.volume,
             autoplay_last: config.autoplay_last,
             restore_volume: config.restore_volume,
+            crossfade_secs: config.crossfade_secs,
+            screensaver_secs: config.screensaver_secs,
             auto_update: config.auto_update,
             muted: false,
         }
@@ -63,8 +69,11 @@ impl OnboardingState {
         config.overlay_mode = self.overlay_mode;
         config.overlay_position = self.overlay_position;
         config.overlay_alpha = self.overlay_alpha;
+        config.volume = self.volume;
         config.autoplay_last = self.autoplay_last;
         config.restore_volume = self.restore_volume;
+        config.crossfade_secs = self.crossfade_secs;
+        config.screensaver_secs = self.screensaver_secs;
         config.auto_update = self.auto_update;
     }
 }

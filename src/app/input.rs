@@ -1495,6 +1495,7 @@ impl App {
                                         url,
                                         title,
                                         raw_track: raw,
+                                        start_at_secs: 0.0,
                                     })
                                     .await
                                     .is_err()

@@ -55,6 +55,10 @@ pub fn cycle_overlay_alpha(state: &mut OnboardingState) {
     };
 }
 
+pub fn adjust_volume(state: &mut OnboardingState, delta: f32) {
+    state.volume = (state.volume + delta).clamp(0.0, 1.0);
+}
+
 pub fn toggle_autoplay_last(state: &mut OnboardingState) {
     state.autoplay_last = !state.autoplay_last;
 }
@@ -65,6 +69,27 @@ pub fn toggle_restore_volume(state: &mut OnboardingState) {
 
 pub fn toggle_auto_update(state: &mut OnboardingState) {
     state.auto_update = !state.auto_update;
+}
+
+pub fn cycle_crossfade(state: &mut OnboardingState) {
+    state.crossfade_secs = match state.crossfade_secs {
+        0 => 1,
+        1 => 2,
+        2 => 3,
+        _ => 0,
+    };
+}
+
+pub fn cycle_screensaver(state: &mut OnboardingState) {
+    state.screensaver_secs = match state.screensaver_secs {
+        0 => 10,
+        10 => 20,
+        20 => 30,
+        30 => 60,
+        60 => 120,
+        120 => 300,
+        _ => 0,
+    };
 }
 
 pub fn toggle_muted(state: &mut OnboardingState) {

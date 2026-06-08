@@ -251,13 +251,7 @@ impl Default for Config {
 
 impl Config {
     pub fn crossfade_display(&self) -> String {
-        use crate::i18n::t;
-        match self.crossfade_secs {
-            0 => t("crossfade.off"),
-            1 => t("crossfade.1s"),
-            2 => t("crossfade.2s"),
-            _ => t("crossfade.3s"),
-        }
+        crate::ui::strings::crossfade_display(self.crossfade_secs)
     }
 
     pub fn crossfade_next(&mut self) {
@@ -349,8 +343,6 @@ impl Config {
         }
         config
     }
-
-    /// True when no config file exists yet — i.e. Reverbic is starting for the first time.
     pub fn is_first_run() -> bool {
         !Self::path().exists()
     }
