@@ -8,6 +8,8 @@ use std::time::Duration;
 
 use crossterm::event::{Event, EventStream, KeyCode, KeyEventKind};
 use futures_util::StreamExt;
+use tokio::sync::mpsc;
+use tokio::task::JoinHandle;
 
 use crate::audio::AudioPlayer;
 use crate::config::Config;
@@ -15,7 +17,7 @@ use crate::error::{AppError, Result};
 use crate::terminal::Tui;
 use crate::ui::theme;
 
-use ambience::AmbienceTrack;
+use ambience::{AmbienceResolution, AmbienceTrack};
 use ascii_gif::AsciiGif;
 use state::{OnboardingState, Step};
 use view::ViewCtx;
@@ -48,10 +50,18 @@ pub async fn run(tui: &mut Tui, config: &mut Config, player: &AudioPlayer) -> Re
     let mut border_tick: u32 = 0;
     let mut ambience_was_playing = false;
     let mut ambience_track = AmbienceTrack::Pending;
+    let (ambience_tx, mut ambience_rx) = mpsc::channel(1);
+    let mut ambience_resolve_task: Option<JoinHandle<()>> = None;
     draw(tui, &state, palette, border_tick, ascii_gif.as_ref())?;
 
     if !state.muted {
-        ambience::play(player, &mut ambience_track).await;
+        // Resolve the ambience stream in the background so slow YouTube/yt-dlp
+        // lookups never block onboarding input like Esc, M, or navigation.
+        start_ambience_resolution(
+            &mut ambience_track,
+            &ambience_tx,
+            &mut ambience_resolve_task,
+        );
     }
 
     let outcome = loop {
@@ -65,9 +75,16 @@ pub async fn run(tui: &mut Tui, config: &mut Config, player: &AudioPlayer) -> Re
                 } else {
                     let playing_now = player.state().preview_title.is_some();
                     if ambience_was_playing && !playing_now {
-                        ambience::play(player, &mut ambience_track).await;
+                        ambience::play(player, &ambience_track).await;
                     }
                     ambience_was_playing = playing_now;
+                }
+            }
+            resolution = ambience_rx.recv(), if ambience_resolve_task.is_some() => {
+                ambience_resolve_task = None;
+                ambience::finish_resolution(&mut ambience_track, resolution);
+                if !state.muted {
+                    ambience_was_playing = ambience::play(player, &ambience_track).await;
                 }
             }
             result = &mut gif_rx, if !gif_loaded => {
@@ -79,7 +96,15 @@ pub async fn run(tui: &mut Tui, config: &mut Config, player: &AudioPlayer) -> Re
                 if key.kind != KeyEventKind::Press {
                     continue;
                 }
-                match handle_key(&mut state, key.code, player, volume_step, &mut ambience_track).await {
+                match handle_key(
+                    &mut state,
+                    key.code,
+                    player,
+                    volume_step,
+                    &mut ambience_track,
+                    &ambience_tx,
+                    &mut ambience_resolve_task,
+                ).await {
                     Outcome::Continue => {}
                     outcome @ (Outcome::Finish | Outcome::Skip) => break outcome,
                 }
@@ -87,6 +112,9 @@ pub async fn run(tui: &mut Tui, config: &mut Config, player: &AudioPlayer) -> Re
         }
     };
 
+    if let Some(task) = ambience_resolve_task {
+        task.abort();
+    }
     ambience::stop(player).await;
 
     if let Some(volume) = complete_outcome(outcome, &state, config, original_volume) {
@@ -96,6 +124,20 @@ pub async fn run(tui: &mut Tui, config: &mut Config, player: &AudioPlayer) -> Re
     }
     config.save();
     Ok(())
+}
+
+fn start_ambience_resolution(
+    ambience_track: &mut AmbienceTrack,
+    ambience_tx: &mpsc::Sender<AmbienceResolution>,
+    ambience_resolve_task: &mut Option<JoinHandle<()>>,
+) {
+    if ambience_resolve_task.is_some() {
+        return;
+    }
+
+    if let Some(task) = ambience::start_resolution(ambience_track, ambience_tx.clone()) {
+        *ambience_resolve_task = Some(task);
+    }
 }
 
 fn complete_outcome(
@@ -146,10 +188,21 @@ async fn handle_key(
     player: &AudioPlayer,
     volume_step: f32,
     ambience_track: &mut AmbienceTrack,
+    ambience_tx: &mpsc::Sender<AmbienceResolution>,
+    ambience_resolve_task: &mut Option<JoinHandle<()>>,
 ) -> Outcome {
     match code {
         KeyCode::Esc => return Outcome::Skip,
-        KeyCode::Char('m' | 'M') => toggle_mute(state, player, ambience_track).await,
+        KeyCode::Char('m' | 'M') => {
+            toggle_mute(
+                state,
+                player,
+                ambience_track,
+                ambience_tx,
+                ambience_resolve_task,
+            )
+            .await
+        }
         KeyCode::Char('+' | '=') => adjust_volume(state, player, volume_step).await,
         KeyCode::Char('-') => adjust_volume(state, player, -volume_step).await,
         KeyCode::Up => transitions::focus_prev_option(state),
@@ -183,11 +236,14 @@ async fn toggle_mute(
     state: &mut OnboardingState,
     player: &AudioPlayer,
     ambience_track: &mut AmbienceTrack,
+    ambience_tx: &mpsc::Sender<AmbienceResolution>,
+    ambience_resolve_task: &mut Option<JoinHandle<()>>,
 ) {
     transitions::toggle_muted(state);
     if state.muted {
         ambience::stop(player).await;
     } else {
+        start_ambience_resolution(ambience_track, ambience_tx, ambience_resolve_task);
         ambience::play(player, ambience_track).await;
     }
 }
