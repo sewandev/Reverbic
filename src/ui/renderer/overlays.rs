@@ -334,7 +334,7 @@ pub(super) fn render_modal_np_strip(
     }
 }
 
-fn volume_bar_spans(vol: f32, bar_width: usize) -> (String, String) {
+pub(crate) fn volume_bar_spans(vol: f32, bar_width: usize) -> (String, String) {
     let filled = (vol.clamp(0.0, 1.0) * bar_width as f32).round() as usize;
     let filled = filled.min(bar_width);
     ("█".repeat(filled), "░".repeat(bar_width - filled))

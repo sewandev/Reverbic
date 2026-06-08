@@ -68,7 +68,6 @@ impl UpdateTarget {
     fn from_parts(os: &str, arch: &str) -> Result<Self, AssetSelectionError> {
         let os = match os {
             "windows" => UpdateOs::Windows,
-            // macOS release archives need extraction/apply support before self-update can enable them.
             _ => return Err(AssetSelectionError::UnsupportedPlatform),
         };
 

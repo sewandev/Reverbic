@@ -8,8 +8,8 @@ use ratatui::{
 
 use crate::app::{settings_items, SettingItem};
 use crate::i18n::{current_language, t, Language};
+use crate::ui::strings::screensaver_display;
 
-use super::helpers::screensaver_display;
 use super::SearchModalWidget;
 
 impl<'a> SearchModalWidget<'a> {
