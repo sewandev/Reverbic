@@ -17,6 +17,7 @@ use super::state::{OnboardingState, Step};
 const PANEL_WIDTH: u16 = 88;
 const PANEL_HEIGHT: u16 = 21;
 const GIF_GAP: u16 = 4;
+const RADIO_MARKER_WIDTH: usize = 4;
 
 pub struct ViewCtx<'a> {
     pub palette: &'a Palette,
@@ -306,6 +307,20 @@ fn on_off_label(value: bool) -> String {
     }
 }
 
+fn radio_label_layout(label: &str, label_col_w: usize) -> (String, usize) {
+    let label_str = truncate(label, label_col_w.saturating_sub(RADIO_MARKER_WIDTH));
+    let padding = label_col_w.saturating_sub(RADIO_MARKER_WIDTH + label_str.chars().count());
+    (label_str, padding)
+}
+
+fn radio_marker(focused: bool) -> &'static str {
+    if focused {
+        "(•) "
+    } else {
+        "( ) "
+    }
+}
+
 fn render_radio_row(
     frame: &mut Frame,
     area: Rect,
@@ -314,7 +329,7 @@ fn render_radio_row(
     focused: bool,
     palette: &Palette,
 ) {
-    let marker = if focused { "(•) " } else { "( ) " };
+    let marker = radio_marker(focused);
     let label_style = if focused {
         Style::default()
             .fg(palette.radio_accent)
@@ -331,8 +346,7 @@ fn render_radio_row(
     };
 
     let label_col_w = (area.width / 2) as usize;
-    let label_str = truncate(label, label_col_w.saturating_sub(marker.len()));
-    let padding = label_col_w.saturating_sub(marker.len() + label_str.chars().count());
+    let (label_str, padding) = radio_label_layout(label, label_col_w);
 
     frame.render_widget(
         Paragraph::new(Line::from(vec![
@@ -512,4 +526,26 @@ fn render_footer(frame: &mut Frame, area: Rect, state: &OnboardingState, palette
             .style(bg_style),
         hints_area,
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn radio_markers_keep_the_same_visible_width() {
+        assert_eq!(radio_marker(true).chars().count(), RADIO_MARKER_WIDTH);
+        assert_eq!(radio_marker(false).chars().count(), RADIO_MARKER_WIDTH);
+    }
+
+    #[test]
+    fn radio_label_layout_reserves_marker_width_for_padding() {
+        let label_col_w = 24;
+        let (label, padding) = radio_label_layout("Resume last station", label_col_w);
+
+        assert_eq!(
+            RADIO_MARKER_WIDTH + label.chars().count() + padding,
+            label_col_w
+        );
+    }
 }
