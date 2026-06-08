@@ -393,29 +393,7 @@ fn render_radio_row(
 
 fn render_summary(frame: &mut Frame, area: Rect, state: &OnboardingState, palette: &Palette) {
     let bg_style = Style::default().bg(palette.panel_bg);
-    let rows = [
-        (t("onboarding.overlay.mode"), state.overlay_mode.display()),
-        (
-            t("onboarding.overlay.position"),
-            state.overlay_position.display(),
-        ),
-        (
-            t("onboarding.overlay.alpha"),
-            format!("{}%", state.overlay_alpha),
-        ),
-        (
-            t("onboarding.playback.autoplay"),
-            on_off_label(state.autoplay_last),
-        ),
-        (
-            t("onboarding.playback.restore_volume"),
-            on_off_label(state.restore_volume),
-        ),
-        (
-            t("onboarding.playback.auto_update"),
-            on_off_label(state.auto_update),
-        ),
-    ];
+    let rows = summary_rows(state);
 
     frame.render_widget(
         Paragraph::new(Line::from(Span::styled(
@@ -450,7 +428,7 @@ fn render_summary(frame: &mut Frame, area: Rect, state: &OnboardingState, palett
         );
     }
 
-    let body_y = area.y + 3 + rows.len() as u16 + 1;
+    let body_y = area.y + 3 + rows.len() as u16;
     if body_y < area.bottom() {
         frame.render_widget(
             Paragraph::new(Span::styled(
@@ -460,11 +438,11 @@ fn render_summary(frame: &mut Frame, area: Rect, state: &OnboardingState, palett
             .alignment(Alignment::Center)
             .wrap(Wrap { trim: true })
             .style(bg_style),
-            Rect::new(area.x + 2, body_y, area.width.saturating_sub(4), 2),
+            Rect::new(area.x + 2, body_y, area.width.saturating_sub(4), 1),
         );
     }
 
-    let shortcuts_y = body_y + 2;
+    let shortcuts_y = body_y + 1;
     if shortcuts_y < area.bottom() {
         frame.render_widget(
             Paragraph::new(Span::styled(
@@ -477,6 +455,45 @@ fn render_summary(frame: &mut Frame, area: Rect, state: &OnboardingState, palett
             Rect::new(area.x + 2, shortcuts_y, area.width.saturating_sub(4), 1),
         );
     }
+}
+
+fn summary_rows(state: &OnboardingState) -> Vec<(String, String)> {
+    vec![
+        (t("onboarding.appearance.theme"), state.theme.display()),
+        (
+            t("config.setting.overlay_style"),
+            state.overlay_style.display(),
+        ),
+        (t("onboarding.overlay.mode"), state.overlay_mode.display()),
+        (
+            t("onboarding.overlay.position"),
+            state.overlay_position.display(),
+        ),
+        (
+            t("onboarding.overlay.alpha"),
+            format!("{}%", state.overlay_alpha),
+        ),
+        (
+            t("onboarding.playback.autoplay"),
+            on_off_label(state.autoplay_last),
+        ),
+        (
+            t("onboarding.playback.restore_volume"),
+            on_off_label(state.restore_volume),
+        ),
+        (
+            t("onboarding.playback.crossfade"),
+            crossfade_display(state.crossfade_secs),
+        ),
+        (
+            t("onboarding.playback.screensaver"),
+            screensaver_display(state.screensaver_secs),
+        ),
+        (
+            t("onboarding.playback.auto_update"),
+            on_off_label(state.auto_update),
+        ),
+    ]
 }
 
 fn hint(palette: &Palette, key: &str, label: String) -> [Span<'static>; 2] {
@@ -576,5 +593,23 @@ mod tests {
             RADIO_MARKER_WIDTH + label.chars().count() + padding,
             label_col_w
         );
+    }
+
+    #[test]
+    fn summary_rows_include_every_onboarding_setting() {
+        let state = OnboardingState::from_config(&crate::config::Config::default());
+        let rows = summary_rows(&state);
+        let labels: Vec<_> = rows.iter().map(|(label, _)| label.as_str()).collect();
+
+        assert!(labels.contains(&t("onboarding.appearance.theme").as_str()));
+        assert!(labels.contains(&t("config.setting.overlay_style").as_str()));
+        assert!(labels.contains(&t("onboarding.overlay.mode").as_str()));
+        assert!(labels.contains(&t("onboarding.overlay.position").as_str()));
+        assert!(labels.contains(&t("onboarding.overlay.alpha").as_str()));
+        assert!(labels.contains(&t("onboarding.playback.autoplay").as_str()));
+        assert!(labels.contains(&t("onboarding.playback.restore_volume").as_str()));
+        assert!(labels.contains(&t("onboarding.playback.crossfade").as_str()));
+        assert!(labels.contains(&t("onboarding.playback.screensaver").as_str()));
+        assert!(labels.contains(&t("onboarding.playback.auto_update").as_str()));
     }
 }
