@@ -20,6 +20,7 @@ use ascii_gif::AsciiGif;
 use state::{OnboardingState, Step};
 use view::ViewCtx;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Outcome {
     Continue,
     Finish,
@@ -29,6 +30,7 @@ pub async fn run(tui: &mut Tui, config: &mut Config, player: &AudioPlayer) -> Re
     let mut state = OnboardingState::from_config(config);
     let palette = theme::palette(config.theme);
     let volume_step = config.volume_step as f32 / 100.0;
+    let original_volume = config.volume;
     let (gif_tx, mut gif_rx) = tokio::sync::oneshot::channel();
     std::thread::spawn(move || {
         let _ = gif_tx.send(AsciiGif::load());
@@ -87,11 +89,31 @@ pub async fn run(tui: &mut Tui, config: &mut Config, player: &AudioPlayer) -> Re
 
     ambience::stop(player).await;
 
-    if let Outcome::Finish = outcome {
-        state.apply_to(config);
+    if let Some(volume) = complete_outcome(outcome, &state, config, original_volume) {
+        player
+            .send(crate::audio::PlayerCommand::SetVolume(volume))
+            .await;
     }
     config.save();
     Ok(())
+}
+
+fn complete_outcome(
+    outcome: Outcome,
+    state: &OnboardingState,
+    config: &mut Config,
+    original_volume: f32,
+) -> Option<f32> {
+    // Finish commits onboarding changes; Skip discards them and restores the
+    // pre-onboarding runtime volume so the temporary welcome volume does not leak.
+    match outcome {
+        Outcome::Finish => {
+            state.apply_to(config);
+            None
+        }
+        Outcome::Skip => Some(original_volume),
+        Outcome::Continue => None,
+    }
 }
 
 fn draw(
@@ -184,5 +206,47 @@ fn cycle_focused_option(state: &mut OnboardingState) {
             _ => transitions::toggle_auto_update(state),
         },
         Step::Welcome | Step::Summary => {}
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::OverlayMode;
+
+    #[test]
+    fn finish_applies_onboarding_state_without_restoring_volume() {
+        let mut config = Config {
+            overlay_mode: OverlayMode::WhenPlaying,
+            volume: 0.8,
+            ..Config::default()
+        };
+        let mut state = OnboardingState::from_config(&config);
+        state.overlay_mode = OverlayMode::Always;
+        state.volume = 0.5;
+
+        let restore_volume = complete_outcome(Outcome::Finish, &state, &mut config, 0.8);
+
+        assert_eq!(restore_volume, None);
+        assert_eq!(config.overlay_mode, OverlayMode::Always);
+        assert_eq!(config.volume, 0.5);
+    }
+
+    #[test]
+    fn skip_restores_original_volume_without_applying_state() {
+        let mut config = Config {
+            overlay_mode: OverlayMode::WhenPlaying,
+            volume: 0.8,
+            ..Config::default()
+        };
+        let mut state = OnboardingState::from_config(&config);
+        state.overlay_mode = OverlayMode::Always;
+        state.volume = 0.5;
+
+        let restore_volume = complete_outcome(Outcome::Skip, &state, &mut config, 0.8);
+
+        assert_eq!(restore_volume, Some(0.8));
+        assert_eq!(config.overlay_mode, OverlayMode::WhenPlaying);
+        assert_eq!(config.volume, 0.8);
     }
 }
