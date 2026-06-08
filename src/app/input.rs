@@ -1500,6 +1500,7 @@ impl App {
                                 let _ = cmd_tx
                                     .send(PlayerCommand::SetPreviewLoadingTrack(None))
                                     .await;
+                                let preview_track = raw.clone();
                                 if cmd_tx
                                     .send(PlayerCommand::PlayPreview {
                                         url,
@@ -1513,7 +1514,9 @@ impl App {
                                     return;
                                 }
                                 tokio::time::sleep(std::time::Duration::from_secs(35)).await;
-                                let _ = cmd_tx.send(PlayerCommand::StopPreview).await;
+                                let _ = cmd_tx
+                                    .send(PlayerCommand::StopPreviewIfCurrent(preview_track))
+                                    .await;
                             }
                             None => {
                                 tracing::warn!("Deezer: no result for '{raw}'");

@@ -41,6 +41,7 @@ pub enum PlayerCommand {
         start_at_secs: f32,
     },
     StopPreview,
+    StopPreviewIfCurrent(String),
     SetPreviewSearching(bool),
     SetPreviewLoadingTrack(Option<String>),
     MarkPreviewUnavailable(String),
@@ -359,6 +360,7 @@ struct AudioLoopState {
     level: Arc<AtomicU32>,
     player: Option<Player>,
     preview_player: Option<Player>,
+    preview_raw_track: Option<String>,
     current_volume: f32,
     volume_before_duck: Option<f32>,
     title_rx: Option<std_mpsc::Receiver<String>>,
@@ -381,6 +383,7 @@ impl AudioLoopState {
             level: Arc::new(AtomicU32::new((-60.0f32).to_bits())),
             player: None,
             preview_player: None,
+            preview_raw_track: None,
             current_volume: 1.0,
             volume_before_duck: None,
             title_rx: None,
@@ -832,6 +835,7 @@ fn handle_play_preview(
     if let Some(p) = st.preview_player.take() {
         p.stop();
     }
+    st.preview_raw_track = None;
     let preview_reader = StreamReader::connect_preview(source.url, handle.clone());
     let reader = std::io::BufReader::new(preview_reader);
     match Decoder::try_from(reader) {
@@ -843,6 +847,7 @@ fn handle_play_preview(
             let audio =
                 decoder.skip_duration(std::time::Duration::from_secs_f32(source.start_at_secs));
             st.preview_player = Some(attach_player(audio, st.current_volume, device_sink));
+            st.preview_raw_track = Some(source.raw_track.clone());
             update_state(state_tx, |s| {
                 s.preview_title = Some(source.title);
                 s.preview_searching = false;
@@ -859,15 +864,19 @@ fn handle_play_preview(
         }
     }
 }
-fn check_preview_ended(st: &mut AudioLoopState, state_tx: &watch::Sender<PlayerState>) {
-    if !st.preview_player.as_ref().is_some_and(|p| p.empty()) {
-        return;
+fn stop_preview(st: &mut AudioLoopState, state_tx: &watch::Sender<PlayerState>) {
+    if let Some(p) = st.preview_player.take() {
+        p.stop();
     }
-    st.preview_player = None;
+    st.preview_raw_track = None;
     if let Some(pre_duck) = st.volume_before_duck.take() {
         if let Some(ref p) = st.player {
             p.set_volume(pre_duck);
         }
+        info!(
+            "Preview stopped (radio volume restored -> {:.0}%)",
+            pre_duck * 100.0
+        );
     }
     update_state(state_tx, |s| {
         s.preview_title = None;
@@ -875,6 +884,23 @@ fn check_preview_ended(st: &mut AudioLoopState, state_tx: &watch::Sender<PlayerS
         s.preview_loading_track = None;
         s.preview_playing_track = None;
     });
+}
+
+fn stop_preview_if_current(
+    st: &mut AudioLoopState,
+    raw_track: &str,
+    state_tx: &watch::Sender<PlayerState>,
+) {
+    if st.preview_raw_track.as_deref() == Some(raw_track) {
+        stop_preview(st, state_tx);
+    }
+}
+
+fn check_preview_ended(st: &mut AudioLoopState, state_tx: &watch::Sender<PlayerState>) {
+    if !st.preview_player.as_ref().is_some_and(|p| p.empty()) {
+        return;
+    }
+    stop_preview(st, state_tx);
 }
 
 fn handle_seek_cmd(
@@ -1192,24 +1218,11 @@ fn audio_loop(
             }
 
             PlayerCommand::StopPreview => {
-                if let Some(p) = st.preview_player.take() {
-                    p.stop();
-                }
-                if let Some(pre_duck) = st.volume_before_duck.take() {
-                    if let Some(ref p) = st.player {
-                        p.set_volume(pre_duck);
-                    }
-                    info!(
-                        "Preview stopped (radio volume restored -> {:.0}%)",
-                        pre_duck * 100.0
-                    );
-                }
-                update_state(&state_tx, |s| {
-                    s.preview_title = None;
-                    s.preview_searching = false;
-                    s.preview_loading_track = None;
-                    s.preview_playing_track = None;
-                });
+                stop_preview(&mut st, &state_tx);
+            }
+
+            PlayerCommand::StopPreviewIfCurrent(raw_track) => {
+                stop_preview_if_current(&mut st, &raw_track, &state_tx);
             }
 
             PlayerCommand::SetPreviewLoadingTrack(track) => {
@@ -1293,5 +1306,41 @@ mod tests {
         let station = station_with_bitrate(None);
 
         assert_eq!(on_demand_byte_offset(10.0, &station), 160_000);
+    }
+
+    #[test]
+    fn conditional_preview_stop_ignores_stale_preview_timer() {
+        let mut st = AudioLoopState::new();
+        st.preview_raw_track = Some("Track B".into());
+        let (state_tx, state_rx) = watch::channel(PlayerState {
+            preview_title: Some("Preview B".into()),
+            preview_playing_track: Some("Track B".into()),
+            ..Default::default()
+        });
+
+        stop_preview_if_current(&mut st, "Track A", &state_tx);
+
+        assert_eq!(st.preview_raw_track.as_deref(), Some("Track B"));
+        assert_eq!(
+            state_rx.borrow().preview_playing_track.as_deref(),
+            Some("Track B")
+        );
+    }
+
+    #[test]
+    fn conditional_preview_stop_clears_matching_preview() {
+        let mut st = AudioLoopState::new();
+        st.preview_raw_track = Some("Track A".into());
+        let (state_tx, state_rx) = watch::channel(PlayerState {
+            preview_title: Some("Preview A".into()),
+            preview_playing_track: Some("Track A".into()),
+            ..Default::default()
+        });
+
+        stop_preview_if_current(&mut st, "Track A", &state_tx);
+
+        assert_eq!(st.preview_raw_track, None);
+        assert_eq!(state_rx.borrow().preview_title, None);
+        assert_eq!(state_rx.borrow().preview_playing_track, None);
     }
 }
