@@ -180,6 +180,10 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
         app.poll_spotify_search();
         app.poll_spotify_search_more();
         app.poll_spotify_player_events();
+        app.poll_spotify_radio();
+        app.poll_liked_tracks();
+        app.poll_playlists();
+        app.poll_playlist_tracks();
         app.poll_spotify_devices();
         app.poll_remote_playback();
         app.poll_youtube_install();

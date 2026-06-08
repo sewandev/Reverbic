@@ -161,35 +161,126 @@ impl App {
 
     pub fn poll_spotify_player_events(&mut self) {
         use crate::integrations::spotify::SpotifyPlayerEvent;
-        let Some(rx) = &self.spotify.player_rx else {
-            return;
-        };
-        loop {
-            match rx.try_recv() {
-                Ok(SpotifyPlayerEvent::Playing) => {
-                    self.spotify.player_status = SpotifyPlayerStatus::Playing
-                }
-                Ok(SpotifyPlayerEvent::Paused) => {
-                    self.spotify.player_status = SpotifyPlayerStatus::Paused
-                }
-                Ok(SpotifyPlayerEvent::Stopped) => {
-                    self.spotify.player_status = SpotifyPlayerStatus::Idle;
-                    self.spotify.now_playing = None;
-                }
-                Ok(SpotifyPlayerEvent::EndOfTrack) => {
-                    self.spotify.player_status = SpotifyPlayerStatus::Idle;
-                    self.spotify.now_playing = None;
-                }
-                Ok(SpotifyPlayerEvent::Error(e)) => {
-                    self.spotify.player_status = SpotifyPlayerStatus::Error(e)
-                }
-                Err(std::sync::mpsc::TryRecvError::Empty) => break,
-                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
-                    self.spotify.player_rx = None;
-                    break;
+
+        let mut events: Vec<Result<SpotifyPlayerEvent, std::sync::mpsc::TryRecvError>> = vec![];
+        let mut disconnected = false;
+        {
+            let Some(rx) = self.spotify.player_rx.as_ref() else {
+                return;
+            };
+            loop {
+                match rx.try_recv() {
+                    Ok(evt) => events.push(Ok(evt)),
+                    Err(std::sync::mpsc::TryRecvError::Empty) => break,
+                    Err(e) => {
+                        disconnected = true;
+                        let _ = e;
+                        break;
+                    }
                 }
             }
         }
+
+        if disconnected {
+            self.spotify.player_rx = None;
+        }
+
+        for evt in events {
+            let Ok(evt) = evt else { continue };
+            match evt {
+                SpotifyPlayerEvent::Playing => {
+                    self.spotify.player_status = SpotifyPlayerStatus::Playing
+                }
+                SpotifyPlayerEvent::Paused => {
+                    self.spotify.player_status = SpotifyPlayerStatus::Paused
+                }
+                SpotifyPlayerEvent::TrackChanged(track) => {
+                    let uri = track.uri.clone();
+                    self.spotify.now_playing = Some(track);
+                    self.spotify.player_status = SpotifyPlayerStatus::Playing;
+                    self.spotify.recently_played.push_back(uri);
+                    if self.spotify.recently_played.len() > 30 {
+                        self.spotify.recently_played.pop_front();
+                    }
+                }
+                SpotifyPlayerEvent::Stopped => {
+                    let artist_id = self
+                        .spotify
+                        .now_playing
+                        .as_ref()
+                        .and_then(|t| t.artist_id.clone());
+                    let seed_uri = self
+                        .spotify
+                        .now_playing
+                        .as_ref()
+                        .map(|t| t.uri.clone())
+                        .unwrap_or_default();
+                    self.spotify.player_status = SpotifyPlayerStatus::Idle;
+                    self.spotify.now_playing = None;
+                    if self.config.spotify.radio_enabled {
+                        if let Some(id) = artist_id {
+                            self.fetch_radio_tracks(id, seed_uri);
+                        }
+                    }
+                }
+                SpotifyPlayerEvent::EndOfTrack => {}
+                SpotifyPlayerEvent::Error(e) => {
+                    self.spotify.player_status = SpotifyPlayerStatus::Error(e)
+                }
+            }
+        }
+    }
+
+    fn fetch_radio_tracks(&mut self, artist_id: String, seed_uri: String) {
+        use crate::integrations::spotify::radio::fetch_radio_pool;
+        abort_task(&mut self.spotify.radio_task);
+        let Some(token) = self.spotify.access_token.clone() else {
+            return;
+        };
+        let recently_played = self.spotify.recently_played.clone();
+        let (tx, rx) = std::sync::mpsc::channel();
+        self.spotify.radio_rx = Some(rx);
+        let handle = tokio::spawn(async move {
+            match fetch_radio_pool(&artist_id, &seed_uri, recently_played, &token).await {
+                Ok(tracks) => {
+                    let _ = tx.send(tracks);
+                }
+                Err(e) => {
+                    tracing::debug!("radio fetch: {e}");
+                    let _ = tx.send(vec![]);
+                }
+            }
+        });
+        self.spotify.radio_task = Some(handle);
+    }
+
+    pub fn poll_spotify_radio(&mut self) {
+        let rx = match self.spotify.radio_rx.take() {
+            Some(r) => r,
+            None => return,
+        };
+        match rx.try_recv() {
+            Ok(mut tracks) => {
+                self.spotify.radio_queue.extend(tracks.drain(..));
+                self.play_next_radio_track();
+            }
+            Err(std::sync::mpsc::TryRecvError::Empty) => {
+                self.spotify.radio_rx = Some(rx);
+            }
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => {}
+        }
+    }
+
+    fn play_next_radio_track(&mut self) {
+        let Some(track) = self.spotify.radio_queue.pop_front() else {
+            return;
+        };
+        let Some(handle) = &self.spotify.player_tx else {
+            return;
+        };
+        handle.play(track.clone(), vec![track.uri.clone()]);
+        self.spotify.now_playing = Some(track);
+        self.spotify.player_status = SpotifyPlayerStatus::Loading;
     }
 
     pub(super) fn perform_spotify_search(&mut self) {
@@ -535,6 +626,128 @@ impl App {
         abort_task(&mut self.spotify.playback_task);
         self.spotify.playback_rx = None;
         self.spotify.playback = None;
+    }
+
+    pub fn fetch_liked_tracks(&mut self) {
+        use crate::integrations::spotify::library::get_saved_tracks;
+        abort_task(&mut self.spotify.liked_task);
+        let Some(token) = self.spotify.access_token.clone() else {
+            return;
+        };
+        self.spotify.liked_loading = true;
+        self.spotify.liked_offset = 0;
+        let (tx, rx) = std::sync::mpsc::channel();
+        self.spotify.liked_rx = Some(rx);
+        let handle = tokio::spawn(async move {
+            let _ = tx.send(get_saved_tracks(&token, 0).await);
+        });
+        self.spotify.liked_task = Some(handle);
+    }
+
+    pub fn poll_liked_tracks(&mut self) {
+        let Some(rx) = self.spotify.liked_rx.take() else {
+            return;
+        };
+        match rx.try_recv() {
+            Ok(Ok((tracks, has_more))) => {
+                self.spotify.liked_loading = false;
+                self.spotify.liked_tracks = tracks;
+                self.spotify.liked_has_more = has_more;
+                self.spotify.liked_offset = 50;
+            }
+            Ok(Err(e)) => {
+                self.spotify.liked_loading = false;
+                tracing::warn!("liked tracks fetch: {e}");
+            }
+            Err(std::sync::mpsc::TryRecvError::Empty) => {
+                self.spotify.liked_rx = Some(rx);
+            }
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                self.spotify.liked_loading = false;
+            }
+        }
+    }
+
+    pub fn fetch_playlists(&mut self) {
+        use crate::integrations::spotify::playlists::get_user_playlists;
+        abort_task(&mut self.spotify.playlists_task);
+        let Some(token) = self.spotify.access_token.clone() else {
+            return;
+        };
+        self.spotify.playlists_loading = true;
+        self.spotify.playlists_offset = 0;
+        let (tx, rx) = std::sync::mpsc::channel();
+        self.spotify.playlists_rx = Some(rx);
+        let handle = tokio::spawn(async move {
+            let _ = tx.send(get_user_playlists(&token, 0).await);
+        });
+        self.spotify.playlists_task = Some(handle);
+    }
+
+    pub fn poll_playlists(&mut self) {
+        let Some(rx) = self.spotify.playlists_rx.take() else {
+            return;
+        };
+        match rx.try_recv() {
+            Ok(Ok((playlists, has_more))) => {
+                self.spotify.playlists_loading = false;
+                self.spotify.playlists = playlists;
+                self.spotify.playlists_has_more = has_more;
+                self.spotify.playlists_offset = 20;
+            }
+            Ok(Err(e)) => {
+                self.spotify.playlists_loading = false;
+                tracing::warn!("playlists fetch: {e}");
+            }
+            Err(std::sync::mpsc::TryRecvError::Empty) => {
+                self.spotify.playlists_rx = Some(rx);
+            }
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                self.spotify.playlists_loading = false;
+            }
+        }
+    }
+
+    pub fn fetch_playlist_tracks(&mut self, playlist_id: String) {
+        use crate::integrations::spotify::playlists::get_playlist_tracks;
+        abort_task(&mut self.spotify.playlist_tracks_task);
+        let Some(token) = self.spotify.access_token.clone() else {
+            return;
+        };
+        self.spotify.playlist_tracks_loading = true;
+        self.spotify.playlist_tracks_offset = 0;
+        self.spotify.playlist_tracks = Vec::new();
+        self.spotify.playlist_tracks_selected = 0;
+        let (tx, rx) = std::sync::mpsc::channel();
+        self.spotify.playlist_tracks_rx = Some(rx);
+        let handle = tokio::spawn(async move {
+            let _ = tx.send(get_playlist_tracks(&playlist_id, &token, 0).await);
+        });
+        self.spotify.playlist_tracks_task = Some(handle);
+    }
+
+    pub fn poll_playlist_tracks(&mut self) {
+        let Some(rx) = self.spotify.playlist_tracks_rx.take() else {
+            return;
+        };
+        match rx.try_recv() {
+            Ok(Ok((tracks, has_more))) => {
+                self.spotify.playlist_tracks_loading = false;
+                self.spotify.playlist_tracks = tracks;
+                self.spotify.playlist_tracks_has_more = has_more;
+                self.spotify.playlist_tracks_offset = 50;
+            }
+            Ok(Err(e)) => {
+                self.spotify.playlist_tracks_loading = false;
+                tracing::warn!("playlist tracks fetch: {e}");
+            }
+            Err(std::sync::mpsc::TryRecvError::Empty) => {
+                self.spotify.playlist_tracks_rx = Some(rx);
+            }
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                self.spotify.playlist_tracks_loading = false;
+            }
+        }
     }
 
     pub fn poll_remote_playback(&mut self) {

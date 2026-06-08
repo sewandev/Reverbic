@@ -127,6 +127,8 @@ pub struct SpotifyConfig {
     pub stop_on_quit: bool,
     #[serde(default)]
     pub start_on_spotify: bool,
+    #[serde(default = "default_true")]
+    pub radio_enabled: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

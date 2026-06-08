@@ -1,7 +1,10 @@
 pub mod devices;
 pub mod error;
+pub mod library;
 pub mod oauth;
 pub mod player;
+pub mod playlists;
+pub mod radio;
 pub mod search;
 
 pub use error::SpotifyError;
@@ -25,13 +28,17 @@ pub enum AuthResult {
 pub struct SpotifyTrack {
     pub name: String,
     pub artist: String,
+    pub artist_id: Option<String>,
     pub album: String,
     pub duration_ms: u32,
     pub uri: String,
 }
 
 pub enum SpotifyPlayerCmd {
-    Play(SpotifyTrack),
+    Play {
+        track: SpotifyTrack,
+        uris: Vec<String>,
+    },
     Pause,
     Resume,
 }
@@ -41,5 +48,6 @@ pub enum SpotifyPlayerEvent {
     Paused,
     Stopped,
     EndOfTrack,
+    TrackChanged(SpotifyTrack),
     Error(String),
 }

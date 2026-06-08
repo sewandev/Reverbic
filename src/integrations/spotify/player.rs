@@ -3,7 +3,10 @@ use std::sync::Arc;
 
 use librespot_connect::{ConnectConfig, LoadRequest, LoadRequestOptions, Spirc};
 use librespot_core::config::DeviceType;
-use librespot_core::{authentication::Credentials, cache::Cache, Session, SessionConfig};
+use librespot_core::{
+    authentication::Credentials, cache::Cache, Session, SessionConfig, SpotifyId,
+};
+use librespot_metadata::audio::{AudioItem, UniqueFields};
 use librespot_playback::{
     audio_backend,
     config::{AudioFormat, PlayerConfig},
@@ -19,8 +22,8 @@ pub struct SpotifyPlayerHandle {
 }
 
 impl SpotifyPlayerHandle {
-    pub fn play(&self, track: SpotifyTrack) {
-        let _ = self.cmd_tx.send(SpotifyPlayerCmd::Play(track));
+    pub fn play(&self, track: SpotifyTrack, uris: Vec<String>) {
+        let _ = self.cmd_tx.send(SpotifyPlayerCmd::Play { track, uris });
     }
 
     pub fn pause(&self) {
@@ -30,6 +33,23 @@ impl SpotifyPlayerHandle {
     pub fn resume(&self) {
         let _ = self.cmd_tx.send(SpotifyPlayerCmd::Resume);
     }
+}
+
+fn track_from_audio_item(item: &AudioItem) -> Option<SpotifyTrack> {
+    let UniqueFields::Track { artists, album, .. } = &item.unique_fields else {
+        return None;
+    };
+    let first_artist = artists.first();
+    Some(SpotifyTrack {
+        name: item.name.clone(),
+        artist: first_artist.map(|a| a.name.clone()).unwrap_or_default(),
+        artist_id: first_artist
+            .and_then(|a| SpotifyId::try_from(&a.id).ok())
+            .and_then(|id| id.to_base62().ok()),
+        album: album.clone(),
+        duration_ms: item.duration_ms,
+        uri: item.uri.clone(),
+    })
 }
 
 pub fn spawn_player(
@@ -142,6 +162,9 @@ async fn run_player(
                     PlayerEvent::Paused { .. }     => Some(SpotifyPlayerEvent::Paused),
                     PlayerEvent::Stopped { .. }    => Some(SpotifyPlayerEvent::Stopped),
                     PlayerEvent::EndOfTrack { .. } => Some(SpotifyPlayerEvent::EndOfTrack),
+                    PlayerEvent::TrackChanged { audio_item } => {
+                        track_from_audio_item(&audio_item).map(SpotifyPlayerEvent::TrackChanged)
+                    }
                     PlayerEvent::Unavailable { track_id, .. } => Some(SpotifyPlayerEvent::Error(
                         format!("Pista no disponible: {track_id}"),
                     )),
@@ -153,9 +176,16 @@ async fn run_player(
             }
             cmd = cmd_rx.recv() => {
                 match cmd {
-                    Some(SpotifyPlayerCmd::Play(track)) => {
+                    Some(SpotifyPlayerCmd::Play { track, uris }) => {
+                        let mut final_uris = uris;
+                        if let Some(pos) = final_uris.iter().position(|u| u == &track.uri) {
+                            final_uris = final_uris[pos..].to_vec();
+                        } else {
+                            final_uris = vec![track.uri.clone()];
+                        }
+                        final_uris.truncate(100);
                         let request = LoadRequest::from_tracks(
-                            vec![track.uri.clone()],
+                            final_uris,
                             LoadRequestOptions { start_playing: true, ..Default::default() },
                         );
                         if let Err(e) = spirc.load(request) {
