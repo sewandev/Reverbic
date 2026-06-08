@@ -241,6 +241,8 @@
   "onboarding.welcome.body": "Tu próxima canción favorita podría estar a un Enter de distancia.",
   "onboarding.welcome.sources": "Radio en vivo, Spotify y YouTube: más de 50.000 emisoras del mundo esperan a que las descubras.",
   "onboarding.welcome.performance": "Pensado al 100% para escuchar música sin parar, con el máximo rendimiento que solo una terminal puede ofrecer.",
+  "onboarding.appearance.heading": "Hazlo tuyo",
+  "onboarding.appearance.theme": "Tema",
   "onboarding.overlay.heading": "Tu música, siempre visible con overlay",
   "onboarding.overlay.mode": "Modo",
   "onboarding.overlay.position": "Posición",

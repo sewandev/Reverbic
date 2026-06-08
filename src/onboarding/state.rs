@@ -1,16 +1,18 @@
-use crate::config::{Config, OverlayMode, OverlayPosition};
+use crate::config::{Config, OverlayMode, OverlayPosition, ThemeId};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Step {
     Welcome,
+    Appearance,
     OverlayPreferences,
     PlaybackPreferences,
     Summary,
 }
 
 impl Step {
-    pub const ALL: [Step; 4] = [
+    pub const ALL: [Step; 5] = [
         Step::Welcome,
+        Step::Appearance,
         Step::OverlayPreferences,
         Step::PlaybackPreferences,
         Step::Summary,
@@ -25,6 +27,7 @@ impl Step {
     pub fn option_count(self) -> usize {
         match self {
             Step::Welcome | Step::Summary => 0,
+            Step::Appearance => 1,
             Step::OverlayPreferences => 3,
             Step::PlaybackPreferences => 5,
         }
@@ -35,6 +38,7 @@ impl Step {
 pub struct OnboardingState {
     pub step: Step,
     pub focused_option: usize,
+    pub theme: ThemeId,
     pub overlay_mode: OverlayMode,
     pub overlay_position: OverlayPosition,
     pub overlay_alpha: u8,
@@ -52,6 +56,7 @@ impl OnboardingState {
         Self {
             step: Step::Welcome,
             focused_option: 0,
+            theme: config.theme,
             overlay_mode: config.overlay_mode,
             overlay_position: config.overlay_position,
             overlay_alpha: config.overlay_alpha,
@@ -66,6 +71,7 @@ impl OnboardingState {
     }
 
     pub fn apply_to(&self, config: &mut Config) {
+        config.theme = self.theme;
         config.overlay_mode = self.overlay_mode;
         config.overlay_position = self.overlay_position;
         config.overlay_alpha = self.overlay_alpha;
@@ -91,6 +97,7 @@ mod tests {
     #[test]
     fn from_config_seeds_selections_from_existing_config() {
         let config = Config {
+            theme: ThemeId::Reverbic,
             overlay_mode: OverlayMode::Always,
             autoplay_last: true,
             ..Config::default()
@@ -98,6 +105,7 @@ mod tests {
 
         let state = OnboardingState::from_config(&config);
 
+        assert_eq!(state.theme, ThemeId::Reverbic);
         assert_eq!(state.overlay_mode, OverlayMode::Always);
         assert!(state.autoplay_last);
         assert!(!state.muted);
@@ -106,12 +114,14 @@ mod tests {
     #[test]
     fn apply_to_writes_selections_back_into_config() {
         let mut state = OnboardingState::from_config(&Config::default());
+        state.theme = ThemeId::Reverbic;
         state.overlay_mode = OverlayMode::Hidden;
         state.restore_volume = true;
 
         let mut config = Config::default();
         state.apply_to(&mut config);
 
+        assert_eq!(config.theme, ThemeId::Reverbic);
         assert_eq!(config.overlay_mode, OverlayMode::Hidden);
         assert!(config.restore_volume);
     }

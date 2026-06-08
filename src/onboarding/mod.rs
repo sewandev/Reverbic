@@ -30,7 +30,6 @@ enum Outcome {
 }
 pub async fn run(tui: &mut Tui, config: &mut Config, player: &AudioPlayer) -> Result<()> {
     let mut state = OnboardingState::from_config(config);
-    let palette = theme::palette(config.theme);
     let volume_step = config.volume_step as f32 / 100.0;
     let original_volume = config.volume;
     let (gif_tx, mut gif_rx) = tokio::sync::oneshot::channel();
@@ -52,7 +51,7 @@ pub async fn run(tui: &mut Tui, config: &mut Config, player: &AudioPlayer) -> Re
     let mut ambience_track = AmbienceTrack::Pending;
     let (ambience_tx, mut ambience_rx) = mpsc::channel(1);
     let mut ambience_resolve_task: Option<JoinHandle<()>> = None;
-    draw(tui, &state, palette, border_tick, ascii_gif.as_ref())?;
+    draw(tui, &state, border_tick, ascii_gif.as_ref())?;
 
     if !state.muted {
         // Resolve the ambience stream in the background so slow YouTube/yt-dlp
@@ -65,7 +64,7 @@ pub async fn run(tui: &mut Tui, config: &mut Config, player: &AudioPlayer) -> Re
     }
 
     let outcome = loop {
-        draw(tui, &state, palette, border_tick, ascii_gif.as_ref())?;
+        draw(tui, &state, border_tick, ascii_gif.as_ref())?;
 
         tokio::select! {
             _ = ticker.tick() => {
@@ -161,10 +160,10 @@ fn complete_outcome(
 fn draw(
     tui: &mut Tui,
     state: &OnboardingState,
-    palette: &theme::Palette,
     border_tick: u32,
     ascii_gif: Option<&AsciiGif>,
 ) -> Result<()> {
+    let palette = theme::palette(state.theme);
     tui.draw(|frame| {
         let area = frame.area();
         view::render(
@@ -254,6 +253,7 @@ fn cycle_focused_option(state: &mut OnboardingState) {
             1 => transitions::cycle_overlay_position(state),
             _ => transitions::cycle_overlay_alpha(state),
         },
+        Step::Appearance => transitions::cycle_theme(state),
         Step::PlaybackPreferences => match state.focused_option {
             0 => transitions::toggle_autoplay_last(state),
             1 => transitions::toggle_restore_volume(state),

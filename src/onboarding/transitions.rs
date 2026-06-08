@@ -41,6 +41,10 @@ pub fn cycle_overlay_mode(state: &mut OnboardingState) {
     state.overlay_mode = state.overlay_mode.next();
 }
 
+pub fn cycle_theme(state: &mut OnboardingState) {
+    state.theme = state.theme.next();
+}
+
 pub fn cycle_overlay_position(state: &mut OnboardingState) {
     state.overlay_position = state.overlay_position.next();
 }
@@ -108,9 +112,9 @@ mod tests {
     #[test]
     fn next_advances_through_every_step_and_stops_at_summary() {
         let mut state = state();
-        assert!(next(&mut state));
-        assert!(next(&mut state));
-        assert!(next(&mut state));
+        for _ in 1..Step::ALL.len() {
+            assert!(next(&mut state));
+        }
         assert_eq!(state.step, Step::Summary);
         assert!(!next(&mut state));
         assert_eq!(state.step, Step::Summary);
@@ -133,6 +137,16 @@ mod tests {
         assert_eq!(state.overlay_alpha, 20);
         cycle_overlay_alpha(&mut state);
         assert_eq!(state.overlay_alpha, 30);
+    }
+
+    #[test]
+    fn cycle_theme_uses_theme_infrastructure() {
+        let mut state = state();
+        let before = state.theme;
+
+        cycle_theme(&mut state);
+
+        assert_eq!(state.theme, before.next());
     }
 
     #[test]

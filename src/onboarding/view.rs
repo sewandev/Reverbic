@@ -69,6 +69,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &OnboardingState, ctx: &View
 
     match state.step {
         Step::Welcome => render_welcome(frame, body, ctx),
+        Step::Appearance => render_appearance_step(frame, body, state, palette),
         Step::OverlayPreferences => render_overlay_step(frame, body, state, palette),
         Step::PlaybackPreferences => render_playback_step(frame, body, state, palette),
         Step::Summary => render_summary(frame, body, state, palette),
@@ -160,6 +161,27 @@ fn render_welcome(frame: &mut Frame, area: Rect, ctx: &ViewCtx<'_>) {
         .wrap(Wrap { trim: true })
         .style(bg_style),
         text_area,
+    );
+}
+
+fn render_appearance_step(
+    frame: &mut Frame,
+    area: Rect,
+    state: &OnboardingState,
+    palette: &Palette,
+) {
+    let rows = [(
+        t("onboarding.appearance.theme"),
+        state.theme.display(),
+        t("config.tooltip.theme"),
+    )];
+    render_option_step(
+        frame,
+        area,
+        &t("onboarding.appearance.heading"),
+        &rows,
+        state.focused_option,
+        palette,
     );
 }
 
