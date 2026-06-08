@@ -161,6 +161,7 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
         }
     }
     let mut ticker = tokio::time::interval(Duration::from_millis(50));
+    ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     let mut events = EventStream::new();
     let mut last_click: Option<Instant> = None;
     let mut click_count: u8 = 0;
