@@ -1,3 +1,4 @@
+pub mod albums;
 pub mod devices;
 pub mod error;
 pub mod library;
@@ -6,7 +7,6 @@ pub mod player;
 pub mod playlists;
 pub mod radio;
 pub mod search;
-pub mod albums;
 
 pub use error::SpotifyError;
 

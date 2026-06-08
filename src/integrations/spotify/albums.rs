@@ -2,7 +2,10 @@ use super::{search::parse_track, SpotifyAlbum, SpotifyError, SpotifyTrack};
 
 pub fn parse_album(item: &serde_json::Value) -> Option<SpotifyAlbum> {
     let name = item["name"].as_str()?.to_string();
-    let artist = item["artists"][0]["name"].as_str().unwrap_or("Unknown").to_string();
+    let artist = item["artists"][0]["name"]
+        .as_str()
+        .unwrap_or("Unknown")
+        .to_string();
     let uri = item["uri"].as_str()?.to_string();
     let total_tracks = item["total_tracks"].as_u64().unwrap_or(0) as u32;
 
@@ -65,7 +68,10 @@ pub async fn get_album_tracks(
     let client = crate::http::http_client_timeout(10)
         .ok_or_else(|| SpotifyError::Network("Failed to create HTTP client".to_string()))?;
 
-    let url = format!("https://api.spotify.com/v1/albums/{}/tracks?limit=50", album_id);
+    let url = format!(
+        "https://api.spotify.com/v1/albums/{}/tracks?limit=50",
+        album_id
+    );
 
     let response = client
         .get(&url)

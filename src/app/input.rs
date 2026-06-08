@@ -159,20 +159,42 @@ impl App {
                 if self.show_search_modal && matches!(self.modal_mode, SearchMode::Spotify) {
                     use super::modal::SpotifySubTab;
                     let track = match self.spotify.sub_tab {
-                        SpotifySubTab::Search => self.spotify.search_results.get(self.spotify.search_selected).cloned(),
-                        SpotifySubTab::TopTracks => self.spotify.top_tracks.get(self.spotify.top_tracks_selected).cloned(),
-                        SpotifySubTab::Recent => self.spotify.recent_tracks.get(self.spotify.recent_tracks_selected).cloned(),
-                        SpotifySubTab::Liked => self.spotify.liked_tracks.get(self.spotify.liked_selected).cloned(),
+                        SpotifySubTab::Search => self
+                            .spotify
+                            .search_results
+                            .get(self.spotify.search_selected)
+                            .cloned(),
+                        SpotifySubTab::TopTracks => self
+                            .spotify
+                            .top_tracks
+                            .get(self.spotify.top_tracks_selected)
+                            .cloned(),
+                        SpotifySubTab::Recent => self
+                            .spotify
+                            .recent_tracks
+                            .get(self.spotify.recent_tracks_selected)
+                            .cloned(),
+                        SpotifySubTab::Liked => self
+                            .spotify
+                            .liked_tracks
+                            .get(self.spotify.liked_selected)
+                            .cloned(),
                         SpotifySubTab::Playlists => {
                             if self.spotify.open_playlist.is_some() {
-                                self.spotify.playlist_tracks.get(self.spotify.playlist_tracks_selected).cloned()
+                                self.spotify
+                                    .playlist_tracks
+                                    .get(self.spotify.playlist_tracks_selected)
+                                    .cloned()
                             } else {
                                 None
                             }
                         }
                         SpotifySubTab::Albums => {
                             if self.spotify.open_album.is_some() {
-                                self.spotify.album_tracks.get(self.spotify.album_tracks_selected).cloned()
+                                self.spotify
+                                    .album_tracks
+                                    .get(self.spotify.album_tracks_selected)
+                                    .cloned()
                             } else {
                                 None
                             }
@@ -1280,12 +1302,14 @@ impl App {
                         self.fetch_playlists();
                     }
                     SpotifySubTab::TopTracks
-                        if self.spotify.top_tracks.is_empty() && !self.spotify.top_tracks_loading =>
+                        if self.spotify.top_tracks.is_empty()
+                            && !self.spotify.top_tracks_loading =>
                     {
                         self.fetch_top_tracks();
                     }
                     SpotifySubTab::Recent
-                        if self.spotify.recent_tracks.is_empty() && !self.spotify.recent_tracks_loading =>
+                        if self.spotify.recent_tracks.is_empty()
+                            && !self.spotify.recent_tracks_loading =>
                     {
                         self.fetch_recent_tracks();
                     }

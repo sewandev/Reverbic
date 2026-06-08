@@ -110,12 +110,7 @@ pub async fn get_top_tracks(
 
     let tracks: Vec<SpotifyTrack> = json["items"]
         .as_array()
-        .map(|items| {
-            items
-                .iter()
-                .filter_map(|item| parse_track(item))
-                .collect()
-        })
+        .map(|items| items.iter().filter_map(|item| parse_track(item)).collect())
         .unwrap_or_default();
 
     Ok(tracks)

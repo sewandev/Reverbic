@@ -877,13 +877,7 @@ impl<'a> SearchModalWidget<'a> {
         }
     }
 
-    fn render_spotify_album_tracks(
-        &self,
-        area: Rect,
-        list_x: u16,
-        list_w: u16,
-        buf: &mut Buffer,
-    ) {
+    fn render_spotify_album_tracks(&self, area: Rect, list_x: u16, list_w: u16, buf: &mut Buffer) {
         if let Some(album) = self.spotify_open_album {
             let esc_hint = "[Esc]";
             let sep = " <- ";

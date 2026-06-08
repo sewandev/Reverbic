@@ -2,9 +2,8 @@ use std::collections::VecDeque;
 
 use super::modal::{SpotifyAuthStatus, SpotifyPlayerStatus, SpotifySubTab};
 use crate::integrations::spotify::{
-    SpotifyAlbum, devices::SpotifyDevice, player::SpotifyPlayerHandle,
-    playlists::SpotifyPlaylist, AuthResult, SpotifyError, SpotifyPlaybackState, SpotifyPlayerEvent,
-    SpotifyTrack,
+    devices::SpotifyDevice, player::SpotifyPlayerHandle, playlists::SpotifyPlaylist, AuthResult,
+    SpotifyAlbum, SpotifyError, SpotifyPlaybackState, SpotifyPlayerEvent, SpotifyTrack,
 };
 
 type SearchPageRx = std::sync::mpsc::Receiver<(Vec<SpotifyTrack>, bool, Option<u64>)>;
@@ -95,13 +94,15 @@ pub struct SpotifyState {
     pub top_tracks_loading: bool,
     pub top_tracks_range: String,
     pub(super) top_tracks_task: Option<tokio::task::JoinHandle<()>>,
-    pub(super) top_tracks_rx: Option<std::sync::mpsc::Receiver<Result<Vec<SpotifyTrack>, SpotifyError>>>,
+    pub(super) top_tracks_rx:
+        Option<std::sync::mpsc::Receiver<Result<Vec<SpotifyTrack>, SpotifyError>>>,
 
     pub recent_tracks: Vec<SpotifyTrack>,
     pub recent_tracks_selected: usize,
     pub recent_tracks_loading: bool,
     pub(super) recent_tracks_task: Option<tokio::task::JoinHandle<()>>,
-    pub(super) recent_tracks_rx: Option<std::sync::mpsc::Receiver<Result<Vec<SpotifyTrack>, SpotifyError>>>,
+    pub(super) recent_tracks_rx:
+        Option<std::sync::mpsc::Receiver<Result<Vec<SpotifyTrack>, SpotifyError>>>,
 
     pub albums: Vec<SpotifyAlbum>,
     pub albums_selected: usize,
@@ -113,9 +114,11 @@ pub struct SpotifyState {
     pub album_tracks_selected: usize,
     pub album_tracks_loading: bool,
     pub(super) albums_task: Option<tokio::task::JoinHandle<()>>,
-    pub(super) albums_rx: Option<std::sync::mpsc::Receiver<Result<(Vec<SpotifyAlbum>, bool), SpotifyError>>>,
+    pub(super) albums_rx:
+        Option<std::sync::mpsc::Receiver<Result<(Vec<SpotifyAlbum>, bool), SpotifyError>>>,
     pub(super) album_tracks_task: Option<tokio::task::JoinHandle<()>>,
-    pub(super) album_tracks_rx: Option<std::sync::mpsc::Receiver<Result<Vec<SpotifyTrack>, SpotifyError>>>,
+    pub(super) album_tracks_rx:
+        Option<std::sync::mpsc::Receiver<Result<Vec<SpotifyTrack>, SpotifyError>>>,
 }
 
 impl SpotifyState {
