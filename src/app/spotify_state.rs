@@ -1,10 +1,15 @@
+use std::collections::VecDeque;
+
 use super::modal::{SpotifyAuthStatus, SpotifyPlayerStatus, SpotifySubTab};
 use crate::integrations::spotify::{
-    devices::SpotifyDevice, player::SpotifyPlayerHandle, AuthResult, SpotifyError,
-    SpotifyPlaybackState, SpotifyPlayerEvent, SpotifyTrack,
+    devices::SpotifyDevice, player::SpotifyPlayerHandle, playlists::SpotifyPlaylist, AuthResult,
+    SpotifyError, SpotifyPlaybackState, SpotifyPlayerEvent, SpotifyTrack,
 };
 
 type SearchPageRx = std::sync::mpsc::Receiver<(Vec<SpotifyTrack>, bool, Option<u64>)>;
+type TracksResultRx = std::sync::mpsc::Receiver<Result<(Vec<SpotifyTrack>, bool), SpotifyError>>;
+type PlaylistsResultRx =
+    std::sync::mpsc::Receiver<Result<(Vec<SpotifyPlaylist>, bool), SpotifyError>>;
 
 pub struct SpotifyState {
     pub status: SpotifyAuthStatus,
@@ -53,6 +58,36 @@ pub struct SpotifyState {
         Option<std::sync::mpsc::Receiver<Result<(String, String), String>>>,
 
     pub(super) play_result_rx: Option<std::sync::mpsc::Receiver<Result<(), SpotifyError>>>,
+
+    pub playback_queue: VecDeque<SpotifyTrack>,
+    pub radio_queue: VecDeque<SpotifyTrack>,
+    pub recently_played: VecDeque<String>,
+    pub(super) radio_task: Option<tokio::task::JoinHandle<()>>,
+    pub(super) radio_rx: Option<std::sync::mpsc::Receiver<Vec<SpotifyTrack>>>,
+
+    pub liked_tracks: Vec<SpotifyTrack>,
+    pub liked_selected: usize,
+    pub liked_loading: bool,
+    pub liked_has_more: bool,
+    pub liked_offset: usize,
+    pub(super) liked_task: Option<tokio::task::JoinHandle<()>>,
+    pub(super) liked_rx: Option<TracksResultRx>,
+
+    pub playlists: Vec<SpotifyPlaylist>,
+    pub playlists_selected: usize,
+    pub playlists_loading: bool,
+    pub playlists_has_more: bool,
+    pub playlists_offset: usize,
+    pub open_playlist: Option<SpotifyPlaylist>,
+    pub playlist_tracks: Vec<SpotifyTrack>,
+    pub playlist_tracks_selected: usize,
+    pub playlist_tracks_loading: bool,
+    pub playlist_tracks_has_more: bool,
+    pub playlist_tracks_offset: usize,
+    pub(super) playlists_task: Option<tokio::task::JoinHandle<()>>,
+    pub(super) playlists_rx: Option<PlaylistsResultRx>,
+    pub(super) playlist_tracks_task: Option<tokio::task::JoinHandle<()>>,
+    pub(super) playlist_tracks_rx: Option<TracksResultRx>,
 }
 
 impl SpotifyState {
@@ -68,6 +103,10 @@ impl SpotifyState {
         abort(&mut self.devices_task);
         abort(&mut self.playback_task);
         abort(&mut self.token_refresh_task);
+        abort(&mut self.radio_task);
+        abort(&mut self.liked_task);
+        abort(&mut self.playlists_task);
+        abort(&mut self.playlist_tracks_task);
     }
 }
 
@@ -111,6 +150,33 @@ impl Default for SpotifyState {
             token_refresh_task: None,
             token_refresh_rx: None,
             play_result_rx: None,
+            playback_queue: VecDeque::new(),
+            radio_queue: VecDeque::new(),
+            recently_played: VecDeque::new(),
+            radio_task: None,
+            radio_rx: None,
+            liked_tracks: Vec::new(),
+            liked_selected: 0,
+            liked_loading: false,
+            liked_has_more: false,
+            liked_offset: 0,
+            liked_task: None,
+            liked_rx: None,
+            playlists: Vec::new(),
+            playlists_selected: 0,
+            playlists_loading: false,
+            playlists_has_more: false,
+            playlists_offset: 0,
+            open_playlist: None,
+            playlist_tracks: Vec::new(),
+            playlist_tracks_selected: 0,
+            playlist_tracks_loading: false,
+            playlist_tracks_has_more: false,
+            playlist_tracks_offset: 0,
+            playlists_task: None,
+            playlists_rx: None,
+            playlist_tracks_task: None,
+            playlist_tracks_rx: None,
         }
     }
 }

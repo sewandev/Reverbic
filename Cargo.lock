@@ -2648,6 +2648,7 @@ dependencies = [
  "librespot-audio",
  "librespot-connect",
  "librespot-core",
+ "librespot-metadata",
  "librespot-playback",
  "nucleo-matcher",
  "rand 0.8.6",

@@ -102,6 +102,13 @@ impl<'a> SearchModalWidget<'a> {
                     format!("{}...", preview)
                 }
             }
+            SettingItem::SpotifyRadioMode => {
+                if self.spotify_radio_mode {
+                    on
+                } else {
+                    off
+                }
+            }
             SettingItem::AutoUpdate => {
                 if self.auto_update {
                     on

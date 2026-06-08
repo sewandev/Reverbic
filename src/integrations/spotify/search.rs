@@ -76,11 +76,10 @@ fn parse_body(body: &str) -> Result<(Vec<SpotifyTrack>, bool), SpotifyError> {
     Ok((tracks, has_more))
 }
 
-fn parse_track(item: &serde_json::Value) -> Option<SpotifyTrack> {
+pub(crate) fn parse_track(item: &serde_json::Value) -> Option<SpotifyTrack> {
     let name = item["name"].as_str()?.to_string();
-    let artist = item["artists"]
-        .as_array()
-        .and_then(|arr| arr.first())
+    let first_artist = item["artists"].as_array().and_then(|arr| arr.first());
+    let artist = first_artist
         .and_then(|a| a["name"].as_str())
         .unwrap_or("Unknown")
         .to_string();

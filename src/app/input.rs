@@ -1177,6 +1177,9 @@ impl App {
                 self.config.spotify.start_on_spotify = !self.config.spotify.start_on_spotify;
             }
             super::modal::SettingItem::SpotifyClientId => {}
+            super::modal::SettingItem::SpotifyRadioMode => {
+                self.config.spotify.radio_enabled = !self.config.spotify.radio_enabled;
+            }
             super::modal::SettingItem::ReplayOnboarding => {}
             super::modal::SettingItem::AutoUpdate => {
                 self.config.auto_update = !self.config.auto_update
@@ -1210,20 +1213,47 @@ impl App {
             }
             KeyCode::Left | KeyCode::Right => {
                 use super::modal::SpotifySubTab;
-                self.spotify.sub_tab = match self.spotify.sub_tab {
-                    SpotifySubTab::Search => {
-                        if self.spotify.devices.is_empty() && !self.spotify.devices_loading {
-                            self.fetch_spotify_devices();
-                        }
-                        SpotifySubTab::Devices
-                    }
-                    SpotifySubTab::Devices => SpotifySubTab::Search,
+                let tabs = [
+                    SpotifySubTab::Search,
+                    SpotifySubTab::Liked,
+                    SpotifySubTab::Playlists,
+                    SpotifySubTab::Devices,
+                ];
+                let current = tabs
+                    .iter()
+                    .position(|t| *t == self.spotify.sub_tab)
+                    .unwrap_or(0);
+                let next = if key == KeyCode::Right {
+                    (current + 1) % tabs.len()
+                } else {
+                    (current + tabs.len() - 1) % tabs.len()
                 };
+                self.spotify.sub_tab = tabs[next];
+                match self.spotify.sub_tab {
+                    SpotifySubTab::Devices
+                        if self.spotify.devices.is_empty() && !self.spotify.devices_loading =>
+                    {
+                        self.fetch_spotify_devices();
+                    }
+                    SpotifySubTab::Liked
+                        if self.spotify.liked_tracks.is_empty() && !self.spotify.liked_loading =>
+                    {
+                        self.fetch_liked_tracks();
+                    }
+                    SpotifySubTab::Playlists
+                        if self.spotify.playlists.is_empty() && !self.spotify.playlists_loading =>
+                    {
+                        self.fetch_playlists();
+                    }
+                    _ => {}
+                }
             }
             _ => {
                 use super::modal::SpotifySubTab;
                 match self.spotify.sub_tab {
                     SpotifySubTab::Search => self.on_key_spotify_search(key).await,
+                    SpotifySubTab::Liked => self.on_key_spotify_liked(key).await,
+                    SpotifySubTab::Playlists => self.on_key_spotify_playlists(key).await,
                     SpotifySubTab::Devices => self.on_key_spotify_devices(key).await,
                 }
             }
@@ -1341,35 +1371,13 @@ impl App {
                     .get(self.spotify.search_selected)
                     .cloned()
                 {
-                    self.player.send(PlayerCommand::Stop).await;
                     self.save_notice = Some(t("notice.spotify_radio_stopped"));
                     self.save_notice_is_dup = false;
                     self.notice_until =
                         Some(std::time::Instant::now() + std::time::Duration::from_secs(5));
-                    if let Some(device_id) = self.spotify.active_device_id.clone() {
-                        let token = self.spotify.access_token.clone().unwrap_or_default();
-                        let uri = track.uri.clone();
-                        self.spotify.now_playing = Some(track);
-                        self.spotify.player_status = SpotifyPlayerStatus::Loading;
-                        let (tx, rx) = std::sync::mpsc::channel();
-                        self.spotify.play_result_rx = Some(rx);
-                        tokio::spawn(async move {
-                            let result = crate::integrations::spotify::devices::play_on_device(
-                                &token, &device_id, &uri,
-                            )
-                            .await;
-                            let _ = tx.send(result);
-                        });
-                        self.start_playback_polling();
-                    } else if let Some(handle) = &self.spotify.player_tx {
-                        handle.play(track.clone());
-                        self.spotify.now_playing = Some(track);
-                        self.spotify.player_status = SpotifyPlayerStatus::Loading;
-                    } else {
-                        self.spotify.player_status = SpotifyPlayerStatus::Error(
-                            "Player no inicializado. Reconecta Spotify.".to_string(),
-                        );
-                    }
+                    let sel = self.spotify.search_selected;
+                    let queue = self.spotify.search_results[sel.saturating_add(1)..].to_vec();
+                    self.play_spotify_track_with_queue(track, queue).await;
                 }
             }
             KeyCode::Backspace => {
@@ -1381,6 +1389,92 @@ impl App {
                 self.spotify.search_query.push(c);
                 self.spotify.search_selected = 0;
                 self.perform_spotify_search();
+            }
+            _ => {}
+        }
+    }
+
+    async fn on_key_spotify_liked(&mut self, key: KeyCode) {
+        let len = self.spotify.liked_tracks.len();
+        match key {
+            KeyCode::Up => {
+                if self.spotify.liked_selected > 0 {
+                    self.spotify.liked_selected -= 1;
+                }
+            }
+            KeyCode::Down => {
+                if len > 0 && self.spotify.liked_selected < len - 1 {
+                    self.spotify.liked_selected += 1;
+                }
+            }
+            KeyCode::Enter => {
+                let sel = self.spotify.liked_selected;
+                if sel < self.spotify.liked_tracks.len() {
+                    let track = self.spotify.liked_tracks[sel].clone();
+                    let queue = self.spotify.liked_tracks[sel + 1..].to_vec();
+                    self.play_spotify_track_with_queue(track, queue).await;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    async fn on_key_spotify_playlists(&mut self, key: KeyCode) {
+        if self.spotify.open_playlist.is_some() {
+            self.on_key_spotify_playlist_tracks(key).await;
+        } else {
+            self.on_key_spotify_playlist_list(key).await;
+        }
+    }
+
+    async fn on_key_spotify_playlist_list(&mut self, key: KeyCode) {
+        let len = self.spotify.playlists.len();
+        match key {
+            KeyCode::Up => {
+                if self.spotify.playlists_selected > 0 {
+                    self.spotify.playlists_selected -= 1;
+                }
+            }
+            KeyCode::Down => {
+                if len > 0 && self.spotify.playlists_selected < len - 1 {
+                    self.spotify.playlists_selected += 1;
+                }
+            }
+            KeyCode::Enter => {
+                let sel = self.spotify.playlists_selected;
+                if let Some(pl) = self.spotify.playlists.get(sel).cloned() {
+                    let id = pl.id.clone();
+                    self.spotify.open_playlist = Some(pl);
+                    self.fetch_playlist_tracks(id);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    async fn on_key_spotify_playlist_tracks(&mut self, key: KeyCode) {
+        let len = self.spotify.playlist_tracks.len();
+        match key {
+            KeyCode::Esc | KeyCode::Backspace => {
+                self.spotify.open_playlist = None;
+            }
+            KeyCode::Up => {
+                if self.spotify.playlist_tracks_selected > 0 {
+                    self.spotify.playlist_tracks_selected -= 1;
+                }
+            }
+            KeyCode::Down => {
+                if len > 0 && self.spotify.playlist_tracks_selected < len - 1 {
+                    self.spotify.playlist_tracks_selected += 1;
+                }
+            }
+            KeyCode::Enter => {
+                let sel = self.spotify.playlist_tracks_selected;
+                if sel < self.spotify.playlist_tracks.len() {
+                    let track = self.spotify.playlist_tracks[sel].clone();
+                    let queue = self.spotify.playlist_tracks[sel + 1..].to_vec();
+                    self.play_spotify_track_with_queue(track, queue).await;
+                }
             }
             _ => {}
         }
