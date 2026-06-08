@@ -5,7 +5,7 @@ use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
 const WATCH_URL: &str = "https://www.youtube.com/watch?v=eAKKa4zMoAE";
-const TITLE: &str = "Milky x PNAU - Just the Way You Are";
+pub(super) const TITLE: &str = "Milky x PNAU - Just the Way You Are";
 const START_AT_SECS: f32 = 13.0;
 #[derive(Debug, PartialEq, Eq)]
 pub enum AmbienceTrack {
