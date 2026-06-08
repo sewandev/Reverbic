@@ -45,6 +45,10 @@ pub fn cycle_theme(state: &mut OnboardingState) {
     state.theme = state.theme.next();
 }
 
+pub fn cycle_overlay_style(state: &mut OnboardingState) {
+    state.overlay_style = state.overlay_style.next();
+}
+
 pub fn cycle_overlay_position(state: &mut OnboardingState) {
     state.overlay_position = state.overlay_position.next();
 }
@@ -147,6 +151,16 @@ mod tests {
         cycle_theme(&mut state);
 
         assert_eq!(state.theme, before.next());
+    }
+
+    #[test]
+    fn cycle_overlay_style_uses_overlay_style_infrastructure() {
+        let mut state = state();
+        let before = state.overlay_style;
+
+        cycle_overlay_style(&mut state);
+
+        assert_eq!(state.overlay_style, before.next());
     }
 
     #[test]

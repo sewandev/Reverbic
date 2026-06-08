@@ -170,11 +170,18 @@ fn render_appearance_step(
     state: &OnboardingState,
     palette: &Palette,
 ) {
-    let rows = [(
-        t("onboarding.appearance.theme"),
-        state.theme.display(),
-        t("config.tooltip.theme"),
-    )];
+    let rows = [
+        (
+            t("onboarding.appearance.theme"),
+            state.theme.display(),
+            t("config.tooltip.theme"),
+        ),
+        (
+            t("config.setting.overlay_style"),
+            state.overlay_style.display(),
+            t("config.tooltip.overlay_style"),
+        ),
+    ];
     render_option_step(
         frame,
         area,

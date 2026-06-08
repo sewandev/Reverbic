@@ -253,7 +253,10 @@ fn cycle_focused_option(state: &mut OnboardingState) {
             1 => transitions::cycle_overlay_position(state),
             _ => transitions::cycle_overlay_alpha(state),
         },
-        Step::Appearance => transitions::cycle_theme(state),
+        Step::Appearance => match state.focused_option {
+            0 => transitions::cycle_theme(state),
+            _ => transitions::cycle_overlay_style(state),
+        },
         Step::PlaybackPreferences => match state.focused_option {
             0 => transitions::toggle_autoplay_last(state),
             1 => transitions::toggle_restore_volume(state),
