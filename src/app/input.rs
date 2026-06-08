@@ -1371,41 +1371,17 @@ impl App {
                     .get(self.spotify.search_selected)
                     .cloned()
                 {
-                    self.player.send(PlayerCommand::Stop).await;
                     self.save_notice = Some(t("notice.spotify_radio_stopped"));
                     self.save_notice_is_dup = false;
                     self.notice_until =
                         Some(std::time::Instant::now() + std::time::Duration::from_secs(5));
-                    if let Some(device_id) = self.spotify.active_device_id.clone() {
-                        let token = self.spotify.access_token.clone().unwrap_or_default();
-                        let uri = track.uri.clone();
-                        self.spotify.now_playing = Some(track);
-                        self.spotify.player_status = SpotifyPlayerStatus::Loading;
-                        let (tx, rx) = std::sync::mpsc::channel();
-                        self.spotify.play_result_rx = Some(rx);
-                        tokio::spawn(async move {
-                            let result = crate::integrations::spotify::devices::play_on_device(
-                                &token, &device_id, &uri,
-                            )
-                            .await;
-                            let _ = tx.send(result);
-                        });
-                        self.start_playback_polling();
-                    } else if let Some(handle) = &self.spotify.player_tx {
-                        let uris = self
-                            .spotify
-                            .search_results
-                            .iter()
-                            .map(|t| t.uri.clone())
-                            .collect();
-                        handle.play(track.clone(), uris);
-                        self.spotify.now_playing = Some(track);
-                        self.spotify.player_status = SpotifyPlayerStatus::Loading;
-                    } else {
-                        self.spotify.player_status = SpotifyPlayerStatus::Error(
-                            "Player no inicializado. Reconecta Spotify.".to_string(),
-                        );
-                    }
+                    let uris = self
+                        .spotify
+                        .search_results
+                        .iter()
+                        .map(|t| t.uri.clone())
+                        .collect();
+                    self.play_spotify_track_with_queue(track, uris).await;
                 }
             }
             KeyCode::Backspace => {
@@ -1443,12 +1419,7 @@ impl App {
                         .iter()
                         .map(|t| t.uri.clone())
                         .collect();
-                    self.player.send(PlayerCommand::Stop).await;
-                    if let Some(handle) = &self.spotify.player_tx {
-                        handle.play(track.clone(), uris);
-                        self.spotify.now_playing = Some(track);
-                        self.spotify.player_status = SpotifyPlayerStatus::Loading;
-                    }
+                    self.play_spotify_track_with_queue(track, uris).await;
                 }
             }
             _ => {}
@@ -1512,12 +1483,7 @@ impl App {
                         .iter()
                         .map(|t| t.uri.clone())
                         .collect();
-                    self.player.send(PlayerCommand::Stop).await;
-                    if let Some(handle) = &self.spotify.player_tx {
-                        handle.play(track.clone(), uris);
-                        self.spotify.now_playing = Some(track);
-                        self.spotify.player_status = SpotifyPlayerStatus::Loading;
-                    }
+                    self.play_spotify_track_with_queue(track, uris).await;
                 }
             }
             _ => {}

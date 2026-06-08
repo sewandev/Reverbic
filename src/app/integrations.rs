@@ -628,6 +628,34 @@ impl App {
         self.spotify.playback = None;
     }
 
+    pub async fn play_spotify_track_with_queue(
+        &mut self,
+        track: crate::integrations::spotify::SpotifyTrack,
+        uris: Vec<String>,
+    ) {
+        use crate::audio::PlayerCommand;
+        self.player.send(PlayerCommand::Stop).await;
+        if let Some(device_id) = self.spotify.active_device_id.clone() {
+            let token = self.spotify.access_token.clone().unwrap_or_default();
+            let uri = track.uri.clone();
+            self.spotify.now_playing = Some(track);
+            self.spotify.player_status = SpotifyPlayerStatus::Loading;
+            let (tx, rx) = std::sync::mpsc::channel();
+            self.spotify.play_result_rx = Some(rx);
+            tokio::spawn(async move {
+                let result =
+                    crate::integrations::spotify::devices::play_on_device(&token, &device_id, &uri)
+                        .await;
+                let _ = tx.send(result);
+            });
+            self.start_playback_polling();
+        } else if let Some(handle) = &self.spotify.player_tx {
+            handle.play(track.clone(), uris);
+            self.spotify.now_playing = Some(track);
+            self.spotify.player_status = SpotifyPlayerStatus::Loading;
+        }
+    }
+
     pub fn fetch_liked_tracks(&mut self) {
         use crate::integrations::spotify::library::get_saved_tracks;
         abort_task(&mut self.spotify.liked_task);

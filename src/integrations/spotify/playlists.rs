@@ -111,6 +111,11 @@ pub async fn get_playlist_tracks(
         return Err(SpotifyError::RateLimit(retry_after));
     }
 
+    tracing::debug!(
+        "spotify /v1/playlists/{playlist_id}/tracks — status={status} body={}",
+        &body[..body.len().min(600)]
+    );
+
     if !status.is_success() {
         return Err(SpotifyError::from_status(status, &body));
     }
@@ -118,6 +123,7 @@ pub async fn get_playlist_tracks(
     let json: serde_json::Value =
         serde_json::from_str(&body).map_err(|e| SpotifyError::Parse(e.to_string()))?;
 
+    let raw_items = json["items"].as_array().map(|v| v.len()).unwrap_or(0);
     let tracks: Vec<SpotifyTrack> = json["items"]
         .as_array()
         .map(|items| {
@@ -134,6 +140,11 @@ pub async fn get_playlist_tracks(
                 .collect()
         })
         .unwrap_or_default();
+
+    tracing::debug!(
+        "spotify playlist tracks — raw_items={raw_items} parsed={}",
+        tracks.len()
+    );
 
     let has_more = json["next"].is_string();
 
