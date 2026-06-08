@@ -6,6 +6,7 @@ pub mod player;
 pub mod playlists;
 pub mod radio;
 pub mod search;
+pub mod albums;
 
 pub use error::SpotifyError;
 
@@ -30,6 +31,14 @@ pub struct SpotifyTrack {
     pub artist: String,
     pub album: String,
     pub duration_ms: u32,
+    pub uri: String,
+}
+
+#[derive(Clone)]
+pub struct SpotifyAlbum {
+    pub name: String,
+    pub artist: String,
+    pub total_tracks: u32,
     pub uri: String,
 }
 

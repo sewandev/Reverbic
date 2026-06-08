@@ -33,6 +33,9 @@ pub enum SpotifySubTab {
     Liked,
     Playlists,
     Devices,
+    TopTracks,
+    Recent,
+    Albums,
 }
 
 #[derive(Clone, Copy, PartialEq, Default)]

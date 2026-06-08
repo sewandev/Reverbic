@@ -155,6 +155,37 @@ impl App {
                 self.player.send(PlayerCommand::Stop).await;
                 self.saved_tracks = Vec::new();
             }
+            KeyCode::Char('l') | KeyCode::Char('L') => {
+                if self.show_search_modal && matches!(self.modal_mode, SearchMode::Spotify) {
+                    use super::modal::SpotifySubTab;
+                    let track = match self.spotify.sub_tab {
+                        SpotifySubTab::Search => self.spotify.search_results.get(self.spotify.search_selected).cloned(),
+                        SpotifySubTab::TopTracks => self.spotify.top_tracks.get(self.spotify.top_tracks_selected).cloned(),
+                        SpotifySubTab::Recent => self.spotify.recent_tracks.get(self.spotify.recent_tracks_selected).cloned(),
+                        SpotifySubTab::Liked => self.spotify.liked_tracks.get(self.spotify.liked_selected).cloned(),
+                        SpotifySubTab::Playlists => {
+                            if self.spotify.open_playlist.is_some() {
+                                self.spotify.playlist_tracks.get(self.spotify.playlist_tracks_selected).cloned()
+                            } else {
+                                None
+                            }
+                        }
+                        SpotifySubTab::Albums => {
+                            if self.spotify.open_album.is_some() {
+                                self.spotify.album_tracks.get(self.spotify.album_tracks_selected).cloned()
+                            } else {
+                                None
+                            }
+                        }
+                        _ => None,
+                    };
+                    if let Some(t) = track {
+                        self.like_spotify_track(&t);
+                    }
+                } else if let Some(t) = self.spotify.now_playing.clone() {
+                    self.like_spotify_track(&t);
+                }
+            }
             _ => {}
         }
     }
@@ -1218,6 +1249,9 @@ impl App {
                     SpotifySubTab::Liked,
                     SpotifySubTab::Playlists,
                     SpotifySubTab::Devices,
+                    SpotifySubTab::TopTracks,
+                    SpotifySubTab::Recent,
+                    SpotifySubTab::Albums,
                 ];
                 let current = tabs
                     .iter()
@@ -1245,6 +1279,21 @@ impl App {
                     {
                         self.fetch_playlists();
                     }
+                    SpotifySubTab::TopTracks
+                        if self.spotify.top_tracks.is_empty() && !self.spotify.top_tracks_loading =>
+                    {
+                        self.fetch_top_tracks();
+                    }
+                    SpotifySubTab::Recent
+                        if self.spotify.recent_tracks.is_empty() && !self.spotify.recent_tracks_loading =>
+                    {
+                        self.fetch_recent_tracks();
+                    }
+                    SpotifySubTab::Albums
+                        if self.spotify.albums.is_empty() && !self.spotify.albums_loading =>
+                    {
+                        self.fetch_albums();
+                    }
                     _ => {}
                 }
             }
@@ -1255,6 +1304,9 @@ impl App {
                     SpotifySubTab::Liked => self.on_key_spotify_liked(key).await,
                     SpotifySubTab::Playlists => self.on_key_spotify_playlists(key).await,
                     SpotifySubTab::Devices => self.on_key_spotify_devices(key).await,
+                    SpotifySubTab::TopTracks => self.on_key_spotify_top_tracks(key).await,
+                    SpotifySubTab::Recent => self.on_key_spotify_recent_tracks(key).await,
+                    SpotifySubTab::Albums => self.on_key_spotify_albums(key).await,
                 }
             }
         }
@@ -1473,6 +1525,131 @@ impl App {
                 if sel < self.spotify.playlist_tracks.len() {
                     let track = self.spotify.playlist_tracks[sel].clone();
                     let queue = self.spotify.playlist_tracks[sel + 1..].to_vec();
+                    self.play_spotify_track_with_queue(track, queue).await;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    async fn on_key_spotify_top_tracks(&mut self, key: KeyCode) {
+        let len = self.spotify.top_tracks.len();
+        match key {
+            KeyCode::Tab => {
+                self.spotify.top_tracks_range = match self.spotify.top_tracks_range.as_str() {
+                    "short_term" => "medium_term".to_string(),
+                    "medium_term" => "long_term".to_string(),
+                    _ => "short_term".to_string(),
+                };
+                self.spotify.top_tracks.clear();
+                self.spotify.top_tracks_selected = 0;
+                self.fetch_top_tracks();
+            }
+            KeyCode::Up => {
+                if self.spotify.top_tracks_selected > 0 {
+                    self.spotify.top_tracks_selected -= 1;
+                }
+            }
+            KeyCode::Down => {
+                if len > 0 && self.spotify.top_tracks_selected < len - 1 {
+                    self.spotify.top_tracks_selected += 1;
+                }
+            }
+            KeyCode::Enter => {
+                let sel = self.spotify.top_tracks_selected;
+                if sel < self.spotify.top_tracks.len() {
+                    let track = self.spotify.top_tracks[sel].clone();
+                    let queue = self.spotify.top_tracks[sel + 1..].to_vec();
+                    self.play_spotify_track_with_queue(track, queue).await;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    async fn on_key_spotify_recent_tracks(&mut self, key: KeyCode) {
+        let len = self.spotify.recent_tracks.len();
+        match key {
+            KeyCode::Up => {
+                if self.spotify.recent_tracks_selected > 0 {
+                    self.spotify.recent_tracks_selected -= 1;
+                }
+            }
+            KeyCode::Down => {
+                if len > 0 && self.spotify.recent_tracks_selected < len - 1 {
+                    self.spotify.recent_tracks_selected += 1;
+                }
+            }
+            KeyCode::Enter => {
+                let sel = self.spotify.recent_tracks_selected;
+                if sel < self.spotify.recent_tracks.len() {
+                    let track = self.spotify.recent_tracks[sel].clone();
+                    let queue = self.spotify.recent_tracks[sel + 1..].to_vec();
+                    self.play_spotify_track_with_queue(track, queue).await;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    async fn on_key_spotify_albums(&mut self, key: KeyCode) {
+        if self.spotify.open_album.is_some() {
+            self.on_key_spotify_album_tracks(key).await;
+        } else {
+            self.on_key_spotify_album_list(key).await;
+        }
+    }
+
+    async fn on_key_spotify_album_list(&mut self, key: KeyCode) {
+        let len = self.spotify.albums.len();
+        match key {
+            KeyCode::Up => {
+                if self.spotify.albums_selected > 0 {
+                    self.spotify.albums_selected -= 1;
+                }
+            }
+            KeyCode::Down => {
+                if len > 0 {
+                    let last = len - 1;
+                    if self.spotify.albums_selected >= last && self.spotify.albums_has_more {
+                        self.load_more_spotify_albums();
+                    } else if self.spotify.albums_selected < last {
+                        self.spotify.albums_selected += 1;
+                    }
+                }
+            }
+            KeyCode::Enter => {
+                let sel = self.spotify.albums_selected;
+                if let Some(album) = self.spotify.albums.get(sel).cloned() {
+                    self.spotify.open_album = Some(album);
+                    self.fetch_album_tracks();
+                }
+            }
+            _ => {}
+        }
+    }
+
+    async fn on_key_spotify_album_tracks(&mut self, key: KeyCode) {
+        let len = self.spotify.album_tracks.len();
+        match key {
+            KeyCode::Esc | KeyCode::Backspace => {
+                self.spotify.open_album = None;
+            }
+            KeyCode::Up => {
+                if self.spotify.album_tracks_selected > 0 {
+                    self.spotify.album_tracks_selected -= 1;
+                }
+            }
+            KeyCode::Down => {
+                if len > 0 && self.spotify.album_tracks_selected < len - 1 {
+                    self.spotify.album_tracks_selected += 1;
+                }
+            }
+            KeyCode::Enter => {
+                let sel = self.spotify.album_tracks_selected;
+                if sel < self.spotify.album_tracks.len() {
+                    let track = self.spotify.album_tracks[sel].clone();
+                    let queue = self.spotify.album_tracks[sel + 1..].to_vec();
                     self.play_spotify_track_with_queue(track, queue).await;
                 }
             }
