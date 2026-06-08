@@ -130,7 +130,7 @@ pub async fn get_playlist_tracks(
             items
                 .iter()
                 .filter_map(|item| {
-                    let track = &item["track"];
+                    let track = &item["item"];
                     if track.is_null() {
                         None
                     } else {
