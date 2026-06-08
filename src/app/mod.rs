@@ -96,6 +96,7 @@ pub struct App {
     pub selected: usize,
     pub player: AudioPlayer,
     pub should_quit: bool,
+    pub replay_onboarding: bool,
     pub focus: AppFocus,
     pub recent_selected: usize,
     pub saved_tracks: Vec<String>,
@@ -158,6 +159,7 @@ pub struct App {
     update_download_rx: Option<std::sync::mpsc::Receiver<Option<std::path::PathBuf>>>,
     fav_enrich_task: Option<tokio::task::JoinHandle<()>>,
     fav_enrich_rx: Option<std::sync::mpsc::Receiver<Vec<FavoriteStation>>>,
+    next_preview_id: u64,
 }
 
 impl App {
@@ -185,6 +187,7 @@ impl App {
             selected: 0,
             player,
             should_quit: false,
+            replay_onboarding: false,
             focus: AppFocus::Stations,
             recent_selected: 0,
             saved_tracks: Vec::new(),
@@ -246,9 +249,16 @@ impl App {
             update_download_rx: None,
             fav_enrich_task: None,
             fav_enrich_rx: None,
+            next_preview_id: 1,
         };
         app.start_favorites_enrichment();
         app
+    }
+
+    pub(super) fn next_preview_id(&mut self) -> u64 {
+        let preview_id = self.next_preview_id;
+        self.next_preview_id = self.next_preview_id.wrapping_add(1).max(1);
+        preview_id
     }
 
     pub fn screensaver_active(&self) -> bool {

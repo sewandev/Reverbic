@@ -65,6 +65,7 @@ pub enum SettingItem {
     SpotifyClientId,
     AutoUpdate,
     DiscordRpc,
+    ReplayOnboarding,
 }
 
 impl SettingItem {
@@ -93,6 +94,7 @@ impl SettingItem {
             Self::SpotifyClientId => t("config.setting.spotify_client_id"),
             Self::AutoUpdate => t("config.setting.auto_update"),
             Self::DiscordRpc => t("config.setting.discord_rpc"),
+            Self::ReplayOnboarding => t("config.setting.replay_onboarding"),
         }
     }
 
@@ -121,6 +123,7 @@ impl SettingItem {
             Self::SpotifyClientId => "config.tooltip.spotify_client_id",
             Self::AutoUpdate => "config.tooltip.auto_update",
             Self::DiscordRpc => "config.tooltip.discord_rpc",
+            Self::ReplayOnboarding => "config.tooltip.replay_onboarding",
         }
     }
 
@@ -142,7 +145,8 @@ impl SettingItem {
             | Self::TrayIcon
             | Self::Notifications
             | Self::AutoUpdate
-            | Self::DiscordRpc => "config.group.system",
+            | Self::DiscordRpc
+            | Self::ReplayOnboarding => "config.group.system",
             Self::Language | Self::Theme => "config.group.appearance",
             Self::SpotifyStopOnQuit | Self::SpotifyStartOnSpotify | Self::SpotifyClientId => {
                 "config.group.integrations"
@@ -175,6 +179,7 @@ pub fn settings_items(duck_enabled: bool) -> Vec<SettingItem> {
         SettingItem::Notifications,
         SettingItem::AutoUpdate,
         SettingItem::DiscordRpc,
+        SettingItem::ReplayOnboarding,
         SettingItem::Language,
         SettingItem::Theme,
         SettingItem::SpotifyStopOnQuit,

@@ -41,7 +41,6 @@ impl DiscordIpc {
         if self.send_frame(OP_HANDSHAKE, &payload).await.is_err() {
             return false;
         }
-        // Drain the READY response so the pipe stays clean
         let mut header = [0u8; 8];
         let read_result =
             tokio::time::timeout(HANDSHAKE_TIMEOUT, self.pipe.read_exact(&mut header)).await;

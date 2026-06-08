@@ -41,14 +41,6 @@ pub(super) fn spin_frame() -> &'static str {
     SPIN[(ms / 120) as usize % SPIN.len()]
 }
 
-pub(super) fn screensaver_display(secs: u16) -> String {
-    match secs {
-        0 => "OFF".to_string(),
-        s if s < 60 => format!("{}s", s),
-        s => format!("{}m", s / 60),
-    }
-}
-
 pub(super) fn key(palette: &Palette, s: &'static str) -> Span<'static> {
     Span::styled(
         s,

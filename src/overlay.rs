@@ -525,8 +525,6 @@ unsafe fn paint(hdc: HDC, s: &State) {
     let f_recent = font(11, false);
 
     let prev = SelectObject(hdc, HGDIOBJ(f_brand.0));
-
-    // ── header row ─────────────────────────────────────────────────
     SetTextColor(hdc, C_BRAND);
     let _ = TextOutW(hdc, PAD_L, 5, &wide("REVERBIC"));
 
@@ -551,8 +549,6 @@ unsafe fn paint(hdc: HDC, s: &State) {
         },
         C_SEPARATOR,
     );
-
-    // ── station row ────────────────────────────────────────────────
     SelectObject(hdc, HGDIOBJ(f_station.0));
     SetTextColor(hdc, C_STATION);
     let _ = TextOutW(hdc, PAD_L, 27, &wide_truncated(&s.station, 34));
@@ -574,8 +570,6 @@ unsafe fn paint(hdc: HDC, s: &State) {
         },
         C_SEPARATOR,
     );
-
-    // ── track info ─────────────────────────────────────────────────
     SelectObject(hdc, HGDIOBJ(f_detail.0));
     let has_show = !s.show.is_empty();
     if has_show {
@@ -601,8 +595,6 @@ unsafe fn paint(hdc: HDC, s: &State) {
         },
         C_SEPARATOR,
     );
-
-    // ── recent tracks ──────────────────────────────────────────────
     SelectObject(hdc, HGDIOBJ(f_recent.0));
     SetTextColor(hdc, C_RECENT);
     for (i, track) in s.recent.iter().enumerate().skip(1).take(2) {
@@ -625,8 +617,6 @@ unsafe fn paint(hdc: HDC, s: &State) {
         },
         C_SEPARATOR,
     );
-
-    // ── VU bars ────────────────────────────────────────────────────
     let base = ((s.level_db + 60.0) / 60.0).clamp(0.0, 1.0);
     let t_ms = std::time::SystemTime::now()
         .duration_since(std::time::SystemTime::UNIX_EPOCH)
@@ -663,8 +653,6 @@ unsafe fn paint(hdc: HDC, s: &State) {
             );
         }
     }
-
-    // ── volume bar ─────────────────────────────────────────────────
     let vu_end_x = PAD_L + VU_BARS as i32 * (VU_BAR_W + VU_BAR_GAP) - VU_BAR_GAP;
     let vol_label_x = vu_end_x + 10;
     let vol_bar_x = vol_label_x + 28;
@@ -753,8 +741,6 @@ unsafe fn paint_compact(hdc: HDC, s: &State) {
     let f_detail = font(12, false);
 
     let prev = SelectObject(hdc, HGDIOBJ(f_station.0));
-
-    // ── row 1: status dot + station ──────────────────────────────────
     let (status_str, status_color) = status_label(s.ostatus);
     SetTextColor(hdc, status_color);
     let _ = TextOutW(hdc, PAD_L, 6, &wide(&status_str));
@@ -762,15 +748,11 @@ unsafe fn paint_compact(hdc: HDC, s: &State) {
     let dot_w = 14_i32;
     SetTextColor(hdc, C_STATION);
     let _ = TextOutW(hdc, PAD_L + dot_w, 5, &wide_truncated(&s.station, 28));
-
-    // clock right-aligned
     SetTextColor(hdc, C_BRAND);
     let prev_align = SetTextAlign(hdc, TA_RIGHT);
     let clock = chrono::Local::now().format("%H:%M").to_string();
     let _ = TextOutW(hdc, OW - PAD_R, 5, &wide(&clock));
     let _ = SetTextAlign(hdc, TEXT_ALIGN_OPTIONS(prev_align));
-
-    // ── separator ────────────────────────────────────────────────────
     fill(
         hdc,
         RECT {
@@ -781,8 +763,6 @@ unsafe fn paint_compact(hdc: HDC, s: &State) {
         },
         C_SEPARATOR,
     );
-
-    // ── row 2: track title ───────────────────────────────────────────
     SelectObject(hdc, HGDIOBJ(f_detail.0));
     SetTextColor(hdc, C_TITLE);
     let title = if s.title.is_empty() {
