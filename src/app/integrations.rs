@@ -686,6 +686,9 @@ impl App {
             Ok(Err(e)) => {
                 self.spotify.liked_loading = false;
                 tracing::warn!("liked tracks fetch: {e}");
+                self.save_notice = Some(format!("Spotify liked: {e}"));
+                self.notice_until =
+                    Some(std::time::Instant::now() + std::time::Duration::from_secs(8));
             }
             Err(std::sync::mpsc::TryRecvError::Empty) => {
                 self.spotify.liked_rx = Some(rx);
@@ -768,6 +771,9 @@ impl App {
             Ok(Err(e)) => {
                 self.spotify.playlist_tracks_loading = false;
                 tracing::warn!("playlist tracks fetch: {e}");
+                self.save_notice = Some(format!("Spotify playlist: {e}"));
+                self.notice_until =
+                    Some(std::time::Instant::now() + std::time::Duration::from_secs(8));
             }
             Err(std::sync::mpsc::TryRecvError::Empty) => {
                 self.spotify.playlist_tracks_rx = Some(rx);
