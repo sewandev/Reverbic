@@ -658,7 +658,7 @@ impl App {
             SettingItem::Theme => self.open_theme_picker(),
             SettingItem::ReplayOnboarding => {
                 self.replay_onboarding = true;
-                self.show_search_modal = false;
+                self.show_search_modal = true;
                 self.modal_mode = SearchMode::Name;
             }
             _ => self.apply_settings_toggle(self.settings_selected),
