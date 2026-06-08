@@ -65,6 +65,7 @@ pub fn cycle_overlay_alpha(state: &mut OnboardingState) {
 
 pub fn adjust_volume(state: &mut OnboardingState, delta: f32) {
     state.volume = (state.volume + delta).clamp(0.0, 1.0);
+    state.volume_changed = true;
 }
 
 pub fn toggle_autoplay_last(state: &mut OnboardingState) {
@@ -180,5 +181,14 @@ mod tests {
         assert_eq!(state.restore_volume, !restore_before);
         assert_eq!(state.auto_update, !auto_update_before);
         assert_eq!(state.muted, !muted_before);
+    }
+
+    #[test]
+    fn adjust_volume_marks_volume_as_explicitly_changed() {
+        let mut state = state();
+
+        adjust_volume(&mut state, -0.1);
+
+        assert!(state.volume_changed);
     }
 }

@@ -44,6 +44,7 @@ pub struct OnboardingState {
     pub overlay_position: OverlayPosition,
     pub overlay_alpha: u8,
     pub volume: f32,
+    pub volume_changed: bool,
     pub autoplay_last: bool,
     pub restore_volume: bool,
     pub crossfade_secs: u8,
@@ -63,6 +64,7 @@ impl OnboardingState {
             overlay_position: config.overlay_position,
             overlay_alpha: config.overlay_alpha,
             volume: config.volume,
+            volume_changed: false,
             autoplay_last: config.autoplay_last,
             restore_volume: config.restore_volume,
             crossfade_secs: config.crossfade_secs,
@@ -78,7 +80,9 @@ impl OnboardingState {
         config.overlay_mode = self.overlay_mode;
         config.overlay_position = self.overlay_position;
         config.overlay_alpha = self.overlay_alpha;
-        config.volume = self.volume;
+        if self.volume_changed {
+            config.volume = self.volume;
+        }
         config.autoplay_last = self.autoplay_last;
         config.restore_volume = self.restore_volume;
         config.crossfade_secs = self.crossfade_secs;
@@ -131,5 +135,24 @@ mod tests {
         assert_eq!(config.overlay_style, OverlayStyle::Compact);
         assert_eq!(config.overlay_mode, OverlayMode::Hidden);
         assert!(config.restore_volume);
+    }
+
+    #[test]
+    fn apply_to_only_writes_volume_after_explicit_change() {
+        let mut state = OnboardingState::from_config(&Config::default());
+        state.volume = 0.5;
+
+        let mut config = Config {
+            volume: 0.8,
+            ..Config::default()
+        };
+        state.apply_to(&mut config);
+
+        assert_eq!(config.volume, 0.8);
+
+        state.volume_changed = true;
+        state.apply_to(&mut config);
+
+        assert_eq!(config.volume, 0.5);
     }
 }
