@@ -111,9 +111,9 @@ pub async fn get_playlist_tracks(
         return Err(SpotifyError::RateLimit(retry_after));
     }
 
-    tracing::debug!(
+    tracing::warn!(
         "spotify /v1/playlists/{playlist_id}/tracks — status={status} body={}",
-        &body[..body.len().min(600)]
+        &body[..body.len().min(800)]
     );
 
     if !status.is_success() {
@@ -141,7 +141,7 @@ pub async fn get_playlist_tracks(
         })
         .unwrap_or_default();
 
-    tracing::debug!(
+    tracing::warn!(
         "spotify playlist tracks — raw_items={raw_items} parsed={}",
         tracks.len()
     );
