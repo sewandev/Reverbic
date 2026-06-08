@@ -71,6 +71,7 @@ pub async fn play(player: &AudioPlayer, track: &AmbienceTrack) -> bool {
             url: stream_url,
             title: TITLE.to_string(),
             raw_track: TITLE.to_string(),
+            preview_id: None,
             start_at_secs: START_AT_SECS,
         })
         .await

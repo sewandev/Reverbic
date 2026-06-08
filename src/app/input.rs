@@ -1489,6 +1489,7 @@ impl App {
                         .await;
                 } else if !titles.is_empty() {
                     let raw = titles[self.recent_selected].clone();
+                    let preview_id = self.next_preview_id();
                     let cmd_tx = self.player.clone_sender();
                     let _ = cmd_tx.send(PlayerCommand::SetPreviewSearching(true)).await;
                     let _ = cmd_tx
@@ -1500,12 +1501,12 @@ impl App {
                                 let _ = cmd_tx
                                     .send(PlayerCommand::SetPreviewLoadingTrack(None))
                                     .await;
-                                let preview_track = raw.clone();
                                 if cmd_tx
                                     .send(PlayerCommand::PlayPreview {
                                         url,
                                         title,
                                         raw_track: raw,
+                                        preview_id: Some(preview_id),
                                         start_at_secs: 0.0,
                                     })
                                     .await
@@ -1515,7 +1516,7 @@ impl App {
                                 }
                                 tokio::time::sleep(std::time::Duration::from_secs(35)).await;
                                 let _ = cmd_tx
-                                    .send(PlayerCommand::StopPreviewIfCurrent(preview_track))
+                                    .send(PlayerCommand::StopPreviewIfCurrent(preview_id))
                                     .await;
                             }
                             None => {
