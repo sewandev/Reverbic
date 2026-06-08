@@ -1062,39 +1062,37 @@ fn audio_loop(
         check_preview_ended(&mut st, &state_tx);
 
         let mut is_auto_reconnect = false;
-        let cmd = if let Ok(user_cmd) = cmd_rx.try_recv() {
-            Some(user_cmd)
-        } else if st
-            .reconnect_at
-            .map(|t| std::time::Instant::now() >= t)
-            .unwrap_or(false)
-        {
-            st.reconnect_at = None;
-            is_auto_reconnect = true;
-            if st.od.active {
-                Some(PlayerCommand::Seek(st.od.current_pos()))
-            } else {
-                st.current_station.clone().map(PlayerCommand::Play)
-            }
-        } else if st
-            .stream_retry_at
-            .map(|(_, t)| std::time::Instant::now() >= t)
-            .unwrap_or(false)
-        {
-            is_auto_reconnect = true;
-            if st.od.active {
-                Some(PlayerCommand::Seek(st.od.current_pos()))
-            } else {
-                st.current_station.clone().map(PlayerCommand::Play)
-            }
-        } else {
-            let result = handle.block_on(async {
-                tokio::time::timeout(std::time::Duration::from_millis(50), cmd_rx.recv()).await
-            });
-            match result {
-                Ok(Some(c)) => Some(c),
-                Ok(None) => break,
-                Err(_) => None,
+        let cmd = match cmd_rx.try_recv() {
+            Ok(user_cmd) => Some(user_cmd),
+            Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => break,
+            Err(tokio::sync::mpsc::error::TryRecvError::Empty) => {
+                if st
+                    .reconnect_at
+                    .map(|t| std::time::Instant::now() >= t)
+                    .unwrap_or(false)
+                {
+                    st.reconnect_at = None;
+                    is_auto_reconnect = true;
+                    if st.od.active {
+                        Some(PlayerCommand::Seek(st.od.current_pos()))
+                    } else {
+                        st.current_station.clone().map(PlayerCommand::Play)
+                    }
+                } else if st
+                    .stream_retry_at
+                    .map(|(_, t)| std::time::Instant::now() >= t)
+                    .unwrap_or(false)
+                {
+                    is_auto_reconnect = true;
+                    if st.od.active {
+                        Some(PlayerCommand::Seek(st.od.current_pos()))
+                    } else {
+                        st.current_station.clone().map(PlayerCommand::Play)
+                    }
+                } else {
+                    std::thread::sleep(std::time::Duration::from_millis(50));
+                    None
+                }
             }
         };
 
