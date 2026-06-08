@@ -85,7 +85,7 @@ pub async fn get_playlist_tracks(
         .ok_or_else(|| SpotifyError::Network("Failed to create HTTP client".to_string()))?;
 
     let url = format!(
-        "https://api.spotify.com/v1/playlists/{playlist_id}/tracks?limit=50&offset={offset}"
+        "https://api.spotify.com/v1/playlists/{playlist_id}/items?limit=50&offset={offset}"
     );
 
     let response = client
