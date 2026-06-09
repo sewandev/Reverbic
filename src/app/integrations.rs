@@ -1,5 +1,67 @@
 use super::modal::{SearchMode, SpotifyAuthStatus, SpotifyPlayerStatus};
 use super::{abort_task, App};
+use crate::config::SpotifyPlaybackMode;
+
+#[derive(Debug, PartialEq)]
+enum SpotifyPlaybackTarget {
+    Remote { token: String, device_id: String },
+    Native,
+    Unavailable(String),
+}
+
+fn resolve_spotify_playback_target(
+    mode: SpotifyPlaybackMode,
+    access_token: Option<&str>,
+    active_device_id: Option<&str>,
+    has_native_player: bool,
+) -> SpotifyPlaybackTarget {
+    match mode {
+        SpotifyPlaybackMode::Auto => {
+            if let Some(device_id) = active_device_id {
+                resolve_remote_spotify_target(access_token, device_id)
+            } else if has_native_player {
+                SpotifyPlaybackTarget::Native
+            } else {
+                SpotifyPlaybackTarget::Unavailable(crate::i18n::t(
+                    "integrations.spotify.error.playback_unavailable",
+                ))
+            }
+        }
+        SpotifyPlaybackMode::Remote => {
+            if let Some(device_id) = active_device_id {
+                resolve_remote_spotify_target(access_token, device_id)
+            } else {
+                SpotifyPlaybackTarget::Unavailable(crate::i18n::t(
+                    "integrations.spotify.error.no_remote_device",
+                ))
+            }
+        }
+        SpotifyPlaybackMode::Native => {
+            if has_native_player {
+                SpotifyPlaybackTarget::Native
+            } else {
+                SpotifyPlaybackTarget::Unavailable(crate::i18n::t(
+                    "integrations.spotify.error.native_unavailable",
+                ))
+            }
+        }
+    }
+}
+
+fn resolve_remote_spotify_target(
+    access_token: Option<&str>,
+    device_id: &str,
+) -> SpotifyPlaybackTarget {
+    match access_token.filter(|token| !token.is_empty()) {
+        Some(token) => SpotifyPlaybackTarget::Remote {
+            token: token.to_string(),
+            device_id: device_id.to_string(),
+        },
+        None => SpotifyPlaybackTarget::Unavailable(crate::i18n::t(
+            "integrations.spotify.error.no_access_token",
+        )),
+    }
+}
 
 fn friendly_spotify_error(raw: &str, client_id: &str) -> String {
     let is_invalid_client = raw.contains("invalid_client")
@@ -639,28 +701,49 @@ impl App {
             track.name,
             self.spotify.playback_queue.len()
         );
-        if let Some(device_id) = self.spotify.active_device_id.clone() {
-            let token = self.spotify.access_token.clone().unwrap_or_default();
-            let mut uris: Vec<String> = std::iter::once(track.uri.clone())
-                .chain(self.spotify.playback_queue.iter().map(|t| t.uri.clone()))
-                .collect();
-            uris.truncate(100);
-            self.spotify.now_playing = Some(track);
-            self.spotify.player_status = SpotifyPlayerStatus::Loading;
-            let (tx, rx) = std::sync::mpsc::channel();
-            self.spotify.play_result_rx = Some(rx);
-            tokio::spawn(async move {
-                let result = crate::integrations::spotify::devices::play_tracks_on_device(
-                    &token, &device_id, uris,
-                )
-                .await;
-                let _ = tx.send(result);
-            });
-            self.start_playback_polling();
-        } else if let Some(handle) = &self.spotify.player_tx {
-            handle.play(vec![track.uri.clone()]);
-            self.spotify.now_playing = Some(track);
-            self.spotify.player_status = SpotifyPlayerStatus::Loading;
+        let target = resolve_spotify_playback_target(
+            self.config.spotify.playback_mode,
+            self.spotify.access_token.as_deref(),
+            self.spotify.active_device_id.as_deref(),
+            self.spotify.player_tx.is_some(),
+        );
+        match target {
+            SpotifyPlaybackTarget::Remote { token, device_id } => {
+                let mut uris: Vec<String> = std::iter::once(track.uri.clone())
+                    .chain(self.spotify.playback_queue.iter().map(|t| t.uri.clone()))
+                    .collect();
+                uris.truncate(100);
+                self.spotify.now_playing = Some(track);
+                self.spotify.player_status = SpotifyPlayerStatus::Loading;
+                let (tx, rx) = std::sync::mpsc::channel();
+                self.spotify.play_result_rx = Some(rx);
+                tokio::spawn(async move {
+                    let result = crate::integrations::spotify::devices::play_tracks_on_device(
+                        &token, &device_id, uris,
+                    )
+                    .await;
+                    let _ = tx.send(result);
+                });
+                self.start_playback_polling();
+            }
+            SpotifyPlaybackTarget::Native => {
+                let Some(handle) = &self.spotify.player_tx else {
+                    let message = crate::i18n::t("integrations.spotify.error.native_unavailable");
+                    self.spotify.player_status = SpotifyPlayerStatus::Error(message.clone());
+                    self.save_notice = Some(format!("Spotify: {message}"));
+                    self.save_notice_is_dup = false;
+                    return;
+                };
+                handle.play(vec![track.uri.clone()]);
+                self.spotify.now_playing = Some(track);
+                self.spotify.player_status = SpotifyPlayerStatus::Loading;
+            }
+            SpotifyPlaybackTarget::Unavailable(message) => {
+                tracing::warn!("spotify playback unavailable: {message}");
+                self.spotify.player_status = SpotifyPlayerStatus::Error(message.clone());
+                self.save_notice = Some(format!("Spotify: {message}"));
+                self.save_notice_is_dup = false;
+            }
         }
     }
 
@@ -1181,5 +1264,61 @@ impl App {
             }
             Err(std::sync::mpsc::TryRecvError::Disconnected) => {}
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn auto_mode_prefers_remote_device_when_available() {
+        let target = resolve_spotify_playback_target(
+            SpotifyPlaybackMode::Auto,
+            Some("token"),
+            Some("device"),
+            true,
+        );
+
+        assert_eq!(
+            target,
+            SpotifyPlaybackTarget::Remote {
+                token: "token".to_string(),
+                device_id: "device".to_string(),
+            }
+        );
+    }
+
+    #[test]
+    fn auto_mode_uses_native_when_no_remote_device_exists() {
+        let target =
+            resolve_spotify_playback_target(SpotifyPlaybackMode::Auto, Some("token"), None, true);
+
+        assert_eq!(target, SpotifyPlaybackTarget::Native);
+    }
+
+    #[test]
+    fn native_mode_does_not_use_remote_device() {
+        let target = resolve_spotify_playback_target(
+            SpotifyPlaybackMode::Native,
+            Some("token"),
+            Some("device"),
+            true,
+        );
+
+        assert_eq!(target, SpotifyPlaybackTarget::Native);
+    }
+
+    #[test]
+    fn remote_mode_does_not_fall_back_to_native_without_device() {
+        let target =
+            resolve_spotify_playback_target(SpotifyPlaybackMode::Remote, Some("token"), None, true);
+
+        assert_eq!(
+            target,
+            SpotifyPlaybackTarget::Unavailable(
+                "integrations.spotify.error.no_remote_device".to_string()
+            )
+        );
     }
 }
