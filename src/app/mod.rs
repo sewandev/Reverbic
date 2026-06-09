@@ -569,3 +569,114 @@ impl App {
         self.youtube.cleanup();
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::integrations::spotify::SpotifyPlaybackState;
+
+    fn test_app() -> App {
+        App {
+            stations: Vec::new(),
+            favorites: Vec::new(),
+            selected: 0,
+            player: AudioPlayer::spawn(),
+            should_quit: false,
+            replay_onboarding: false,
+            focus: AppFocus::Stations,
+            recent_selected: 0,
+            saved_tracks: Vec::new(),
+            save_notice: None,
+            save_notice_is_dup: false,
+            search_query: String::new(),
+            search_results: Vec::new(),
+            search_loading: false,
+            terminal_area: Rect::default(),
+            on_demand_shows: Vec::new(),
+            on_demand_selected: 0,
+            on_demand_loading: false,
+            selected_program: 0,
+            seek_input: String::new(),
+            settings_selected: 0,
+            show_search_modal: true,
+            modal_mode: SearchMode::Name,
+            modal_selected: 0,
+            radio_sub_tab: RadioSubTab::default(),
+            radio_fav_selected: 0,
+            genre_selected: 0,
+            genre_filter: String::new(),
+            genre_query: String::new(),
+            country_selected: 0,
+            country_filter: String::new(),
+            renaming_favorite: None,
+            rename_input: String::new(),
+            editing_client_id: false,
+            client_id_input: String::new(),
+            theme_picker_open: false,
+            theme_picker_selected: 0,
+            click_flash: None,
+            last_activity: Instant::now(),
+            border_tick: 0,
+            station_details: None,
+            windows_tx: None,
+            config: Config::default(),
+            show_help: false,
+            spotify: SpotifyState::default(),
+            youtube: YoutubeState::default(),
+            radio_enriched_track: None,
+            radio_enriched_for: None,
+            radio_enrichment_task: None,
+            radio_enrichment_rx: None,
+            metadata_task: None,
+            search_task: None,
+            search_result_rx: None,
+            on_demand_task: None,
+            on_demand_rx: None,
+            station_details_rx: None,
+            last_details_uuid: None,
+            notice_until: None,
+            dead_urls: HashSet::new(),
+            update_available: None,
+            update_path: None,
+            update_check_task: None,
+            update_check_rx: None,
+            update_download_task: None,
+            update_download_rx: None,
+            fav_enrich_task: None,
+            fav_enrich_rx: None,
+            next_preview_id: 1,
+        }
+    }
+
+    #[tokio::test]
+    async fn switching_spotify_playback_from_remote_to_native_clears_remote_state() {
+        let mut app = test_app();
+        app.config.spotify.playback_mode = SpotifyPlaybackMode::Remote;
+        app.spotify.active_backend = Some(SpotifyPlaybackBackend::Remote);
+        app.spotify.playback = Some(SpotifyPlaybackState {
+            is_playing: true,
+            progress_ms: 1_000,
+            duration_ms: 200_000,
+            track_name: "Remote track".to_string(),
+            artist: "Remote artist".to_string(),
+            album: "Remote album".to_string(),
+            device_name: "Remote device".to_string(),
+            volume_pct: 50,
+        });
+        app.spotify.playback_rx = Some(std::sync::mpsc::channel().1);
+        app.spotify.playback_task = Some(tokio::spawn(async {
+            std::future::pending::<()>().await;
+        }));
+
+        app.set_spotify_playback_mode(SpotifyPlaybackMode::Native);
+
+        assert_eq!(
+            app.config.spotify.playback_mode,
+            SpotifyPlaybackMode::Native
+        );
+        assert_eq!(app.spotify.active_backend, None);
+        assert!(app.spotify.playback.is_none());
+        assert!(app.spotify.playback_rx.is_none());
+        assert!(app.spotify.playback_task.is_none());
+    }
+}
