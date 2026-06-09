@@ -55,21 +55,21 @@ fn next_spotify_device_id(
     )
 }
 
-fn setting_index_at_row(items: &[SettingItem], row_offset: usize) -> Option<usize> {
+fn setting_index_at_visual_row(items: &[SettingItem], visual_row: usize) -> Option<usize> {
     let mut row = 0usize;
     let mut last_group = "";
 
     for (item_idx, item) in items.iter().enumerate() {
         let group = item.group_key();
         if group != last_group {
-            if row == row_offset {
+            if row == visual_row {
                 return None;
             }
             row += 1;
             last_group = group;
         }
 
-        if row == row_offset {
+        if row == visual_row {
             return Some(item_idx);
         }
         row += 1;
@@ -1523,7 +1523,7 @@ impl App {
     fn on_click_settings(&mut self, col: u16, row: u16) {
         let items = settings_items(self.config.duck_enabled);
         let visual_row_count = settings_visual_row_count(&items);
-        let Some(row_offset) = one_line_list_index_at(
+        let Some(visual_row) = one_line_list_index_at(
             settings_items_area(self.terminal_area),
             col,
             row,
@@ -1535,7 +1535,7 @@ impl App {
             return;
         };
 
-        let Some(idx) = setting_index_at_row(&items, row_offset) else {
+        let Some(idx) = setting_index_at_visual_row(&items, visual_row) else {
             return;
         };
 
@@ -2787,19 +2787,19 @@ mod tests {
     }
 
     #[test]
-    fn setting_index_at_row_ignores_visual_headers() {
+    fn setting_index_at_visual_row_ignores_headers() {
         let items = settings_items(false);
 
-        assert_eq!(setting_index_at_row(&items, 0), None);
-        assert_eq!(setting_index_at_row(&items, 6), None);
+        assert_eq!(setting_index_at_visual_row(&items, 0), None);
+        assert_eq!(setting_index_at_visual_row(&items, 6), None);
     }
 
     #[test]
-    fn setting_index_at_row_returns_item_index_for_visual_item_rows() {
+    fn setting_index_at_visual_row_returns_item_index() {
         let items = settings_items(false);
 
-        assert_eq!(setting_index_at_row(&items, 1), Some(0));
-        assert_eq!(setting_index_at_row(&items, 7), Some(5));
+        assert_eq!(setting_index_at_visual_row(&items, 1), Some(0));
+        assert_eq!(setting_index_at_visual_row(&items, 7), Some(5));
     }
 
     #[test]

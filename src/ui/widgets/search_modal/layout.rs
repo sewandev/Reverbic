@@ -160,12 +160,10 @@ pub(crate) fn visible_rows_excluding_scrollbar(area: Option<Rect>) -> usize {
     visible_rows(area, SCROLLBAR_RESERVED_ROWS)
 }
 
-#[allow(dead_code)]
 pub(crate) fn contains(area: Rect, col: u16, row: u16) -> bool {
     col >= area.x && col < area.right() && row >= area.y && row < area.bottom()
 }
 
-#[allow(dead_code)]
 pub(crate) fn one_line_list_index_at(
     area: Option<Rect>,
     col: u16,
@@ -187,7 +185,6 @@ pub(crate) fn one_line_list_index_at(
     )
 }
 
-#[allow(dead_code)]
 pub(crate) fn two_line_list_index_at(
     area: Option<Rect>,
     col: u16,
