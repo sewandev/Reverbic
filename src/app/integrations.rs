@@ -1391,6 +1391,23 @@ mod tests {
     }
 
     #[test]
+    fn native_mode_reports_unavailable_without_local_player() {
+        let target = resolve_spotify_playback_target(
+            SpotifyPlaybackMode::Native,
+            Some("token"),
+            Some("device"),
+            false,
+        );
+
+        assert_eq!(
+            target,
+            SpotifyPlaybackTarget::Unavailable(
+                "integrations.spotify.error.native_unavailable".to_string()
+            )
+        );
+    }
+
+    #[test]
     fn remote_mode_does_not_fall_back_to_native_without_device() {
         let target =
             resolve_spotify_playback_target(SpotifyPlaybackMode::Remote, Some("token"), None, true);
@@ -1399,6 +1416,36 @@ mod tests {
             target,
             SpotifyPlaybackTarget::Unavailable(
                 "integrations.spotify.error.no_remote_device".to_string()
+            )
+        );
+    }
+
+    #[test]
+    fn remote_mode_reports_unavailable_without_access_token() {
+        let target = resolve_spotify_playback_target(
+            SpotifyPlaybackMode::Remote,
+            None,
+            Some("device"),
+            true,
+        );
+
+        assert_eq!(
+            target,
+            SpotifyPlaybackTarget::Unavailable(
+                "integrations.spotify.error.no_access_token".to_string()
+            )
+        );
+    }
+
+    #[test]
+    fn auto_mode_reports_unavailable_without_any_target() {
+        let target =
+            resolve_spotify_playback_target(SpotifyPlaybackMode::Auto, Some("token"), None, false);
+
+        assert_eq!(
+            target,
+            SpotifyPlaybackTarget::Unavailable(
+                "integrations.spotify.error.playback_unavailable".to_string()
             )
         );
     }
