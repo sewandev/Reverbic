@@ -212,7 +212,7 @@ pub fn render(frame: &mut Frame, app: &App) {
     let remaining_h = full_area.bottom().saturating_sub(strip_y);
     if remaining_h >= 3 {
         let strip = Rect::new(modal.x, strip_y, modal.width, remaining_h);
-        if matches!(app.modal_mode, crate::app::SearchMode::Spotify)
+        if app.active_source_is_spotify()
             && (app.spotify.playback.is_some() || app.spotify.now_playing.is_some())
         {
             render_modal_spotify_strip(

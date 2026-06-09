@@ -62,9 +62,10 @@ impl<'a> SearchModalWidget<'a> {
     ) {
         use crate::app::SpotifySubTab;
 
-        let [_gap, subtab_row, body] = Layout::vertical([
+        let [_gap, subtab_row, _body_gap, body] = Layout::vertical([
             Constraint::Length(1),
-            Constraint::Length(3),
+            Constraint::Length(2),
+            Constraint::Length(1),
             Constraint::Fill(1),
         ])
         .areas(area);
@@ -104,7 +105,6 @@ impl<'a> SearchModalWidget<'a> {
                     tab_style(self.spotify_sub_tab == SpotifySubTab::Devices),
                 ),
             ]));
-            text.lines.push(Line::from(vec![Span::raw("")]));
             text.lines.push(Line::from(vec![
                 Span::styled(
                     t("Top Tracks"),
@@ -130,8 +130,7 @@ impl<'a> SearchModalWidget<'a> {
 
         match self.spotify_sub_tab {
             SpotifySubTab::Search => {
-                let [_gap, input_row, cap_row, list_area] = Layout::vertical([
-                    Constraint::Length(1),
+                let [input_row, cap_row, list_area] = Layout::vertical([
                     Constraint::Length(1),
                     Constraint::Length(1),
                     Constraint::Fill(1),
