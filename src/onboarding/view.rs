@@ -450,7 +450,7 @@ fn render_summary(frame: &mut Frame, area: Rect, state: &OnboardingState, palett
     let list_w = area.width.saturating_sub(8);
     let col_w = (list_w / 2).saturating_sub(2);
     let rows_count = rows.len() as u16;
-    let rows_per_col = (rows_count + 1) / 2;
+    let rows_per_col = rows_count.div_ceil(2);
 
     for (i, (label, value)) in rows.iter().enumerate() {
         let col = i as u16 / rows_per_col;

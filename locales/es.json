@@ -293,6 +293,5 @@
   "onboarding.hint.skip": "Omitir",
   "onboarding.maximize_hint": "Maximiza la pantalla para una experiencia completa",
   "config.group.spotify": "Spotify",
-  "config.tooltip.language": "Selecciona el idioma de la aplicación.",
   "onboarding.appearance.language": "Idioma"
 }

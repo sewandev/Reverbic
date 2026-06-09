@@ -291,5 +291,7 @@
   "onboarding.hint.mute": "Mute",
   "onboarding.hint.unmute": "Unmute",
   "onboarding.hint.skip": "Skip",
-  "onboarding.maximize_hint": "Maximize your terminal for a full experience"
+  "onboarding.maximize_hint": "Maximize your terminal for a full experience",
+  "config.group.spotify": "Spotify",
+  "onboarding.appearance.language": "Language"
 }
