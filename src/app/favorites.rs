@@ -73,23 +73,24 @@ impl App {
         let (tx, rx) = std::sync::mpsc::channel();
         self.fav_enrich_rx = Some(rx);
 
-        let mut snapshot = self.favorites.clone();
+        let snapshot = self.favorites.clone();
         let handle = tokio::spawn(async move {
+            let mut enriched_favorites = Vec::new();
             for (i, key, name) in to_enrich {
                 let details = if crate::station::is_uuid(&key) {
                     crate::station::fetch_station_details(&key).await
                 } else {
                     crate::station::fetch_station_details_by_name(&name).await
                 };
-                if let Some(d) = details {
-                    if let Some(f) = snapshot.get_mut(i) {
-                        f.country = d.country;
-                        f.tags = d.tags;
-                        f.homepage = d.homepage;
-                    }
+                if let (Some(d), Some(favorite)) = (details, snapshot.get(i)) {
+                    let mut favorite = favorite.clone();
+                    favorite.country = d.country;
+                    favorite.tags = d.tags;
+                    favorite.homepage = d.homepage;
+                    enriched_favorites.push(favorite);
                 }
             }
-            let _ = tx.send(snapshot);
+            let _ = tx.send(enriched_favorites);
         });
         self.fav_enrich_task = Some(handle);
     }
@@ -106,7 +107,17 @@ impl App {
     }
 
     pub(super) fn apply_favorites_enrichment_result(&mut self, updated: Vec<FavoriteStation>) {
-        self.favorites = updated;
+        for enriched in updated {
+            if let Some(current) = self
+                .favorites
+                .iter_mut()
+                .find(|favorite| favorite.key == enriched.key || favorite.url == enriched.url)
+            {
+                current.country = enriched.country;
+                current.tags = enriched.tags;
+                current.homepage = enriched.homepage;
+            }
+        }
     }
 
     pub(super) fn remove_radio_fav_selected(&mut self) {
