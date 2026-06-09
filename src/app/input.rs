@@ -16,6 +16,8 @@ use super::{abort_task, cycle_next, cycle_prev, scroll_by, App, SpotifyControlTa
 const MODAL_LIST_ITEM_HEIGHT: usize = 2;
 const MODAL_MIN_HEIGHT: u16 = 14;
 const MODAL_MAX_HEIGHT: u16 = 30;
+const SPOTIFY_CHROME_ROWS: u16 = 4;
+const SPOTIFY_SEARCH_INPUT_ROWS: u16 = 3;
 
 impl App {
     fn modal_list_visible_rows(&self, rows_before_list: u16) -> usize {
@@ -40,7 +42,11 @@ impl App {
     }
 
     fn spotify_visible_items(&self, title_rows: u16) -> usize {
-        self.modal_list_visible_items(4 + title_rows)
+        self.modal_list_visible_items(SPOTIFY_CHROME_ROWS + title_rows)
+    }
+
+    fn spotify_search_visible_items(&self) -> usize {
+        self.spotify_visible_items(SPOTIFY_SEARCH_INPUT_ROWS)
     }
 
     fn youtube_visible_items(&self) -> usize {
@@ -196,7 +202,7 @@ impl App {
     }
 
     fn keep_spotify_search_visible(&mut self) {
-        let visible = self.spotify_visible_items(0);
+        let visible = self.spotify_search_visible_items();
         keep_selected_visible(
             &mut self.spotify.search_scroll_offset,
             self.spotify.search_selected,
