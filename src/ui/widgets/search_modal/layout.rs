@@ -250,10 +250,23 @@ pub(crate) fn filter_list_layout(area: Rect) -> FilterListLayout {
 #[cfg(test)]
 mod tests {
     use super::{
-        modal_body_area, modal_layout, modal_rect, settings_visible_rows, spotify_search_list_area,
-        visible_items, visible_rows, ListItemHeight, MODAL_MIN_HEIGHT, MODAL_MIN_WIDTH,
+        filter_list_layout, header_list_layout, modal_body_area, modal_layout, modal_rect,
+        radio_favorites_list_area, radio_favorites_list_layout, radio_filter_list_area,
+        radio_filtered_results_list_area, radio_name_layout, radio_search_results_list_area,
+        settings_items_area, settings_layout, settings_visible_rows, spotify_body_area,
+        spotify_layout, spotify_search_layout, spotify_search_list_area,
+        spotify_titled_track_list_area, spotify_titled_track_list_layout, visible_items,
+        visible_rows, youtube_list_area, ListItemHeight, MODAL_MIN_HEIGHT, MODAL_MIN_WIDTH,
     };
     use ratatui::layout::Rect;
+
+    fn normal_terminal() -> Rect {
+        Rect::new(0, 0, 100, 40)
+    }
+
+    fn normal_modal_body() -> Rect {
+        modal_body_area(normal_terminal()).expect("modal should render")
+    }
 
     #[test]
     fn modal_rect_does_not_exceed_small_terminal_area() {
@@ -295,6 +308,32 @@ mod tests {
     }
 
     #[test]
+    fn modal_viewport_is_empty_below_minimum_height() {
+        let area = Rect::new(0, 0, MODAL_MIN_WIDTH, MODAL_MIN_HEIGHT - 1);
+
+        assert!(modal_layout(area).is_none());
+        assert_eq!(
+            visible_items(spotify_search_list_area(area), ListItemHeight::TwoLines),
+            0
+        );
+        assert_eq!(visible_rows(radio_search_results_list_area(area), 1), 0);
+        assert_eq!(settings_visible_rows(area), 0);
+    }
+
+    #[test]
+    fn modal_viewport_renders_at_minimum_size_with_saturating_viewports() {
+        let area = Rect::new(0, 0, MODAL_MIN_WIDTH, MODAL_MIN_HEIGHT);
+
+        assert!(modal_layout(area).is_some());
+        assert_eq!(
+            visible_items(spotify_search_list_area(area), ListItemHeight::TwoLines),
+            2
+        );
+        assert_eq!(visible_rows(radio_search_results_list_area(area), 1), 5);
+        assert_eq!(settings_visible_rows(area), 6);
+    }
+
+    #[test]
     fn visible_items_makes_item_height_explicit() {
         let area = Some(Rect::new(0, 0, 10, 9));
 
@@ -311,7 +350,7 @@ mod tests {
 
     #[test]
     fn spotify_search_list_area_matches_rendered_chrome() {
-        let area = Rect::new(0, 0, 100, 40);
+        let area = normal_terminal();
         let modal_body = modal_body_area(area).expect("modal should render");
         let list_area = spotify_search_list_area(area).expect("spotify list should render");
 
@@ -320,10 +359,113 @@ mod tests {
 
     #[test]
     fn settings_visible_rows_reserve_scrollbar_row() {
-        let area = Rect::new(0, 0, 100, 40);
+        let area = normal_terminal();
         let modal_body = modal_body_area(area).expect("modal should render");
         let rows = settings_visible_rows(area);
 
         assert_eq!(rows, modal_body.height.saturating_sub(5) as usize);
+    }
+
+    #[test]
+    fn modal_viewport_spotify_search_matches_input_and_render_layouts() {
+        let terminal = normal_terminal();
+        let body = normal_modal_body();
+        let rendered_spotify = spotify_layout(body);
+        let rendered_search = spotify_search_layout(rendered_spotify.body);
+        let input_list = spotify_search_list_area(terminal);
+
+        assert_eq!(input_list, Some(rendered_search.list));
+        assert_eq!(
+            visible_items(input_list, ListItemHeight::TwoLines),
+            rendered_search.list.height as usize / 2
+        );
+        assert_eq!(visible_items(input_list, ListItemHeight::TwoLines), 10);
+    }
+
+    #[test]
+    fn modal_viewport_spotify_top_tracks_matches_common_spotify_body() {
+        let terminal = normal_terminal();
+        let rendered_spotify = spotify_layout(normal_modal_body());
+        let input_body = spotify_body_area(terminal);
+
+        assert_eq!(input_body, Some(rendered_spotify.body));
+        assert_eq!(visible_items(input_body, ListItemHeight::TwoLines), 11);
+    }
+
+    #[test]
+    fn modal_viewport_spotify_title_row_matches_playlist_and_album_tracks() {
+        let terminal = normal_terminal();
+        let rendered_spotify = spotify_layout(normal_modal_body());
+        let rendered_titled_list = spotify_titled_track_list_layout(rendered_spotify.body);
+        let input_list = spotify_titled_track_list_area(terminal);
+
+        assert_eq!(input_list, Some(rendered_titled_list));
+        assert_eq!(visible_items(input_list, ListItemHeight::TwoLines), 11);
+    }
+
+    #[test]
+    fn modal_viewport_youtube_results_match_filter_layout() {
+        let terminal = normal_terminal();
+        let rendered = filter_list_layout(normal_modal_body());
+        let input_list = youtube_list_area(terminal);
+
+        assert_eq!(input_list, Some(rendered.list));
+        assert_eq!(visible_items(input_list, ListItemHeight::TwoLines), 12);
+    }
+
+    #[test]
+    fn modal_viewport_radio_search_matches_subtab_filter_layout() {
+        let terminal = normal_terminal();
+        let rendered_radio = radio_name_layout(normal_modal_body());
+        let rendered_filter = filter_list_layout(rendered_radio.body);
+        let input_list = radio_search_results_list_area(terminal);
+
+        assert_eq!(input_list, Some(rendered_filter.list));
+        assert_eq!(visible_rows(input_list, 1), 21);
+    }
+
+    #[test]
+    fn modal_viewport_radio_favorites_matches_subtab_list_layout() {
+        let terminal = normal_terminal();
+        let rendered_radio = radio_name_layout(normal_modal_body());
+        let rendered_list = radio_favorites_list_layout(rendered_radio.body);
+        let input_list = radio_favorites_list_area(terminal);
+
+        assert_eq!(input_list, Some(rendered_list));
+        assert_eq!(visible_items(input_list, ListItemHeight::OneLine), 24);
+    }
+
+    #[test]
+    fn modal_viewport_genre_and_country_filters_share_filter_layout() {
+        let terminal = normal_terminal();
+        let rendered = filter_list_layout(normal_modal_body());
+        let input_list = radio_filter_list_area(terminal);
+
+        assert_eq!(input_list, Some(rendered.list));
+        assert_eq!(visible_rows(input_list, 1), 23);
+    }
+
+    #[test]
+    fn modal_viewport_genre_and_country_results_match_header_list_layout() {
+        let terminal = normal_terminal();
+        let rendered = header_list_layout(normal_modal_body());
+        let input_list = radio_filtered_results_list_area(terminal);
+
+        assert_eq!(input_list, Some(rendered.list));
+        assert_eq!(visible_rows(input_list, 1), 25);
+    }
+
+    #[test]
+    fn modal_viewport_settings_matches_items_area_and_visual_rows() {
+        let terminal = normal_terminal();
+        let rendered = settings_layout(normal_modal_body());
+        let input_items = settings_items_area(terminal);
+
+        assert_eq!(input_items, Some(rendered.items));
+        assert_eq!(
+            settings_visible_rows(terminal),
+            visible_rows(input_items, 1)
+        );
+        assert_eq!(settings_visible_rows(terminal), 22);
     }
 }
