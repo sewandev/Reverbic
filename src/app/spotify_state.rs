@@ -53,7 +53,6 @@ pub struct SpotifyState {
     pub volume_pending_until: Option<std::time::Instant>,
 
     pub devices: Vec<SpotifyDevice>,
-    pub devices_selected: usize,
     pub devices_loading: bool,
 
     pub playback: Option<SpotifyPlaybackState>,
@@ -119,7 +118,6 @@ pub struct SpotifyState {
     pub top_tracks_selected: usize,
     pub top_tracks_scroll_offset: usize,
     pub top_tracks_loading: bool,
-    pub top_tracks_range: String,
     pub(super) top_tracks_task: Option<tokio::task::JoinHandle<()>>,
     pub(super) top_tracks_rx:
         Option<std::sync::mpsc::Receiver<Result<Vec<SpotifyTrack>, SpotifyError>>>,
@@ -199,7 +197,6 @@ impl Default for SpotifyState {
             rate_limited_until: None,
             volume_pending_until: None,
             devices: Vec::new(),
-            devices_selected: 0,
             devices_loading: false,
             playback: None,
             active_backend: None,
@@ -255,7 +252,6 @@ impl Default for SpotifyState {
             top_tracks_selected: 0,
             top_tracks_scroll_offset: 0,
             top_tracks_loading: false,
-            top_tracks_range: "short_term".to_string(),
             top_tracks_task: None,
             top_tracks_rx: None,
             recent_tracks: Vec::new(),

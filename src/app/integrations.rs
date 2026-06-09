@@ -3,6 +3,8 @@ use super::spotify_state::{SpotifyPlaybackBackend, SpotifySearchPage};
 use super::{abort_task, App, SpotifyControlTarget};
 use crate::config::{Config, SpotifyPlaybackMode};
 
+const SPOTIFY_TOP_TRACKS_TIME_RANGE: &str = "short_term";
+
 #[derive(Debug, PartialEq)]
 enum SpotifyPlaybackTarget {
     Remote { token: String, device_id: String },
@@ -79,14 +81,13 @@ fn resolve_remote_spotify_target(
 fn resolve_active_spotify_device(
     devices: &[crate::integrations::spotify::devices::SpotifyDevice],
     current_active_id: Option<&str>,
-) -> (usize, Option<String>) {
-    let selected = current_active_id
+) -> Option<String> {
+    let active_idx = current_active_id
         .and_then(|id| devices.iter().position(|d| d.id.as_deref() == Some(id)))
         .or_else(|| devices.iter().position(|d| d.is_active && d.id.is_some()))
         .unwrap_or(0);
 
-    let active_device_id = devices.get(selected).and_then(|device| device.id.clone());
-    (selected, active_device_id)
+    devices.get(active_idx).and_then(|device| device.id.clone())
 }
 
 fn spotify_native_error_message(raw: &str) -> String {
@@ -564,12 +565,10 @@ impl App {
                         .collect();
                     self.spotify.devices_loading = false;
 
-                    let (selected, active_device_id) = resolve_active_spotify_device(
+                    self.spotify.active_device_id = resolve_active_spotify_device(
                         &self.spotify.devices,
                         self.spotify.active_device_id.as_deref(),
                     );
-                    self.spotify.devices_selected = selected;
-                    self.spotify.active_device_id = active_device_id;
                 }
                 Ok(Err(e)) => {
                     tracing::warn!("spotify devices: {e}");
@@ -1268,9 +1267,8 @@ impl App {
         self.spotify.top_tracks_loading = true;
         let (tx, rx) = std::sync::mpsc::channel();
         self.spotify.top_tracks_rx = Some(rx);
-        let range = self.spotify.top_tracks_range.clone();
         let handle = tokio::spawn(async move {
-            let _ = tx.send(get_top_tracks(&token, &range).await);
+            let _ = tx.send(get_top_tracks(&token, SPOTIFY_TOP_TRACKS_TIME_RANGE).await);
         });
         self.spotify.top_tracks_task = Some(handle);
     }
@@ -1647,9 +1645,8 @@ mod tests {
             spotify_device(Some("active"), true),
         ];
 
-        let (selected, active_device_id) = resolve_active_spotify_device(&devices, Some("stale"));
+        let active_device_id = resolve_active_spotify_device(&devices, Some("stale"));
 
-        assert_eq!(selected, 1);
         assert_eq!(active_device_id.as_deref(), Some("active"));
     }
 
@@ -1657,9 +1654,8 @@ mod tests {
     fn stale_remote_device_id_is_cleared_when_no_remote_devices_exist() {
         let devices = vec![];
 
-        let (selected, active_device_id) = resolve_active_spotify_device(&devices, Some("stale"));
+        let active_device_id = resolve_active_spotify_device(&devices, Some("stale"));
 
-        assert_eq!(selected, 0);
         assert_eq!(active_device_id, None);
     }
 
@@ -1670,9 +1666,8 @@ mod tests {
             spotify_device(Some("active"), true),
         ];
 
-        let (selected, active_device_id) = resolve_active_spotify_device(&devices, Some("current"));
+        let active_device_id = resolve_active_spotify_device(&devices, Some("current"));
 
-        assert_eq!(selected, 0);
         assert_eq!(active_device_id.as_deref(), Some("current"));
     }
 
