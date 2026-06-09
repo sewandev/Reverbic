@@ -10,6 +10,7 @@ type SearchPageRx = std::sync::mpsc::Receiver<(Vec<SpotifyTrack>, bool, Option<u
 type TracksResultRx = std::sync::mpsc::Receiver<Result<(Vec<SpotifyTrack>, bool), SpotifyError>>;
 type PlaylistsResultRx =
     std::sync::mpsc::Receiver<Result<(Vec<SpotifyPlaylist>, bool), SpotifyError>>;
+type AlbumsResultRx = std::sync::mpsc::Receiver<Result<(Vec<SpotifyAlbum>, bool), SpotifyError>>;
 
 pub struct SpotifyState {
     pub status: SpotifyAuthStatus,
@@ -114,8 +115,7 @@ pub struct SpotifyState {
     pub album_tracks_selected: usize,
     pub album_tracks_loading: bool,
     pub(super) albums_task: Option<tokio::task::JoinHandle<()>>,
-    pub(super) albums_rx:
-        Option<std::sync::mpsc::Receiver<Result<(Vec<SpotifyAlbum>, bool), SpotifyError>>>,
+    pub(super) albums_rx: Option<AlbumsResultRx>,
     pub(super) album_tracks_task: Option<tokio::task::JoinHandle<()>>,
     pub(super) album_tracks_rx:
         Option<std::sync::mpsc::Receiver<Result<Vec<SpotifyTrack>, SpotifyError>>>,

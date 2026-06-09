@@ -17,6 +17,7 @@
   "hint.search": "Search",
   "hint.reload": "Reload",
   "hint.change": "Change",
+  "hint.like": "Like",
   "hint.next_tab": "Next",
   "modal.search.placeholder": "Search radio...",
   "modal.genre.placeholder": "Filter genre…",

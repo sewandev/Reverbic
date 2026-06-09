@@ -468,44 +468,51 @@ impl App {
         }
 
         if key == KeyCode::Tab {
-            self.modal_mode = match &self.modal_mode {
-                SearchMode::Name | SearchMode::Genre | SearchMode::Country => SearchMode::Spotify,
-                SearchMode::Spotify => SearchMode::Youtube,
-                SearchMode::Youtube => SearchMode::Name,
-                other => *other,
-            };
-            self.modal_selected = 0;
-            self.search_results.clear();
-            self.search_query.clear();
-            self.genre_filter.clear();
-            self.genre_query.clear();
-            self.genre_selected = 0;
-            self.country_filter.clear();
-            self.country_selected = 0;
-            abort_task(&mut self.search_task);
-            self.search_loading = false;
-            self.spotify.search_query.clear();
-            self.spotify.search_results.clear();
-            self.spotify.search_selected = 0;
-            abort_task(&mut self.spotify.search_task);
-            self.spotify.search_loading = false;
-            self.youtube.query.clear();
-            self.youtube.results.clear();
-            self.youtube.selected = 0;
-            self.youtube.loading = false;
-            self.youtube.search_pending_until = None;
-            abort_task(&mut self.youtube.search_task);
-            self.youtube.search_rx = None;
-            if matches!(self.modal_mode, SearchMode::Spotify)
-                && matches!(self.spotify.status, SpotifyAuthStatus::LoggedIn)
-                && self.spotify.devices.is_empty()
-                && !self.spotify.devices_loading
-            {
-                self.fetch_spotify_devices();
-            } else if matches!(self.modal_mode, SearchMode::Youtube) {
-                self.ensure_youtube_ready();
+            let handled_by_subtab = matches!(self.modal_mode, SearchMode::Spotify)
+                && matches!(self.spotify.sub_tab, crate::app::SpotifySubTab::TopTracks);
+
+            if !handled_by_subtab {
+                self.modal_mode = match &self.modal_mode {
+                    SearchMode::Name | SearchMode::Genre | SearchMode::Country => {
+                        SearchMode::Spotify
+                    }
+                    SearchMode::Spotify => SearchMode::Youtube,
+                    SearchMode::Youtube => SearchMode::Name,
+                    other => *other,
+                };
+                self.modal_selected = 0;
+                self.search_results.clear();
+                self.search_query.clear();
+                self.genre_filter.clear();
+                self.genre_query.clear();
+                self.genre_selected = 0;
+                self.country_filter.clear();
+                self.country_selected = 0;
+                abort_task(&mut self.search_task);
+                self.search_loading = false;
+                self.spotify.search_query.clear();
+                self.spotify.search_results.clear();
+                self.spotify.search_selected = 0;
+                abort_task(&mut self.spotify.search_task);
+                self.spotify.search_loading = false;
+                self.youtube.query.clear();
+                self.youtube.results.clear();
+                self.youtube.selected = 0;
+                self.youtube.loading = false;
+                self.youtube.search_pending_until = None;
+                abort_task(&mut self.youtube.search_task);
+                self.youtube.search_rx = None;
+                if matches!(self.modal_mode, SearchMode::Spotify)
+                    && matches!(self.spotify.status, SpotifyAuthStatus::LoggedIn)
+                    && self.spotify.devices.is_empty()
+                    && !self.spotify.devices_loading
+                {
+                    self.fetch_spotify_devices();
+                } else if matches!(self.modal_mode, SearchMode::Youtube) {
+                    self.ensure_youtube_ready();
+                }
+                return;
             }
-            return;
         }
 
         match self.modal_mode {
@@ -997,31 +1004,114 @@ impl App {
     pub async fn on_mouse_scroll(&mut self, delta: i32) {
         self.last_activity = Instant::now();
         if self.show_search_modal {
-            let (len, sel) =
-                if self.search_results.is_empty() && matches!(self.modal_mode, SearchMode::Genre) {
-                    (
-                        filter_items(GENRES, &self.genre_filter).len(),
-                        &mut self.genre_selected,
-                    )
-                } else if self.search_results.is_empty()
-                    && matches!(self.modal_mode, SearchMode::Country)
-                {
-                    (
-                        filter_items(COUNTRIES, &self.country_filter).len(),
-                        &mut self.country_selected,
-                    )
-                } else if matches!(self.modal_mode, SearchMode::Settings) {
-                    (
-                        settings_items(self.config.duck_enabled).len(),
-                        &mut self.settings_selected,
-                    )
-                } else {
-                    (self.search_results.len(), &mut self.modal_selected)
-                };
-            if len == 0 {
-                return;
+            match self.modal_mode {
+                SearchMode::Youtube => {
+                    let len = self.youtube.results.len();
+                    if len > 0 {
+                        self.youtube.selected = scroll_by(self.youtube.selected, delta, len);
+                    }
+                }
+                SearchMode::Spotify => {
+                    use crate::app::SpotifySubTab;
+                    match self.spotify.sub_tab {
+                        SpotifySubTab::Search => {
+                            let len = self.spotify.search_results.len();
+                            if len > 0 {
+                                self.spotify.search_selected =
+                                    scroll_by(self.spotify.search_selected, delta, len);
+                            }
+                        }
+                        SpotifySubTab::Liked => {
+                            let len = self.spotify.liked_tracks.len();
+                            if len > 0 {
+                                self.spotify.liked_selected =
+                                    scroll_by(self.spotify.liked_selected, delta, len);
+                            }
+                        }
+                        SpotifySubTab::Playlists => {
+                            if self.spotify.open_playlist.is_some() {
+                                let len = self.spotify.playlist_tracks.len();
+                                if len > 0 {
+                                    self.spotify.playlist_tracks_selected = scroll_by(
+                                        self.spotify.playlist_tracks_selected,
+                                        delta,
+                                        len,
+                                    );
+                                }
+                            } else {
+                                let len = self.spotify.playlists.len();
+                                if len > 0 {
+                                    self.spotify.playlists_selected =
+                                        scroll_by(self.spotify.playlists_selected, delta, len);
+                                }
+                            }
+                        }
+                        SpotifySubTab::TopTracks => {
+                            let len = self.spotify.top_tracks.len();
+                            if len > 0 {
+                                self.spotify.top_tracks_selected =
+                                    scroll_by(self.spotify.top_tracks_selected, delta, len);
+                            }
+                        }
+                        SpotifySubTab::Recent => {
+                            let len = self.spotify.recent_tracks.len();
+                            if len > 0 {
+                                self.spotify.recent_tracks_selected =
+                                    scroll_by(self.spotify.recent_tracks_selected, delta, len);
+                            }
+                        }
+                        SpotifySubTab::Albums => {
+                            if self.spotify.open_album.is_some() {
+                                let len = self.spotify.album_tracks.len();
+                                if len > 0 {
+                                    self.spotify.album_tracks_selected =
+                                        scroll_by(self.spotify.album_tracks_selected, delta, len);
+                                }
+                            } else {
+                                let len = self.spotify.albums.len();
+                                if len > 0 {
+                                    self.spotify.albums_selected =
+                                        scroll_by(self.spotify.albums_selected, delta, len);
+                                }
+                            }
+                        }
+                        SpotifySubTab::Devices => {
+                            let len = self.spotify.devices.len();
+                            if len > 0 {
+                                self.spotify.devices_selected =
+                                    scroll_by(self.spotify.devices_selected, delta, len);
+                            }
+                        }
+                    }
+                }
+                _ => {
+                    let (len, sel) = if self.search_results.is_empty()
+                        && matches!(self.modal_mode, SearchMode::Genre)
+                    {
+                        (
+                            filter_items(GENRES, &self.genre_filter).len(),
+                            &mut self.genre_selected,
+                        )
+                    } else if self.search_results.is_empty()
+                        && matches!(self.modal_mode, SearchMode::Country)
+                    {
+                        (
+                            filter_items(COUNTRIES, &self.country_filter).len(),
+                            &mut self.country_selected,
+                        )
+                    } else if matches!(self.modal_mode, SearchMode::Settings) {
+                        (
+                            settings_items(self.config.duck_enabled).len(),
+                            &mut self.settings_selected,
+                        )
+                    } else {
+                        (self.search_results.len(), &mut self.modal_selected)
+                    };
+                    if len > 0 {
+                        *sel = scroll_by(*sel, delta, len);
+                    }
+                }
             }
-            *sel = scroll_by(*sel, delta, len);
             return;
         }
 

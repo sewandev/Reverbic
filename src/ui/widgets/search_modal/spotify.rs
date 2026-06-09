@@ -51,7 +51,7 @@ impl<'a> SearchModalWidget<'a> {
 
         let [_gap, subtab_row, body] = Layout::vertical([
             Constraint::Length(1),
-            Constraint::Length(1),
+            Constraint::Length(3),
             Constraint::Fill(1),
         ])
         .areas(area);
@@ -69,7 +69,8 @@ impl<'a> SearchModalWidget<'a> {
                     Style::default().fg(self.palette.dim)
                 }
             };
-            Paragraph::new(Line::from(vec![
+            let mut text = ratatui::text::Text::default();
+            text.lines.push(Line::from(vec![
                 Span::styled(
                     t("modal.spotify.subtab.search"),
                     tab_style(self.spotify_sub_tab == SpotifySubTab::Search),
@@ -89,7 +90,9 @@ impl<'a> SearchModalWidget<'a> {
                     t("modal.spotify.subtab.devices"),
                     tab_style(self.spotify_sub_tab == SpotifySubTab::Devices),
                 ),
-                Span::raw("  "),
+            ]));
+            text.lines.push(Line::from(vec![Span::raw("")]));
+            text.lines.push(Line::from(vec![
                 Span::styled(
                     t("Top Tracks"),
                     tab_style(self.spotify_sub_tab == SpotifySubTab::TopTracks),
@@ -104,8 +107,12 @@ impl<'a> SearchModalWidget<'a> {
                     t("Albums"),
                     tab_style(self.spotify_sub_tab == SpotifySubTab::Albums),
                 ),
-            ]))
-            .render(Rect::new(text_x, subtab_row.y, text_w, 1), buf);
+            ]));
+
+            Paragraph::new(text).render(
+                Rect::new(text_x, subtab_row.y, text_w, subtab_row.height),
+                buf,
+            );
         }
 
         match self.spotify_sub_tab {
@@ -120,7 +127,7 @@ impl<'a> SearchModalWidget<'a> {
 
                 buf[(content_x, input_row.y)]
                     .set_symbol("┃")
-                    .set_fg(self.palette.accent)
+                    .set_fg(self.palette.spotify)
                     .set_bg(self.palette.panel_bg);
                 let text_area = Rect::new(text_x, input_row.y, text_w, 1);
                 render_filter_input(
@@ -129,6 +136,7 @@ impl<'a> SearchModalWidget<'a> {
                     text_area,
                     self.palette,
                     buf,
+                    self.palette.spotify,
                 );
 
                 if self.spotify_is_premium {
@@ -139,7 +147,7 @@ impl<'a> SearchModalWidget<'a> {
                         Paragraph::new(Span::styled(
                             badge,
                             Style::default()
-                                .fg(self.palette.accent)
+                                .fg(self.palette.spotify)
                                 .add_modifier(Modifier::BOLD),
                         ))
                         .render(Rect::new(bx, input_row.y, badge_len, 1), buf);
@@ -148,7 +156,7 @@ impl<'a> SearchModalWidget<'a> {
 
                 buf[(content_x, cap_row.y)]
                     .set_symbol("╹")
-                    .set_fg(self.palette.accent)
+                    .set_fg(self.palette.spotify)
                     .set_bg(self.palette.panel_bg);
 
                 self.render_spotify_list(list_area, text_x, text_w, buf);
@@ -540,21 +548,13 @@ impl<'a> SearchModalWidget<'a> {
                 let name_max = list_w.saturating_sub(3 + suffix.chars().count() as u16) as usize;
                 let name = strings::truncate(&dev.name, name_max);
 
-                let (prefix, name_st, meta_st) = if selected {
+                let (prefix, name_st, meta_st) = if selected || playing {
                     (
                         "▶  ",
                         Style::default()
-                            .fg(self.palette.playing)
+                            .fg(self.palette.spotify)
                             .add_modifier(Modifier::BOLD),
-                        Style::default().fg(self.palette.accent),
-                    )
-                } else if playing {
-                    (
-                        "▶  ",
-                        Style::default()
-                            .fg(self.palette.highlight)
-                            .add_modifier(Modifier::BOLD),
-                        Style::default().fg(self.palette.accent),
+                        Style::default().fg(self.palette.spotify),
                     )
                 } else {
                     (

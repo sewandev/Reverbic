@@ -284,7 +284,11 @@ impl SearchModalWidget<'_> {
                 Span::styled(
                     notice.clone(),
                     ratatui::style::Style::default()
-                        .fg(self.palette.playing)
+                        .fg(match self.mode {
+                            crate::app::SearchMode::Spotify => self.palette.spotify,
+                            crate::app::SearchMode::Youtube => self.palette.danger,
+                            _ => self.palette.playing,
+                        })
                         .add_modifier(ratatui::style::Modifier::BOLD),
                 ),
                 Span::raw("  "),
@@ -294,17 +298,27 @@ impl SearchModalWidget<'_> {
         let sep_s = |s| sep_s(self.palette, s);
         let showing = !self.results.is_empty();
         if showing {
-            return vec![
+            let mut spans = vec![
                 Span::raw(" "),
                 key("[↵]"),
                 sep_s(format!(" {}  ", t("hint.play"))),
-                key("[Alt+F]"),
-                sep_s(format!(" {}  ", t("hint.fav"))),
+                key("[Space]"),
+                sep_s(format!(" {}  ", t("hint.pause"))),
+            ];
+            if matches!(self.mode, crate::app::SearchMode::Spotify) {
+                spans.push(key("[Alt+L]"));
+                spans.push(sep_s(format!(" {}  ", t("hint.like"))));
+            } else {
+                spans.push(key("[Alt+F]"));
+                spans.push(sep_s(format!(" {}  ", t("hint.fav"))));
+            }
+            spans.extend(vec![
                 key("[↑↓]"),
                 sep_s(format!(" {}  ", t("hint.nav"))),
                 key("[?]"),
                 sep_s(format!(" {} ", t("hint.help"))),
-            ];
+            ]);
+            return spans;
         }
         match self.mode {
             SearchMode::Name => {
@@ -426,6 +440,8 @@ impl SearchModalWidget<'_> {
                                 sep_s(format!(" {}  ", t("hint.play"))),
                                 key("[Space]"),
                                 sep_s(format!(" {}  ", t("hint.pause"))),
+                                key("[Alt+L]"),
+                                sep_s(format!(" {}  ", t("hint.like"))),
                                 key("[↑↓]"),
                                 sep_s(format!(" {}  ", t("hint.nav"))),
                                 key("[←→]"),
@@ -436,6 +452,10 @@ impl SearchModalWidget<'_> {
                         } else {
                             vec![
                                 Span::raw(" "),
+                                key("[Space]"),
+                                sep_s(format!(" {}  ", t("hint.pause"))),
+                                key("[Alt+L]"),
+                                sep_s(format!(" {}  ", t("hint.like"))),
                                 key("[←→]"),
                                 sep_s(format!(" {}  ", t("hint.tabs"))),
                                 key("[Tab]"),

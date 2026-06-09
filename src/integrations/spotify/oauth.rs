@@ -11,7 +11,8 @@ use super::AuthResult;
 const LIBRE_CLIENT_ID: &str = "65b708073fc0480ea92a077233ca87bd";
 const SCOPES: &str =
     "user-read-private user-read-playback-state user-modify-playback-state streaming \
-     user-library-read playlist-read-private playlist-read-collaborative";
+     user-library-read playlist-read-private playlist-read-collaborative \
+     user-top-read user-read-recently-played user-library-modify";
 
 pub async fn start_flow(client_id: &str) -> AuthResult {
     let (search_token, refresh_token, userid) = match pkce_flow(client_id, 8888, "/callback").await

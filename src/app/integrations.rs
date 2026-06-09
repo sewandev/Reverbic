@@ -1015,7 +1015,7 @@ impl App {
         let (tx, rx) = std::sync::mpsc::channel();
         self.spotify.album_tracks_rx = Some(rx);
         let handle = tokio::spawn(async move {
-            let id = album.uri.split(':').last().unwrap_or("").to_string();
+            let id = album.uri.split(':').next_back().unwrap_or("").to_string();
             let _ = tx.send(get_album_tracks(&token, &id).await);
         });
         self.spotify.album_tracks_task = Some(handle);
@@ -1050,7 +1050,7 @@ impl App {
         };
         let uri = track.uri.clone();
         let name = track.name.clone();
-        let id = uri.split(':').last().unwrap_or("").to_string();
+        let id = uri.split(':').next_back().unwrap_or("").to_string();
         if id.is_empty() {
             return;
         }
@@ -1061,8 +1061,7 @@ impl App {
             }
         });
 
-        use crate::i18n::t;
-        self.save_notice = Some(format!("{} {name}", t("notice.saved")));
+        self.save_notice = Some(format!("Guardado en Tus Me Gusta: {name}"));
         self.save_notice_is_dup = false;
         self.notice_until = Some(std::time::Instant::now() + std::time::Duration::from_secs(4));
     }
