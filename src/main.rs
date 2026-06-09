@@ -320,6 +320,8 @@ async fn handle_event(app: &mut App, maybe_event: Option<std::io::Result<Event>>
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crossterm::event::{KeyModifiers, MouseButton, MouseEvent};
+    use ratatui::layout::Rect;
 
     #[test]
     fn log_file_path_uses_reverbic_dir() {
@@ -332,5 +334,26 @@ mod tests {
     #[test]
     fn log_file_path_is_not_relative_to_working_directory() {
         assert_ne!(log_file_path(), PathBuf::from("logs").join("reverbic.log"));
+    }
+
+    #[tokio::test]
+    async fn mouse_down_with_non_click_count_is_not_a_double_click() {
+        let mut app = App::new().await;
+        app.show_search_modal = false;
+        app.terminal_area = Rect::new(0, 0, 80, 24);
+
+        handle_event(
+            &mut app,
+            Some(Ok(Event::Mouse(MouseEvent {
+                kind: MouseEventKind::Down(MouseButton::Left),
+                column: 10,
+                row: 4,
+                modifiers: KeyModifiers::empty(),
+            }))),
+            2,
+        )
+        .await;
+
+        assert!(app.click_flash.is_none());
     }
 }
