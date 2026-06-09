@@ -381,18 +381,52 @@ impl App {
         }
     }
 
+    pub(super) fn set_spotify_playback_mode(&mut self, mode: SpotifyPlaybackMode) {
+        let previous = self.config.spotify.playback_mode;
+        if previous == mode {
+            return;
+        }
+
+        match mode {
+            SpotifyPlaybackMode::Native => {
+                self.pause_remote_spotify();
+                self.stop_playback_polling();
+            }
+            SpotifyPlaybackMode::Remote => {
+                self.pause_native_spotify();
+                if self.spotify.active_backend == Some(SpotifyPlaybackBackend::Native) {
+                    self.spotify.active_backend = None;
+                }
+                self.spotify.now_playing = None;
+                if !matches!(self.spotify.player_status, SpotifyPlayerStatus::Error(_)) {
+                    self.spotify.player_status = SpotifyPlayerStatus::Idle;
+                }
+                if self.spotify.playback_task.is_none() && self.spotify.access_token.is_some() {
+                    self.start_playback_polling();
+                }
+            }
+            SpotifyPlaybackMode::Auto => {
+                if self.spotify.playback_task.is_none() && self.spotify.access_token.is_some() {
+                    self.start_playback_polling();
+                }
+            }
+        }
+
+        self.config.spotify.playback_mode = mode;
+    }
+
     pub(super) async fn pause_spotify_for_radio(&mut self) {
         match self.config.spotify.playback_mode {
-            SpotifyPlaybackMode::Remote => self.pause_remote_spotify().await,
+            SpotifyPlaybackMode::Remote => self.pause_remote_spotify(),
             SpotifyPlaybackMode::Native => self.pause_native_spotify(),
             SpotifyPlaybackMode::Auto => {
-                self.pause_remote_spotify().await;
+                self.pause_remote_spotify();
                 self.pause_native_spotify();
             }
         }
     }
 
-    async fn pause_remote_spotify(&mut self) {
+    fn pause_remote_spotify(&mut self) {
         let Some((token, device_id)) = self.spotify_remote_control_target() else {
             return;
         };
