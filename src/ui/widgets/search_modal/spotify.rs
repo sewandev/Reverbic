@@ -696,7 +696,8 @@ impl<'a> SearchModalWidget<'a> {
             return;
         }
 
-        let visible_n = area.height as usize;
+        const ITEM_HEIGHT: usize = 2;
+        let visible_n = (area.height as usize) / ITEM_HEIGHT;
         let selected = self.spotify_playlists_selected;
         let offset = super::super::scroll_offset(selected, visible_n);
 
@@ -835,7 +836,8 @@ impl<'a> SearchModalWidget<'a> {
             return;
         }
 
-        let visible_n = area.height as usize;
+        const ITEM_HEIGHT: usize = 2;
+        let visible_n = (area.height as usize) / ITEM_HEIGHT;
         let selected = self.spotify_albums_selected;
         let offset = super::super::scroll_offset(selected, visible_n);
 

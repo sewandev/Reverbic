@@ -750,6 +750,8 @@ impl App {
         let Some(token) = self.spotify.access_token.clone() else {
             return;
         };
+        self.spotify.playlists.clear();
+        self.spotify.playlists_selected = 0;
         self.spotify.playlists_loading = true;
         self.spotify.playlists_offset = 0;
         let (tx, rx) = std::sync::mpsc::channel();
@@ -767,9 +769,9 @@ impl App {
         match rx.try_recv() {
             Ok(Ok((playlists, has_more))) => {
                 self.spotify.playlists_loading = false;
-                self.spotify.playlists = playlists;
+                self.spotify.playlists.extend(playlists);
                 self.spotify.playlists_has_more = has_more;
-                self.spotify.playlists_offset = 20;
+                self.spotify.playlists_offset += 20;
             }
             Ok(Err(e)) => {
                 self.spotify.playlists_loading = false;
@@ -782,6 +784,24 @@ impl App {
                 self.spotify.playlists_loading = false;
             }
         }
+    }
+
+    pub fn load_more_spotify_playlists(&mut self) {
+        use crate::integrations::spotify::playlists::get_user_playlists;
+        if self.spotify.playlists_loading || !self.spotify.playlists_has_more {
+            return;
+        }
+        let Some(token) = self.spotify.access_token.clone() else {
+            return;
+        };
+        self.spotify.playlists_loading = true;
+        let offset = self.spotify.playlists_offset;
+        let (tx, rx) = std::sync::mpsc::channel();
+        self.spotify.playlists_rx = Some(rx);
+        let handle = tokio::spawn(async move {
+            let _ = tx.send(get_user_playlists(&token, offset).await);
+        });
+        self.spotify.playlists_task = Some(handle);
     }
 
     pub fn fetch_playlist_tracks(&mut self, playlist_id: String) {
@@ -810,9 +830,9 @@ impl App {
             Ok(Ok((tracks, has_more))) => {
                 let loaded_count = tracks.len() as u32;
                 self.spotify.playlist_tracks_loading = false;
-                self.spotify.playlist_tracks = tracks;
+                self.spotify.playlist_tracks.extend(tracks);
                 self.spotify.playlist_tracks_has_more = has_more;
-                self.spotify.playlist_tracks_offset = 50;
+                self.spotify.playlist_tracks_offset += 50;
                 if let Some(pl) = self.spotify.open_playlist.as_mut() {
                     if pl.tracks_total == 0 {
                         pl.tracks_total = loaded_count;
@@ -840,6 +860,27 @@ impl App {
                 self.spotify.playlist_tracks_loading = false;
             }
         }
+    }
+
+    pub fn load_more_spotify_playlist_tracks(&mut self) {
+        use crate::integrations::spotify::playlists::get_playlist_tracks;
+        if self.spotify.playlist_tracks_loading || !self.spotify.playlist_tracks_has_more {
+            return;
+        }
+        let Some(token) = self.spotify.access_token.clone() else {
+            return;
+        };
+        let Some(playlist_id) = self.spotify.open_playlist.as_ref().map(|pl| pl.id.clone()) else {
+            return;
+        };
+        self.spotify.playlist_tracks_loading = true;
+        let offset = self.spotify.playlist_tracks_offset;
+        let (tx, rx) = std::sync::mpsc::channel();
+        self.spotify.playlist_tracks_rx = Some(rx);
+        let handle = tokio::spawn(async move {
+            let _ = tx.send(get_playlist_tracks(&playlist_id, &token, offset).await);
+        });
+        self.spotify.playlist_tracks_task = Some(handle);
     }
 
     pub fn poll_remote_playback(&mut self) {
