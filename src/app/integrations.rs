@@ -1005,6 +1005,7 @@ impl App {
         };
         self.spotify.liked_tracks.clear();
         self.spotify.liked_selected = 0;
+        self.spotify.liked_scroll_offset = 0;
         self.spotify.liked_loading = true;
         self.spotify.liked_offset = 0;
         let (tx, rx) = std::sync::mpsc::channel();
@@ -1081,6 +1082,7 @@ impl App {
         };
         self.spotify.playlists.clear();
         self.spotify.playlists_selected = 0;
+        self.spotify.playlists_scroll_offset = 0;
         self.spotify.playlists_loading = true;
         self.spotify.playlists_offset = 0;
         let (tx, rx) = std::sync::mpsc::channel();
@@ -1143,6 +1145,7 @@ impl App {
         self.spotify.playlist_tracks_offset = 0;
         self.spotify.playlist_tracks = Vec::new();
         self.spotify.playlist_tracks_selected = 0;
+        self.spotify.playlist_tracks_scroll_offset = 0;
         let (tx, rx) = std::sync::mpsc::channel();
         self.spotify.playlist_tracks_rx = Some(rx);
         let handle = tokio::spawn(async move {
