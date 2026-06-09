@@ -3,11 +3,9 @@ use std::collections::VecDeque;
 use rand::seq::SliceRandom;
 
 use super::{
-    search::{encode_query_component, parse_search_tracks_body},
+    search::{encode_query_component, parse_search_tracks_body, SPOTIFY_SEARCH_LIMIT},
     SpotifyError, SpotifyTrack,
 };
-
-const RADIO_SEARCH_LIMIT: usize = 20;
 
 pub async fn fetch_radio_pool(
     artist_name: &str,
@@ -59,7 +57,9 @@ pub async fn fetch_radio_pool(
 
 pub(crate) fn radio_search_url(artist_name: &str) -> String {
     let encoded = encode_query_component(artist_name);
-    format!("https://api.spotify.com/v1/search?q=artist%3A{encoded}&type=track&limit={RADIO_SEARCH_LIMIT}")
+    format!(
+        "https://api.spotify.com/v1/search?q=artist%3A{encoded}&type=track&limit={SPOTIFY_SEARCH_LIMIT}"
+    )
 }
 
 pub(crate) fn parse_radio_search_body(
@@ -78,7 +78,7 @@ mod tests {
 
         assert_eq!(
             url,
-            "https://api.spotify.com/v1/search?q=artist%3ALos%20Bunkers&type=track&limit=20"
+            "https://api.spotify.com/v1/search?q=artist%3ALos%20Bunkers&type=track&limit=10"
         );
     }
 

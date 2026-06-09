@@ -1,6 +1,6 @@
 use super::{SpotifyError, SpotifyTrack};
 
-const SEARCH_TRACKS_PAGE_SIZE: usize = 10;
+pub(crate) const SPOTIFY_SEARCH_LIMIT: usize = 10;
 
 pub async fn search_tracks(
     query: &str,
@@ -55,7 +55,7 @@ pub async fn search_tracks(
 pub(crate) fn search_tracks_url(query: &str, offset: usize) -> String {
     let encoded = encode_query_component(query);
     format!(
-        "https://api.spotify.com/v1/search?type=track&limit={SEARCH_TRACKS_PAGE_SIZE}&offset={offset}&q={encoded}"
+        "https://api.spotify.com/v1/search?type=track&limit={SPOTIFY_SEARCH_LIMIT}&offset={offset}&q={encoded}"
     )
 }
 
