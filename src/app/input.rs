@@ -13,7 +13,7 @@ use crate::ui::widgets::{
         modal_tab_at, one_line_list_index_at, radio_favorites_list_area, radio_filter_list_area,
         radio_filtered_results_list_area, radio_search_results_list_area, radio_subtab_at,
         settings_items_area, settings_visible_rows, spotify_body_area, spotify_search_list_area,
-        spotify_subtab_at, spotify_titled_track_list_area, visible_items,
+        spotify_subtab_at, spotify_titled_track_list_area, two_line_list_index_at, visible_items,
         visible_rows_excluding_scrollbar, youtube_list_area, ListItemHeight,
     },
 };
@@ -1396,6 +1396,7 @@ impl App {
                     }
                     return;
                 }
+                self.on_click_spotify(col, row).await;
             }
             _ => {}
         }
@@ -1539,6 +1540,190 @@ impl App {
 
         self.settings_selected = idx;
         self.activate_setting_selected();
+    }
+
+    async fn on_click_spotify(&mut self, col: u16, row: u16) {
+        match self.spotify.sub_tab {
+            SpotifySubTab::Search => self.on_click_spotify_search(col, row).await,
+            SpotifySubTab::Liked => self.on_click_spotify_liked(col, row).await,
+            SpotifySubTab::Playlists => self.on_click_spotify_playlists(col, row).await,
+            SpotifySubTab::TopTracks => self.on_click_spotify_top_tracks(col, row).await,
+            SpotifySubTab::Recent => self.on_click_spotify_recent_tracks(col, row).await,
+            SpotifySubTab::Albums => self.on_click_spotify_albums(col, row).await,
+        }
+    }
+
+    async fn on_click_spotify_search(&mut self, col: u16, row: u16) {
+        let Some(idx) = two_line_list_index_at(
+            spotify_search_list_area(self.terminal_area),
+            col,
+            row,
+            self.spotify.search_selected,
+            self.spotify_search_visible_items(),
+            self.spotify.search_scroll_offset,
+            self.spotify.search_results.len(),
+        ) else {
+            return;
+        };
+
+        self.spotify.search_selected = idx;
+        self.activate_spotify_search_selected().await;
+    }
+
+    async fn on_click_spotify_liked(&mut self, col: u16, row: u16) {
+        let Some(idx) = two_line_list_index_at(
+            spotify_body_area(self.terminal_area),
+            col,
+            row,
+            self.spotify.liked_selected,
+            visible_items(
+                spotify_body_area(self.terminal_area),
+                ListItemHeight::TwoLines,
+            ),
+            self.spotify.liked_scroll_offset,
+            self.spotify.liked_tracks.len(),
+        ) else {
+            return;
+        };
+
+        self.spotify.liked_selected = idx;
+        self.activate_spotify_liked_selected().await;
+    }
+
+    async fn on_click_spotify_playlists(&mut self, col: u16, row: u16) {
+        if self.spotify.open_playlist.is_some() {
+            self.on_click_spotify_playlist_tracks(col, row).await;
+        } else {
+            self.on_click_spotify_playlist_list(col, row).await;
+        }
+    }
+
+    async fn on_click_spotify_playlist_list(&mut self, col: u16, row: u16) {
+        let Some(idx) = two_line_list_index_at(
+            spotify_body_area(self.terminal_area),
+            col,
+            row,
+            self.spotify.playlists_selected,
+            visible_items(
+                spotify_body_area(self.terminal_area),
+                ListItemHeight::TwoLines,
+            ),
+            self.spotify.playlists_scroll_offset,
+            self.spotify.playlists.len(),
+        ) else {
+            return;
+        };
+
+        self.spotify.playlists_selected = idx;
+        self.activate_spotify_playlist_selected().await;
+    }
+
+    async fn on_click_spotify_playlist_tracks(&mut self, col: u16, row: u16) {
+        let Some(idx) = two_line_list_index_at(
+            spotify_titled_track_list_area(self.terminal_area),
+            col,
+            row,
+            self.spotify.playlist_tracks_selected,
+            visible_items(
+                spotify_titled_track_list_area(self.terminal_area),
+                ListItemHeight::TwoLines,
+            ),
+            self.spotify.playlist_tracks_scroll_offset,
+            self.spotify.playlist_tracks.len(),
+        ) else {
+            return;
+        };
+
+        self.spotify.playlist_tracks_selected = idx;
+        self.activate_spotify_playlist_track_selected().await;
+    }
+
+    async fn on_click_spotify_top_tracks(&mut self, col: u16, row: u16) {
+        let Some(idx) = two_line_list_index_at(
+            spotify_body_area(self.terminal_area),
+            col,
+            row,
+            self.spotify.top_tracks_selected,
+            visible_items(
+                spotify_body_area(self.terminal_area),
+                ListItemHeight::TwoLines,
+            ),
+            self.spotify.top_tracks_scroll_offset,
+            self.spotify.top_tracks.len(),
+        ) else {
+            return;
+        };
+
+        self.spotify.top_tracks_selected = idx;
+        self.activate_spotify_top_track_selected().await;
+    }
+
+    async fn on_click_spotify_recent_tracks(&mut self, col: u16, row: u16) {
+        let Some(idx) = two_line_list_index_at(
+            spotify_body_area(self.terminal_area),
+            col,
+            row,
+            self.spotify.recent_tracks_selected,
+            visible_items(
+                spotify_body_area(self.terminal_area),
+                ListItemHeight::TwoLines,
+            ),
+            self.spotify.recent_tracks_scroll_offset,
+            self.spotify.recent_tracks.len(),
+        ) else {
+            return;
+        };
+
+        self.spotify.recent_tracks_selected = idx;
+        self.activate_spotify_recent_track_selected().await;
+    }
+
+    async fn on_click_spotify_albums(&mut self, col: u16, row: u16) {
+        if self.spotify.open_album.is_some() {
+            self.on_click_spotify_album_tracks(col, row).await;
+        } else {
+            self.on_click_spotify_album_list(col, row).await;
+        }
+    }
+
+    async fn on_click_spotify_album_list(&mut self, col: u16, row: u16) {
+        let Some(idx) = two_line_list_index_at(
+            spotify_body_area(self.terminal_area),
+            col,
+            row,
+            self.spotify.albums_selected,
+            visible_items(
+                spotify_body_area(self.terminal_area),
+                ListItemHeight::TwoLines,
+            ),
+            self.spotify.albums_scroll_offset,
+            self.spotify.albums.len(),
+        ) else {
+            return;
+        };
+
+        self.spotify.albums_selected = idx;
+        self.activate_spotify_album_selected().await;
+    }
+
+    async fn on_click_spotify_album_tracks(&mut self, col: u16, row: u16) {
+        let Some(idx) = two_line_list_index_at(
+            spotify_titled_track_list_area(self.terminal_area),
+            col,
+            row,
+            self.spotify.album_tracks_selected,
+            visible_items(
+                spotify_titled_track_list_area(self.terminal_area),
+                ListItemHeight::TwoLines,
+            ),
+            self.spotify.album_tracks_scroll_offset,
+            self.spotify.album_tracks.len(),
+        ) else {
+            return;
+        };
+
+        self.spotify.album_tracks_selected = idx;
+        self.activate_spotify_album_track_selected().await;
     }
 
     pub async fn on_mouse_scroll(&mut self, delta: i32) {

@@ -19,8 +19,8 @@ pub(crate) use layout::{
     radio_search_results_list_area, radio_subtab_at, settings_items_area, settings_layout,
     settings_visible_rows, spotify_body_area, spotify_layout, spotify_search_layout,
     spotify_search_list_area, spotify_subtab_at, spotify_titled_track_list_area,
-    spotify_titled_track_list_layout, visible_items, visible_rows_excluding_scrollbar,
-    youtube_list_area, ListItemHeight,
+    spotify_titled_track_list_layout, two_line_list_index_at, visible_items,
+    visible_rows_excluding_scrollbar, youtube_list_area, ListItemHeight,
 };
 pub(in crate::ui) use layout::{MODAL_MIN_HEIGHT, MODAL_MIN_WIDTH};
 
