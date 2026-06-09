@@ -17,6 +17,13 @@ impl Language {
             Language::En => Language::Es,
         }
     }
+
+    pub fn display(self) -> String {
+        match self {
+            Language::Es => "Español".to_string(),
+            Language::En => "English".to_string(),
+        }
+    }
 }
 
 static ES: OnceLock<HashMap<String, String>> = OnceLock::new();
