@@ -467,7 +467,9 @@ fn render_summary(frame: &mut Frame, area: Rect, state: &OnboardingState, palett
         let max_label_w = w.saturating_sub(value_chars as u16 + 1) as usize;
 
         let label_str = truncate(label, max_label_w);
-        let padding = w as usize - label_str.chars().count() - value_chars;
+        let padding = (w as usize)
+            .saturating_sub(label_str.chars().count())
+            .saturating_sub(value_chars);
         frame.render_widget(
             Paragraph::new(Line::from(vec![
                 Span::styled(label_str, Style::default().fg(palette.dim)),
@@ -650,6 +652,7 @@ fn render_footer(frame: &mut Frame, area: Rect, state: &OnboardingState, palette
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ratatui::{backend::TestBackend, Terminal};
 
     #[test]
     fn radio_markers_keep_the_same_visible_width() {
@@ -684,5 +687,18 @@ mod tests {
         assert!(labels.contains(&t("onboarding.playback.crossfade").as_str()));
         assert!(labels.contains(&t("onboarding.playback.screensaver").as_str()));
         assert!(labels.contains(&t("onboarding.playback.auto_update").as_str()));
+    }
+
+    #[test]
+    fn summary_render_handles_narrow_columns() -> std::io::Result<()> {
+        let state = OnboardingState::from_config(&crate::config::Config::default());
+        let mut terminal = Terminal::new(TestBackend::new(34, 18))?;
+        let palette = theme::palette(state.theme);
+
+        terminal.draw(|frame| {
+            render_summary(frame, Rect::new(0, 0, 34, 16), &state, palette);
+        })?;
+
+        Ok(())
     }
 }
