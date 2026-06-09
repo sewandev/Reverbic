@@ -206,22 +206,14 @@ impl App {
 
     pub(super) fn spotify_logout_with_save(&mut self, save_config: impl FnOnce(&Config)) {
         self.config.spotify.display_name = None;
+        self.config.spotify.search_token = None;
+        self.config.spotify.refresh_token = None;
+        self.config.spotify.is_premium = None;
+        self.config.spotify.country = None;
+        self.config.spotify.followers = None;
         save_config(&self.config);
-        self.spotify.is_premium = false;
-        self.spotify.status = SpotifyAuthStatus::Idle;
-        self.spotify.player_status = SpotifyPlayerStatus::Idle;
-        self.spotify.now_playing = None;
-        self.spotify.access_token = None;
-        self.spotify.player_tx = None;
-        self.spotify.player_rx = None;
-        self.spotify.native_available = false;
-        self.spotify.native_error = None;
-        self.spotify.active_backend = None;
-        self.spotify.search_results.clear();
-        self.spotify.search_query.clear();
-        self.spotify.active_device_id = None;
-        self.spotify.devices.clear();
-        self.stop_playback_polling();
+        self.spotify.cleanup();
+        self.spotify = Default::default();
     }
 
     pub fn poll_spotify_auth(&mut self) {
