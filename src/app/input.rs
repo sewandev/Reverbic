@@ -1026,6 +1026,12 @@ impl App {
                             if len > 0 {
                                 self.spotify.liked_selected =
                                     scroll_by(self.spotify.liked_selected, delta, len);
+                                if delta > 0
+                                    && self.spotify.liked_selected >= len - 1
+                                    && self.spotify.liked_has_more
+                                {
+                                    self.load_more_spotify_liked();
+                                }
                             }
                         }
                         SpotifySubTab::Playlists => {
@@ -1578,8 +1584,13 @@ impl App {
                 }
             }
             KeyCode::Down => {
-                if len > 0 && self.spotify.liked_selected < len - 1 {
-                    self.spotify.liked_selected += 1;
+                if len > 0 {
+                    let last = len - 1;
+                    if self.spotify.liked_selected >= last && self.spotify.liked_has_more {
+                        self.load_more_spotify_liked();
+                    } else if self.spotify.liked_selected < last {
+                        self.spotify.liked_selected += 1;
+                    }
                 }
             }
             KeyCode::Enter => {
@@ -1611,8 +1622,13 @@ impl App {
                 }
             }
             KeyCode::Down => {
-                if len > 0 && self.spotify.playlists_selected < len - 1 {
-                    self.spotify.playlists_selected += 1;
+                if len > 0 {
+                    let last = len - 1;
+                    if self.spotify.playlists_selected >= last && self.spotify.playlists_has_more {
+                        self.load_more_spotify_playlists();
+                    } else if self.spotify.playlists_selected < last {
+                        self.spotify.playlists_selected += 1;
+                    }
                 }
             }
             KeyCode::Enter => {
@@ -1639,8 +1655,15 @@ impl App {
                 }
             }
             KeyCode::Down => {
-                if len > 0 && self.spotify.playlist_tracks_selected < len - 1 {
-                    self.spotify.playlist_tracks_selected += 1;
+                if len > 0 {
+                    let last = len - 1;
+                    if self.spotify.playlist_tracks_selected >= last
+                        && self.spotify.playlist_tracks_has_more
+                    {
+                        self.load_more_spotify_playlist_tracks();
+                    } else if self.spotify.playlist_tracks_selected < last {
+                        self.spotify.playlist_tracks_selected += 1;
+                    }
                 }
             }
             KeyCode::Enter => {

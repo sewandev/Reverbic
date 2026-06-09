@@ -65,13 +65,16 @@ async fn run_player(
         client_id: "65b708073fc0480ea92a077233ca87bd".to_string(),
         ..Default::default()
     };
+    #[cfg(target_os = "windows")]
     let cache_dir = std::env::var("APPDATA")
         .map(|p| {
             std::path::PathBuf::from(p)
                 .join(".reverbic")
                 .join("librespot")
         })
-        .unwrap_or_else(|_| std::path::PathBuf::from(".reverbic").join("librespot"));
+        .unwrap_or_else(|_| crate::config::reverbic_dir().join("librespot"));
+    #[cfg(not(target_os = "windows"))]
+    let cache_dir = crate::config::reverbic_dir().join("librespot");
     let cache = Cache::new(
         Some(&cache_dir),
         None::<&std::path::PathBuf>,
