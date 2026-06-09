@@ -169,23 +169,21 @@ impl<'a> SearchModalWidget<'a> {
         let active_device = self.spotify_devices.iter().find(|d| d.is_active);
         let mode_text =
             if self.spotify_playback_mode_kind == crate::config::SpotifyPlaybackMode::Native {
-                "Modo: Nativo".to_string()
+                t("modal.spotify.footer.mode_native")
             } else {
                 let dev_name = active_device
-                    .map(|d| d.name.as_str())
-                    .unwrap_or("Desconocido");
+                    .map(|d| d.name.clone())
+                    .unwrap_or_else(|| t("modal.spotify.footer.unknown_device"));
                 let dev_type = active_device.map(|d| d.device_type.as_str()).unwrap_or("");
-                if self.spotify_devices.len() > 1 {
-                    format!(
-                        "Modo: Remoto Escuchando en {} * {} [activo] (Ctrl+D para cambiar)",
-                        dev_name, dev_type
-                    )
+                let switch_hint = if self.spotify_devices.len() > 1 {
+                    t("modal.spotify.footer.mode_remote_switch_hint")
                 } else {
-                    format!(
-                        "Modo: Remoto Escuchando en {} * {} [activo]",
-                        dev_name, dev_type
-                    )
-                }
+                    String::new()
+                };
+                let mode = t("modal.spotify.footer.mode_remote");
+                let active = t("modal.spotify.footer.active");
+
+                format!("{mode} {dev_name} * {dev_type} [{active}]{switch_hint}")
             };
 
         Paragraph::new(Span::styled(
