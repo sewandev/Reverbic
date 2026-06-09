@@ -308,6 +308,7 @@ impl<'a> SearchModalWidget<'a> {
                 placeholder: &t("modal.genre.placeholder"),
                 items: GENRES,
                 selected: self.genre_selected,
+                scroll_offset: self.genre_filter_scroll_offset,
                 loading: self.loading,
                 loading_text: &t("modal.loading.genre"),
             },
@@ -319,7 +320,12 @@ impl<'a> SearchModalWidget<'a> {
         );
 
         if needs_scroll {
-            self.render_scrollbar(list_area, total, self.genre_selected, buf);
+            self.render_scrollbar(
+                list_area,
+                total,
+                self.genre_selected.min(total.saturating_sub(1)),
+                buf,
+            );
         }
     }
 
@@ -355,6 +361,7 @@ impl<'a> SearchModalWidget<'a> {
                 placeholder: &t("modal.country.placeholder"),
                 items: COUNTRIES,
                 selected: self.country_selected,
+                scroll_offset: self.country_filter_scroll_offset,
                 loading: self.loading,
                 loading_text: &t("modal.loading.country"),
             },
@@ -366,7 +373,12 @@ impl<'a> SearchModalWidget<'a> {
         );
 
         if needs_scroll {
-            self.render_scrollbar(list_area, total, self.country_selected, buf);
+            self.render_scrollbar(
+                list_area,
+                total,
+                self.country_selected.min(total.saturating_sub(1)),
+                buf,
+            );
         }
     }
 

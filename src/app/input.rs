@@ -97,6 +97,28 @@ impl App {
         );
     }
 
+    fn radio_filter_visible_items(&self) -> usize {
+        self.radio_results_visible_items(3)
+    }
+
+    fn keep_genre_filter_visible(&mut self) {
+        let visible = self.radio_filter_visible_items();
+        keep_selected_visible(
+            &mut self.genre_filter_scroll_offset,
+            self.genre_selected,
+            visible,
+        );
+    }
+
+    fn keep_country_filter_visible(&mut self) {
+        let visible = self.radio_filter_visible_items();
+        keep_selected_visible(
+            &mut self.country_filter_scroll_offset,
+            self.country_selected,
+            visible,
+        );
+    }
+
     fn keep_active_radio_results_visible(&mut self) {
         match self.modal_mode {
             SearchMode::Genre => self.keep_radio_genre_results_visible(),
@@ -284,11 +306,13 @@ impl App {
                 self.modal_mode = SearchMode::Genre;
                 self.genre_filter.clear();
                 self.genre_selected = 0;
+                self.genre_filter_scroll_offset = 0;
             }
             KeyCode::Char('c') | KeyCode::Char('C') if self.show_search_modal => {
                 self.modal_mode = SearchMode::Country;
                 self.country_filter.clear();
                 self.country_selected = 0;
+                self.country_filter_scroll_offset = 0;
             }
             KeyCode::Char('d') | KeyCode::Char('D')
                 if self.show_search_modal
@@ -411,10 +435,12 @@ impl App {
             SearchMode::Genre => {
                 self.genre_filter.push_str(&filtered);
                 self.genre_selected = 0;
+                self.genre_filter_scroll_offset = 0;
             }
             SearchMode::Country => {
                 self.country_filter.push_str(&filtered);
                 self.country_selected = 0;
+                self.country_filter_scroll_offset = 0;
             }
             SearchMode::Youtube => {
                 self.youtube.query.push_str(&filtered);
@@ -623,8 +649,10 @@ impl App {
                 self.genre_filter.clear();
                 self.genre_query.clear();
                 self.genre_selected = 0;
+                self.genre_filter_scroll_offset = 0;
                 self.country_filter.clear();
                 self.country_selected = 0;
+                self.country_filter_scroll_offset = 0;
                 abort_task(&mut self.search_task);
                 self.search_loading = false;
                 self.spotify.search_query.clear();
@@ -805,8 +833,15 @@ impl App {
             return;
         }
         let len = filtered.len();
-        if super::handle_filter_list_key(key, &mut self.genre_filter, &mut self.genre_selected, len)
-        {
+        let visible = self.radio_filter_visible_items();
+        if super::handle_filter_list_key(
+            key,
+            &mut self.genre_filter,
+            &mut self.genre_selected,
+            &mut self.genre_filter_scroll_offset,
+            len,
+            visible,
+        ) {
             self.modal_mode = SearchMode::Name;
         }
     }
@@ -827,11 +862,14 @@ impl App {
             return;
         }
         let len = filtered.len();
+        let visible = self.radio_filter_visible_items();
         if super::handle_filter_list_key(
             key,
             &mut self.country_filter,
             &mut self.country_selected,
+            &mut self.country_filter_scroll_offset,
             len,
+            visible,
         ) {
             self.modal_mode = SearchMode::Name;
         }
@@ -1286,30 +1324,35 @@ impl App {
                         return;
                     }
 
-                    let (len, sel) = if self.search_results.is_empty()
-                        && matches!(self.modal_mode, SearchMode::Genre)
-                    {
-                        (
-                            filter_items(GENRES, &self.genre_filter).len(),
-                            &mut self.genre_selected,
-                        )
-                    } else if self.search_results.is_empty()
-                        && matches!(self.modal_mode, SearchMode::Country)
-                    {
-                        (
-                            filter_items(COUNTRIES, &self.country_filter).len(),
-                            &mut self.country_selected,
-                        )
-                    } else if matches!(self.modal_mode, SearchMode::Settings) {
-                        (
-                            settings_items(self.config.duck_enabled).len(),
-                            &mut self.settings_selected,
-                        )
-                    } else {
-                        (self.search_results.len(), &mut self.modal_selected)
-                    };
-                    if len > 0 {
-                        *sel = scroll_by(*sel, delta, len);
+                    match self.modal_mode {
+                        SearchMode::Genre if self.search_results.is_empty() => {
+                            let len = filter_items(GENRES, &self.genre_filter).len();
+                            if len > 0 {
+                                self.genre_selected = scroll_by(self.genre_selected, delta, len);
+                                self.keep_genre_filter_visible();
+                            }
+                        }
+                        SearchMode::Country if self.search_results.is_empty() => {
+                            let len = filter_items(COUNTRIES, &self.country_filter).len();
+                            if len > 0 {
+                                self.country_selected =
+                                    scroll_by(self.country_selected, delta, len);
+                                self.keep_country_filter_visible();
+                            }
+                        }
+                        SearchMode::Settings => {
+                            let len = settings_items(self.config.duck_enabled).len();
+                            if len > 0 {
+                                self.settings_selected =
+                                    scroll_by(self.settings_selected, delta, len);
+                            }
+                        }
+                        _ => {
+                            let len = self.search_results.len();
+                            if len > 0 {
+                                self.modal_selected = scroll_by(self.modal_selected, delta, len);
+                            }
+                        }
                     }
                 }
             }

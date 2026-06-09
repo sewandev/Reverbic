@@ -26,7 +26,7 @@ pub(crate) fn scroll_offset(selected: usize, visible: usize) -> usize {
 
 #[cfg(test)]
 mod tests {
-    use super::keep_selected_visible;
+    use super::{keep_selected_visible, scroll_offset_for_selection};
 
     #[test]
     fn keep_selected_visible_preserves_window_until_selection_leaves_it() {
@@ -69,5 +69,11 @@ mod tests {
 
         keep_selected_visible(&mut offset, 0, 7);
         assert_eq!(offset, 0);
+    }
+
+    #[test]
+    fn scroll_offset_for_selection_recovers_from_stale_filtered_list_offset() {
+        assert_eq!(scroll_offset_for_selection(0, 5, 20), 0);
+        assert_eq!(scroll_offset_for_selection(3, 5, 20), 3);
     }
 }
