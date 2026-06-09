@@ -28,7 +28,7 @@ librespot-audio    = { version = "0.8", default-features = false, features = ["r
 librespot-connect  = { version = "0.8", default-features = false, features = ["rustls-tls-native-roots"] }
 librespot-metadata = { version = "0.8", default-features = false, features = ["rustls-tls-native-roots"] }
 nucleo-matcher     = "0.3"
-keyring            = { version = "3", features = ["windows-native"] }
+keyring            = { version = "3", features = ["apple-native", "linux-native-sync-persistent", "windows-native"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows-core = "0.58"
