@@ -1485,6 +1485,8 @@ impl App {
 mod tests {
     use super::*;
     use crate::integrations::spotify::devices::SpotifyDevice;
+    use crate::integrations::spotify::playlists::SpotifyPlaylist;
+    use crate::integrations::spotify::SpotifyTrack;
 
     fn spotify_device(id: Option<&str>, is_active: bool) -> SpotifyDevice {
         SpotifyDevice {
@@ -1493,6 +1495,53 @@ mod tests {
             device_type: "computer".to_string(),
             is_active,
         }
+    }
+
+    fn spotify_playlist(id: &str, tracks_total: u32) -> SpotifyPlaylist {
+        SpotifyPlaylist {
+            id: id.to_string(),
+            name: "Playlist".to_string(),
+            owner: "Owner".to_string(),
+            tracks_total,
+        }
+    }
+
+    fn spotify_track(uri: &str) -> SpotifyTrack {
+        SpotifyTrack {
+            name: "Track".to_string(),
+            artist: "Artist".to_string(),
+            album: "Album".to_string(),
+            duration_ms: 123_000,
+            uri: uri.to_string(),
+        }
+    }
+
+    #[tokio::test]
+    async fn poll_playlist_tracks_does_not_backfill_playlist_total_from_loaded_tracks() {
+        let mut app = App::new().await;
+        let playlist = spotify_playlist("playlist-id", 0);
+        let (tx, rx) = std::sync::mpsc::channel();
+
+        app.spotify.open_playlist = Some(playlist.clone());
+        app.spotify.playlists = vec![playlist];
+        app.spotify.playlist_tracks_loading = true;
+        app.spotify.playlist_tracks_rx = Some(rx);
+
+        tx.send(Ok((vec![spotify_track("spotify:track:loaded")], false)))
+            .expect("receiver is alive");
+        app.poll_playlist_tracks();
+
+        assert_eq!(
+            app.spotify
+                .open_playlist
+                .as_ref()
+                .expect("playlist remains open")
+                .tracks_total,
+            0
+        );
+        assert_eq!(app.spotify.playlists[0].tracks_total, 0);
+        assert_eq!(app.spotify.playlist_tracks.len(), 1);
+        assert!(!app.spotify.playlist_tracks_loading);
     }
 
     #[test]

@@ -83,6 +83,16 @@ mod tests {
     }
 
     #[test]
+    fn radio_search_url_percent_encodes_utf8_artist_query() {
+        let url = radio_search_url("Björk & Café Tacvba");
+
+        assert_eq!(
+            url,
+            "https://api.spotify.com/v1/search?q=artist%3ABj%C3%B6rk%20%26%20Caf%C3%A9%20Tacvba&type=track&limit=10"
+        );
+    }
+
+    #[test]
     fn parse_radio_search_body_reads_search_tracks() {
         let body = r#"{
             "tracks": {

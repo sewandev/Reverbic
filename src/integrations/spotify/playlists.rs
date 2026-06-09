@@ -256,6 +256,46 @@ mod tests {
     }
 
     #[test]
+    fn parse_user_playlists_body_reads_total_tracks_fallback() {
+        let body = r#"{
+            "items": [
+                {
+                    "id": "playlist-3",
+                    "name": "Fallback",
+                    "owner": { "display_name": "Legacy" },
+                    "total_tracks": 13
+                }
+            ],
+            "next": null
+        }"#;
+
+        let (playlists, has_more) = parse_user_playlists_body(body).expect("valid playlists body");
+
+        assert!(!has_more);
+        assert_eq!(playlists.len(), 1);
+        assert_eq!(playlists[0].tracks_total, 13);
+    }
+
+    #[test]
+    fn parse_user_playlists_body_defaults_missing_track_totals_to_zero() {
+        let body = r#"{
+            "items": [
+                {
+                    "id": "playlist-4",
+                    "name": "Unknown count",
+                    "owner": { "display_name": "Reverbic" }
+                }
+            ],
+            "next": null
+        }"#;
+
+        let (playlists, _) = parse_user_playlists_body(body).expect("valid playlists body");
+
+        assert_eq!(playlists.len(), 1);
+        assert_eq!(playlists[0].tracks_total, 0);
+    }
+
+    #[test]
     fn parse_playlist_tracks_body_reads_wrapped_items() {
         let body = r#"{
             "items": [
@@ -313,6 +353,58 @@ mod tests {
         assert_eq!(tracks.len(), 1);
         assert_eq!(tracks[0].name, "Direct Track");
         assert_eq!(tracks[0].artist, "Direct Artist");
+        assert_eq!(tracks[0].uri, "spotify:track:direct");
+    }
+
+    #[test]
+    fn parse_playlist_tracks_body_accepts_track_without_type() {
+        let body = r#"{
+            "items": [
+                {
+                    "item": {
+                        "name": "Untyped Track",
+                        "artists": [{ "name": "Untyped Artist" }],
+                        "album": { "name": "Untyped Album" },
+                        "duration_ms": 123000,
+                        "uri": "spotify:track:untyped"
+                    }
+                }
+            ],
+            "next": null
+        }"#;
+
+        let (tracks, _) = parse_playlist_tracks_body(body).expect("valid playlist items body");
+
+        assert_eq!(tracks.len(), 1);
+        assert_eq!(tracks[0].name, "Untyped Track");
+        assert_eq!(tracks[0].uri, "spotify:track:untyped");
+    }
+
+    #[test]
+    fn parse_playlist_tracks_body_skips_direct_episode_items() {
+        let body = r#"{
+            "items": [
+                {
+                    "name": "Direct Episode",
+                    "type": "episode",
+                    "duration_ms": 900000,
+                    "uri": "spotify:episode:direct"
+                },
+                {
+                    "name": "Direct Track",
+                    "type": "track",
+                    "artists": [{ "name": "Direct Artist" }],
+                    "album": { "name": "Direct Album" },
+                    "duration_ms": 123000,
+                    "uri": "spotify:track:direct"
+                }
+            ],
+            "next": null
+        }"#;
+
+        let (tracks, _) = parse_playlist_tracks_body(body).expect("valid playlist items body");
+
+        assert_eq!(tracks.len(), 1);
         assert_eq!(tracks[0].uri, "spotify:track:direct");
     }
 }
