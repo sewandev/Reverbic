@@ -186,28 +186,45 @@ impl<'a> SearchModalWidget<'a> {
                 format!("{mode} {dev_name} * {dev_type} [{active}]{switch_hint}")
             };
 
-        Paragraph::new(Span::styled(
-            mode_text,
-            Style::default()
-                .fg(ratatui::style::Color::Yellow)
-                .add_modifier(Modifier::BOLD),
-        ))
-        .alignment(ratatui::layout::Alignment::Center)
-        .render(footer_row, buf);
+        let footer_area = Rect::new(text_x, footer_row.y, text_w, 1);
+        let mode_style = Style::default()
+            .fg(ratatui::style::Color::Yellow)
+            .add_modifier(Modifier::BOLD);
+        let badge_style = Style::default()
+            .fg(self.palette.spotify)
+            .add_modifier(Modifier::BOLD);
 
-        if self.spotify_is_premium {
-            let badge = t("integrations.spotify.account_premium");
-            let badge_len = badge.chars().count() as u16;
-            if badge_len + 4 < text_w {
-                let bx = text_x + text_w.saturating_sub(badge_len);
+        let premium_badge = self
+            .spotify_is_premium
+            .then(|| t("integrations.spotify.account_premium"));
+        let badge_len = premium_badge
+            .as_ref()
+            .map(|badge| badge.chars().count() as u16)
+            .unwrap_or(0);
+
+        if let Some(badge) = premium_badge.filter(|_| badge_len + 4 < text_w) {
+            let [mode_area, _gap, badge_area] = Layout::horizontal([
+                Constraint::Fill(1),
+                Constraint::Length(2),
+                Constraint::Length(badge_len),
+            ])
+            .areas(footer_area);
+
+            if mode_area.width > 0 {
                 Paragraph::new(Span::styled(
-                    badge,
-                    Style::default()
-                        .fg(self.palette.spotify)
-                        .add_modifier(Modifier::BOLD),
+                    strings::truncate(&mode_text, mode_area.width as usize),
+                    mode_style,
                 ))
-                .render(Rect::new(bx, footer_row.y, badge_len, 1), buf);
+                .render(mode_area, buf);
             }
+
+            Paragraph::new(Span::styled(badge, badge_style)).render(badge_area, buf);
+        } else {
+            Paragraph::new(Span::styled(
+                strings::truncate(&mode_text, footer_area.width as usize),
+                mode_style,
+            ))
+            .render(footer_area, buf);
         }
     }
 
