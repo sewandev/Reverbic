@@ -255,10 +255,13 @@ pub fn render(frame: &mut Frame, app: &App) {
     if app.show_help {
         use crate::app::SpotifyAuthStatus;
         let spotify_logged_in = matches!(app.spotify.status, SpotifyAuthStatus::LoggedIn);
+        let spotify_can_cycle_device = spotify_logged_in
+            && app.config.spotify.playback_mode != crate::config::SpotifyPlaybackMode::Native;
         render_help_overlay(
             frame,
             &app.modal_mode,
             spotify_logged_in,
+            spotify_can_cycle_device,
             app.update_available.as_deref(),
             palette,
         );

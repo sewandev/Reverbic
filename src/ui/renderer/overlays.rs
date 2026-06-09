@@ -690,6 +690,7 @@ pub(super) fn render_help_overlay(
     frame: &mut Frame,
     mode: &crate::app::SearchMode,
     spotify_logged_in: bool,
+    spotify_can_cycle_device: bool,
     update_available: Option<&str>,
     palette: &Palette,
 ) {
@@ -711,7 +712,7 @@ pub(super) fn render_help_overlay(
         ],
         SearchMode::Spotify => {
             if spotify_logged_in {
-                vec![
+                let mut lines = vec![
                     ("[←→]", t("help.shortcut.switch_subtab")),
                     ("[↵]", t("help.shortcut.transfer_play")),
                     ("[↑↓]", t("help.shortcut.navigate")),
@@ -719,8 +720,12 @@ pub(super) fn render_help_overlay(
                     ("[Alt+O]", t("help.shortcut.settings")),
                     ("[Alt+D]", t("integrations.spotify.hint_disconnect")),
                     ("[Alt+R]", t("help.shortcut.reload_devices")),
-                    ("[Esc]", t("hint.close")),
-                ]
+                ];
+                if spotify_can_cycle_device {
+                    lines.push(("[Ctrl+D]", t("help.shortcut.switch_device")));
+                }
+                lines.push(("[Esc]", t("hint.close")));
+                lines
             } else {
                 vec![
                     ("[↵]", t("help.shortcut.connect_spotify")),
