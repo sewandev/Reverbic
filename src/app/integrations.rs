@@ -63,6 +63,19 @@ fn resolve_remote_spotify_target(
     }
 }
 
+fn resolve_active_spotify_device(
+    devices: &[crate::integrations::spotify::devices::SpotifyDevice],
+    current_active_id: Option<&str>,
+) -> (usize, Option<String>) {
+    let selected = current_active_id
+        .and_then(|id| devices.iter().position(|d| d.id.as_deref() == Some(id)))
+        .or_else(|| devices.iter().position(|d| d.is_active && d.id.is_some()))
+        .unwrap_or(0);
+
+    let active_device_id = devices.get(selected).and_then(|device| device.id.clone());
+    (selected, active_device_id)
+}
+
 fn spotify_native_error_message(raw: &str) -> String {
     let lower = raw.to_ascii_lowercase();
     let key = if raw == "native_missing_credentials" {
@@ -88,6 +101,10 @@ fn spotify_native_error_message(raw: &str) -> String {
         "integrations.spotify.error.native_generic"
     };
     crate::i18n::t(key)
+}
+
+fn spotify_native_error_is_fatal(raw: &str) -> bool {
+    !(raw.starts_with("native_track_unavailable") || raw.starts_with("native_uri_parse"))
 }
 
 fn friendly_spotify_error(raw: &str, client_id: &str) -> String {
@@ -348,8 +365,10 @@ impl App {
                 SpotifyPlayerEvent::Error(e) => {
                     tracing::warn!("spotify native playback error: {e}");
                     let message = spotify_native_error_message(&e);
-                    self.spotify.native_available = false;
-                    self.spotify.native_error = Some(message.clone());
+                    if spotify_native_error_is_fatal(&e) {
+                        self.spotify.native_available = false;
+                        self.spotify.native_error = Some(message.clone());
+                    }
                     self.spotify.player_status = SpotifyPlayerStatus::Error(message.clone());
                     if self.config.spotify.playback_mode == SpotifyPlaybackMode::Native {
                         self.save_notice = Some(format!("Spotify: {message}"));
@@ -483,26 +502,12 @@ impl App {
                         .collect();
                     self.spotify.devices_loading = false;
 
-                    let active_id = self.spotify.active_device_id.as_deref();
-                    let selected = self
-                        .spotify
-                        .devices
-                        .iter()
-                        .position(|d| {
-                            active_id
-                                .map(|id| d.id.as_deref() == Some(id))
-                                .unwrap_or(false)
-                        })
-                        .or_else(|| self.spotify.devices.iter().position(|d| d.is_active))
-                        .unwrap_or(0);
-
+                    let (selected, active_device_id) = resolve_active_spotify_device(
+                        &self.spotify.devices,
+                        self.spotify.active_device_id.as_deref(),
+                    );
                     self.spotify.devices_selected = selected;
-
-                    if self.spotify.active_device_id.is_none() {
-                        if let Some(dev) = self.spotify.devices.get(selected) {
-                            self.spotify.active_device_id = dev.id.clone();
-                        }
-                    }
+                    self.spotify.active_device_id = active_device_id;
                 }
                 Ok(Err(e)) => {
                     tracing::warn!("spotify devices: {e}");
@@ -1351,6 +1356,16 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::integrations::spotify::devices::SpotifyDevice;
+
+    fn spotify_device(id: Option<&str>, is_active: bool) -> SpotifyDevice {
+        SpotifyDevice {
+            id: id.map(str::to_string),
+            name: id.unwrap_or("device").to_string(),
+            device_type: "computer".to_string(),
+            is_active,
+        }
+    }
 
     #[test]
     fn auto_mode_prefers_remote_device_when_available() {
@@ -1451,6 +1466,42 @@ mod tests {
     }
 
     #[test]
+    fn stale_remote_device_id_is_replaced_with_current_active_device() {
+        let devices = vec![
+            spotify_device(Some("available"), false),
+            spotify_device(Some("active"), true),
+        ];
+
+        let (selected, active_device_id) = resolve_active_spotify_device(&devices, Some("stale"));
+
+        assert_eq!(selected, 1);
+        assert_eq!(active_device_id.as_deref(), Some("active"));
+    }
+
+    #[test]
+    fn stale_remote_device_id_is_cleared_when_no_remote_devices_exist() {
+        let devices = vec![];
+
+        let (selected, active_device_id) = resolve_active_spotify_device(&devices, Some("stale"));
+
+        assert_eq!(selected, 0);
+        assert_eq!(active_device_id, None);
+    }
+
+    #[test]
+    fn current_remote_device_id_is_preserved_when_still_present() {
+        let devices = vec![
+            spotify_device(Some("current"), false),
+            spotify_device(Some("active"), true),
+        ];
+
+        let (selected, active_device_id) = resolve_active_spotify_device(&devices, Some("current"));
+
+        assert_eq!(selected, 0);
+        assert_eq!(active_device_id.as_deref(), Some("current"));
+    }
+
+    #[test]
     fn native_error_message_maps_missing_credentials() {
         assert_eq!(
             spotify_native_error_message("native_missing_credentials"),
@@ -1488,5 +1539,23 @@ mod tests {
             spotify_native_error_message("native_track_unavailable: spotify:track:123"),
             "integrations.spotify.error.native_track_unavailable"
         );
+    }
+
+    #[test]
+    fn native_track_errors_do_not_disable_native_player() {
+        assert!(!spotify_native_error_is_fatal(
+            "native_track_unavailable: spotify:track:123"
+        ));
+        assert!(!spotify_native_error_is_fatal("native_uri_parse: bad uri"));
+    }
+
+    #[test]
+    fn native_session_errors_disable_native_player() {
+        assert!(spotify_native_error_is_fatal(
+            "native_session_connect: Premium account required"
+        ));
+        assert!(spotify_native_error_is_fatal(
+            "native_audio_backend_missing"
+        ));
     }
 }
