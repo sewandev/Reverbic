@@ -1061,14 +1061,45 @@ impl App {
             return;
         }
 
-        tokio::spawn(async move {
-            if let Err(e) = save_track(&token, &id).await {
-                tracing::warn!("Failed to like spotify track: {e}");
-            }
-        });
-
-        self.save_notice = Some(format!("Guardado en Tus Me Gusta: {name}"));
+        let (tx, rx) = std::sync::mpsc::channel();
+        self.spotify.save_track_rx = Some(rx);
+        self.save_notice = Some(format!("Guardando {}...", name));
         self.save_notice_is_dup = false;
         self.notice_until = Some(std::time::Instant::now() + std::time::Duration::from_secs(4));
+
+        tokio::spawn(async move {
+            match save_track(&token, &id).await {
+                Ok(_) => {
+                    let _ = tx.send(Ok(name));
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to like spotify track: {e}");
+                    let _ = tx.send(Err(format!("{e}")));
+                }
+            }
+        });
+    }
+
+    pub fn poll_save_track(&mut self) {
+        let rx = match self.spotify.save_track_rx.take() {
+            Some(r) => r,
+            None => return,
+        };
+        match rx.try_recv() {
+            Ok(Ok(name)) => {
+                self.save_notice = Some(format!("Guardado en Tus Me Gusta: {name}"));
+                self.notice_until =
+                    Some(std::time::Instant::now() + std::time::Duration::from_secs(4));
+            }
+            Ok(Err(e)) => {
+                self.save_notice = Some(format!("Error al guardar: {e}"));
+                self.notice_until =
+                    Some(std::time::Instant::now() + std::time::Duration::from_secs(4));
+            }
+            Err(std::sync::mpsc::TryRecvError::Empty) => {
+                self.spotify.save_track_rx = Some(rx);
+            }
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => {}
+        }
     }
 }

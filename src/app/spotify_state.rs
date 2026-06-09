@@ -59,6 +59,7 @@ pub struct SpotifyState {
         Option<std::sync::mpsc::Receiver<Result<(String, String), String>>>,
 
     pub(super) play_result_rx: Option<std::sync::mpsc::Receiver<Result<(), SpotifyError>>>,
+    pub(super) save_track_rx: Option<std::sync::mpsc::Receiver<Result<String, String>>>,
 
     pub playback_queue: VecDeque<SpotifyTrack>,
     pub radio_queue: VecDeque<SpotifyTrack>,
@@ -185,6 +186,7 @@ impl Default for SpotifyState {
             token_refresh_task: None,
             token_refresh_rx: None,
             play_result_rx: None,
+            save_track_rx: None,
             playback_queue: VecDeque::new(),
             radio_queue: VecDeque::new(),
             recently_played: VecDeque::new(),

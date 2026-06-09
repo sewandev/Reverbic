@@ -68,47 +68,48 @@ pub async fn get_album_tracks(
     let client = crate::http::http_client_timeout(10)
         .ok_or_else(|| SpotifyError::Network("Failed to create HTTP client".to_string()))?;
 
-    let url = format!(
+    let mut url = format!(
         "https://api.spotify.com/v1/albums/{}/tracks?limit=50",
         album_id
     );
 
-    let response = client
-        .get(&url)
-        .bearer_auth(access_token)
-        .send()
-        .await
-        .map_err(|e| SpotifyError::Network(e.to_string()))?;
+    let mut all_tracks = Vec::new();
 
-    if !response.status().is_success() {
-        let status = response.status();
-        let body = response.text().await.unwrap_or_default();
-        return Err(SpotifyError::from_status(status, &body));
+    loop {
+        let response = client
+            .get(&url)
+            .bearer_auth(access_token)
+            .send()
+            .await
+            .map_err(|e| SpotifyError::Network(e.to_string()))?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            return Err(SpotifyError::from_status(status, &body));
+        }
+
+        let body = response
+            .text()
+            .await
+            .map_err(|e| SpotifyError::Network(e.to_string()))?;
+
+        let json: serde_json::Value =
+            serde_json::from_str(&body).map_err(|e| SpotifyError::Parse(e.to_string()))?;
+
+        let tracks: Vec<SpotifyTrack> = json["items"]
+            .as_array()
+            .map(|items| items.iter().filter_map(parse_track).collect())
+            .unwrap_or_default();
+
+        all_tracks.extend(tracks);
+
+        if let Some(next_url) = json["next"].as_str() {
+            url = next_url.to_string();
+        } else {
+            break;
+        }
     }
 
-    let body = response
-        .text()
-        .await
-        .map_err(|e| SpotifyError::Network(e.to_string()))?;
-
-    let json: serde_json::Value =
-        serde_json::from_str(&body).map_err(|e| SpotifyError::Parse(e.to_string()))?;
-
-    let tracks: Vec<SpotifyTrack> = json["items"]
-        .as_array()
-        .map(|items| {
-            items
-                .iter()
-                .filter_map(|item| {
-                    let track = parse_track(item)?;
-                    // The album tracks endpoint does not include the album object in the track,
-                    // but we can just leave it empty or we could pass the album name.
-                    // parse_track will likely fall back to "Unknown Album" if it's not present.
-                    Some(track)
-                })
-                .collect()
-        })
-        .unwrap_or_default();
-
-    Ok(tracks)
+    Ok(all_tracks)
 }

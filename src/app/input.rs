@@ -1346,7 +1346,16 @@ impl App {
         match key {
             KeyCode::Esc => {
                 self.show_help = false;
-                if !self.spotify.search_query.is_empty() {
+                use super::modal::SpotifySubTab;
+                if self.spotify.sub_tab == SpotifySubTab::Playlists
+                    && self.spotify.open_playlist.is_some()
+                {
+                    self.spotify.open_playlist = None;
+                } else if self.spotify.sub_tab == SpotifySubTab::Albums
+                    && self.spotify.open_album.is_some()
+                {
+                    self.spotify.open_album = None;
+                } else if !self.spotify.search_query.is_empty() {
                     self.spotify.search_query.clear();
                     self.spotify.search_results.clear();
                     self.spotify.search_selected = 0;

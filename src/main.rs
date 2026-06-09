@@ -183,6 +183,7 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
         app.poll_spotify_player_events();
         app.poll_spotify_radio();
         app.poll_liked_tracks();
+        app.poll_save_track();
         app.poll_playlists();
         app.poll_playlist_tracks();
         app.poll_top_tracks();

@@ -72,6 +72,15 @@ pub async fn refresh_search_token(
         .unwrap_or(refresh_token)
         .to_string();
 
+    let granted_scopes = json["scope"].as_str().unwrap_or("");
+    for required in SCOPES.split_whitespace() {
+        if !granted_scopes.contains(required) {
+            return Err(format!(
+                "Missing required scope: {required}. Please reconnect your Spotify account."
+            ));
+        }
+    }
+
     Ok((access, refresh))
 }
 async fn pkce_flow(

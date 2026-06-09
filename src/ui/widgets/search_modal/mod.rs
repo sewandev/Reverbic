@@ -458,8 +458,6 @@ impl SearchModalWidget<'_> {
                                 sep_s(format!(" {}  ", t("hint.like"))),
                                 key("[←→]"),
                                 sep_s(format!(" {}  ", t("hint.tabs"))),
-                                key("[Tab]"),
-                                sep_s(format!(" {}  ", t("hint.radio"))),
                                 key("[Alt+D]"),
                                 sep_s(format!(" {}  ", t("hint.disconnect"))),
                                 key("[?]"),
