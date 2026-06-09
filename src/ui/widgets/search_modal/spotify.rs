@@ -50,11 +50,12 @@ impl<'a> SearchModalWidget<'a> {
     ) {
         use crate::app::SpotifySubTab;
 
-        let [_gap, subtab_row, _body_gap, body] = Layout::vertical([
+        let [_gap, subtab_row, _body_gap, body, footer_row] = Layout::vertical([
             Constraint::Length(1),
             Constraint::Length(1),
             Constraint::Length(1),
             Constraint::Fill(1),
+            Constraint::Length(1),
         ])
         .areas(area);
 
@@ -112,11 +113,10 @@ impl<'a> SearchModalWidget<'a> {
 
         match self.spotify_sub_tab {
             SpotifySubTab::Search => {
-                let [input_row, cap_row, list_area, footer_row] = Layout::vertical([
+                let [input_row, cap_row, list_area] = Layout::vertical([
                     Constraint::Length(1),
                     Constraint::Length(1),
                     Constraint::Fill(1),
-                    Constraint::Length(1),
                 ])
                 .areas(body);
 
@@ -134,48 +134,12 @@ impl<'a> SearchModalWidget<'a> {
                     self.palette.spotify,
                 );
 
-
                 buf[(content_x, cap_row.y)]
                     .set_symbol("╹")
                     .set_fg(self.palette.spotify)
                     .set_bg(self.palette.panel_bg);
 
                 self.render_spotify_list(list_area, text_x, text_w, buf);
-
-                let active_device = self.spotify_devices.iter().find(|d| d.is_active);
-                let mode_text = if self.spotify_playback_mode_kind == crate::config::SpotifyPlaybackMode::Native {
-                    "Modo: Nativo".to_string()
-                } else {
-                    let dev_name = active_device.map(|d| d.name.as_str()).unwrap_or("Desconocido");
-                    let dev_type = active_device.map(|d| d.device_type.as_str()).unwrap_or("");
-                    if self.spotify_devices.len() > 1 {
-                        format!("Modo: Remoto Escuchando en {} * {} [activo] (Ctrl+D para cambiar)", dev_name, dev_type)
-                    } else {
-                        format!("Modo: Remoto Escuchando en {} * {} [activo]", dev_name, dev_type)
-                    }
-                };
-
-                Paragraph::new(Span::styled(
-                    mode_text,
-                    Style::default().fg(ratatui::style::Color::Yellow).add_modifier(Modifier::BOLD),
-                ))
-                .alignment(ratatui::layout::Alignment::Center)
-                .render(footer_row, buf);
-
-                if self.spotify_is_premium {
-                    let badge = t("integrations.spotify.account_premium");
-                    let badge_len = badge.chars().count() as u16;
-                    if badge_len + 4 < text_w {
-                        let bx = text_x + text_w.saturating_sub(badge_len);
-                        Paragraph::new(Span::styled(
-                            badge,
-                            Style::default()
-                                .fg(self.palette.spotify)
-                                .add_modifier(Modifier::BOLD),
-                        ))
-                        .render(Rect::new(bx, footer_row.y, badge_len, 1), buf);
-                    }
-                }
             }
             SpotifySubTab::Liked => {
                 self.render_spotify_liked(body, text_x, text_w, buf);
@@ -199,6 +163,52 @@ impl<'a> SearchModalWidget<'a> {
                 } else {
                     self.render_spotify_albums(body, text_x, text_w, buf);
                 }
+            }
+        }
+
+        let active_device = self.spotify_devices.iter().find(|d| d.is_active);
+        let mode_text =
+            if self.spotify_playback_mode_kind == crate::config::SpotifyPlaybackMode::Native {
+                "Modo: Nativo".to_string()
+            } else {
+                let dev_name = active_device
+                    .map(|d| d.name.as_str())
+                    .unwrap_or("Desconocido");
+                let dev_type = active_device.map(|d| d.device_type.as_str()).unwrap_or("");
+                if self.spotify_devices.len() > 1 {
+                    format!(
+                        "Modo: Remoto Escuchando en {} * {} [activo] (Ctrl+D para cambiar)",
+                        dev_name, dev_type
+                    )
+                } else {
+                    format!(
+                        "Modo: Remoto Escuchando en {} * {} [activo]",
+                        dev_name, dev_type
+                    )
+                }
+            };
+
+        Paragraph::new(Span::styled(
+            mode_text,
+            Style::default()
+                .fg(ratatui::style::Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        ))
+        .alignment(ratatui::layout::Alignment::Center)
+        .render(footer_row, buf);
+
+        if self.spotify_is_premium {
+            let badge = t("integrations.spotify.account_premium");
+            let badge_len = badge.chars().count() as u16;
+            if badge_len + 4 < text_w {
+                let bx = text_x + text_w.saturating_sub(badge_len);
+                Paragraph::new(Span::styled(
+                    badge,
+                    Style::default()
+                        .fg(self.palette.spotify)
+                        .add_modifier(Modifier::BOLD),
+                ))
+                .render(Rect::new(bx, footer_row.y, badge_len, 1), buf);
             }
         }
     }
@@ -489,7 +499,6 @@ impl<'a> SearchModalWidget<'a> {
         }
     }
 
-
     fn render_generic_track_list(
         &self,
         list_area: Rect,
@@ -701,21 +710,8 @@ impl<'a> SearchModalWidget<'a> {
     }
 
     fn render_spotify_top_tracks(&self, area: Rect, list_x: u16, list_w: u16, buf: &mut Buffer) {
-        let filter_text = match self.spotify_top_tracks_range {
-            "short_term" => t("modal.spotify.top.short"),
-            "medium_term" => t("modal.spotify.top.medium"),
-            _ => t("modal.spotify.top.long"),
-        };
-        Paragraph::new(Span::styled(
-            format!("[Tab] {} ", filter_text),
-            Style::default().fg(self.palette.dim),
-        ))
-        .alignment(ratatui::layout::Alignment::Right)
-        .render(Rect::new(list_x, area.y, list_w, 1), buf);
-
-        let list_area = Rect::new(list_x, area.y + 1, list_w, area.height.saturating_sub(1));
         self.render_generic_track_list(
-            list_area,
+            Rect::new(list_x, area.y, list_w, area.height),
             buf,
             self.spotify_top_tracks,
             self.spotify_top_tracks_selected,
