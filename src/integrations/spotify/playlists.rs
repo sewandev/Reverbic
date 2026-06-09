@@ -157,19 +157,7 @@ pub(crate) fn parse_playlist_tracks_body(
     let raw_items = json["items"].as_array().map(|v| v.len()).unwrap_or(0);
     let tracks: Vec<SpotifyTrack> = json["items"]
         .as_array()
-        .map(|items| {
-            items
-                .iter()
-                .filter_map(|item| {
-                    let track = &item["item"];
-                    if track.is_null() {
-                        None
-                    } else {
-                        parse_track(track)
-                    }
-                })
-                .collect()
-        })
+        .map(|items| items.iter().filter_map(parse_playlist_item_track).collect())
         .unwrap_or_default();
 
     tracing::debug!(
@@ -180,6 +168,21 @@ pub(crate) fn parse_playlist_tracks_body(
     let has_more = json["next"].is_string();
 
     Ok((tracks, has_more))
+}
+
+fn parse_playlist_item_track(item: &serde_json::Value) -> Option<SpotifyTrack> {
+    let track = item
+        .get("item")
+        .filter(|nested| !nested.is_null())
+        .unwrap_or(item);
+
+    if let Some(item_type) = track["type"].as_str() {
+        if item_type != "track" {
+            return None;
+        }
+    }
+
+    parse_track(track)
 }
 
 #[cfg(test)]
@@ -259,10 +262,19 @@ mod tests {
                 {
                     "item": {
                         "name": "Sweet Disposition",
+                        "type": "track",
                         "artists": [{ "name": "The Temper Trap" }],
                         "album": { "name": "Conditions" },
                         "duration_ms": 231200,
                         "uri": "spotify:track:def"
+                    }
+                },
+                {
+                    "item": {
+                        "name": "Podcast Episode",
+                        "type": "episode",
+                        "duration_ms": 900000,
+                        "uri": "spotify:episode:skip"
                     }
                 },
                 { "item": null }
@@ -278,5 +290,29 @@ mod tests {
         assert_eq!(tracks[0].name, "Sweet Disposition");
         assert_eq!(tracks[0].artist, "The Temper Trap");
         assert_eq!(tracks[0].uri, "spotify:track:def");
+    }
+
+    #[test]
+    fn parse_playlist_tracks_body_accepts_direct_track_items() {
+        let body = r#"{
+            "items": [
+                {
+                    "name": "Direct Track",
+                    "type": "track",
+                    "artists": [{ "name": "Direct Artist" }],
+                    "album": { "name": "Direct Album" },
+                    "duration_ms": 123000,
+                    "uri": "spotify:track:direct"
+                }
+            ],
+            "next": null
+        }"#;
+
+        let (tracks, _) = parse_playlist_tracks_body(body).expect("valid playlist items body");
+
+        assert_eq!(tracks.len(), 1);
+        assert_eq!(tracks[0].name, "Direct Track");
+        assert_eq!(tracks[0].artist, "Direct Artist");
+        assert_eq!(tracks[0].uri, "spotify:track:direct");
     }
 }
