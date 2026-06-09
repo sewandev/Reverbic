@@ -8,6 +8,7 @@ use ratatui::{
 
 use crate::app::SpotifyAuthStatus;
 use crate::i18n::t;
+use crate::integrations::spotify::devices::SpotifyDevice;
 use crate::ui::strings;
 use crate::ui::widgets::scroll_offset_for_selection;
 
@@ -17,6 +18,19 @@ use super::SearchModalWidget;
 fn fmt_duration(ms: u32) -> String {
     let secs = ms / 1000;
     format!("{}:{:02}", secs / 60, secs % 60)
+}
+
+fn active_spotify_device<'a>(
+    devices: &'a [SpotifyDevice],
+    active_device_id: Option<&str>,
+) -> Option<&'a SpotifyDevice> {
+    active_device_id
+        .and_then(|id| {
+            devices
+                .iter()
+                .find(|device| device.id.as_deref() == Some(id))
+        })
+        .or_else(|| devices.iter().find(|device| device.is_active))
 }
 
 impl<'a> SearchModalWidget<'a> {
@@ -166,7 +180,8 @@ impl<'a> SearchModalWidget<'a> {
             }
         }
 
-        let active_device = self.spotify_devices.iter().find(|d| d.is_active);
+        let active_device =
+            active_spotify_device(self.spotify_devices, self.spotify_active_device_id);
         let mode_text =
             if self.spotify_playback_mode_kind == crate::config::SpotifyPlaybackMode::Native {
                 t("modal.spotify.footer.mode_native")
@@ -846,6 +861,47 @@ impl<'a> SearchModalWidget<'a> {
             self.spotify_album_tracks_selected,
             self.spotify_album_tracks_scroll_offset,
             self.spotify_album_tracks_loading,
+        );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn spotify_device(id: Option<&str>, name: &str, is_active: bool) -> SpotifyDevice {
+        SpotifyDevice {
+            id: id.map(str::to_string),
+            name: name.to_string(),
+            device_type: "Computer".to_string(),
+            is_active,
+        }
+    }
+
+    #[test]
+    fn active_spotify_device_uses_active_device_id_before_spotify_active_flag() {
+        let devices = vec![
+            spotify_device(Some("preserved"), "Preserved", false),
+            spotify_device(Some("spotify-active"), "Spotify Active", true),
+        ];
+
+        let active = active_spotify_device(&devices, Some("preserved"));
+
+        assert_eq!(active.map(|device| device.name.as_str()), Some("Preserved"));
+    }
+
+    #[test]
+    fn active_spotify_device_falls_back_to_spotify_active_flag() {
+        let devices = vec![
+            spotify_device(Some("available"), "Available", false),
+            spotify_device(Some("spotify-active"), "Spotify Active", true),
+        ];
+
+        let active = active_spotify_device(&devices, None);
+
+        assert_eq!(
+            active.map(|device| device.name.as_str()),
+            Some("Spotify Active")
         );
     }
 }

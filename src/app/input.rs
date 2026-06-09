@@ -19,6 +19,39 @@ const MODAL_MAX_HEIGHT: u16 = 30;
 const SPOTIFY_CHROME_ROWS: u16 = 4;
 const SPOTIFY_SEARCH_INPUT_ROWS: u16 = 3;
 
+fn next_spotify_device_id(
+    devices: &[crate::integrations::spotify::devices::SpotifyDevice],
+    active_device_id: Option<&str>,
+) -> Option<String> {
+    let transferable: Vec<(usize, &str)> = devices
+        .iter()
+        .enumerate()
+        .filter_map(|(idx, device)| device.id.as_deref().map(|id| (idx, id)))
+        .collect();
+    if transferable.len() <= 1 {
+        return None;
+    }
+
+    let current = active_device_id
+        .and_then(|id| {
+            transferable
+                .iter()
+                .position(|(_, device_id)| *device_id == id)
+        })
+        .or_else(|| {
+            transferable
+                .iter()
+                .position(|(idx, _)| devices[*idx].is_active)
+        })
+        .unwrap_or(0);
+
+    Some(
+        transferable[(current + 1) % transferable.len()]
+            .1
+            .to_string(),
+    )
+}
+
 impl App {
     fn modal_list_visible_rows(&self, rows_before_list: u16) -> usize {
         let terminal_h = self.terminal_area.height;
@@ -1745,17 +1778,11 @@ impl App {
         }
         let len = self.spotify.devices.len();
         if len > 1 {
-            let active_idx = self
-                .spotify
-                .devices
-                .iter()
-                .position(|d| d.is_active)
-                .unwrap_or(0);
-            let next_idx = (active_idx + 1) % len;
-            if let Some(device) = self.spotify.devices.get(next_idx) {
-                if let Some(id) = device.id.clone() {
-                    self.transfer_to_spotify_device(id).await;
-                }
+            if let Some(id) = next_spotify_device_id(
+                &self.spotify.devices,
+                self.spotify.active_device_id.as_deref(),
+            ) {
+                self.transfer_to_spotify_device(id).await;
             }
         } else if len <= 1 && !self.spotify.devices_loading {
             self.fetch_spotify_devices();
@@ -2213,5 +2240,48 @@ impl App {
             }
             _ => {}
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::integrations::spotify::devices::SpotifyDevice;
+
+    fn spotify_device(id: Option<&str>, is_active: bool) -> SpotifyDevice {
+        SpotifyDevice {
+            id: id.map(str::to_string),
+            name: id.unwrap_or("missing").to_string(),
+            device_type: "Computer".to_string(),
+            is_active,
+        }
+    }
+
+    #[test]
+    fn next_spotify_device_uses_active_device_id_before_spotify_active_flag() {
+        let devices = vec![
+            spotify_device(Some("preserved"), false),
+            spotify_device(Some("spotify-active"), true),
+            spotify_device(Some("next"), false),
+        ];
+
+        assert_eq!(
+            next_spotify_device_id(&devices, Some("preserved")).as_deref(),
+            Some("spotify-active")
+        );
+    }
+
+    #[test]
+    fn next_spotify_device_skips_devices_without_transfer_id() {
+        let devices = vec![
+            spotify_device(Some("current"), false),
+            spotify_device(None, true),
+            spotify_device(Some("next"), false),
+        ];
+
+        assert_eq!(
+            next_spotify_device_id(&devices, Some("current")).as_deref(),
+            Some("next")
+        );
     }
 }
