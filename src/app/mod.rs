@@ -715,4 +715,22 @@ mod tests {
         assert!(app.spotify.search_more_rx.is_none());
         assert!(app.spotify.token_refresh_rx.is_none());
     }
+
+    #[tokio::test]
+    async fn spotify_search_clears_pending_load_more_when_query_changes() {
+        let mut app = test_app();
+        app.spotify.access_token = Some("access-token".to_string());
+        app.spotify.search_query = "daft punk".to_string();
+        app.spotify.search_offset = 10;
+        app.spotify.search_has_more = true;
+        app.spotify.search_loading_more = true;
+        app.spotify.search_more_rx = Some(std::sync::mpsc::channel().1);
+
+        app.perform_spotify_search();
+
+        assert!(app.spotify.search_more_rx.is_none());
+        assert!(!app.spotify.search_loading_more);
+        assert!(!app.spotify.search_has_more);
+        assert_eq!(app.spotify.search_offset, 0);
+    }
 }
