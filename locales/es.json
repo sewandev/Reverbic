@@ -177,7 +177,7 @@
   "hint.open": "Abrir",
   "config.setting.spotify_stop_on_quit": "Detener Spotify al cerrar",
   "config.setting.spotify_start_on_spotify": "Ir a Spotify al conectar",
-  "config.tooltip.spotify_stop_on_quit": "Detiene la reproduccion de Spotify al cerrar Reverbic.",
+  "config.tooltip.spotify_stop_on_quit": "Solo en modo Remoto. Detiene la reproduccion al cerrar Reverbic.",
   "config.tooltip.spotify_start_on_spotify": "Cambia a la pestaña Spotify al conectarse.",
   "modal.spotify.subtab.search": "[ Buscar ]",
   "modal.spotify.subtab.liked": "[ Me gusta ]",
@@ -291,5 +291,8 @@
   "onboarding.hint.mute": "Silenciar",
   "onboarding.hint.unmute": "Reactivar sonido",
   "onboarding.hint.skip": "Omitir",
-  "onboarding.maximize_hint": "Maximiza la pantalla para una experiencia completa"
+  "onboarding.maximize_hint": "Maximiza la pantalla para una experiencia completa",
+  "config.group.spotify": "Spotify",
+  "config.tooltip.language": "Selecciona el idioma de la aplicación.",
+  "onboarding.appearance.language": "Idioma"
 }

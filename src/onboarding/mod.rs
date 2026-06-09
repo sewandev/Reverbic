@@ -304,7 +304,8 @@ fn cycle_focused_option(state: &mut OnboardingState) {
             _ => transitions::cycle_overlay_alpha(state),
         },
         Step::Appearance => match state.focused_option {
-            0 => transitions::cycle_theme(state),
+            0 => transitions::cycle_language(state),
+            1 => transitions::cycle_theme(state),
             _ => transitions::cycle_overlay_style(state),
         },
         Step::PlaybackPreferences => match state.focused_option {
@@ -313,6 +314,12 @@ fn cycle_focused_option(state: &mut OnboardingState) {
             2 => transitions::cycle_crossfade(state),
             3 => transitions::cycle_screensaver(state),
             _ => transitions::toggle_auto_update(state),
+        },
+        Step::SpotifyPreferences => match state.focused_option {
+            0 => transitions::toggle_spotify_stop_on_quit(state),
+            1 => transitions::toggle_spotify_start_on_spotify(state),
+            2 => transitions::cycle_spotify_playback_mode(state),
+            _ => transitions::toggle_spotify_radio_enabled(state),
         },
         Step::Welcome | Step::Summary => {}
     }

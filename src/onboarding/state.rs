@@ -1,4 +1,7 @@
-use crate::config::{Config, OverlayMode, OverlayPosition, OverlayStyle, ThemeId};
+use crate::config::{
+    Config, OverlayMode, OverlayPosition, OverlayStyle, SpotifyPlaybackMode, ThemeId,
+};
+use crate::i18n::Language;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Step {
@@ -6,15 +9,17 @@ pub enum Step {
     Appearance,
     OverlayPreferences,
     PlaybackPreferences,
+    SpotifyPreferences,
     Summary,
 }
 
 impl Step {
-    pub const ALL: [Step; 5] = [
+    pub const ALL: [Step; 6] = [
         Step::Welcome,
         Step::Appearance,
         Step::OverlayPreferences,
         Step::PlaybackPreferences,
+        Step::SpotifyPreferences,
         Step::Summary,
     ];
 
@@ -27,9 +32,10 @@ impl Step {
     pub fn option_count(self) -> usize {
         match self {
             Step::Welcome | Step::Summary => 0,
-            Step::Appearance => 2,
+            Step::Appearance => 3,
             Step::OverlayPreferences => 3,
             Step::PlaybackPreferences => 5,
+            Step::SpotifyPreferences => 4,
         }
     }
 }
@@ -38,6 +44,7 @@ impl Step {
 pub struct OnboardingState {
     pub step: Step,
     pub focused_option: usize,
+    pub language: Language,
     pub theme: ThemeId,
     pub overlay_style: OverlayStyle,
     pub overlay_mode: OverlayMode,
@@ -51,6 +58,10 @@ pub struct OnboardingState {
     pub screensaver_secs: u16,
     pub auto_update: bool,
     pub muted: bool,
+    pub spotify_stop_on_quit: bool,
+    pub spotify_start_on_spotify: bool,
+    pub spotify_playback_mode: SpotifyPlaybackMode,
+    pub spotify_radio_enabled: bool,
 }
 
 impl OnboardingState {
@@ -58,6 +69,7 @@ impl OnboardingState {
         Self {
             step: Step::Welcome,
             focused_option: 0,
+            language: config.language,
             theme: config.theme,
             overlay_style: config.overlay_style,
             overlay_mode: config.overlay_mode,
@@ -71,10 +83,15 @@ impl OnboardingState {
             screensaver_secs: config.screensaver_secs,
             auto_update: config.auto_update,
             muted: false,
+            spotify_stop_on_quit: config.spotify.stop_on_quit,
+            spotify_start_on_spotify: config.spotify.start_on_spotify,
+            spotify_playback_mode: config.spotify.playback_mode,
+            spotify_radio_enabled: config.spotify.radio_enabled,
         }
     }
 
     pub fn apply_to(&self, config: &mut Config) {
+        config.language = self.language;
         config.theme = self.theme;
         config.overlay_style = self.overlay_style;
         config.overlay_mode = self.overlay_mode;
@@ -88,6 +105,10 @@ impl OnboardingState {
         config.crossfade_secs = self.crossfade_secs;
         config.screensaver_secs = self.screensaver_secs;
         config.auto_update = self.auto_update;
+        config.spotify.stop_on_quit = self.spotify_stop_on_quit;
+        config.spotify.start_on_spotify = self.spotify_start_on_spotify;
+        config.spotify.playback_mode = self.spotify_playback_mode;
+        config.spotify.radio_enabled = self.spotify_radio_enabled;
     }
 }
 

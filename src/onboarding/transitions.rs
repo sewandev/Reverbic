@@ -41,6 +41,11 @@ pub fn cycle_overlay_mode(state: &mut OnboardingState) {
     state.overlay_mode = state.overlay_mode.next();
 }
 
+pub fn cycle_language(state: &mut OnboardingState) {
+    state.language = state.language.next();
+    crate::i18n::set_language(state.language);
+}
+
 pub fn cycle_theme(state: &mut OnboardingState) {
     state.theme = state.theme.next();
 }
@@ -103,6 +108,22 @@ pub fn cycle_screensaver(state: &mut OnboardingState) {
 
 pub fn toggle_muted(state: &mut OnboardingState) {
     state.muted = !state.muted;
+}
+
+pub fn toggle_spotify_stop_on_quit(state: &mut OnboardingState) {
+    state.spotify_stop_on_quit = !state.spotify_stop_on_quit;
+}
+
+pub fn toggle_spotify_start_on_spotify(state: &mut OnboardingState) {
+    state.spotify_start_on_spotify = !state.spotify_start_on_spotify;
+}
+
+pub fn cycle_spotify_playback_mode(state: &mut OnboardingState) {
+    state.spotify_playback_mode = state.spotify_playback_mode.next();
+}
+
+pub fn toggle_spotify_radio_enabled(state: &mut OnboardingState) {
+    state.spotify_radio_enabled = !state.spotify_radio_enabled;
 }
 
 #[cfg(test)]
