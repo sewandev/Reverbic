@@ -1163,23 +1163,10 @@ impl App {
         };
         match rx.try_recv() {
             Ok(Ok((tracks, has_more))) => {
-                let loaded_count = tracks.len() as u32;
                 self.spotify.playlist_tracks_loading = false;
                 self.spotify.playlist_tracks.extend(tracks);
                 self.spotify.playlist_tracks_has_more = has_more;
                 self.spotify.playlist_tracks_offset += 50;
-                if let Some(pl) = self.spotify.open_playlist.as_mut() {
-                    if pl.tracks_total == 0 {
-                        pl.tracks_total = loaded_count;
-                    }
-                }
-                if let Some(open_id) = self.spotify.open_playlist.as_ref().map(|p| p.id.clone()) {
-                    if let Some(pl) = self.spotify.playlists.iter_mut().find(|p| p.id == open_id) {
-                        if pl.tracks_total == 0 {
-                            pl.tracks_total = loaded_count;
-                        }
-                    }
-                }
             }
             Ok(Err(e)) => {
                 self.spotify.playlist_tracks_loading = false;
