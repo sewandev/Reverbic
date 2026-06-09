@@ -56,6 +56,40 @@ pub fn spawn_player(
     SpotifyPlayerHandle { cmd_tx }
 }
 
+pub fn has_cached_credentials() -> bool {
+    open_cache()
+        .as_ref()
+        .and_then(|cache| cache.credentials())
+        .is_some()
+}
+
+fn open_cache() -> Option<Cache> {
+    Cache::new(
+        Some(&cache_dir()),
+        None::<&std::path::PathBuf>,
+        None::<&std::path::PathBuf>,
+        None,
+    )
+    .ok()
+}
+
+fn cache_dir() -> std::path::PathBuf {
+    #[cfg(target_os = "windows")]
+    {
+        std::env::var("APPDATA")
+            .map(|p| {
+                std::path::PathBuf::from(p)
+                    .join(".reverbic")
+                    .join("librespot")
+            })
+            .unwrap_or_else(|_| crate::config::reverbic_dir().join("librespot"))
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        crate::config::reverbic_dir().join("librespot")
+    }
+}
+
 async fn run_player(
     audio_token: String,
     mut cmd_rx: UnboundedReceiver<SpotifyPlayerCmd>,
@@ -65,29 +99,19 @@ async fn run_player(
         client_id: "65b708073fc0480ea92a077233ca87bd".to_string(),
         ..Default::default()
     };
-    #[cfg(target_os = "windows")]
-    let cache_dir = std::env::var("APPDATA")
-        .map(|p| {
-            std::path::PathBuf::from(p)
-                .join(".reverbic")
-                .join("librespot")
-        })
-        .unwrap_or_else(|_| crate::config::reverbic_dir().join("librespot"));
-    #[cfg(not(target_os = "windows"))]
-    let cache_dir = crate::config::reverbic_dir().join("librespot");
-    let cache = Cache::new(
-        Some(&cache_dir),
-        None::<&std::path::PathBuf>,
-        None::<&std::path::PathBuf>,
-        None,
-    )
-    .ok();
+    let cache = open_cache();
     let credentials = match cache.as_ref().and_then(|c| c.credentials()) {
         Some(cached) => {
             tracing::info!("librespot: using cached credentials");
             cached
         }
         None => {
+            if audio_token.trim().is_empty() {
+                let _ = event_tx.try_send(SpotifyPlayerEvent::Error(
+                    "native_missing_credentials".into(),
+                ));
+                return;
+            }
             tracing::info!("librespot: using OAuth token for first login");
             Credentials::with_access_token(&audio_token)
         }
@@ -95,14 +119,16 @@ async fn run_player(
 
     let session = Session::new(session_config, cache);
     if let Err(e) = session.connect(credentials, true).await {
-        let _ = event_tx.try_send(SpotifyPlayerEvent::Error(format!("Session connect: {e}")));
+        let _ = event_tx.try_send(SpotifyPlayerEvent::Error(format!(
+            "native_session_connect: {e}"
+        )));
         return;
     }
 
     let mixer: Arc<dyn Mixer> = Arc::new(match SoftMixer::open(MixerConfig::default()) {
         Ok(m) => m,
         Err(e) => {
-            let _ = event_tx.try_send(SpotifyPlayerEvent::Error(format!("Mixer: {e}")));
+            let _ = event_tx.try_send(SpotifyPlayerEvent::Error(format!("native_mixer: {e}")));
             return;
         }
     });
@@ -111,7 +137,7 @@ async fn run_player(
         Some(b) => b,
         None => {
             let _ = event_tx.try_send(SpotifyPlayerEvent::Error(
-                "No compatible audio backend was found".to_string(),
+                "native_audio_backend_missing".to_string(),
             ));
             return;
         }
@@ -147,7 +173,7 @@ async fn run_player(
                         track_from_audio_item(&audio_item).map(SpotifyPlayerEvent::TrackChanged)
                     }
                     PlayerEvent::Unavailable { track_id, .. } => Some(SpotifyPlayerEvent::Error(
-                        format!("Pista no disponible: {track_id}"),
+                        format!("native_track_unavailable: {track_id}"),
                     )),
                     _ => None,
                 };
@@ -165,7 +191,7 @@ async fn run_player(
                                 }
                                 Err(e) => {
                                     let _ = event_tx.try_send(SpotifyPlayerEvent::Error(
-                                        format!("URI parse: {e}"),
+                                        format!("native_uri_parse: {e}"),
                                     ));
                                 }
                             }

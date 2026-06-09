@@ -102,6 +102,7 @@ impl<'a> SearchModalWidget<'a> {
                     format!("{}...", preview)
                 }
             }
+            SettingItem::SpotifyPlaybackMode => self.spotify_playback_mode.clone(),
             SettingItem::SpotifyRadioMode => {
                 if self.spotify_radio_mode {
                     on

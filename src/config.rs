@@ -78,6 +78,34 @@ impl OverlayStyle {
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
+pub enum SpotifyPlaybackMode {
+    #[default]
+    Auto,
+    Remote,
+    Native,
+}
+
+impl SpotifyPlaybackMode {
+    pub fn display(self) -> String {
+        use crate::i18n::t;
+        match self {
+            Self::Auto => t("spotify.playback_mode.auto"),
+            Self::Remote => t("spotify.playback_mode.remote"),
+            Self::Native => t("spotify.playback_mode.native"),
+        }
+    }
+
+    pub fn next(self) -> Self {
+        match self {
+            Self::Auto => Self::Remote,
+            Self::Remote => Self::Native,
+            Self::Native => Self::Auto,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
 pub enum OverlayPosition {
     #[default]
     TopLeft,
@@ -111,6 +139,8 @@ impl OverlayPosition {
 pub struct SpotifyConfig {
     #[serde(default)]
     pub client_id: String,
+    #[serde(default)]
+    pub playback_mode: SpotifyPlaybackMode,
     #[serde(default)]
     pub display_name: Option<String>,
     #[serde(default)]
@@ -646,6 +676,42 @@ mod tests {
         let saved = serde_json::to_value(&config).expect("config should serialize");
 
         assert_eq!(saved["theme"], json!("reverbic"));
+    }
+
+    #[test]
+    fn spotify_playback_mode_defaults_for_old_configs_and_serializes_for_persistence() {
+        let old_config = json!({
+            "volume": 0.75,
+            "last_selected": 3,
+            "spotify": {
+                "client_id": "spotify-client"
+            }
+        });
+
+        let config: Config = serde_json::from_value(old_config)
+            .expect("old config without spotify playback_mode should load");
+
+        assert_eq!(config.spotify.playback_mode, SpotifyPlaybackMode::Auto);
+
+        let saved = serde_json::to_value(&config).expect("config should serialize");
+
+        assert_eq!(saved["spotify"]["playback_mode"], json!("auto"));
+    }
+
+    #[test]
+    fn spotify_playback_mode_cycles_through_available_modes() {
+        assert_eq!(
+            SpotifyPlaybackMode::Auto.next(),
+            SpotifyPlaybackMode::Remote
+        );
+        assert_eq!(
+            SpotifyPlaybackMode::Remote.next(),
+            SpotifyPlaybackMode::Native
+        );
+        assert_eq!(
+            SpotifyPlaybackMode::Native.next(),
+            SpotifyPlaybackMode::Auto
+        );
     }
 
     #[test]

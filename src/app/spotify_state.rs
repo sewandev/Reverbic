@@ -12,6 +12,12 @@ type PlaylistsResultRx =
     std::sync::mpsc::Receiver<Result<(Vec<SpotifyPlaylist>, bool), SpotifyError>>;
 type AlbumsResultRx = std::sync::mpsc::Receiver<Result<(Vec<SpotifyAlbum>, bool), SpotifyError>>;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum SpotifyPlaybackBackend {
+    Remote,
+    Native,
+}
+
 pub struct SpotifyState {
     pub status: SpotifyAuthStatus,
     pub is_premium: bool,
@@ -19,6 +25,8 @@ pub struct SpotifyState {
     pub now_playing: Option<SpotifyTrack>,
     pub player_status: SpotifyPlayerStatus,
     pub active_device_id: Option<String>,
+    pub native_available: bool,
+    pub native_error: Option<String>,
 
     pub sub_tab: SpotifySubTab,
 
@@ -38,6 +46,7 @@ pub struct SpotifyState {
     pub devices_loading: bool,
 
     pub playback: Option<SpotifyPlaybackState>,
+    pub(super) active_backend: Option<SpotifyPlaybackBackend>,
 
     pub(super) player_tx: Option<SpotifyPlayerHandle>,
     pub(super) player_rx: Option<std::sync::mpsc::Receiver<SpotifyPlayerEvent>>,
@@ -156,6 +165,8 @@ impl Default for SpotifyState {
             now_playing: None,
             player_status: SpotifyPlayerStatus::Idle,
             active_device_id: None,
+            native_available: false,
+            native_error: None,
             sub_tab: SpotifySubTab::default(),
             search_query: String::new(),
             search_results: Vec::new(),
@@ -171,6 +182,7 @@ impl Default for SpotifyState {
             devices_selected: 0,
             devices_loading: false,
             playback: None,
+            active_backend: None,
             player_tx: None,
             player_rx: None,
             auth_task: None,

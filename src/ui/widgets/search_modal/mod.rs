@@ -77,6 +77,8 @@ pub struct SearchModalWidget<'a> {
     pub spotify_devices_loading: bool,
     pub spotify_stop_on_quit: bool,
     pub spotify_start_on_spotify: bool,
+    pub spotify_playback_mode: String,
+    pub spotify_playback_mode_kind: crate::config::SpotifyPlaybackMode,
     pub spotify_radio_mode: bool,
     pub spotify_search_rate_limited: bool,
     pub spotify_rate_limited_secs: u64,
@@ -217,6 +219,8 @@ impl<'a> SearchModalWidget<'a> {
             spotify_devices_loading: sp.devices_loading,
             spotify_stop_on_quit: app.config.spotify.stop_on_quit,
             spotify_start_on_spotify: app.config.spotify.start_on_spotify,
+            spotify_playback_mode: app.config.spotify.playback_mode.display(),
+            spotify_playback_mode_kind: app.config.spotify.playback_mode,
             spotify_radio_mode: app.config.spotify.radio_enabled,
             spotify_search_rate_limited: sp.search_rate_limited,
             spotify_rate_limited_secs: sp
@@ -420,10 +424,16 @@ impl SearchModalWidget<'_> {
                     ],
                     SpotifyAuthStatus::LoggedIn => {
                         if matches!(self.spotify_sub_tab, SpotifySubTab::Devices) {
-                            vec![
-                                Span::raw(" "),
-                                key("[↵]"),
-                                sep_s(format!(" {}  ", t("hint.transfer"))),
+                            let mut hints = vec![Span::raw(" ")];
+                            if self.spotify_playback_mode_kind
+                                != crate::config::SpotifyPlaybackMode::Native
+                            {
+                                hints.extend([
+                                    key("[↵]"),
+                                    sep_s(format!(" {}  ", t("hint.transfer"))),
+                                ]);
+                            }
+                            hints.extend([
                                 key("[↑↓]"),
                                 sep_s(format!(" {}  ", t("hint.nav"))),
                                 key("[←→]"),
@@ -432,7 +442,8 @@ impl SearchModalWidget<'_> {
                                 sep_s(format!(" {}  ", t("hint.reload"))),
                                 key("[?]"),
                                 sep_s(format!(" {} ", t("hint.help"))),
-                            ]
+                            ]);
+                            hints
                         } else if !self.spotify_results.is_empty() {
                             vec![
                                 Span::raw(" "),

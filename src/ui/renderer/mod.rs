@@ -96,7 +96,29 @@ pub fn render(frame: &mut Frame, app: &App) {
 
     if app.screensaver_active() {
         if app.active_source_is_spotify() {
-            if let Some(ref playback) = app.spotify.playback {
+            let native_playback = if app.spotify.playback.is_none() {
+                app.spotify.now_playing.as_ref().map(|track| {
+                    let is_playing = matches!(
+                        app.spotify.player_status,
+                        crate::app::SpotifyPlayerStatus::Playing
+                            | crate::app::SpotifyPlayerStatus::Loading
+                    );
+                    crate::integrations::spotify::SpotifyPlaybackState {
+                        is_playing,
+                        progress_ms: 0,
+                        duration_ms: track.duration_ms,
+                        track_name: track.name.clone(),
+                        artist: track.artist.clone(),
+                        album: track.album.clone(),
+                        device_name: "Reverbic".to_string(),
+                        volume_pct: (app.config.volume * 100.0).round().clamp(0.0, 100.0) as u8,
+                    }
+                })
+            } else {
+                None
+            };
+
+            if let Some(playback) = app.spotify.playback.as_ref().or(native_playback.as_ref()) {
                 render_spotify_screensaver(
                     frame,
                     area,

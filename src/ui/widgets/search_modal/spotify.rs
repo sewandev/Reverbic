@@ -7,6 +7,7 @@ use ratatui::{
 };
 
 use crate::app::SpotifyAuthStatus;
+use crate::config::SpotifyPlaybackMode;
 use crate::i18n::t;
 use crate::ui::strings;
 
@@ -484,12 +485,37 @@ impl<'a> SearchModalWidget<'a> {
             return;
         }
 
-        Paragraph::new(Line::from(vec![Span::styled(
-            t("modal.spotify.devices_header"),
-            Style::default().fg(self.palette.muted),
-        )]))
+        Paragraph::new(Line::from(vec![
+            Span::styled(
+                t("modal.spotify.devices_mode"),
+                Style::default().fg(self.palette.dim),
+            ),
+            Span::styled(" ", Style::default().fg(self.palette.dim)),
+            Span::styled(
+                self.spotify_playback_mode.clone(),
+                Style::default()
+                    .fg(self.palette.spotify)
+                    .add_modifier(Modifier::BOLD),
+            ),
+        ]))
         .render(Rect::new(list_x, y, list_w, 1), buf);
-        y += 2; // gap equal to spacing between tabs and subtabs
+        y += 1;
+        if y >= area.bottom() {
+            return;
+        }
+
+        let hint_key = if self.spotify_playback_mode_kind == SpotifyPlaybackMode::Native {
+            "modal.spotify.devices_native_hint"
+        } else {
+            "modal.spotify.devices_remote_hint"
+        };
+        Paragraph::new(Span::styled(
+            t(hint_key),
+            Style::default().fg(self.palette.muted),
+        ))
+        .wrap(Wrap { trim: true })
+        .render(Rect::new(list_x, y, list_w, 2), buf);
+        y += 3;
 
         if self.spotify_devices_loading {
             if y < area.bottom() {
