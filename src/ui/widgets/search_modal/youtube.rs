@@ -1,6 +1,6 @@
 use ratatui::{
     buffer::Buffer,
-    layout::{Alignment, Constraint, Layout, Rect},
+    layout::{Alignment, Rect},
     style::{Modifier, Style},
     text::{Line, Span},
     widgets::{List, ListItem, Paragraph, Widget, Wrap},
@@ -11,6 +11,7 @@ use crate::i18n::t;
 use crate::ui::strings;
 use crate::ui::widgets::scroll_offset_for_selection;
 
+use super::filter_list_layout;
 use super::helpers::{render_filter_input, spin_frame};
 use super::SearchModalWidget;
 
@@ -30,18 +31,12 @@ impl<'a> SearchModalWidget<'a> {
         content_w: u16,
         buf: &mut Buffer,
     ) {
-        let [_gap, input_row, cap_row, list_area] = Layout::vertical([
-            Constraint::Length(1),
-            Constraint::Length(1),
-            Constraint::Length(1),
-            Constraint::Fill(1),
-        ])
-        .areas(area);
+        let layout = filter_list_layout(area);
 
         let text_x = content_x + 2;
         let text_w = content_w.saturating_sub(2);
 
-        buf[(content_x, input_row.y)]
+        buf[(content_x, layout.input.y)]
             .set_symbol("┃")
             .set_fg(self.palette.accent)
             .set_bg(self.palette.panel_bg);
@@ -49,13 +44,13 @@ impl<'a> SearchModalWidget<'a> {
         render_filter_input(
             self.youtube_query,
             &t("modal.youtube.placeholder"),
-            Rect::new(text_x, input_row.y, text_w, 1),
+            Rect::new(text_x, layout.input.y, text_w, 1),
             self.palette,
             buf,
             self.palette.danger,
         );
 
-        buf[(content_x, cap_row.y)]
+        buf[(content_x, layout.cap.y)]
             .set_symbol("╹")
             .set_fg(self.palette.accent)
             .set_bg(self.palette.panel_bg);
@@ -63,7 +58,7 @@ impl<'a> SearchModalWidget<'a> {
         match self.youtube_status {
             YoutubeStatus::Installing => {
                 self.render_youtube_message(
-                    list_area,
+                    layout.list,
                     text_x,
                     text_w,
                     &format!("{}  {}", spin_frame(), t("modal.youtube.installing")),
@@ -73,7 +68,7 @@ impl<'a> SearchModalWidget<'a> {
             }
             YoutubeStatus::Resolving => {
                 self.render_youtube_message(
-                    list_area,
+                    layout.list,
                     text_x,
                     text_w,
                     &format!("{}  {}", spin_frame(), t("modal.youtube.resolving")),
@@ -82,10 +77,10 @@ impl<'a> SearchModalWidget<'a> {
                 );
             }
             YoutubeStatus::Error(msg) => {
-                self.render_youtube_error(list_area, text_x, text_w, msg, buf);
+                self.render_youtube_error(layout.list, text_x, text_w, msg, buf);
             }
             YoutubeStatus::Idle | YoutubeStatus::Ready => {
-                self.render_youtube_results(list_area, text_x, text_w, buf);
+                self.render_youtube_results(layout.list, text_x, text_w, buf);
             }
         }
     }

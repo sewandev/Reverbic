@@ -14,6 +14,9 @@ use crate::ui::widgets::scroll_offset_for_selection;
 
 use super::helpers::{render_filter_input, spin_frame};
 use super::SearchModalWidget;
+use super::{spotify_layout, spotify_search_layout, spotify_titled_track_list_layout};
+
+const FOOTER_BADGE_GAP_WIDTH: u16 = 2;
 
 fn fmt_duration(ms: u32) -> String {
     let secs = ms / 1000;
@@ -64,14 +67,7 @@ impl<'a> SearchModalWidget<'a> {
     ) {
         use crate::app::SpotifySubTab;
 
-        let [_gap, subtab_row, _body_gap, body, footer_row] = Layout::vertical([
-            Constraint::Length(1),
-            Constraint::Length(1),
-            Constraint::Length(1),
-            Constraint::Fill(1),
-            Constraint::Length(1),
-        ])
-        .areas(area);
+        let layout = spotify_layout(area);
 
         let text_x = content_x + 2;
         let text_w = content_w.saturating_sub(2);
@@ -120,25 +116,20 @@ impl<'a> SearchModalWidget<'a> {
             ]));
 
             Paragraph::new(text).render(
-                Rect::new(text_x, subtab_row.y, text_w, subtab_row.height),
+                Rect::new(text_x, layout.subtab.y, text_w, layout.subtab.height),
                 buf,
             );
         }
 
         match self.spotify_sub_tab {
             SpotifySubTab::Search => {
-                let [input_row, cap_row, list_area] = Layout::vertical([
-                    Constraint::Length(1),
-                    Constraint::Length(1),
-                    Constraint::Fill(1),
-                ])
-                .areas(body);
+                let search_layout = spotify_search_layout(layout.body);
 
-                buf[(content_x, input_row.y)]
+                buf[(content_x, search_layout.input.y)]
                     .set_symbol("┃")
                     .set_fg(self.palette.spotify)
                     .set_bg(self.palette.panel_bg);
-                let text_area = Rect::new(text_x, input_row.y, text_w, 1);
+                let text_area = Rect::new(text_x, search_layout.input.y, text_w, 1);
                 render_filter_input(
                     self.spotify_query,
                     &t("modal.spotify.placeholder"),
@@ -148,34 +139,34 @@ impl<'a> SearchModalWidget<'a> {
                     self.palette.spotify,
                 );
 
-                buf[(content_x, cap_row.y)]
+                buf[(content_x, search_layout.cap.y)]
                     .set_symbol("╹")
                     .set_fg(self.palette.spotify)
                     .set_bg(self.palette.panel_bg);
 
-                self.render_spotify_list(list_area, text_x, text_w, buf);
+                self.render_spotify_list(search_layout.list, text_x, text_w, buf);
             }
             SpotifySubTab::Liked => {
-                self.render_spotify_liked(body, text_x, text_w, buf);
+                self.render_spotify_liked(layout.body, text_x, text_w, buf);
             }
             SpotifySubTab::Playlists => {
                 if self.spotify_open_playlist.is_some() {
-                    self.render_spotify_playlist_tracks(body, text_x, text_w, buf);
+                    self.render_spotify_playlist_tracks(layout.body, text_x, text_w, buf);
                 } else {
-                    self.render_spotify_playlists(body, text_x, text_w, buf);
+                    self.render_spotify_playlists(layout.body, text_x, text_w, buf);
                 }
             }
             SpotifySubTab::TopTracks => {
-                self.render_spotify_top_tracks(body, text_x, text_w, buf);
+                self.render_spotify_top_tracks(layout.body, text_x, text_w, buf);
             }
             SpotifySubTab::Recent => {
-                self.render_spotify_recent_tracks(body, text_x, text_w, buf);
+                self.render_spotify_recent_tracks(layout.body, text_x, text_w, buf);
             }
             SpotifySubTab::Albums => {
                 if self.spotify_open_album.is_some() {
-                    self.render_spotify_album_tracks(body, text_x, text_w, buf);
+                    self.render_spotify_album_tracks(layout.body, text_x, text_w, buf);
                 } else {
-                    self.render_spotify_albums(body, text_x, text_w, buf);
+                    self.render_spotify_albums(layout.body, text_x, text_w, buf);
                 }
             }
         }
@@ -201,7 +192,7 @@ impl<'a> SearchModalWidget<'a> {
                 format!("{mode} {dev_name} * {dev_type} [{active}]{switch_hint}")
             };
 
-        let footer_area = Rect::new(text_x, footer_row.y, text_w, 1);
+        let footer_area = Rect::new(text_x, layout.footer.y, text_w, 1);
         let mode_style = Style::default()
             .fg(ratatui::style::Color::Yellow)
             .add_modifier(Modifier::BOLD);
@@ -220,7 +211,7 @@ impl<'a> SearchModalWidget<'a> {
         if let Some(badge) = premium_badge.filter(|_| badge_len + 4 < text_w) {
             let [mode_area, _gap, badge_area] = Layout::horizontal([
                 Constraint::Fill(1),
-                Constraint::Length(2),
+                Constraint::Length(FOOTER_BADGE_GAP_WIDTH),
                 Constraint::Length(badge_len),
             ])
             .areas(footer_area);
@@ -723,12 +714,7 @@ impl<'a> SearchModalWidget<'a> {
             ]);
             Paragraph::new(line).render(Rect::new(list_x, area.y, list_w, 1), buf);
         }
-        let inner = Rect::new(
-            area.x,
-            area.y + 1,
-            area.width,
-            area.height.saturating_sub(1),
-        );
+        let inner = spotify_titled_track_list_layout(area);
         self.render_generic_track_list(
             inner,
             buf,
@@ -848,12 +834,7 @@ impl<'a> SearchModalWidget<'a> {
             ]);
             Paragraph::new(line).render(Rect::new(list_x, area.y, list_w, 1), buf);
         }
-        let inner = Rect::new(
-            area.x,
-            area.y + 1,
-            area.width,
-            area.height.saturating_sub(1),
-        );
+        let inner = spotify_titled_track_list_layout(area);
         self.render_generic_track_list(
             inner,
             buf,

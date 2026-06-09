@@ -1,6 +1,6 @@
 use ratatui::{
     buffer::Buffer,
-    layout::{Constraint, Layout, Rect},
+    layout::Rect,
     style::{Modifier, Style},
     text::{Line, Span},
     widgets::{List, ListItem, Paragraph, Widget},
@@ -82,26 +82,20 @@ pub(super) fn render_filter_list_body(
         loading,
         loading_text,
     } = p;
-    let [_gap, input_row, cap_row, list_body] = Layout::vertical([
-        Constraint::Length(1),
-        Constraint::Length(1),
-        Constraint::Length(1),
-        Constraint::Fill(1),
-    ])
-    .areas(area);
+    let layout = super::filter_list_layout(area);
 
-    buf[(content_x, input_row.y)]
+    buf[(content_x, layout.input.y)]
         .set_symbol("┃")
         .set_fg(palette.accent)
         .set_bg(palette.panel_bg);
 
     let text_x = content_x + 2;
     let text_w = content_w.saturating_sub(2);
-    let text_area = Rect::new(text_x, input_row.y, text_w, 1);
+    let text_area = Rect::new(text_x, layout.input.y, text_w, 1);
 
     render_filter_input(filter, placeholder, text_area, palette, buf, palette.accent);
 
-    buf[(content_x, cap_row.y)]
+    buf[(content_x, layout.cap.y)]
         .set_symbol("╹")
         .set_fg(palette.accent)
         .set_bg(palette.panel_bg);
@@ -111,11 +105,11 @@ pub(super) fn render_filter_list_body(
             format!("{}  {}", spin_frame(), loading_text),
             Style::default().fg(palette.muted),
         ))
-        .render(Rect::new(text_x, list_body.y, text_w, 1), buf);
+        .render(Rect::new(text_x, layout.list.y, text_w, 1), buf);
         return (false, Rect::default(), 0);
     }
 
-    let list_area = Rect::new(text_x, list_body.y, text_w, list_body.height);
+    let list_area = Rect::new(text_x, layout.list.y, text_w, layout.list.height);
     let visible_n = list_area.height.saturating_sub(1) as usize;
     let filtered = filter_items(items, filter);
 

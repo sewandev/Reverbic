@@ -1,6 +1,6 @@
 use ratatui::{
     buffer::Buffer,
-    layout::{Constraint, Layout, Rect},
+    layout::Rect,
     style::{Modifier, Style},
     text::{Line, Span},
     widgets::{Paragraph, Widget, Wrap},
@@ -11,6 +11,7 @@ use crate::i18n::{current_language, t, Language};
 use crate::ui::strings::screensaver_display;
 use crate::ui::widgets::scroll_offset_for_selection;
 
+use super::settings_layout;
 use super::SearchModalWidget;
 
 impl<'a> SearchModalWidget<'a> {
@@ -165,12 +166,9 @@ impl<'a> SearchModalWidget<'a> {
         let list_x = content_x + 2;
         let list_w = content_w.saturating_sub(2);
 
-        let [_gap, items_area, tooltip_area] = Layout::vertical([
-            Constraint::Length(1),
-            Constraint::Fill(1),
-            Constraint::Length(3),
-        ])
-        .areas(area);
+        let layout = settings_layout(area);
+        let items_area = layout.items;
+        let tooltip_area = layout.tooltip;
 
         let visible_n = items_area.height.saturating_sub(1) as usize;
         let offset =
