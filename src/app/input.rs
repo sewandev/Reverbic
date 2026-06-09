@@ -119,6 +119,33 @@ impl App {
         );
     }
 
+    fn settings_visible_items(&self) -> usize {
+        self.radio_results_visible_items(4)
+    }
+
+    fn settings_selected_row(&self) -> usize {
+        let mut row = 0usize;
+        let mut last_group = "";
+        for (item_idx, item) in settings_items(self.config.duck_enabled).iter().enumerate() {
+            let group = item.group_key();
+            if group != last_group {
+                row += 1;
+                last_group = group;
+            }
+            if item_idx == self.settings_selected {
+                return row;
+            }
+            row += 1;
+        }
+        0
+    }
+
+    fn keep_settings_visible(&mut self) {
+        let selected_row = self.settings_selected_row();
+        let visible = self.settings_visible_items();
+        keep_selected_visible(&mut self.settings_scroll_offset, selected_row, visible);
+    }
+
     fn keep_active_radio_results_visible(&mut self) {
         match self.modal_mode {
             SearchMode::Genre => self.keep_radio_genre_results_visible(),
@@ -301,6 +328,7 @@ impl App {
                 self.show_search_modal = true;
                 self.modal_mode = SearchMode::Settings;
                 self.settings_selected = 0;
+                self.settings_scroll_offset = 0;
             }
             KeyCode::Char('g') | KeyCode::Char('G') if self.show_search_modal => {
                 self.modal_mode = SearchMode::Genre;
@@ -881,23 +909,32 @@ impl App {
             KeyCode::Esc => {
                 self.show_help = false;
                 self.modal_mode = SearchMode::Name;
+                self.settings_scroll_offset = 0;
             }
             KeyCode::Up | KeyCode::Char('k') => {
                 self.settings_selected = cycle_prev(self.settings_selected, count);
+                self.keep_settings_visible();
             }
             KeyCode::Down | KeyCode::Char('j') => {
                 self.settings_selected = cycle_next(self.settings_selected, count);
+                self.keep_settings_visible();
             }
             KeyCode::Enter => {
                 let items = settings_items(self.config.duck_enabled);
                 if let Some(item) = items.get(self.settings_selected).copied() {
                     self.activate_setting_item(item);
+                    if matches!(self.modal_mode, SearchMode::Settings) {
+                        self.keep_settings_visible();
+                    }
                 }
             }
             KeyCode::Char(' ') => {
                 let items = settings_items(self.config.duck_enabled);
                 if let Some(item) = items.get(self.settings_selected).copied() {
                     self.activate_setting_item(item);
+                    if matches!(self.modal_mode, SearchMode::Settings) {
+                        self.keep_settings_visible();
+                    }
                 }
             }
             _ => {}
@@ -915,6 +952,7 @@ impl App {
                 self.replay_onboarding = true;
                 self.show_search_modal = true;
                 self.modal_mode = SearchMode::Name;
+                self.settings_scroll_offset = 0;
             }
             _ => self.apply_settings_toggle(self.settings_selected),
         }
@@ -1345,6 +1383,7 @@ impl App {
                             if len > 0 {
                                 self.settings_selected =
                                     scroll_by(self.settings_selected, delta, len);
+                                self.keep_settings_visible();
                             }
                         }
                         _ => {
