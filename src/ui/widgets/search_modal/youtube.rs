@@ -9,6 +9,7 @@ use ratatui::{
 use crate::app::YoutubeStatus;
 use crate::i18n::t;
 use crate::ui::strings;
+use crate::ui::widgets::scroll_offset_for_selection;
 
 use super::helpers::{render_filter_input, spin_frame};
 use super::SearchModalWidget;
@@ -160,7 +161,11 @@ impl<'a> SearchModalWidget<'a> {
 
         const ITEM_HEIGHT: usize = 2;
         let visible_n = (area.height as usize) / ITEM_HEIGHT;
-        let offset = super::super::scroll_offset(self.youtube_selected, visible_n);
+        let offset = scroll_offset_for_selection(
+            self.youtube_selected,
+            visible_n,
+            self.youtube_scroll_offset,
+        );
 
         let items: Vec<ListItem> = self
             .youtube_results

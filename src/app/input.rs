@@ -13,12 +13,12 @@ use super::modal::{settings_items, SettingItem};
 use super::modal::{AppFocus, RadioSubTab, SearchMode, SpotifyAuthStatus};
 use super::{abort_task, cycle_next, cycle_prev, scroll_by, App, SpotifyControlTarget};
 
-const SPOTIFY_ITEM_HEIGHT: usize = 2;
+const MODAL_LIST_ITEM_HEIGHT: usize = 2;
 const MODAL_MIN_HEIGHT: u16 = 14;
 const MODAL_MAX_HEIGHT: u16 = 30;
 
 impl App {
-    fn spotify_visible_items(&self, title_rows: u16) -> usize {
+    fn modal_list_visible_items(&self, rows_before_list: u16) -> usize {
         let terminal_h = self.terminal_area.height;
         if terminal_h == 0 {
             return 0;
@@ -30,11 +30,26 @@ impl App {
         let list_h = panel_h
             .saturating_sub(2) // modal border
             .saturating_sub(1) // top modal tabs
-            .saturating_sub(1) // Spotify body gap
-            .saturating_sub(3) // Spotify subtabs
-            .saturating_sub(title_rows);
+            .saturating_sub(rows_before_list);
 
-        (list_h as usize) / SPOTIFY_ITEM_HEIGHT
+        (list_h as usize) / MODAL_LIST_ITEM_HEIGHT
+    }
+
+    fn spotify_visible_items(&self, title_rows: u16) -> usize {
+        self.modal_list_visible_items(4 + title_rows)
+    }
+
+    fn youtube_visible_items(&self) -> usize {
+        self.modal_list_visible_items(3)
+    }
+
+    fn keep_youtube_visible(&mut self) {
+        let visible = self.youtube_visible_items();
+        keep_selected_visible(
+            &mut self.youtube.scroll_offset,
+            self.youtube.selected,
+            visible,
+        );
     }
 
     fn keep_spotify_liked_visible(&mut self) {
@@ -333,6 +348,7 @@ impl App {
             SearchMode::Youtube => {
                 self.youtube.query.push_str(&filtered);
                 self.youtube.selected = 0;
+                self.youtube.scroll_offset = 0;
                 self.perform_youtube_search();
             }
             _ => {}
@@ -550,6 +566,7 @@ impl App {
                 self.youtube.query.clear();
                 self.youtube.results.clear();
                 self.youtube.selected = 0;
+                self.youtube.scroll_offset = 0;
                 self.youtube.loading = false;
                 self.youtube.search_pending_until = None;
                 abort_task(&mut self.youtube.search_task);
@@ -1065,6 +1082,7 @@ impl App {
                     let len = self.youtube.results.len();
                     if len > 0 {
                         self.youtube.selected = scroll_by(self.youtube.selected, delta, len);
+                        self.keep_youtube_visible();
                     }
                 }
                 SearchMode::Spotify => {
@@ -1877,6 +1895,7 @@ impl App {
                     self.youtube.query.clear();
                     self.youtube.results.clear();
                     self.youtube.selected = 0;
+                    self.youtube.scroll_offset = 0;
                     self.youtube.loading = false;
                     self.youtube.search_pending_until = None;
                     abort_task(&mut self.youtube.search_task);
@@ -1892,12 +1911,14 @@ impl App {
                 if !self.youtube.results.is_empty() {
                     self.youtube.selected =
                         cycle_prev(self.youtube.selected, self.youtube.results.len());
+                    self.keep_youtube_visible();
                 }
             }
             KeyCode::Down => {
                 if !self.youtube.results.is_empty() {
                     self.youtube.selected =
                         cycle_next(self.youtube.selected, self.youtube.results.len());
+                    self.keep_youtube_visible();
                 }
             }
             KeyCode::Enter => {
@@ -1912,11 +1933,13 @@ impl App {
             KeyCode::Backspace => {
                 self.youtube.query.pop();
                 self.youtube.selected = 0;
+                self.youtube.scroll_offset = 0;
                 self.perform_youtube_search();
             }
             KeyCode::Char(c) if !c.is_control() => {
                 self.youtube.query.push(c);
                 self.youtube.selected = 0;
+                self.youtube.scroll_offset = 0;
                 self.perform_youtube_search();
             }
             _ => {}
