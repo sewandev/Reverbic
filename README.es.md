@@ -44,6 +44,10 @@
 - Sub-pestañas: Búsqueda y Dispositivos
 - Manejo de rate-limit con cuenta regresiva
 
+**YouTube**
+- Búsqueda y streaming de audio desde YouTube
+- Nota: La reproducción no utiliza cookies ni credenciales de usuario. Los videos con restricción de edad, privados o que requieran inicio de sesión podrían fallar.
+
 **Windows / Escritorio**
 - Overlay flotante — siempre encima, posición configurable (4 esquinas) y transparencia ajustable
 - Icono en la bandeja del sistema con notificaciones balloon

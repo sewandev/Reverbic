@@ -44,6 +44,10 @@
 - Sub-tabs: Search and Devices
 - Rate-limit handling with countdown
 
+**YouTube**
+- Search and stream audio from YouTube
+- Note: Playback does not use cookies or account credentials. Age-restricted, private, or authentication-required videos may fail to play.
+
 **Windows / Desktop**
 - Floating overlay — always on top, configurable position (4 corners) and transparency
 - System tray icon with balloon notifications
