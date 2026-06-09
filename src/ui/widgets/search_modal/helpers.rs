@@ -9,6 +9,7 @@ use ratatui::{
 use crate::i18n::t;
 use crate::station::filter_items;
 use crate::ui::theme as ui_palette;
+use crate::ui::widgets::scroll_offset_for_selection;
 use ui_palette::Palette;
 
 pub(super) const EXAMPLES: &[&str] = &[
@@ -59,6 +60,7 @@ pub(super) struct FilterListParams<'a> {
     pub placeholder: &'a str,
     pub items: &'a [(&'static str, &'static str)],
     pub selected: usize,
+    pub scroll_offset: usize,
     pub loading: bool,
     pub loading_text: &'a str,
 }
@@ -76,6 +78,7 @@ pub(super) fn render_filter_list_body(
         placeholder,
         items,
         selected,
+        scroll_offset,
         loading,
         loading_text,
     } = p;
@@ -125,7 +128,8 @@ pub(super) fn render_filter_list_body(
         return (false, list_area, 0);
     }
 
-    let offset = crate::ui::widgets::scroll_offset(selected, visible_n);
+    let selected = selected.min(filtered.len().saturating_sub(1));
+    let offset = scroll_offset_for_selection(selected, visible_n, scroll_offset);
 
     let list_items: Vec<ListItem> = filtered
         .iter()

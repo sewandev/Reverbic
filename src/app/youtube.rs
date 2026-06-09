@@ -43,6 +43,7 @@ impl App {
             self.youtube.results.clear();
             self.youtube.loading = false;
             self.youtube.selected = 0;
+            self.youtube.scroll_offset = 0;
             self.youtube.search_pending_until = None;
             abort_task(&mut self.youtube.search_task);
             self.youtube.search_rx = None;
@@ -52,6 +53,7 @@ impl App {
         self.youtube.loading = true;
         self.youtube.results.clear();
         self.youtube.selected = 0;
+        self.youtube.scroll_offset = 0;
         self.youtube.search_pending_until = Some(Instant::now() + YOUTUBE_SEARCH_DEBOUNCE);
         abort_task(&mut self.youtube.search_task);
         self.youtube.search_rx = None;
@@ -68,6 +70,7 @@ impl App {
             self.youtube.results.clear();
             self.youtube.loading = false;
             self.youtube.selected = 0;
+            self.youtube.scroll_offset = 0;
             abort_task(&mut self.youtube.search_task);
             self.youtube.search_rx = None;
             return;
@@ -81,6 +84,7 @@ impl App {
         self.youtube.status = YoutubeStatus::Ready;
         self.youtube.loading = true;
         self.youtube.selected = 0;
+        self.youtube.scroll_offset = 0;
         abort_task(&mut self.youtube.search_task);
         self.youtube.search_rx = None;
 
@@ -140,12 +144,15 @@ impl App {
                     self.youtube.status = YoutubeStatus::Ready;
                     self.youtube.results = results;
                     self.youtube.selected = 0;
+                    self.youtube.scroll_offset = 0;
                 }
                 Ok(Err(err)) => {
                     self.youtube.search_task = None;
                     self.youtube.loading = false;
                     self.youtube.status = YoutubeStatus::Error(err.to_string());
                     self.youtube.results.clear();
+                    self.youtube.selected = 0;
+                    self.youtube.scroll_offset = 0;
                 }
                 Err(std::sync::mpsc::TryRecvError::Empty) => {
                     self.youtube.search_rx = Some(rx);

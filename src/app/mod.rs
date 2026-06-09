@@ -30,6 +30,7 @@ use crate::config::{Config, SpotifyPlaybackMode};
 use crate::favorites::{self as fav_store, FavoriteStation};
 use crate::station::on_demand::OnDemandShow;
 use crate::station::{DynamicStation, Station, StationDetails};
+use crate::ui::widgets::keep_selected_visible;
 
 pub(super) fn cycle_prev(sel: usize, len: usize) -> usize {
     if len == 0 {
@@ -51,26 +52,37 @@ pub(super) fn handle_filter_list_key(
     key: KeyCode,
     filter: &mut String,
     selected: &mut usize,
+    scroll_offset: &mut usize,
     len: usize,
+    visible: usize,
 ) -> bool {
     match key {
         KeyCode::Esc => {
             if !filter.is_empty() {
                 filter.clear();
                 *selected = 0;
+                *scroll_offset = 0;
             } else {
                 return true;
             }
         }
-        KeyCode::Up => *selected = cycle_prev(*selected, len),
-        KeyCode::Down => *selected = cycle_next(*selected, len),
+        KeyCode::Up | KeyCode::Char('k') => {
+            *selected = cycle_prev(*selected, len);
+            keep_selected_visible(scroll_offset, *selected, visible);
+        }
+        KeyCode::Down | KeyCode::Char('j') => {
+            *selected = cycle_next(*selected, len);
+            keep_selected_visible(scroll_offset, *selected, visible);
+        }
         KeyCode::Backspace => {
             filter.pop();
             *selected = 0;
+            *scroll_offset = 0;
         }
         KeyCode::Char(c) if !c.is_control() => {
             filter.push(c);
             *selected = 0;
+            *scroll_offset = 0;
         }
         _ => {}
     }
@@ -119,15 +131,22 @@ pub struct App {
     pub selected_program: usize,
     pub seek_input: String,
     pub settings_selected: usize,
+    pub settings_scroll_offset: usize,
     pub show_search_modal: bool,
     pub modal_mode: SearchMode,
     pub modal_selected: usize,
     pub radio_sub_tab: RadioSubTab,
     pub radio_fav_selected: usize,
+    pub radio_fav_scroll_offset: usize,
+    pub radio_search_scroll_offset: usize,
+    pub radio_genre_results_scroll_offset: usize,
+    pub radio_country_results_scroll_offset: usize,
     pub genre_selected: usize,
+    pub genre_filter_scroll_offset: usize,
     pub genre_filter: String,
     pub genre_query: String,
     pub country_selected: usize,
+    pub country_filter_scroll_offset: usize,
     pub country_filter: String,
     pub renaming_favorite: Option<usize>,
     pub rename_input: String,
@@ -210,15 +229,22 @@ impl App {
             selected_program: 0,
             seek_input: String::new(),
             settings_selected: 0,
+            settings_scroll_offset: 0,
             show_search_modal: true,
             modal_mode: SearchMode::Name,
             modal_selected: 0,
             radio_sub_tab: RadioSubTab::default(),
             radio_fav_selected: 0,
+            radio_fav_scroll_offset: 0,
+            radio_search_scroll_offset: 0,
+            radio_genre_results_scroll_offset: 0,
+            radio_country_results_scroll_offset: 0,
             genre_selected: 0,
+            genre_filter_scroll_offset: 0,
             genre_filter: String::new(),
             genre_query: String::new(),
             country_selected: 0,
+            country_filter_scroll_offset: 0,
             country_filter: String::new(),
             renaming_favorite: None,
             rename_input: String::new(),
@@ -598,15 +624,22 @@ mod tests {
             selected_program: 0,
             seek_input: String::new(),
             settings_selected: 0,
+            settings_scroll_offset: 0,
             show_search_modal: true,
             modal_mode: SearchMode::Name,
             modal_selected: 0,
             radio_sub_tab: RadioSubTab::default(),
             radio_fav_selected: 0,
+            radio_fav_scroll_offset: 0,
+            radio_search_scroll_offset: 0,
+            radio_genre_results_scroll_offset: 0,
+            radio_country_results_scroll_offset: 0,
             genre_selected: 0,
+            genre_filter_scroll_offset: 0,
             genre_filter: String::new(),
             genre_query: String::new(),
             country_selected: 0,
+            country_filter_scroll_offset: 0,
             country_filter: String::new(),
             renaming_favorite: None,
             rename_input: String::new(),

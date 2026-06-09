@@ -10,6 +10,7 @@ impl App {
         if query.trim().is_empty() {
             self.search_results.clear();
             self.search_loading = false;
+            self.radio_search_scroll_offset = 0;
             if let Some(t) = self.search_task.take() {
                 t.abort();
             }
@@ -59,6 +60,9 @@ impl App {
                 Ok(results) => {
                     self.search_results = results;
                     self.search_loading = false;
+                    self.radio_search_scroll_offset = 0;
+                    self.radio_genre_results_scroll_offset = 0;
+                    self.radio_country_results_scroll_offset = 0;
                     let max = self.total_stations();
                     if self.selected >= max && max > 0 {
                         self.selected = max - 1;
