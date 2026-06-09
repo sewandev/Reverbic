@@ -169,6 +169,15 @@ impl App {
             return;
         }
 
+        if event.modifiers.contains(KeyModifiers::CONTROL) {
+            if let KeyCode::Char('d') | KeyCode::Char('D') = event.code {
+                if self.show_search_modal && matches!(self.modal_mode, SearchMode::Spotify) {
+                    self.cycle_spotify_device().await;
+                    return;
+                }
+            }
+        }
+
         self.on_key(event.code).await;
     }
 
@@ -278,7 +287,6 @@ impl App {
                                 None
                             }
                         }
-                        _ => None,
                     };
                     if let Some(t) = track {
                         self.like_spotify_track(&t);
@@ -1122,13 +1130,6 @@ impl App {
                                 }
                             }
                         }
-                        SpotifySubTab::Devices => {
-                            let len = self.spotify.devices.len();
-                            if len > 0 {
-                                self.spotify.devices_selected =
-                                    scroll_by(self.spotify.devices_selected, delta, len);
-                            }
-                        }
                     }
                 }
                 _ => {
@@ -1419,7 +1420,6 @@ impl App {
                     SpotifySubTab::Search,
                     SpotifySubTab::Liked,
                     SpotifySubTab::Playlists,
-                    SpotifySubTab::Devices,
                     SpotifySubTab::TopTracks,
                     SpotifySubTab::Recent,
                     SpotifySubTab::Albums,
@@ -1435,11 +1435,6 @@ impl App {
                 };
                 self.spotify.sub_tab = tabs[next];
                 match self.spotify.sub_tab {
-                    SpotifySubTab::Devices
-                        if self.spotify.devices.is_empty() && !self.spotify.devices_loading =>
-                    {
-                        self.fetch_spotify_devices();
-                    }
                     SpotifySubTab::Liked
                         if self.spotify.liked_tracks.is_empty() && !self.spotify.liked_loading =>
                     {
@@ -1476,7 +1471,6 @@ impl App {
                     SpotifySubTab::Search => self.on_key_spotify_search(key).await,
                     SpotifySubTab::Liked => self.on_key_spotify_liked(key).await,
                     SpotifySubTab::Playlists => self.on_key_spotify_playlists(key).await,
-                    SpotifySubTab::Devices => self.on_key_spotify_devices(key).await,
                     SpotifySubTab::TopTracks => self.on_key_spotify_top_tracks(key).await,
                     SpotifySubTab::Recent => self.on_key_spotify_recent_tracks(key).await,
                     SpotifySubTab::Albums => self.on_key_spotify_albums(key).await,
@@ -1504,36 +1498,25 @@ impl App {
         }
     }
 
-    async fn on_key_spotify_devices(&mut self, key: KeyCode) {
-        match key {
-            KeyCode::Up => {
-                if self.spotify.devices_selected > 0 {
-                    self.spotify.devices_selected -= 1;
+    async fn cycle_spotify_device(&mut self) {
+        if self.config.spotify.playback_mode == crate::config::SpotifyPlaybackMode::Native {
+            self.save_notice = Some(t("modal.spotify.devices_native_hint"));
+            self.save_notice_is_dup = false;
+            self.notice_until =
+                Some(std::time::Instant::now() + std::time::Duration::from_secs(5));
+            return;
+        }
+        let len = self.spotify.devices.len();
+        if len > 1 {
+            let active_idx = self.spotify.devices.iter().position(|d| d.is_active).unwrap_or(0);
+            let next_idx = (active_idx + 1) % len;
+            if let Some(device) = self.spotify.devices.get(next_idx) {
+                if let Some(id) = device.id.clone() {
+                    self.transfer_to_spotify_device(id).await;
                 }
             }
-            KeyCode::Down => {
-                if self.spotify.devices_selected + 1 < self.spotify.devices.len() {
-                    self.spotify.devices_selected += 1;
-                }
-            }
-            KeyCode::Enter => {
-                if self.config.spotify.playback_mode == crate::config::SpotifyPlaybackMode::Native {
-                    self.save_notice = Some(t("modal.spotify.devices_native_hint"));
-                    self.save_notice_is_dup = false;
-                    self.notice_until =
-                        Some(std::time::Instant::now() + std::time::Duration::from_secs(5));
-                    return;
-                }
-                if let Some(device) = self.spotify.devices.get(self.spotify.devices_selected) {
-                    if let Some(id) = device.id.clone() {
-                        self.transfer_to_spotify_device(id).await;
-                    }
-                }
-            }
-            KeyCode::Char(' ') => {
-                self.toggle_spotify_playback().await;
-            }
-            _ => {}
+        } else if len == 0 && !self.spotify.devices_loading {
+            self.fetch_spotify_devices();
         }
     }
 

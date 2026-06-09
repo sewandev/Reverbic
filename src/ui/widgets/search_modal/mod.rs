@@ -73,8 +73,6 @@ pub struct SearchModalWidget<'a> {
     pub spotify_selected: usize,
     pub spotify_is_premium: bool,
     pub spotify_devices: &'a [crate::integrations::spotify::devices::SpotifyDevice],
-    pub spotify_devices_selected: usize,
-    pub spotify_devices_loading: bool,
     pub spotify_stop_on_quit: bool,
     pub spotify_start_on_spotify: bool,
     pub spotify_playback_mode: String,
@@ -218,8 +216,6 @@ impl<'a> SearchModalWidget<'a> {
             spotify_selected: sp.search_selected,
             spotify_is_premium: sp.is_premium,
             spotify_devices: &sp.devices,
-            spotify_devices_selected: sp.devices_selected,
-            spotify_devices_loading: sp.devices_loading,
             spotify_stop_on_quit: app.config.spotify.stop_on_quit,
             spotify_start_on_spotify: app.config.spotify.start_on_spotify,
             spotify_playback_mode: app.config.spotify.playback_mode.display(),
@@ -421,7 +417,7 @@ impl SearchModalWidget<'_> {
                 sep_s(format!(" {} ", t("hint.help"))),
             ],
             SearchMode::Spotify => {
-                use crate::app::{SpotifyAuthStatus, SpotifySubTab};
+                use crate::app::SpotifyAuthStatus;
                 match self.spotify_status {
                     SpotifyAuthStatus::Connecting => vec![
                         Span::raw(" "),
@@ -429,28 +425,7 @@ impl SearchModalWidget<'_> {
                         sep_s(format!(" {} ", t("hint.back"))),
                     ],
                     SpotifyAuthStatus::LoggedIn => {
-                        if matches!(self.spotify_sub_tab, SpotifySubTab::Devices) {
-                            let mut hints = vec![Span::raw(" ")];
-                            if self.spotify_playback_mode_kind
-                                != crate::config::SpotifyPlaybackMode::Native
-                            {
-                                hints.extend([
-                                    key("[↵]"),
-                                    sep_s(format!(" {}  ", t("hint.transfer"))),
-                                ]);
-                            }
-                            hints.extend([
-                                key("[↑↓]"),
-                                sep_s(format!(" {}  ", t("hint.nav"))),
-                                key("[←→]"),
-                                sep_s(format!(" {}  ", t("hint.search"))),
-                                key("[Alt+R]"),
-                                sep_s(format!(" {}  ", t("hint.reload"))),
-                                key("[?]"),
-                                sep_s(format!(" {} ", t("hint.help"))),
-                            ]);
-                            hints
-                        } else if !self.spotify_results.is_empty() {
+                        if !self.spotify_results.is_empty() {
                             vec![
                                 Span::raw(" "),
                                 key("[↵]"),

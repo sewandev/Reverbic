@@ -158,6 +158,7 @@
   "notice.youtube_radio_stopped": "Radio stopped — playing on YouTube",
   "integrations.services": "Services",
   "integrations.spotify.premium": "Spotify Premium",
+  "integrations.spotify.account_premium": "Account: Premium",
   "integrations.spotify.logged_in": "Connected as:",
   "integrations.spotify.saved": "Saved account:",
   "integrations.spotify.logout_action": "Disconnect",

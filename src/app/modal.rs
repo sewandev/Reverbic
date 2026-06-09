@@ -32,7 +32,6 @@ pub enum SpotifySubTab {
     Search,
     Liked,
     Playlists,
-    Devices,
     TopTracks,
     Recent,
     Albums,

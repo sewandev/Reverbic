@@ -158,6 +158,7 @@
   "notice.youtube_radio_stopped": "Radio detenida — reproduciendo en YouTube",
   "integrations.services": "Servicios",
   "integrations.spotify.premium": "Spotify Premium",
+  "integrations.spotify.account_premium": "Cuenta: Premium",
   "integrations.spotify.logged_in": "Conectado como:",
   "integrations.spotify.saved": "Cuenta guardada:",
   "integrations.spotify.logout_action": "Desconectar",
