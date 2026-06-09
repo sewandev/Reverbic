@@ -1398,6 +1398,7 @@ impl App {
                 }
                 self.on_click_spotify(col, row).await;
             }
+            SearchMode::Youtube => self.on_click_youtube(col, row).await,
             _ => {}
         }
     }
@@ -1724,6 +1725,26 @@ impl App {
 
         self.spotify.album_tracks_selected = idx;
         self.activate_spotify_album_track_selected().await;
+    }
+
+    async fn on_click_youtube(&mut self, col: u16, row: u16) {
+        let Some(idx) = two_line_list_index_at(
+            youtube_list_area(self.terminal_area),
+            col,
+            row,
+            self.youtube.selected,
+            visible_items(
+                youtube_list_area(self.terminal_area),
+                ListItemHeight::TwoLines,
+            ),
+            self.youtube.scroll_offset,
+            self.youtube.results.len(),
+        ) else {
+            return;
+        };
+
+        self.youtube.selected = idx;
+        self.activate_youtube_selected().await;
     }
 
     pub async fn on_mouse_scroll(&mut self, delta: i32) {
