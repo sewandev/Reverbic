@@ -173,7 +173,7 @@ cargo build --release
 La integración con Spotify requiere un client ID del [Spotify Developer Dashboard](https://developer.spotify.com/dashboard).
 
 1. Crea una app en el dashboard
-2. Agrega `http://localhost:8888/callback` como Redirect URI
+2. Agrega `http://127.0.0.1:8888/callback` como Redirect URI
 3. Abre Reverbic, presiona `Alt+O` para abrir Ajustes, navega hasta **Spotify Client ID** y presiona `Espacio`
 4. Pega tu Client ID y presiona `Enter` — no necesitas recompilar
 
