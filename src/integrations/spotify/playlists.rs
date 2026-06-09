@@ -111,7 +111,7 @@ pub(crate) fn parse_user_playlists_body(
     body: &str,
 ) -> Result<(Vec<SpotifyPlaylist>, bool), SpotifyError> {
     let json: serde_json::Value =
-        serde_json::from_str(&body).map_err(|e| SpotifyError::Parse(e.to_string()))?;
+        serde_json::from_str(body).map_err(|e| SpotifyError::Parse(e.to_string()))?;
 
     let playlists: Vec<SpotifyPlaylist> = json["items"]
         .as_array()
