@@ -126,6 +126,10 @@ pub struct SearchModalWidget<'a> {
     pub radio_sub_tab: crate::app::RadioSubTab,
     pub favorites: &'a [crate::favorites::FavoriteStation],
     pub radio_fav_selected: usize,
+    pub radio_fav_scroll_offset: usize,
+    pub radio_search_scroll_offset: usize,
+    pub radio_genre_results_scroll_offset: usize,
+    pub radio_country_results_scroll_offset: usize,
     pub playing_favorite_index: Option<usize>,
     pub auto_update: bool,
     pub discord_rpc: bool,
@@ -283,6 +287,10 @@ impl<'a> SearchModalWidget<'a> {
             radio_sub_tab: app.radio_sub_tab,
             favorites: &app.favorites,
             radio_fav_selected: app.radio_fav_selected,
+            radio_fav_scroll_offset: app.radio_fav_scroll_offset,
+            radio_search_scroll_offset: app.radio_search_scroll_offset,
+            radio_genre_results_scroll_offset: app.radio_genre_results_scroll_offset,
+            radio_country_results_scroll_offset: app.radio_country_results_scroll_offset,
             playing_favorite_index: {
                 let state = app.player.state();
                 state

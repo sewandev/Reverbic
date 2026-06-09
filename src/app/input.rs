@@ -18,7 +18,7 @@ const MODAL_MIN_HEIGHT: u16 = 14;
 const MODAL_MAX_HEIGHT: u16 = 30;
 
 impl App {
-    fn modal_list_visible_items(&self, rows_before_list: u16) -> usize {
+    fn modal_list_visible_rows(&self, rows_before_list: u16) -> usize {
         let terminal_h = self.terminal_area.height;
         if terminal_h == 0 {
             return 0;
@@ -32,7 +32,11 @@ impl App {
             .saturating_sub(1) // top modal tabs
             .saturating_sub(rows_before_list);
 
-        (list_h as usize) / MODAL_LIST_ITEM_HEIGHT
+        list_h as usize
+    }
+
+    fn modal_list_visible_items(&self, rows_before_list: u16) -> usize {
+        self.modal_list_visible_rows(rows_before_list) / MODAL_LIST_ITEM_HEIGHT
     }
 
     fn spotify_visible_items(&self, title_rows: u16) -> usize {
@@ -50,6 +54,69 @@ impl App {
             self.youtube.selected,
             visible,
         );
+    }
+
+    fn radio_results_visible_items(&self, rows_before_list: u16) -> usize {
+        self.modal_list_visible_rows(rows_before_list)
+            .saturating_sub(1)
+    }
+
+    fn keep_radio_favorites_visible(&mut self) {
+        let visible = self.modal_list_visible_rows(3);
+        keep_selected_visible(
+            &mut self.radio_fav_scroll_offset,
+            self.radio_fav_selected,
+            visible,
+        );
+    }
+
+    fn keep_radio_search_results_visible(&mut self) {
+        let visible = self.radio_results_visible_items(5);
+        keep_selected_visible(
+            &mut self.radio_search_scroll_offset,
+            self.modal_selected,
+            visible,
+        );
+    }
+
+    fn keep_radio_genre_results_visible(&mut self) {
+        let visible = self.radio_results_visible_items(1);
+        keep_selected_visible(
+            &mut self.radio_genre_results_scroll_offset,
+            self.modal_selected,
+            visible,
+        );
+    }
+
+    fn keep_radio_country_results_visible(&mut self) {
+        let visible = self.radio_results_visible_items(1);
+        keep_selected_visible(
+            &mut self.radio_country_results_scroll_offset,
+            self.modal_selected,
+            visible,
+        );
+    }
+
+    fn keep_active_radio_results_visible(&mut self) {
+        match self.modal_mode {
+            SearchMode::Genre => self.keep_radio_genre_results_visible(),
+            SearchMode::Country => self.keep_radio_country_results_visible(),
+            _ => self.keep_radio_search_results_visible(),
+        }
+    }
+
+    fn reset_active_radio_results_offset(&mut self) {
+        match self.modal_mode {
+            SearchMode::Genre => self.radio_genre_results_scroll_offset = 0,
+            SearchMode::Country => self.radio_country_results_scroll_offset = 0,
+            _ => self.radio_search_scroll_offset = 0,
+        }
+    }
+
+    fn reset_radio_results_offsets(&mut self) {
+        self.radio_search_scroll_offset = 0;
+        self.radio_genre_results_scroll_offset = 0;
+        self.radio_country_results_scroll_offset = 0;
     }
 
     fn keep_spotify_liked_visible(&mut self) {
@@ -166,6 +233,7 @@ impl App {
                     crate::favorites::save(&self.favorites);
                     if idx > 0 {
                         self.radio_fav_selected -= 1;
+                        self.keep_radio_favorites_visible();
                     }
                     return;
                 }
@@ -174,6 +242,7 @@ impl App {
                     crate::favorites::save(&self.favorites);
                     if idx + 1 < self.favorites.len() {
                         self.radio_fav_selected += 1;
+                        self.keep_radio_favorites_visible();
                     }
                     return;
                 }
@@ -242,6 +311,7 @@ impl App {
                     && matches!(self.radio_sub_tab, RadioSubTab::Favorites) =>
             {
                 self.remove_radio_fav_selected();
+                self.keep_radio_favorites_visible();
             }
             KeyCode::Char('f') | KeyCode::Char('F')
                 if self.show_search_modal && !self.search_results.is_empty() =>
@@ -335,6 +405,7 @@ impl App {
             SearchMode::Name => {
                 self.search_query.push_str(&filtered);
                 self.modal_selected = 0;
+                self.radio_search_scroll_offset = 0;
                 self.perform_search();
             }
             SearchMode::Genre => {
@@ -546,6 +617,7 @@ impl App {
                     other => *other,
                 };
                 self.modal_selected = 0;
+                self.reset_radio_results_offsets();
                 self.search_results.clear();
                 self.search_query.clear();
                 self.genre_filter.clear();
@@ -601,6 +673,8 @@ impl App {
                 RadioSubTab::Favorites => RadioSubTab::Search,
             };
             self.radio_fav_selected = 0;
+            self.radio_fav_scroll_offset = 0;
+            self.radio_search_scroll_offset = 0;
             return;
         }
         if matches!(self.radio_sub_tab, RadioSubTab::Favorites) {
@@ -616,6 +690,7 @@ impl App {
                     self.search_query.clear();
                     self.search_results.clear();
                     self.modal_selected = 0;
+                    self.radio_search_scroll_offset = 0;
                 }
             }
             KeyCode::Char('R') if !self.search_results.is_empty() => {
@@ -633,20 +708,24 @@ impl App {
                     self.play_dynamic_station(idx).await;
                 }
             }
-            KeyCode::Up => {
+            KeyCode::Up | KeyCode::Char('k') => {
                 self.modal_selected = cycle_prev(self.modal_selected, self.search_results.len());
+                self.keep_radio_search_results_visible();
             }
-            KeyCode::Down => {
+            KeyCode::Down | KeyCode::Char('j') => {
                 self.modal_selected = cycle_next(self.modal_selected, self.search_results.len());
+                self.keep_radio_search_results_visible();
             }
             KeyCode::Backspace => {
                 self.search_query.pop();
                 self.modal_selected = 0;
+                self.radio_search_scroll_offset = 0;
                 self.perform_search();
             }
             KeyCode::Char(c) if !c.is_control() => {
                 self.search_query.push(c);
                 self.modal_selected = 0;
+                self.radio_search_scroll_offset = 0;
                 self.perform_search();
             }
             _ => {}
@@ -658,12 +737,16 @@ impl App {
         match key {
             KeyCode::Esc => {
                 self.radio_sub_tab = RadioSubTab::Search;
+                self.radio_fav_scroll_offset = 0;
+                self.radio_search_scroll_offset = 0;
             }
             KeyCode::Up | KeyCode::Char('k') => {
                 self.radio_fav_selected = super::cycle_prev(self.radio_fav_selected, len);
+                self.keep_radio_favorites_visible();
             }
             KeyCode::Down | KeyCode::Char('j') => {
                 self.radio_fav_selected = super::cycle_next(self.radio_fav_selected, len);
+                self.keep_radio_favorites_visible();
             }
             KeyCode::Enter => {
                 self.play_favorite_station(self.radio_fav_selected).await;
@@ -683,6 +766,7 @@ impl App {
                 self.search_results.clear();
                 self.genre_query.clear();
                 self.modal_selected = 0;
+                self.reset_active_radio_results_offset();
             }
             KeyCode::Enter => {
                 let idx = self.modal_selected.min(self.search_results.len() - 1);
@@ -695,9 +779,11 @@ impl App {
             }
             KeyCode::Up | KeyCode::Char('k') => {
                 self.modal_selected = cycle_prev(self.modal_selected, self.search_results.len());
+                self.keep_active_radio_results_visible();
             }
             KeyCode::Down | KeyCode::Char('j') => {
                 self.modal_selected = cycle_next(self.modal_selected, self.search_results.len());
+                self.keep_active_radio_results_visible();
             }
             _ => {}
         }
@@ -713,6 +799,7 @@ impl App {
             if let Some(&(tag, label)) = filtered.get(self.genre_selected) {
                 self.genre_query = label.to_string();
                 self.modal_selected = 0;
+                self.radio_genre_results_scroll_offset = 0;
                 self.perform_genre_search(tag);
             }
             return;
@@ -734,6 +821,7 @@ impl App {
             if let Some(&(tag, label)) = filtered.get(self.country_selected) {
                 self.genre_query = label.to_string();
                 self.modal_selected = 0;
+                self.radio_country_results_scroll_offset = 0;
                 self.perform_country_search(tag);
             }
             return;
@@ -890,6 +978,7 @@ impl App {
                 self.search_query.clear();
                 self.search_results.clear();
                 self.modal_selected = 0;
+                self.reset_radio_results_offsets();
             }
             KeyCode::Right => {
                 if !self.on_demand_shows.is_empty() || self.on_demand_loading {
@@ -1173,6 +1262,30 @@ impl App {
                     }
                 }
                 _ => {
+                    if matches!(self.modal_mode, SearchMode::Name)
+                        && matches!(self.radio_sub_tab, RadioSubTab::Favorites)
+                    {
+                        let len = self.favorites.len();
+                        if len > 0 {
+                            self.radio_fav_selected =
+                                scroll_by(self.radio_fav_selected, delta, len);
+                            self.keep_radio_favorites_visible();
+                        }
+                        return;
+                    }
+
+                    if !self.search_results.is_empty()
+                        && matches!(
+                            self.modal_mode,
+                            SearchMode::Name | SearchMode::Genre | SearchMode::Country
+                        )
+                    {
+                        let len = self.search_results.len();
+                        self.modal_selected = scroll_by(self.modal_selected, delta, len);
+                        self.keep_active_radio_results_visible();
+                        return;
+                    }
+
                     let (len, sel) = if self.search_results.is_empty()
                         && matches!(self.modal_mode, SearchMode::Genre)
                     {
