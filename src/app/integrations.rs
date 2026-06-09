@@ -63,6 +63,31 @@ fn resolve_remote_spotify_target(
     }
 }
 
+fn spotify_native_error_message(raw: &str) -> String {
+    let lower = raw.to_ascii_lowercase();
+    let key = if raw == "native_missing_credentials" {
+        "integrations.spotify.error.native_missing_credentials"
+    } else if raw == "native_audio_backend_missing" || lower.contains("audio backend") {
+        "integrations.spotify.error.native_audio_backend_missing"
+    } else if lower.contains("premium") {
+        "integrations.spotify.error.native_premium_required"
+    } else if raw.starts_with("native_session_connect") {
+        "integrations.spotify.error.native_session_connect"
+    } else if raw.starts_with("native_mixer") {
+        "integrations.spotify.error.native_mixer"
+    } else if raw.starts_with("native_track_unavailable")
+        || lower.contains("track unavailable")
+        || lower.contains("pista no disponible")
+    {
+        "integrations.spotify.error.native_track_unavailable"
+    } else if raw.starts_with("native_uri_parse") {
+        "integrations.spotify.error.native_uri_invalid"
+    } else {
+        "integrations.spotify.error.native_generic"
+    };
+    crate::i18n::t(key)
+}
+
 fn friendly_spotify_error(raw: &str, client_id: &str) -> String {
     let is_invalid_client = raw.contains("invalid_client")
         || raw.contains("invalid client")
@@ -283,7 +308,15 @@ impl App {
                     self.advance_playback_queue();
                 }
                 SpotifyPlayerEvent::Error(e) => {
-                    self.spotify.player_status = SpotifyPlayerStatus::Error(e)
+                    tracing::warn!("spotify native playback error: {e}");
+                    let message = spotify_native_error_message(&e);
+                    self.spotify.player_status = SpotifyPlayerStatus::Error(message.clone());
+                    if self.config.spotify.playback_mode == SpotifyPlaybackMode::Native {
+                        self.save_notice = Some(format!("Spotify: {message}"));
+                        self.save_notice_is_dup = false;
+                        self.notice_until =
+                            Some(std::time::Instant::now() + std::time::Duration::from_secs(8));
+                    }
                 }
             }
         }
@@ -1319,6 +1352,38 @@ mod tests {
             SpotifyPlaybackTarget::Unavailable(
                 "integrations.spotify.error.no_remote_device".to_string()
             )
+        );
+    }
+
+    #[test]
+    fn native_error_message_maps_missing_credentials() {
+        assert_eq!(
+            spotify_native_error_message("native_missing_credentials"),
+            "integrations.spotify.error.native_missing_credentials"
+        );
+    }
+
+    #[test]
+    fn native_error_message_maps_premium_failures() {
+        assert_eq!(
+            spotify_native_error_message("native_session_connect: Premium account required"),
+            "integrations.spotify.error.native_premium_required"
+        );
+    }
+
+    #[test]
+    fn native_error_message_maps_audio_backend_failures() {
+        assert_eq!(
+            spotify_native_error_message("native_audio_backend_missing"),
+            "integrations.spotify.error.native_audio_backend_missing"
+        );
+    }
+
+    #[test]
+    fn native_error_message_maps_track_unavailable() {
+        assert_eq!(
+            spotify_native_error_message("native_track_unavailable: spotify:track:123"),
+            "integrations.spotify.error.native_track_unavailable"
         );
     }
 }
