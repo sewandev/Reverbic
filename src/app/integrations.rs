@@ -496,6 +496,8 @@ impl App {
         };
         if query.is_empty() {
             self.spotify.search_results.clear();
+            self.spotify.search_selected = 0;
+            self.spotify.search_scroll_offset = 0;
             self.spotify.search_loading = false;
             return;
         }
@@ -531,6 +533,7 @@ impl App {
         self.spotify.search_loading_more = false;
         self.spotify.search_has_more = false;
         self.spotify.search_offset = 0;
+        self.spotify.search_scroll_offset = 0;
     }
 
     pub(super) fn fetch_spotify_devices(&mut self) {
@@ -745,6 +748,7 @@ impl App {
                     self.spotify.search_results = page.results;
                     self.spotify.search_loading = false;
                     self.spotify.search_selected = 0;
+                    self.spotify.search_scroll_offset = 0;
                     self.spotify.search_offset = page.offset;
                 }
                 Err(std::sync::mpsc::TryRecvError::Empty) => {
@@ -1259,6 +1263,8 @@ impl App {
         let Some(token) = self.spotify.access_token.clone() else {
             return;
         };
+        self.spotify.top_tracks_selected = 0;
+        self.spotify.top_tracks_scroll_offset = 0;
         self.spotify.top_tracks_loading = true;
         let (tx, rx) = std::sync::mpsc::channel();
         self.spotify.top_tracks_rx = Some(rx);
@@ -1297,6 +1303,8 @@ impl App {
         let Some(token) = self.spotify.access_token.clone() else {
             return;
         };
+        self.spotify.recent_tracks_selected = 0;
+        self.spotify.recent_tracks_scroll_offset = 0;
         self.spotify.recent_tracks_loading = true;
         let (tx, rx) = std::sync::mpsc::channel();
         self.spotify.recent_tracks_rx = Some(rx);
@@ -1336,6 +1344,7 @@ impl App {
         };
         self.spotify.albums.clear();
         self.spotify.albums_selected = 0;
+        self.spotify.albums_scroll_offset = 0;
         self.spotify.albums_loading = true;
         self.spotify.albums_offset = 0;
         let (tx, rx) = std::sync::mpsc::channel();
@@ -1397,6 +1406,9 @@ impl App {
         let Some(album) = self.spotify.open_album.clone() else {
             return;
         };
+        self.spotify.album_tracks.clear();
+        self.spotify.album_tracks_selected = 0;
+        self.spotify.album_tracks_scroll_offset = 0;
         self.spotify.album_tracks_loading = true;
         let (tx, rx) = std::sync::mpsc::channel();
         self.spotify.album_tracks_rx = Some(rx);

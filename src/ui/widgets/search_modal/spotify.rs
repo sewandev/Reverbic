@@ -392,7 +392,11 @@ impl<'a> SearchModalWidget<'a> {
 
         const ITEM_HEIGHT: usize = 2;
         let visible_n = (area.height as usize) / ITEM_HEIGHT;
-        let offset = super::super::scroll_offset(self.spotify_selected, visible_n);
+        let offset = scroll_offset_for_selection(
+            self.spotify_selected,
+            visible_n,
+            self.spotify_scroll_offset,
+        );
 
         let items: Vec<ListItem> = self
             .spotify_results
@@ -837,7 +841,7 @@ impl<'a> SearchModalWidget<'a> {
             buf,
             self.spotify_top_tracks,
             self.spotify_top_tracks_selected,
-            None,
+            Some(self.spotify_top_tracks_scroll_offset),
             self.spotify_top_tracks_loading,
         );
     }
@@ -848,7 +852,7 @@ impl<'a> SearchModalWidget<'a> {
             buf,
             self.spotify_recent_tracks,
             self.spotify_recent_tracks_selected,
-            None,
+            Some(self.spotify_recent_tracks_scroll_offset),
             self.spotify_recent_tracks_loading,
         );
     }
@@ -875,7 +879,8 @@ impl<'a> SearchModalWidget<'a> {
         const ITEM_HEIGHT: usize = 2;
         let visible_n = (area.height as usize) / ITEM_HEIGHT;
         let selected = self.spotify_albums_selected;
-        let offset = super::super::scroll_offset(selected, visible_n);
+        let offset =
+            scroll_offset_for_selection(selected, visible_n, self.spotify_albums_scroll_offset);
 
         let items: Vec<ListItem> = self
             .spotify_albums
@@ -950,7 +955,7 @@ impl<'a> SearchModalWidget<'a> {
             buf,
             self.spotify_album_tracks,
             self.spotify_album_tracks_selected,
-            None,
+            Some(self.spotify_album_tracks_scroll_offset),
             self.spotify_album_tracks_loading,
         );
     }

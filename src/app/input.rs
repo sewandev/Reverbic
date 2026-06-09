@@ -64,6 +64,51 @@ impl App {
         );
     }
 
+    fn keep_spotify_search_visible(&mut self) {
+        let visible = self.spotify_visible_items(0);
+        keep_selected_visible(
+            &mut self.spotify.search_scroll_offset,
+            self.spotify.search_selected,
+            visible,
+        );
+    }
+
+    fn keep_spotify_top_tracks_visible(&mut self) {
+        let visible = self.spotify_visible_items(1);
+        keep_selected_visible(
+            &mut self.spotify.top_tracks_scroll_offset,
+            self.spotify.top_tracks_selected,
+            visible,
+        );
+    }
+
+    fn keep_spotify_recent_tracks_visible(&mut self) {
+        let visible = self.spotify_visible_items(0);
+        keep_selected_visible(
+            &mut self.spotify.recent_tracks_scroll_offset,
+            self.spotify.recent_tracks_selected,
+            visible,
+        );
+    }
+
+    fn keep_spotify_albums_visible(&mut self) {
+        let visible = self.spotify_visible_items(0);
+        keep_selected_visible(
+            &mut self.spotify.albums_scroll_offset,
+            self.spotify.albums_selected,
+            visible,
+        );
+    }
+
+    fn keep_spotify_album_tracks_visible(&mut self) {
+        let visible = self.spotify_visible_items(1);
+        keep_selected_visible(
+            &mut self.spotify.album_tracks_scroll_offset,
+            self.spotify.album_tracks_selected,
+            visible,
+        );
+    }
+
     pub async fn on_key_event(&mut self, event: crossterm::event::KeyEvent) {
         use crossterm::event::KeyModifiers;
 
@@ -497,6 +542,7 @@ impl App {
                 self.spotify.search_query.clear();
                 self.spotify.search_results.clear();
                 self.spotify.search_selected = 0;
+                self.spotify.search_scroll_offset = 0;
                 abort_task(&mut self.spotify.search_task);
                 self.spotify.search_rx = None;
                 self.reset_spotify_search_paging();
@@ -1029,6 +1075,7 @@ impl App {
                             if len > 0 {
                                 self.spotify.search_selected =
                                     scroll_by(self.spotify.search_selected, delta, len);
+                                self.keep_spotify_search_visible();
                             }
                         }
                         SpotifySubTab::Liked => {
@@ -1070,6 +1117,7 @@ impl App {
                             if len > 0 {
                                 self.spotify.top_tracks_selected =
                                     scroll_by(self.spotify.top_tracks_selected, delta, len);
+                                self.keep_spotify_top_tracks_visible();
                             }
                         }
                         SpotifySubTab::Recent => {
@@ -1077,6 +1125,7 @@ impl App {
                             if len > 0 {
                                 self.spotify.recent_tracks_selected =
                                     scroll_by(self.spotify.recent_tracks_selected, delta, len);
+                                self.keep_spotify_recent_tracks_visible();
                             }
                         }
                         SpotifySubTab::Albums => {
@@ -1085,12 +1134,14 @@ impl App {
                                 if len > 0 {
                                     self.spotify.album_tracks_selected =
                                         scroll_by(self.spotify.album_tracks_selected, delta, len);
+                                    self.keep_spotify_album_tracks_visible();
                                 }
                             } else {
                                 let len = self.spotify.albums.len();
                                 if len > 0 {
                                     self.spotify.albums_selected =
                                         scroll_by(self.spotify.albums_selected, delta, len);
+                                    self.keep_spotify_albums_visible();
                                 }
                             }
                         }
@@ -1377,10 +1428,13 @@ impl App {
                     && self.spotify.open_album.is_some()
                 {
                     self.spotify.open_album = None;
+                    self.spotify.album_tracks_selected = 0;
+                    self.spotify.album_tracks_scroll_offset = 0;
                 } else if !self.spotify.search_query.is_empty() {
                     self.spotify.search_query.clear();
                     self.spotify.search_results.clear();
                     self.spotify.search_selected = 0;
+                    self.spotify.search_scroll_offset = 0;
                 } else {
                     self.should_quit = true;
                 }
@@ -1517,6 +1571,7 @@ impl App {
                         self.spotify.search_selected,
                         self.spotify.search_results.len(),
                     );
+                    self.keep_spotify_search_visible();
                 }
             }
             KeyCode::Down => {
@@ -1529,6 +1584,7 @@ impl App {
                             self.spotify.search_selected,
                             self.spotify.search_results.len(),
                         );
+                        self.keep_spotify_search_visible();
                     }
                 }
             }
@@ -1551,11 +1607,13 @@ impl App {
             KeyCode::Backspace => {
                 self.spotify.search_query.pop();
                 self.spotify.search_selected = 0;
+                self.spotify.search_scroll_offset = 0;
                 self.perform_spotify_search();
             }
             KeyCode::Char(c) if !c.is_control() => {
                 self.spotify.search_query.push(c);
                 self.spotify.search_selected = 0;
+                self.spotify.search_scroll_offset = 0;
                 self.perform_spotify_search();
             }
             _ => {}
@@ -1682,16 +1740,19 @@ impl App {
                 };
                 self.spotify.top_tracks.clear();
                 self.spotify.top_tracks_selected = 0;
+                self.spotify.top_tracks_scroll_offset = 0;
                 self.fetch_top_tracks();
             }
             KeyCode::Up => {
                 if self.spotify.top_tracks_selected > 0 {
                     self.spotify.top_tracks_selected -= 1;
+                    self.keep_spotify_top_tracks_visible();
                 }
             }
             KeyCode::Down => {
                 if len > 0 && self.spotify.top_tracks_selected < len - 1 {
                     self.spotify.top_tracks_selected += 1;
+                    self.keep_spotify_top_tracks_visible();
                 }
             }
             KeyCode::Enter => {
@@ -1712,11 +1773,13 @@ impl App {
             KeyCode::Up => {
                 if self.spotify.recent_tracks_selected > 0 {
                     self.spotify.recent_tracks_selected -= 1;
+                    self.keep_spotify_recent_tracks_visible();
                 }
             }
             KeyCode::Down => {
                 if len > 0 && self.spotify.recent_tracks_selected < len - 1 {
                     self.spotify.recent_tracks_selected += 1;
+                    self.keep_spotify_recent_tracks_visible();
                 }
             }
             KeyCode::Enter => {
@@ -1745,6 +1808,7 @@ impl App {
             KeyCode::Up => {
                 if self.spotify.albums_selected > 0 {
                     self.spotify.albums_selected -= 1;
+                    self.keep_spotify_albums_visible();
                 }
             }
             KeyCode::Down => {
@@ -1754,6 +1818,7 @@ impl App {
                         self.load_more_spotify_albums();
                     } else if self.spotify.albums_selected < last {
                         self.spotify.albums_selected += 1;
+                        self.keep_spotify_albums_visible();
                     }
                 }
             }
@@ -1761,6 +1826,8 @@ impl App {
                 let sel = self.spotify.albums_selected;
                 if let Some(album) = self.spotify.albums.get(sel).cloned() {
                     self.spotify.open_album = Some(album);
+                    self.spotify.album_tracks_selected = 0;
+                    self.spotify.album_tracks_scroll_offset = 0;
                     self.fetch_album_tracks();
                 }
             }
@@ -1773,15 +1840,19 @@ impl App {
         match key {
             KeyCode::Esc | KeyCode::Backspace => {
                 self.spotify.open_album = None;
+                self.spotify.album_tracks_selected = 0;
+                self.spotify.album_tracks_scroll_offset = 0;
             }
             KeyCode::Up => {
                 if self.spotify.album_tracks_selected > 0 {
                     self.spotify.album_tracks_selected -= 1;
+                    self.keep_spotify_album_tracks_visible();
                 }
             }
             KeyCode::Down => {
                 if len > 0 && self.spotify.album_tracks_selected < len - 1 {
                     self.spotify.album_tracks_selected += 1;
+                    self.keep_spotify_album_tracks_visible();
                 }
             }
             KeyCode::Enter => {
