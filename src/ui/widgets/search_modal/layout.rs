@@ -173,16 +173,16 @@ pub(crate) fn one_line_list_index_at(
     scroll_offset: usize,
     item_count: usize,
 ) -> Option<usize> {
-    list_index_at(
+    list_index_at(ListHitTest {
         area,
         col,
         row,
-        ListItemHeight::OneLine,
+        item_height: ListItemHeight::OneLine,
         selected,
         visible,
         scroll_offset,
         item_count,
-    )
+    })
 }
 
 pub(crate) fn two_line_list_index_at(
@@ -194,19 +194,19 @@ pub(crate) fn two_line_list_index_at(
     scroll_offset: usize,
     item_count: usize,
 ) -> Option<usize> {
-    list_index_at(
+    list_index_at(ListHitTest {
         area,
         col,
         row,
-        ListItemHeight::TwoLines,
+        item_height: ListItemHeight::TwoLines,
         selected,
         visible,
         scroll_offset,
         item_count,
-    )
+    })
 }
 
-fn list_index_at(
+struct ListHitTest {
     area: Option<Rect>,
     col: u16,
     row: u16,
@@ -215,21 +215,23 @@ fn list_index_at(
     visible: usize,
     scroll_offset: usize,
     item_count: usize,
-) -> Option<usize> {
-    let area = area?;
-    if !contains(area, col, row) || visible == 0 || item_count == 0 {
+}
+
+fn list_index_at(hit: ListHitTest) -> Option<usize> {
+    let area = hit.area?;
+    if !contains(area, hit.col, hit.row) || hit.visible == 0 || hit.item_count == 0 {
         return None;
     }
 
-    let clicked_slot = row.saturating_sub(area.y) as usize / item_height.rows();
-    if clicked_slot >= visible {
+    let clicked_slot = hit.row.saturating_sub(area.y) as usize / hit.item_height.rows();
+    if clicked_slot >= hit.visible {
         return None;
     }
 
-    let selected = selected.min(item_count.saturating_sub(1));
-    let offset = scroll_offset_for_selection(selected, visible, scroll_offset);
+    let selected = hit.selected.min(hit.item_count.saturating_sub(1));
+    let offset = scroll_offset_for_selection(selected, hit.visible, hit.scroll_offset);
     let index = offset.saturating_add(clicked_slot);
-    (index < item_count).then_some(index)
+    (index < hit.item_count).then_some(index)
 }
 
 pub(crate) fn modal_tab_at(area: Rect, col: u16, row: u16) -> Option<SearchMode> {
