@@ -38,28 +38,7 @@ impl App {
         persist_last: bool,
         playback_duration_secs: Option<f32>,
     ) {
-        if let Some(handle) = &self.spotify.player_tx {
-            handle.pause();
-        }
-        if let (Some(token), Some(device_id)) = (
-            self.spotify.access_token.clone(),
-            self.spotify.active_device_id.clone(),
-        ) {
-            std::thread::spawn(move || {
-                if let Ok(rt) = tokio::runtime::Builder::new_current_thread()
-                    .enable_all()
-                    .build()
-                {
-                    let _ = rt.block_on(crate::integrations::spotify::devices::pause_device(
-                        &token, &device_id,
-                    ));
-                }
-            });
-        }
-        use crate::app::modal::SpotifyPlayerStatus;
-        if matches!(self.spotify.player_status, SpotifyPlayerStatus::Playing) {
-            self.spotify.player_status = SpotifyPlayerStatus::Paused;
-        }
+        self.pause_spotify_for_radio().await;
         self.stop_playback_polling();
         if persist_last {
             self.config.last_station = Some(LastStation {

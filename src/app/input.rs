@@ -9,7 +9,7 @@ use crate::preview::{deezer_preview, parse_seek_input};
 use crate::station::{filter_items, Station, COUNTRIES, GENRES};
 
 use super::modal::{settings_items, SettingItem};
-use super::modal::{AppFocus, RadioSubTab, SearchMode, SpotifyAuthStatus, SpotifyPlayerStatus};
+use super::modal::{AppFocus, RadioSubTab, SearchMode, SpotifyAuthStatus};
 use super::{abort_task, cycle_next, cycle_prev, scroll_by, App};
 
 impl App {
@@ -266,54 +266,7 @@ impl App {
                 }
                 KeyCode::Char(' ') => {
                     if self.active_source_is_spotify() {
-                        use super::modal::SpotifyPlayerStatus;
-                        if let Some(device_id) = self.spotify.active_device_id.clone() {
-                            let token = self.spotify.access_token.clone().unwrap_or_default();
-                            match self.spotify.player_status {
-                                SpotifyPlayerStatus::Playing => {
-                                    self.spotify.player_status = SpotifyPlayerStatus::Paused;
-                                    std::thread::spawn(move || {
-                                        if let Ok(rt) =
-                                            tokio::runtime::Builder::new_current_thread()
-                                                .enable_all()
-                                                .build()
-                                        {
-                                            let _ = rt.block_on(
-                                                crate::integrations::spotify::devices::pause_device(
-                                                    &token, &device_id,
-                                                ),
-                                            );
-                                        }
-                                    });
-                                }
-                                SpotifyPlayerStatus::Paused => {
-                                    self.spotify.player_status = SpotifyPlayerStatus::Playing;
-                                    std::thread::spawn(move || {
-                                        if let Ok(rt) =
-                                            tokio::runtime::Builder::new_current_thread()
-                                                .enable_all()
-                                                .build()
-                                        {
-                                            let _ = rt.block_on(crate::integrations::spotify::devices::resume_device(&token, &device_id));
-                                        }
-                                    });
-                                }
-                                _ => {}
-                            }
-                        } else if let Some(handle) = &self.spotify.player_tx {
-                            use super::modal::SpotifyPlayerStatus;
-                            match self.spotify.player_status {
-                                SpotifyPlayerStatus::Playing => {
-                                    handle.pause();
-                                    self.spotify.player_status = SpotifyPlayerStatus::Paused;
-                                }
-                                SpotifyPlayerStatus::Paused => {
-                                    handle.resume();
-                                    self.spotify.player_status = SpotifyPlayerStatus::Playing;
-                                }
-                                _ => {}
-                            }
-                        }
+                        self.toggle_spotify_playback().await;
                     } else {
                         match self.player.state().status {
                             PlayerStatus::Playing => {
@@ -940,26 +893,33 @@ impl App {
                             let bar_start = prog.x + prefix_len;
                             let bar_w = prog.width.saturating_sub(prefix_len + suffix_len);
                             if bar_w > 0 && col >= bar_start {
+                                if self.config.spotify.playback_mode
+                                    == crate::config::SpotifyPlaybackMode::Native
+                                {
+                                    return;
+                                }
                                 let fill_col = col.saturating_sub(bar_start);
                                 let ratio = (fill_col as f32 / bar_w as f32).clamp(0.0, 1.0);
                                 let pos_ms = (ratio * playback.duration_ms as f32) as u32;
                                 if let Some(ref mut p) = self.spotify.playback {
                                     p.progress_ms = pos_ms;
                                 }
-                                if let Some(token) = self.spotify.access_token.clone() {
-                                    let device_id =
-                                        self.spotify.active_device_id.clone().unwrap_or_default();
-                                    tokio::spawn(async move {
-                                        if let Err(e) =
-                                            crate::integrations::spotify::devices::seek_playback(
-                                                &token, &device_id, pos_ms,
-                                            )
-                                            .await
-                                        {
-                                            tracing::warn!("spotify seek error: {e}");
-                                        }
-                                    });
-                                }
+                                let Some(token) = self.spotify.access_token.clone() else {
+                                    return;
+                                };
+                                let Some(device_id) = self.spotify.active_device_id.clone() else {
+                                    return;
+                                };
+                                tokio::spawn(async move {
+                                    if let Err(e) =
+                                        crate::integrations::spotify::devices::seek_playback(
+                                            &token, &device_id, pos_ms,
+                                        )
+                                        .await
+                                    {
+                                        tracing::warn!("spotify seek error: {e}");
+                                    }
+                                });
                             }
                             return;
                         }
@@ -1483,43 +1443,7 @@ impl App {
                 }
             }
             KeyCode::Char(' ') => {
-                if let Some(device_id) = self.spotify.active_device_id.clone() {
-                    let token = self.spotify.access_token.clone().unwrap_or_default();
-                    match self.spotify.player_status {
-                        SpotifyPlayerStatus::Playing => {
-                            self.spotify.player_status = SpotifyPlayerStatus::Paused;
-                            tokio::spawn(async move {
-                                if let Err(e) = crate::integrations::spotify::devices::pause_device(
-                                    &token, &device_id,
-                                )
-                                .await
-                                {
-                                    tracing::warn!("spotify pause error: {e}");
-                                }
-                            });
-                        }
-                        SpotifyPlayerStatus::Paused => {
-                            self.spotify.player_status = SpotifyPlayerStatus::Playing;
-                            tokio::spawn(async move {
-                                if let Err(e) =
-                                    crate::integrations::spotify::devices::resume_device(
-                                        &token, &device_id,
-                                    )
-                                    .await
-                                {
-                                    tracing::warn!("spotify resume error: {e}");
-                                }
-                            });
-                        }
-                        _ => {}
-                    }
-                } else if let Some(handle) = &self.spotify.player_tx {
-                    match self.spotify.player_status {
-                        SpotifyPlayerStatus::Playing => handle.pause(),
-                        SpotifyPlayerStatus::Paused => handle.resume(),
-                        _ => {}
-                    }
-                }
+                self.toggle_spotify_playback().await;
             }
             _ => {}
         }

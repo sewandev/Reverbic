@@ -523,6 +523,9 @@ impl App {
 
     pub async fn adjust_spotify_volume(&mut self, delta: i8) {
         use crate::integrations::spotify::devices::set_volume;
+        if self.config.spotify.playback_mode == SpotifyPlaybackMode::Native {
+            return;
+        }
         let Some(device_id) = self.spotify.active_device_id.clone() else {
             return;
         };

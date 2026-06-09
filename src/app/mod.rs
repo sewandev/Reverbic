@@ -25,7 +25,7 @@ use crossterm::event::KeyCode;
 use ratatui::layout::Rect;
 
 use crate::audio::{AudioPlayer, PlayerState};
-use crate::config::Config;
+use crate::config::{Config, SpotifyPlaybackMode};
 use crate::favorites::{self as fav_store, FavoriteStation};
 use crate::station::on_demand::OnDemandShow;
 use crate::station::{DynamicStation, Station, StationDetails};
@@ -88,6 +88,12 @@ pub(super) fn scroll_by(sel: usize, delta: i32, len: usize) -> usize {
     } else {
         sel.saturating_sub((-delta) as usize)
     }
+}
+
+enum SpotifyControlTarget {
+    Remote { token: String, device_id: String },
+    Native,
+    None,
 }
 
 pub struct App {
@@ -265,6 +271,143 @@ impl App {
         let secs = self.config.screensaver_secs;
         secs > 0 && self.show_search_modal && self.last_activity.elapsed().as_secs() >= secs as u64
     }
+
+    fn spotify_remote_control_target(&self) -> Option<(String, String)> {
+        if self.config.spotify.playback_mode == SpotifyPlaybackMode::Native {
+            return None;
+        }
+        Some((
+            self.spotify.access_token.clone()?,
+            self.spotify.active_device_id.clone()?,
+        ))
+    }
+
+    fn spotify_native_controls_enabled(&self) -> bool {
+        self.config.spotify.playback_mode != SpotifyPlaybackMode::Remote
+            && self.spotify.native_available
+            && self.spotify.player_tx.is_some()
+    }
+
+    fn spotify_control_target(&self) -> SpotifyControlTarget {
+        match self.config.spotify.playback_mode {
+            SpotifyPlaybackMode::Remote => self
+                .spotify_remote_control_target()
+                .map(|(token, device_id)| SpotifyControlTarget::Remote { token, device_id })
+                .unwrap_or(SpotifyControlTarget::None),
+            SpotifyPlaybackMode::Native => {
+                if self.spotify_native_controls_enabled() {
+                    SpotifyControlTarget::Native
+                } else {
+                    SpotifyControlTarget::None
+                }
+            }
+            SpotifyPlaybackMode::Auto => self
+                .spotify_remote_control_target()
+                .map(|(token, device_id)| SpotifyControlTarget::Remote { token, device_id })
+                .unwrap_or_else(|| {
+                    if self.spotify_native_controls_enabled() {
+                        SpotifyControlTarget::Native
+                    } else {
+                        SpotifyControlTarget::None
+                    }
+                }),
+        }
+    }
+
+    fn spotify_native_status_is_active(&self) -> bool {
+        matches!(
+            self.spotify.player_status,
+            SpotifyPlayerStatus::Playing
+                | SpotifyPlayerStatus::Paused
+                | SpotifyPlayerStatus::Loading
+        ) && self.spotify_native_controls_enabled()
+    }
+
+    pub(super) async fn toggle_spotify_playback(&mut self) {
+        match self.spotify_control_target() {
+            SpotifyControlTarget::Remote { token, device_id } => match self.spotify.player_status {
+                SpotifyPlayerStatus::Playing => {
+                    self.spotify.player_status = SpotifyPlayerStatus::Paused;
+                    tokio::spawn(async move {
+                        if let Err(e) =
+                            crate::integrations::spotify::devices::pause_device(&token, &device_id)
+                                .await
+                        {
+                            tracing::warn!("spotify pause error: {e}");
+                        }
+                    });
+                }
+                SpotifyPlayerStatus::Paused => {
+                    self.spotify.player_status = SpotifyPlayerStatus::Playing;
+                    tokio::spawn(async move {
+                        if let Err(e) =
+                            crate::integrations::spotify::devices::resume_device(&token, &device_id)
+                                .await
+                        {
+                            tracing::warn!("spotify resume error: {e}");
+                        }
+                    });
+                }
+                _ => {}
+            },
+            SpotifyControlTarget::Native => {
+                if let Some(handle) = &self.spotify.player_tx {
+                    match self.spotify.player_status {
+                        SpotifyPlayerStatus::Playing => {
+                            handle.pause();
+                            self.spotify.player_status = SpotifyPlayerStatus::Paused;
+                        }
+                        SpotifyPlayerStatus::Paused => {
+                            handle.resume();
+                            self.spotify.player_status = SpotifyPlayerStatus::Playing;
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            SpotifyControlTarget::None => {}
+        }
+    }
+
+    pub(super) async fn pause_spotify_for_radio(&mut self) {
+        match self.config.spotify.playback_mode {
+            SpotifyPlaybackMode::Remote => self.pause_remote_spotify().await,
+            SpotifyPlaybackMode::Native => self.pause_native_spotify(),
+            SpotifyPlaybackMode::Auto => {
+                self.pause_remote_spotify().await;
+                self.pause_native_spotify();
+            }
+        }
+    }
+
+    async fn pause_remote_spotify(&mut self) {
+        let Some((token, device_id)) = self.spotify_remote_control_target() else {
+            return;
+        };
+        if matches!(self.spotify.player_status, SpotifyPlayerStatus::Playing) {
+            self.spotify.player_status = SpotifyPlayerStatus::Paused;
+        }
+        tokio::spawn(async move {
+            if let Err(e) =
+                crate::integrations::spotify::devices::pause_device(&token, &device_id).await
+            {
+                tracing::warn!("spotify pause error: {e}");
+            }
+        });
+    }
+
+    fn pause_native_spotify(&mut self) {
+        if !self.spotify_native_controls_enabled() {
+            return;
+        }
+        if let Some(handle) = &self.spotify.player_tx {
+            handle.pause();
+        }
+        if matches!(self.spotify.player_status, SpotifyPlayerStatus::Playing) {
+            self.spotify.player_status = SpotifyPlayerStatus::Paused;
+        }
+    }
+
     pub fn active_source_is_spotify(&self) -> bool {
         use crate::audio::PlayerStatus;
         let radio_active = matches!(
@@ -274,7 +417,16 @@ impl App {
                 | PlayerStatus::Buffering(_)
                 | PlayerStatus::Reconnecting(_)
         );
-        !radio_active && self.spotify.playback.is_some()
+        if radio_active {
+            return false;
+        }
+        match self.config.spotify.playback_mode {
+            SpotifyPlaybackMode::Remote => self.spotify.playback.is_some(),
+            SpotifyPlaybackMode::Native => self.spotify_native_status_is_active(),
+            SpotifyPlaybackMode::Auto => {
+                self.spotify.playback.is_some() || self.spotify_native_status_is_active()
+            }
+        }
     }
 
     pub(super) fn total_stations(&self) -> usize {
