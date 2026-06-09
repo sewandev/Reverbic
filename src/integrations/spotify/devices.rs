@@ -191,34 +191,6 @@ pub async fn transfer_playback(token: &str, device_id: &str) -> Result<(), Spoti
     }
 }
 
-pub async fn seek_playback(
-    token: &str,
-    device_id: &str,
-    position_ms: u32,
-) -> Result<(), SpotifyError> {
-    let client = spotify_client(8)?;
-    let url = if device_id.is_empty() {
-        format!("https://api.spotify.com/v1/me/player/seek?position_ms={position_ms}")
-    } else {
-        format!("https://api.spotify.com/v1/me/player/seek?position_ms={position_ms}&device_id={device_id}")
-    };
-    let resp = client
-        .put(url)
-        .bearer_auth(token)
-        .header("Content-Length", "0")
-        .send()
-        .await
-        .map_err(|e| SpotifyError::Network(e.to_string()))?;
-    let status = resp.status();
-    tracing::info!("spotify seek: position_ms={position_ms} HTTP {status}");
-    if status.is_success() || status.as_u16() == 204 {
-        Ok(())
-    } else {
-        let body = resp.text().await.unwrap_or_default();
-        Err(SpotifyError::from_status(status, &body))
-    }
-}
-
 pub async fn get_playback(token: &str) -> Result<Option<SpotifyPlaybackState>, SpotifyError> {
     let client = spotify_client(8)?;
     let resp = client

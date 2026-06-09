@@ -284,17 +284,30 @@ struct DoubleClickTracker {
 struct LastMouseDown {
     at: Instant,
     button: MouseButton,
+    column: u16,
     row: u16,
 }
 
 impl DoubleClickTracker {
-    fn register_mouse_down(&mut self, at: Instant, button: MouseButton, row: u16) -> bool {
+    fn register_mouse_down(
+        &mut self,
+        at: Instant,
+        button: MouseButton,
+        column: u16,
+        row: u16,
+    ) -> bool {
         let is_double_click = self.last_mouse_down.as_ref().is_some_and(|last| {
             last.button == button
+                && last.column == column
                 && last.row == row
                 && at.saturating_duration_since(last.at) < DOUBLE_CLICK_THRESHOLD
         });
-        self.last_mouse_down = Some(LastMouseDown { at, button, row });
+        self.last_mouse_down = Some(LastMouseDown {
+            at,
+            button,
+            column,
+            row,
+        });
         is_double_click
     }
 }
@@ -321,7 +334,12 @@ async fn handle_event(
                     .await;
             }
             MouseEventKind::Down(button) => {
-                if double_clicks.register_mouse_down(Instant::now(), button, mouse.row) {
+                if double_clicks.register_mouse_down(
+                    Instant::now(),
+                    button,
+                    mouse.column,
+                    mouse.row,
+                ) {
                     app.on_double_click().await;
                 } else {
                     app.on_click(mouse.column, mouse.row).await;
@@ -354,6 +372,48 @@ mod tests {
     #[test]
     fn log_file_path_is_not_relative_to_working_directory() {
         assert_ne!(log_file_path(), PathBuf::from("logs").join("reverbic.log"));
+    }
+
+    #[test]
+    fn double_click_tracker_triggers_for_same_button_row_and_column_within_threshold() {
+        let start = Instant::now();
+        let mut double_clicks = DoubleClickTracker::default();
+
+        assert!(!double_clicks.register_mouse_down(start, MouseButton::Left, 10, 4));
+        assert!(double_clicks.register_mouse_down(
+            start + DOUBLE_CLICK_THRESHOLD / 2,
+            MouseButton::Left,
+            10,
+            4
+        ));
+    }
+
+    #[test]
+    fn double_click_tracker_ignores_same_row_with_different_column() {
+        let start = Instant::now();
+        let mut double_clicks = DoubleClickTracker::default();
+
+        assert!(!double_clicks.register_mouse_down(start, MouseButton::Left, 10, 4));
+        assert!(!double_clicks.register_mouse_down(
+            start + DOUBLE_CLICK_THRESHOLD / 2,
+            MouseButton::Left,
+            11,
+            4
+        ));
+    }
+
+    #[test]
+    fn double_click_tracker_ignores_clicks_outside_threshold() {
+        let start = Instant::now();
+        let mut double_clicks = DoubleClickTracker::default();
+
+        assert!(!double_clicks.register_mouse_down(start, MouseButton::Left, 10, 4));
+        assert!(!double_clicks.register_mouse_down(
+            start + DOUBLE_CLICK_THRESHOLD,
+            MouseButton::Left,
+            10,
+            4
+        ));
     }
 
     #[tokio::test]

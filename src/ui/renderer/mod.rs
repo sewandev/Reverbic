@@ -29,39 +29,6 @@ fn uses_legacy_windows_console() -> bool {
         && std::env::var_os("ANSICON").is_none()
 }
 
-pub fn spotify_screensaver_progress_rect(
-    area: Rect,
-    profile_rows: u16,
-    show_clock: bool,
-) -> Option<Rect> {
-    let pw = (area.width * 85 / 100).clamp(60, 110).min(area.width);
-
-    let clock_rows: u16 = if show_clock { 6 } else { 0 };
-    let ph_base: u16 = 2 + 1 + clock_rows + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1;
-    let ph = ph_base
-        + if profile_rows > 0 {
-            1 + profile_rows
-        } else {
-            0
-        };
-
-    let px = area.x + area.width.saturating_sub(pw) / 2;
-    let py = area.y + area.height.saturating_sub(ph) / 2;
-
-    let inner_x = px + 1;
-    let inner_y = py + 1;
-    let inner_w = pw.saturating_sub(2);
-    let cx = inner_x + 2;
-    let cw = inner_w.saturating_sub(4);
-
-    let progress_y = inner_y + 7 + clock_rows + 1;
-
-    if progress_y >= area.bottom() {
-        return None;
-    }
-    Some(Rect::new(cx, progress_y, cw, 1))
-}
-
 use crate::app::App;
 use crate::ui::theme;
 use overlays::{

@@ -1,5 +1,9 @@
 use ratatui::layout::{Constraint, Layout, Rect};
 
+use crate::app::{RadioSubTab, SearchMode, SpotifySubTab};
+use crate::i18n::t;
+use crate::ui::widgets::scroll_offset_for_selection;
+
 pub(crate) const MODAL_MIN_WIDTH: u16 = 52;
 pub(crate) const MODAL_MIN_HEIGHT: u16 = 14;
 
@@ -21,6 +25,9 @@ const SPOTIFY_BODY_GAP_ROWS: u16 = 1;
 const SPOTIFY_FOOTER_ROWS: u16 = 1;
 const SPOTIFY_TITLE_ROWS: u16 = 1;
 const SCROLLBAR_RESERVED_ROWS: u16 = 1;
+const MODAL_CONTENT_HORIZONTAL_PADDING: u16 = 2;
+const MODAL_SUBTAB_INDENT: u16 = 2;
+const TAB_GAP_WIDTH: u16 = 2;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct ModalLayout {
@@ -123,6 +130,22 @@ pub(crate) fn modal_body_area(area: Rect) -> Option<Rect> {
     modal_layout(area).map(|layout| layout.body)
 }
 
+pub(crate) fn modal_content_area(area: Rect) -> Option<Rect> {
+    let layout = modal_layout(area)?;
+    Some(Rect::new(
+        layout
+            .inner
+            .x
+            .saturating_add(MODAL_CONTENT_HORIZONTAL_PADDING),
+        layout.inner.y,
+        layout
+            .inner
+            .width
+            .saturating_sub(MODAL_CONTENT_HORIZONTAL_PADDING * 2),
+        layout.inner.height,
+    ))
+}
+
 pub(crate) fn visible_items(area: Option<Rect>, item_height: ListItemHeight) -> usize {
     area.map(|area| area.height as usize / item_height.rows())
         .unwrap_or(0)
@@ -135,6 +158,188 @@ pub(crate) fn visible_rows(area: Option<Rect>, reserved_rows: u16) -> usize {
 
 pub(crate) fn visible_rows_excluding_scrollbar(area: Option<Rect>) -> usize {
     visible_rows(area, SCROLLBAR_RESERVED_ROWS)
+}
+
+pub(crate) fn contains(area: Rect, col: u16, row: u16) -> bool {
+    col >= area.x && col < area.right() && row >= area.y && row < area.bottom()
+}
+
+pub(crate) fn one_line_list_index_at(
+    area: Option<Rect>,
+    col: u16,
+    row: u16,
+    selected: usize,
+    visible: usize,
+    scroll_offset: usize,
+    item_count: usize,
+) -> Option<usize> {
+    list_index_at(ListHitTest {
+        area,
+        col,
+        row,
+        item_height: ListItemHeight::OneLine,
+        selected,
+        visible,
+        scroll_offset,
+        item_count,
+    })
+}
+
+pub(crate) fn two_line_list_index_at(
+    area: Option<Rect>,
+    col: u16,
+    row: u16,
+    selected: usize,
+    visible: usize,
+    scroll_offset: usize,
+    item_count: usize,
+) -> Option<usize> {
+    list_index_at(ListHitTest {
+        area,
+        col,
+        row,
+        item_height: ListItemHeight::TwoLines,
+        selected,
+        visible,
+        scroll_offset,
+        item_count,
+    })
+}
+
+struct ListHitTest {
+    area: Option<Rect>,
+    col: u16,
+    row: u16,
+    item_height: ListItemHeight,
+    selected: usize,
+    visible: usize,
+    scroll_offset: usize,
+    item_count: usize,
+}
+
+fn list_index_at(hit: ListHitTest) -> Option<usize> {
+    let area = hit.area?;
+    if !contains(area, hit.col, hit.row) || hit.visible == 0 || hit.item_count == 0 {
+        return None;
+    }
+
+    let clicked_slot = hit.row.saturating_sub(area.y) as usize / hit.item_height.rows();
+    if clicked_slot >= hit.visible {
+        return None;
+    }
+
+    let selected = hit.selected.min(hit.item_count.saturating_sub(1));
+    let offset = scroll_offset_for_selection(selected, hit.visible, hit.scroll_offset);
+    let index = offset.saturating_add(clicked_slot);
+    (index < hit.item_count).then_some(index)
+}
+
+pub(crate) fn modal_tab_at(area: Rect, col: u16, row: u16) -> Option<SearchMode> {
+    let layout = modal_layout(area)?;
+    let content = modal_content_area(area)?;
+    let tab_area = Rect::new(content.x, layout.tabs.y, content.width, layout.tabs.height);
+    tab_value_at(
+        tab_area,
+        col,
+        row,
+        &[
+            (t("modal.tab.radio"), SearchMode::Name),
+            (t("modal.tab.spotify"), SearchMode::Spotify),
+            (t("modal.tab.youtube"), SearchMode::Youtube),
+        ],
+    )
+}
+
+pub(crate) fn radio_subtab_at(
+    area: Rect,
+    col: u16,
+    row: u16,
+    favorites_count: usize,
+) -> Option<RadioSubTab> {
+    let body = modal_body_area(area)?;
+    let content = modal_content_area(area)?;
+    let subtab = radio_name_layout(body).subtab;
+    let tab_area = Rect::new(
+        content.x.saturating_add(MODAL_SUBTAB_INDENT),
+        subtab.y,
+        content.width.saturating_sub(MODAL_SUBTAB_INDENT),
+        subtab.height,
+    );
+
+    tab_value_at(
+        tab_area,
+        col,
+        row,
+        &[
+            (t("modal.radio.subtab.search"), RadioSubTab::Search),
+            (
+                format!(
+                    "[ {} ({}) ]",
+                    t("modal.radio.subtab.favorites.label"),
+                    favorites_count
+                ),
+                RadioSubTab::Favorites,
+            ),
+        ],
+    )
+}
+
+pub(crate) fn spotify_subtab_at(area: Rect, col: u16, row: u16) -> Option<SpotifySubTab> {
+    let body = modal_body_area(area)?;
+    let content = modal_content_area(area)?;
+    let subtab = spotify_layout(body).subtab;
+    let tab_area = Rect::new(
+        content.x.saturating_add(MODAL_SUBTAB_INDENT),
+        subtab.y,
+        content.width.saturating_sub(MODAL_SUBTAB_INDENT),
+        subtab.height,
+    );
+
+    tab_value_at(
+        tab_area,
+        col,
+        row,
+        &[
+            (t("modal.spotify.subtab.search"), SpotifySubTab::Search),
+            (t("modal.spotify.subtab.liked"), SpotifySubTab::Liked),
+            (
+                t("modal.spotify.subtab.playlists"),
+                SpotifySubTab::Playlists,
+            ),
+            (t("Top Tracks"), SpotifySubTab::TopTracks),
+            (t("Recent"), SpotifySubTab::Recent),
+            (t("Albums"), SpotifySubTab::Albums),
+        ],
+    )
+}
+
+fn tab_value_at<T: Copy>(area: Rect, col: u16, row: u16, labels: &[(String, T)]) -> Option<T> {
+    if !contains(area, col, row) {
+        return None;
+    }
+
+    let mut x = area.x;
+    for (idx, (label, value)) in labels.iter().enumerate() {
+        if x >= area.right() {
+            return None;
+        }
+
+        let end = x.saturating_add(text_cell_width(label)).min(area.right());
+        if col >= x && col < end {
+            return Some(*value);
+        }
+
+        x = x.saturating_add(text_cell_width(label));
+        if idx + 1 < labels.len() {
+            x = x.saturating_add(TAB_GAP_WIDTH);
+        }
+    }
+
+    None
+}
+
+fn text_cell_width(text: &str) -> u16 {
+    text.chars().count().min(u16::MAX as usize) as u16
 }
 
 pub(crate) fn radio_search_results_list_area(area: Rect) -> Option<Rect> {
@@ -274,15 +479,19 @@ pub(crate) fn filter_list_layout(area: Rect) -> FilterListLayout {
 #[cfg(test)]
 mod tests {
     use super::{
-        filter_list_layout, header_list_layout, modal_body_area, modal_layout, modal_rect,
-        radio_favorites_list_area, radio_favorites_list_layout, radio_filter_list_area,
-        radio_filtered_results_list_area, radio_name_layout, radio_search_results_list_area,
-        settings_items_area, settings_layout, settings_visible_rows, spotify_body_area,
-        spotify_layout, spotify_search_layout, spotify_search_list_area,
-        spotify_titled_track_list_area, spotify_titled_track_list_layout, visible_items,
-        visible_rows, visible_rows_excluding_scrollbar, youtube_list_area, ListItemHeight,
-        MODAL_MIN_HEIGHT, MODAL_MIN_WIDTH,
+        contains, filter_list_layout, header_list_layout, modal_body_area, modal_content_area,
+        modal_layout, modal_rect, modal_tab_at, one_line_list_index_at, radio_favorites_list_area,
+        radio_favorites_list_layout, radio_filter_list_area, radio_filtered_results_list_area,
+        radio_name_layout, radio_search_results_list_area, radio_subtab_at, settings_items_area,
+        settings_layout, settings_visible_rows, spotify_body_area, spotify_layout,
+        spotify_search_layout, spotify_search_list_area, spotify_subtab_at,
+        spotify_titled_track_list_area, spotify_titled_track_list_layout, text_cell_width,
+        two_line_list_index_at, visible_items, visible_rows, visible_rows_excluding_scrollbar,
+        youtube_list_area, ListItemHeight, MODAL_MIN_HEIGHT, MODAL_MIN_WIDTH, MODAL_SUBTAB_INDENT,
+        TAB_GAP_WIDTH,
     };
+    use crate::app::{RadioSubTab, SearchMode, SpotifySubTab};
+    use crate::i18n::t;
     use ratatui::layout::Rect;
 
     fn normal_terminal() -> Rect {
@@ -377,6 +586,134 @@ mod tests {
         let area = Some(Rect::new(0, 0, 10, 9));
 
         assert_eq!(visible_rows(area, 1), 8);
+    }
+
+    #[test]
+    fn modal_tab_at_matches_rendered_top_tabs() {
+        let area = normal_terminal();
+        let layout = modal_layout(area).expect("modal should render");
+        let content = modal_content_area(area).expect("content should render");
+        let radio_w = text_cell_width(&t("modal.tab.radio"));
+        let spotify_x = content.x + radio_w + TAB_GAP_WIDTH;
+
+        assert!(matches!(
+            modal_tab_at(area, content.x, layout.tabs.y),
+            Some(SearchMode::Name)
+        ));
+        assert!(matches!(
+            modal_tab_at(area, spotify_x, layout.tabs.y),
+            Some(SearchMode::Spotify)
+        ));
+        assert!(modal_tab_at(area, content.x + radio_w, layout.tabs.y).is_none());
+    }
+
+    #[test]
+    fn radio_subtab_at_matches_rendered_subtabs() {
+        let area = normal_terminal();
+        let body = modal_body_area(area).expect("modal should render");
+        let subtab = radio_name_layout(body).subtab;
+        let content = modal_content_area(area).expect("content should render");
+        let text_x = content.x + MODAL_SUBTAB_INDENT;
+        let search_w = text_cell_width(&t("modal.radio.subtab.search"));
+        let favorites_x = text_x + search_w + TAB_GAP_WIDTH;
+
+        assert!(matches!(
+            radio_subtab_at(area, text_x, subtab.y, 12),
+            Some(RadioSubTab::Search)
+        ));
+        assert!(matches!(
+            radio_subtab_at(area, favorites_x, subtab.y, 12),
+            Some(RadioSubTab::Favorites)
+        ));
+    }
+
+    #[test]
+    fn spotify_subtab_at_matches_rendered_subtabs() {
+        let area = normal_terminal();
+        let body = modal_body_area(area).expect("modal should render");
+        let subtab = spotify_layout(body).subtab;
+        let content = modal_content_area(area).expect("content should render");
+        let text_x = content.x + MODAL_SUBTAB_INDENT;
+        let liked_x = text_x + text_cell_width(&t("modal.spotify.subtab.search")) + TAB_GAP_WIDTH;
+
+        assert!(matches!(
+            spotify_subtab_at(area, text_x, subtab.y),
+            Some(SpotifySubTab::Search)
+        ));
+        assert!(matches!(
+            spotify_subtab_at(area, liked_x, subtab.y),
+            Some(SpotifySubTab::Liked)
+        ));
+    }
+
+    #[test]
+    fn contains_uses_terminal_cell_bounds() {
+        let area = Rect::new(10, 4, 20, 6);
+
+        assert!(contains(area, 10, 4));
+        assert!(contains(area, 29, 9));
+        assert!(!contains(area, 9, 4));
+        assert!(!contains(area, 30, 9));
+        assert!(!contains(area, 10, 10));
+    }
+
+    #[test]
+    fn one_line_list_index_at_returns_clicked_visible_item() {
+        let area = Some(Rect::new(10, 4, 20, 6));
+
+        assert_eq!(one_line_list_index_at(area, 12, 6, 0, 6, 0, 10), Some(2));
+    }
+
+    #[test]
+    fn one_line_list_index_at_ignores_clicks_outside_area() {
+        let area = Some(Rect::new(10, 4, 20, 6));
+
+        assert_eq!(one_line_list_index_at(area, 9, 6, 0, 6, 0, 10), None);
+        assert_eq!(one_line_list_index_at(area, 12, 10, 0, 6, 0, 10), None);
+        assert_eq!(one_line_list_index_at(None, 12, 6, 0, 6, 0, 10), None);
+    }
+
+    #[test]
+    fn one_line_list_index_at_uses_rendered_visible_count() {
+        let area = Some(Rect::new(10, 4, 20, 6));
+
+        assert_eq!(one_line_list_index_at(area, 12, 7, 0, 4, 0, 10), Some(3));
+        assert_eq!(one_line_list_index_at(area, 12, 8, 0, 4, 0, 10), None);
+    }
+
+    #[test]
+    fn one_line_list_index_at_uses_scroll_offset_for_visible_window() {
+        let area = Some(Rect::new(10, 4, 20, 6));
+
+        assert_eq!(one_line_list_index_at(area, 12, 5, 8, 6, 3, 20), Some(4));
+        assert_eq!(one_line_list_index_at(area, 12, 4, 0, 6, 20, 20), Some(0));
+        assert_eq!(one_line_list_index_at(area, 12, 6, 3, 6, 20, 20), Some(5));
+    }
+
+    #[test]
+    fn list_index_at_returns_none_when_clicked_slot_has_no_item() {
+        let area = Some(Rect::new(10, 4, 20, 6));
+
+        assert_eq!(one_line_list_index_at(area, 12, 7, 0, 6, 0, 3), None);
+        assert_eq!(one_line_list_index_at(area, 12, 4, 0, 0, 0, 3), None);
+        assert_eq!(one_line_list_index_at(area, 12, 4, 0, 6, 0, 0), None);
+    }
+
+    #[test]
+    fn two_line_list_index_at_maps_both_rows_to_same_item() {
+        let area = Some(Rect::new(10, 4, 20, 6));
+
+        assert_eq!(two_line_list_index_at(area, 12, 4, 0, 3, 0, 10), Some(0));
+        assert_eq!(two_line_list_index_at(area, 12, 5, 0, 3, 0, 10), Some(0));
+        assert_eq!(two_line_list_index_at(area, 12, 6, 0, 3, 0, 10), Some(1));
+    }
+
+    #[test]
+    fn two_line_list_index_at_ignores_partial_item_rows() {
+        let area = Some(Rect::new(10, 4, 20, 5));
+
+        assert_eq!(two_line_list_index_at(area, 12, 7, 0, 2, 0, 10), Some(1));
+        assert_eq!(two_line_list_index_at(area, 12, 8, 0, 2, 0, 10), None);
     }
 
     #[test]
