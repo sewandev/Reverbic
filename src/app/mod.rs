@@ -573,7 +573,7 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::integrations::spotify::SpotifyPlaybackState;
+    use crate::integrations::spotify::{SpotifyPlaybackState, SpotifyTrack};
 
     fn test_app() -> App {
         App {
@@ -645,6 +645,16 @@ mod tests {
             fav_enrich_task: None,
             fav_enrich_rx: None,
             next_preview_id: 1,
+        }
+    }
+
+    fn spotify_track(name: &str) -> SpotifyTrack {
+        SpotifyTrack {
+            name: name.to_string(),
+            artist: "artist".to_string(),
+            album: "album".to_string(),
+            duration_ms: 180_000,
+            uri: format!("spotify:track:{name}"),
         }
     }
 
@@ -732,5 +742,36 @@ mod tests {
         assert!(!app.spotify.search_loading_more);
         assert!(!app.spotify.search_has_more);
         assert_eq!(app.spotify.search_offset, 0);
+    }
+
+    #[tokio::test]
+    async fn spotify_search_more_discards_stale_query_results() {
+        let mut app = test_app();
+        app.spotify.search_generation = 2;
+        app.spotify.search_query = "daft punk".to_string();
+        app.spotify.search_results = vec![spotify_track("current")];
+        app.spotify.search_offset = 0;
+        app.spotify.search_has_more = true;
+        app.spotify.search_loading_more = true;
+        let (tx, rx) = std::sync::mpsc::channel();
+        assert!(tx
+            .send(spotify_state::SpotifySearchPage {
+                generation: 1,
+                query: "radiohead".to_string(),
+                offset: 10,
+                results: vec![spotify_track("stale")],
+                has_more: true,
+                rate_limit_secs: None,
+            })
+            .is_ok());
+        app.spotify.search_more_rx = Some(rx);
+
+        app.poll_spotify_search_more();
+
+        assert_eq!(app.spotify.search_results.len(), 1);
+        assert_eq!(app.spotify.search_results[0].name, "current");
+        assert_eq!(app.spotify.search_offset, 0);
+        assert!(app.spotify.search_has_more);
+        assert!(!app.spotify.search_loading_more);
     }
 }

@@ -447,6 +447,8 @@ impl App {
                 self.spotify.search_results.clear();
                 self.spotify.search_selected = 0;
                 abort_task(&mut self.spotify.search_task);
+                self.spotify.search_rx = None;
+                self.reset_spotify_search_paging();
                 self.spotify.search_loading = false;
                 self.youtube.query.clear();
                 self.youtube.results.clear();
