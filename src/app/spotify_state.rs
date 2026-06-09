@@ -3,13 +3,14 @@ use std::collections::VecDeque;
 use super::modal::{SpotifyAuthStatus, SpotifyPlayerStatus, SpotifySubTab};
 use crate::integrations::spotify::{
     devices::SpotifyDevice, player::SpotifyPlayerHandle, playlists::SpotifyPlaylist, AuthResult,
-    SpotifyError, SpotifyPlaybackState, SpotifyPlayerEvent, SpotifyTrack,
+    SpotifyAlbum, SpotifyError, SpotifyPlaybackState, SpotifyPlayerEvent, SpotifyTrack,
 };
 
 type SearchPageRx = std::sync::mpsc::Receiver<(Vec<SpotifyTrack>, bool, Option<u64>)>;
 type TracksResultRx = std::sync::mpsc::Receiver<Result<(Vec<SpotifyTrack>, bool), SpotifyError>>;
 type PlaylistsResultRx =
     std::sync::mpsc::Receiver<Result<(Vec<SpotifyPlaylist>, bool), SpotifyError>>;
+type AlbumsResultRx = std::sync::mpsc::Receiver<Result<(Vec<SpotifyAlbum>, bool), SpotifyError>>;
 
 pub struct SpotifyState {
     pub status: SpotifyAuthStatus,
@@ -58,6 +59,7 @@ pub struct SpotifyState {
         Option<std::sync::mpsc::Receiver<Result<(String, String), String>>>,
 
     pub(super) play_result_rx: Option<std::sync::mpsc::Receiver<Result<(), SpotifyError>>>,
+    pub(super) save_track_rx: Option<std::sync::mpsc::Receiver<Result<String, String>>>,
 
     pub playback_queue: VecDeque<SpotifyTrack>,
     pub radio_queue: VecDeque<SpotifyTrack>,
@@ -88,6 +90,36 @@ pub struct SpotifyState {
     pub(super) playlists_rx: Option<PlaylistsResultRx>,
     pub(super) playlist_tracks_task: Option<tokio::task::JoinHandle<()>>,
     pub(super) playlist_tracks_rx: Option<TracksResultRx>,
+
+    pub top_tracks: Vec<SpotifyTrack>,
+    pub top_tracks_selected: usize,
+    pub top_tracks_loading: bool,
+    pub top_tracks_range: String,
+    pub(super) top_tracks_task: Option<tokio::task::JoinHandle<()>>,
+    pub(super) top_tracks_rx:
+        Option<std::sync::mpsc::Receiver<Result<Vec<SpotifyTrack>, SpotifyError>>>,
+
+    pub recent_tracks: Vec<SpotifyTrack>,
+    pub recent_tracks_selected: usize,
+    pub recent_tracks_loading: bool,
+    pub(super) recent_tracks_task: Option<tokio::task::JoinHandle<()>>,
+    pub(super) recent_tracks_rx:
+        Option<std::sync::mpsc::Receiver<Result<Vec<SpotifyTrack>, SpotifyError>>>,
+
+    pub albums: Vec<SpotifyAlbum>,
+    pub albums_selected: usize,
+    pub albums_loading: bool,
+    pub albums_has_more: bool,
+    pub albums_offset: usize,
+    pub open_album: Option<SpotifyAlbum>,
+    pub album_tracks: Vec<SpotifyTrack>,
+    pub album_tracks_selected: usize,
+    pub album_tracks_loading: bool,
+    pub(super) albums_task: Option<tokio::task::JoinHandle<()>>,
+    pub(super) albums_rx: Option<AlbumsResultRx>,
+    pub(super) album_tracks_task: Option<tokio::task::JoinHandle<()>>,
+    pub(super) album_tracks_rx:
+        Option<std::sync::mpsc::Receiver<Result<Vec<SpotifyTrack>, SpotifyError>>>,
 }
 
 impl SpotifyState {
@@ -107,6 +139,10 @@ impl SpotifyState {
         abort(&mut self.liked_task);
         abort(&mut self.playlists_task);
         abort(&mut self.playlist_tracks_task);
+        abort(&mut self.top_tracks_task);
+        abort(&mut self.recent_tracks_task);
+        abort(&mut self.albums_task);
+        abort(&mut self.album_tracks_task);
     }
 }
 
@@ -150,6 +186,7 @@ impl Default for SpotifyState {
             token_refresh_task: None,
             token_refresh_rx: None,
             play_result_rx: None,
+            save_track_rx: None,
             playback_queue: VecDeque::new(),
             radio_queue: VecDeque::new(),
             recently_played: VecDeque::new(),
@@ -177,6 +214,30 @@ impl Default for SpotifyState {
             playlists_rx: None,
             playlist_tracks_task: None,
             playlist_tracks_rx: None,
+            top_tracks: Vec::new(),
+            top_tracks_selected: 0,
+            top_tracks_loading: false,
+            top_tracks_range: "short_term".to_string(),
+            top_tracks_task: None,
+            top_tracks_rx: None,
+            recent_tracks: Vec::new(),
+            recent_tracks_selected: 0,
+            recent_tracks_loading: false,
+            recent_tracks_task: None,
+            recent_tracks_rx: None,
+            albums: Vec::new(),
+            albums_selected: 0,
+            albums_loading: false,
+            albums_has_more: false,
+            albums_offset: 0,
+            open_album: None,
+            album_tracks: Vec::new(),
+            album_tracks_selected: 0,
+            album_tracks_loading: false,
+            albums_task: None,
+            albums_rx: None,
+            album_tracks_task: None,
+            album_tracks_rx: None,
         }
     }
 }

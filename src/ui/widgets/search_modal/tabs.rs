@@ -487,7 +487,12 @@ impl<'a> SearchModalWidget<'a> {
             } else if row == track_h - 1 && offset + track_h < total {
                 ("▼", self.palette.dim)
             } else if row == thumb {
-                ("┃", self.palette.accent)
+                let color = match self.mode {
+                    crate::app::SearchMode::Spotify => self.palette.spotify,
+                    crate::app::SearchMode::Youtube => self.palette.danger,
+                    _ => self.palette.accent,
+                };
+                ("┃", color)
             } else {
                 ("│", self.palette.muted)
             };

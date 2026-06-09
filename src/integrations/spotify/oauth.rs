@@ -11,7 +11,8 @@ use super::AuthResult;
 const LIBRE_CLIENT_ID: &str = "65b708073fc0480ea92a077233ca87bd";
 const SCOPES: &str =
     "user-read-private user-read-playback-state user-modify-playback-state streaming \
-     user-library-read playlist-read-private playlist-read-collaborative";
+     user-library-read playlist-read-private playlist-read-collaborative \
+     user-top-read user-read-recently-played user-library-modify";
 
 pub async fn start_flow(client_id: &str) -> AuthResult {
     let (search_token, refresh_token, userid) = match pkce_flow(client_id, 8888, "/callback").await
@@ -70,6 +71,15 @@ pub async fn refresh_search_token(
         .as_str()
         .unwrap_or(refresh_token)
         .to_string();
+
+    let granted_scopes = json["scope"].as_str().unwrap_or("");
+    for required in SCOPES.split_whitespace() {
+        if !granted_scopes.contains(required) {
+            return Err(format!(
+                "Missing required scope: {required}. Please reconnect your Spotify account."
+            ));
+        }
+    }
 
     Ok((access, refresh))
 }

@@ -96,7 +96,7 @@ pub(super) fn render_filter_list_body(
     let text_w = content_w.saturating_sub(2);
     let text_area = Rect::new(text_x, input_row.y, text_w, 1);
 
-    render_filter_input(filter, placeholder, text_area, palette, buf);
+    render_filter_input(filter, placeholder, text_area, palette, buf, palette.accent);
 
     buf[(content_x, cap_row.y)]
         .set_symbol("╹")
@@ -162,6 +162,7 @@ pub(super) fn render_filter_input(
     text_area: Rect,
     palette: &Palette,
     buf: &mut Buffer,
+    cursor_color: ratatui::style::Color,
 ) {
     if filter.is_empty() {
         Paragraph::new(Span::styled(
@@ -175,7 +176,7 @@ pub(super) fn render_filter_input(
             Span::styled(
                 "_",
                 Style::default()
-                    .fg(palette.accent)
+                    .fg(cursor_color)
                     .add_modifier(Modifier::BOLD),
             ),
         ]))

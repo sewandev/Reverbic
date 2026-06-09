@@ -51,6 +51,7 @@ impl<'a> SearchModalWidget<'a> {
             Rect::new(text_x, input_row.y, text_w, 1),
             self.palette,
             buf,
+            self.palette.danger,
         );
 
         buf[(content_x, cap_row.y)]

@@ -632,6 +632,8 @@ impl App {
         use crate::audio::PlayerCommand;
         self.player.send(PlayerCommand::Stop).await;
         self.spotify.playback_queue = queue.into_iter().collect();
+        self.spotify.radio_queue.clear();
+        abort_task(&mut self.spotify.radio_task);
         tracing::debug!(
             "play_spotify_track_with_queue: track='{}' queue_len={}",
             track.name,
@@ -677,20 +679,24 @@ impl App {
                 tracing::debug!("advance_playback_queue: no player handle");
             }
         } else if self.config.spotify.radio_enabled {
-            let artist_name = self
-                .spotify
-                .now_playing
-                .as_ref()
-                .map(|t| t.artist.clone())
-                .filter(|a| !a.is_empty());
-            let seed_uri = self
-                .spotify
-                .now_playing
-                .as_ref()
-                .map(|t| t.uri.clone())
-                .unwrap_or_default();
-            if let Some(name) = artist_name {
-                self.fetch_radio_tracks(name, seed_uri);
+            if !self.spotify.radio_queue.is_empty() {
+                self.play_next_radio_track();
+            } else {
+                let artist_name = self
+                    .spotify
+                    .now_playing
+                    .as_ref()
+                    .map(|t| t.artist.clone())
+                    .filter(|a| !a.is_empty());
+                let seed_uri = self
+                    .spotify
+                    .now_playing
+                    .as_ref()
+                    .map(|t| t.uri.clone())
+                    .unwrap_or_default();
+                if let Some(name) = artist_name {
+                    self.fetch_radio_tracks(name, seed_uri);
+                }
             }
         }
     }
@@ -864,6 +870,236 @@ impl App {
                     }
                 }
             }
+        }
+    }
+
+    pub fn fetch_top_tracks(&mut self) {
+        use crate::integrations::spotify::library::get_top_tracks;
+        abort_task(&mut self.spotify.top_tracks_task);
+        let Some(token) = self.spotify.access_token.clone() else {
+            return;
+        };
+        self.spotify.top_tracks_loading = true;
+        let (tx, rx) = std::sync::mpsc::channel();
+        self.spotify.top_tracks_rx = Some(rx);
+        let range = self.spotify.top_tracks_range.clone();
+        let handle = tokio::spawn(async move {
+            let _ = tx.send(get_top_tracks(&token, &range).await);
+        });
+        self.spotify.top_tracks_task = Some(handle);
+    }
+
+    pub fn poll_top_tracks(&mut self) {
+        let Some(rx) = self.spotify.top_tracks_rx.take() else {
+            return;
+        };
+        match rx.try_recv() {
+            Ok(Ok(tracks)) => {
+                self.spotify.top_tracks_loading = false;
+                self.spotify.top_tracks = tracks;
+            }
+            Ok(Err(e)) => {
+                self.spotify.top_tracks_loading = false;
+                tracing::warn!("top tracks fetch: {e}");
+            }
+            Err(std::sync::mpsc::TryRecvError::Empty) => {
+                self.spotify.top_tracks_rx = Some(rx);
+            }
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                self.spotify.top_tracks_loading = false;
+            }
+        }
+    }
+
+    pub fn fetch_recent_tracks(&mut self) {
+        use crate::integrations::spotify::library::get_recently_played;
+        abort_task(&mut self.spotify.recent_tracks_task);
+        let Some(token) = self.spotify.access_token.clone() else {
+            return;
+        };
+        self.spotify.recent_tracks_loading = true;
+        let (tx, rx) = std::sync::mpsc::channel();
+        self.spotify.recent_tracks_rx = Some(rx);
+        let handle = tokio::spawn(async move {
+            let _ = tx.send(get_recently_played(&token).await);
+        });
+        self.spotify.recent_tracks_task = Some(handle);
+    }
+
+    pub fn poll_recent_tracks(&mut self) {
+        let Some(rx) = self.spotify.recent_tracks_rx.take() else {
+            return;
+        };
+        match rx.try_recv() {
+            Ok(Ok(tracks)) => {
+                self.spotify.recent_tracks_loading = false;
+                self.spotify.recent_tracks = tracks;
+            }
+            Ok(Err(e)) => {
+                self.spotify.recent_tracks_loading = false;
+                tracing::warn!("recent tracks fetch: {e}");
+            }
+            Err(std::sync::mpsc::TryRecvError::Empty) => {
+                self.spotify.recent_tracks_rx = Some(rx);
+            }
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                self.spotify.recent_tracks_loading = false;
+            }
+        }
+    }
+
+    pub fn fetch_albums(&mut self) {
+        use crate::integrations::spotify::albums::get_saved_albums;
+        abort_task(&mut self.spotify.albums_task);
+        let Some(token) = self.spotify.access_token.clone() else {
+            return;
+        };
+        self.spotify.albums.clear();
+        self.spotify.albums_selected = 0;
+        self.spotify.albums_loading = true;
+        self.spotify.albums_offset = 0;
+        let (tx, rx) = std::sync::mpsc::channel();
+        self.spotify.albums_rx = Some(rx);
+        let handle = tokio::spawn(async move {
+            let _ = tx.send(get_saved_albums(&token, 0).await);
+        });
+        self.spotify.albums_task = Some(handle);
+    }
+
+    pub fn poll_albums(&mut self) {
+        let Some(rx) = self.spotify.albums_rx.take() else {
+            return;
+        };
+        match rx.try_recv() {
+            Ok(Ok((albums, has_more))) => {
+                self.spotify.albums_loading = false;
+                self.spotify.albums.extend(albums);
+                self.spotify.albums_has_more = has_more;
+                self.spotify.albums_offset += 50;
+            }
+            Ok(Err(e)) => {
+                self.spotify.albums_loading = false;
+                tracing::warn!("albums fetch: {e}");
+            }
+            Err(std::sync::mpsc::TryRecvError::Empty) => {
+                self.spotify.albums_rx = Some(rx);
+            }
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                self.spotify.albums_loading = false;
+            }
+        }
+    }
+
+    pub fn load_more_spotify_albums(&mut self) {
+        use crate::integrations::spotify::albums::get_saved_albums;
+        if self.spotify.albums_loading || !self.spotify.albums_has_more {
+            return;
+        }
+        let Some(token) = self.spotify.access_token.clone() else {
+            return;
+        };
+        self.spotify.albums_loading = true;
+        let offset = self.spotify.albums_offset;
+        let (tx, rx) = std::sync::mpsc::channel();
+        self.spotify.albums_rx = Some(rx);
+        let handle = tokio::spawn(async move {
+            let _ = tx.send(get_saved_albums(&token, offset).await);
+        });
+        self.spotify.albums_task = Some(handle);
+    }
+
+    pub fn fetch_album_tracks(&mut self) {
+        use crate::integrations::spotify::albums::get_album_tracks;
+        abort_task(&mut self.spotify.album_tracks_task);
+        let Some(token) = self.spotify.access_token.clone() else {
+            return;
+        };
+        let Some(album) = self.spotify.open_album.clone() else {
+            return;
+        };
+        self.spotify.album_tracks_loading = true;
+        let (tx, rx) = std::sync::mpsc::channel();
+        self.spotify.album_tracks_rx = Some(rx);
+        let handle = tokio::spawn(async move {
+            let id = album.uri.split(':').next_back().unwrap_or("").to_string();
+            let _ = tx.send(get_album_tracks(&token, &id).await);
+        });
+        self.spotify.album_tracks_task = Some(handle);
+    }
+
+    pub fn poll_album_tracks(&mut self) {
+        let Some(rx) = self.spotify.album_tracks_rx.take() else {
+            return;
+        };
+        match rx.try_recv() {
+            Ok(Ok(tracks)) => {
+                self.spotify.album_tracks_loading = false;
+                self.spotify.album_tracks = tracks;
+            }
+            Ok(Err(e)) => {
+                self.spotify.album_tracks_loading = false;
+                tracing::warn!("album tracks fetch: {e}");
+            }
+            Err(std::sync::mpsc::TryRecvError::Empty) => {
+                self.spotify.album_tracks_rx = Some(rx);
+            }
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                self.spotify.album_tracks_loading = false;
+            }
+        }
+    }
+
+    pub fn like_spotify_track(&mut self, track: &crate::integrations::spotify::SpotifyTrack) {
+        use crate::integrations::spotify::library::save_track;
+        let Some(token) = self.spotify.access_token.clone() else {
+            return;
+        };
+        let uri = track.uri.clone();
+        let name = track.name.clone();
+        let id = uri.split(':').next_back().unwrap_or("").to_string();
+        if id.is_empty() {
+            return;
+        }
+
+        let (tx, rx) = std::sync::mpsc::channel();
+        self.spotify.save_track_rx = Some(rx);
+        self.save_notice = Some(format!("Guardando {}...", name));
+        self.save_notice_is_dup = false;
+        self.notice_until = Some(std::time::Instant::now() + std::time::Duration::from_secs(4));
+
+        tokio::spawn(async move {
+            match save_track(&token, &id).await {
+                Ok(_) => {
+                    let _ = tx.send(Ok(name));
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to like spotify track: {e}");
+                    let _ = tx.send(Err(format!("{e}")));
+                }
+            }
+        });
+    }
+
+    pub fn poll_save_track(&mut self) {
+        let rx = match self.spotify.save_track_rx.take() {
+            Some(r) => r,
+            None => return,
+        };
+        match rx.try_recv() {
+            Ok(Ok(name)) => {
+                self.save_notice = Some(format!("Guardado en Tus Me Gusta: {name}"));
+                self.notice_until =
+                    Some(std::time::Instant::now() + std::time::Duration::from_secs(4));
+            }
+            Ok(Err(e)) => {
+                self.save_notice = Some(format!("Error al guardar: {e}"));
+                self.notice_until =
+                    Some(std::time::Instant::now() + std::time::Duration::from_secs(4));
+            }
+            Err(std::sync::mpsc::TryRecvError::Empty) => {
+                self.spotify.save_track_rx = Some(rx);
+            }
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => {}
         }
     }
 }

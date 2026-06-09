@@ -93,6 +93,20 @@ pub struct SearchModalWidget<'a> {
     pub spotify_playlist_tracks: &'a [crate::integrations::spotify::SpotifyTrack],
     pub spotify_playlist_tracks_selected: usize,
     pub spotify_playlist_tracks_loading: bool,
+    pub spotify_top_tracks_range: &'a str,
+    pub spotify_top_tracks: &'a [crate::integrations::spotify::SpotifyTrack],
+    pub spotify_top_tracks_selected: usize,
+    pub spotify_top_tracks_loading: bool,
+    pub spotify_recent_tracks: &'a [crate::integrations::spotify::SpotifyTrack],
+    pub spotify_recent_tracks_selected: usize,
+    pub spotify_recent_tracks_loading: bool,
+    pub spotify_albums: &'a [crate::integrations::spotify::SpotifyAlbum],
+    pub spotify_albums_selected: usize,
+    pub spotify_albums_loading: bool,
+    pub spotify_open_album: Option<&'a crate::integrations::spotify::SpotifyAlbum>,
+    pub spotify_album_tracks: &'a [crate::integrations::spotify::SpotifyTrack],
+    pub spotify_album_tracks_selected: usize,
+    pub spotify_album_tracks_loading: bool,
     pub youtube_status: &'a crate::app::YoutubeStatus,
     pub youtube_query: &'a str,
     pub youtube_results: &'a [crate::integrations::youtube::YoutubeVideo],
@@ -225,6 +239,20 @@ impl<'a> SearchModalWidget<'a> {
             spotify_playlist_tracks: &sp.playlist_tracks,
             spotify_playlist_tracks_selected: sp.playlist_tracks_selected,
             spotify_playlist_tracks_loading: sp.playlist_tracks_loading,
+            spotify_top_tracks_range: &sp.top_tracks_range,
+            spotify_top_tracks: &sp.top_tracks,
+            spotify_top_tracks_selected: sp.top_tracks_selected,
+            spotify_top_tracks_loading: sp.top_tracks_loading,
+            spotify_recent_tracks: &sp.recent_tracks,
+            spotify_recent_tracks_selected: sp.recent_tracks_selected,
+            spotify_recent_tracks_loading: sp.recent_tracks_loading,
+            spotify_albums: &sp.albums,
+            spotify_albums_selected: sp.albums_selected,
+            spotify_albums_loading: sp.albums_loading,
+            spotify_open_album: sp.open_album.as_ref(),
+            spotify_album_tracks: &sp.album_tracks,
+            spotify_album_tracks_selected: sp.album_tracks_selected,
+            spotify_album_tracks_loading: sp.album_tracks_loading,
             youtube_status: &yt.status,
             youtube_query: &yt.query,
             youtube_results: &yt.results,
@@ -256,7 +284,11 @@ impl SearchModalWidget<'_> {
                 Span::styled(
                     notice.clone(),
                     ratatui::style::Style::default()
-                        .fg(self.palette.playing)
+                        .fg(match self.mode {
+                            crate::app::SearchMode::Spotify => self.palette.spotify,
+                            crate::app::SearchMode::Youtube => self.palette.danger,
+                            _ => self.palette.playing,
+                        })
                         .add_modifier(ratatui::style::Modifier::BOLD),
                 ),
                 Span::raw("  "),
@@ -266,17 +298,27 @@ impl SearchModalWidget<'_> {
         let sep_s = |s| sep_s(self.palette, s);
         let showing = !self.results.is_empty();
         if showing {
-            return vec![
+            let mut spans = vec![
                 Span::raw(" "),
                 key("[↵]"),
                 sep_s(format!(" {}  ", t("hint.play"))),
-                key("[Alt+F]"),
-                sep_s(format!(" {}  ", t("hint.fav"))),
+                key("[Space]"),
+                sep_s(format!(" {}  ", t("hint.pause"))),
+            ];
+            if matches!(self.mode, crate::app::SearchMode::Spotify) {
+                spans.push(key("[Alt+L]"));
+                spans.push(sep_s(format!(" {}  ", t("hint.like"))));
+            } else {
+                spans.push(key("[Alt+F]"));
+                spans.push(sep_s(format!(" {}  ", t("hint.fav"))));
+            }
+            spans.extend(vec![
                 key("[↑↓]"),
                 sep_s(format!(" {}  ", t("hint.nav"))),
                 key("[?]"),
                 sep_s(format!(" {} ", t("hint.help"))),
-            ];
+            ]);
+            return spans;
         }
         match self.mode {
             SearchMode::Name => {
@@ -398,6 +440,8 @@ impl SearchModalWidget<'_> {
                                 sep_s(format!(" {}  ", t("hint.play"))),
                                 key("[Space]"),
                                 sep_s(format!(" {}  ", t("hint.pause"))),
+                                key("[Alt+L]"),
+                                sep_s(format!(" {}  ", t("hint.like"))),
                                 key("[↑↓]"),
                                 sep_s(format!(" {}  ", t("hint.nav"))),
                                 key("[←→]"),
@@ -408,10 +452,12 @@ impl SearchModalWidget<'_> {
                         } else {
                             vec![
                                 Span::raw(" "),
+                                key("[Space]"),
+                                sep_s(format!(" {}  ", t("hint.pause"))),
+                                key("[Alt+L]"),
+                                sep_s(format!(" {}  ", t("hint.like"))),
                                 key("[←→]"),
                                 sep_s(format!(" {}  ", t("hint.tabs"))),
-                                key("[Tab]"),
-                                sep_s(format!(" {}  ", t("hint.radio"))),
                                 key("[Alt+D]"),
                                 sep_s(format!(" {}  ", t("hint.disconnect"))),
                                 key("[?]"),
