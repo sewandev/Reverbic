@@ -130,10 +130,7 @@ fn parse_playlist(item: &serde_json::Value) -> Option<SpotifyPlaylist> {
         .as_str()
         .unwrap_or("")
         .to_string();
-    let tracks_total = item["tracks"]["total"]
-        .as_u64()
-        .or_else(|| item["total_tracks"].as_u64())
-        .unwrap_or(0) as u32;
+    let tracks_total = playlist_tracks_total(item);
 
     Some(SpotifyPlaylist {
         id,
@@ -141,6 +138,14 @@ fn parse_playlist(item: &serde_json::Value) -> Option<SpotifyPlaylist> {
         owner,
         tracks_total,
     })
+}
+
+fn playlist_tracks_total(item: &serde_json::Value) -> u32 {
+    item["items"]["total"]
+        .as_u64()
+        .or_else(|| item["tracks"]["total"].as_u64())
+        .or_else(|| item["total_tracks"].as_u64())
+        .unwrap_or(0) as u32
 }
 
 pub(crate) fn parse_playlist_tracks_body(
@@ -223,6 +228,28 @@ mod tests {
         assert_eq!(playlists[0].name, "Favorites");
         assert_eq!(playlists[0].owner, "Sewan");
         assert_eq!(playlists[0].tracks_total, 42);
+    }
+
+    #[test]
+    fn parse_user_playlists_body_prefers_current_items_total() {
+        let body = r#"{
+            "items": [
+                {
+                    "id": "playlist-2",
+                    "name": "Now",
+                    "owner": { "display_name": "Reverbic" },
+                    "items": { "total": 7 },
+                    "tracks": { "total": 42 }
+                }
+            ],
+            "next": null
+        }"#;
+
+        let (playlists, has_more) = parse_user_playlists_body(body).expect("valid playlists body");
+
+        assert!(!has_more);
+        assert_eq!(playlists.len(), 1);
+        assert_eq!(playlists[0].tracks_total, 7);
     }
 
     #[test]
