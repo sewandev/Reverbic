@@ -14,6 +14,7 @@ use tokio::task::JoinHandle;
 use crate::audio::AudioPlayer;
 use crate::config::Config;
 use crate::error::{AppError, Result};
+use crate::i18n;
 use crate::terminal::Tui;
 use crate::ui::theme;
 
@@ -167,7 +168,10 @@ fn complete_outcome(
             state.apply_to(config);
             (!state.volume_changed).then_some(original_volume)
         }
-        Outcome::Skip => Some(original_volume),
+        Outcome::Skip => {
+            i18n::set_language(config.language);
+            Some(original_volume)
+        }
         Outcome::Continue => None,
     }
 }
@@ -329,6 +333,15 @@ fn cycle_focused_option(state: &mut OnboardingState) {
 mod tests {
     use super::*;
     use crate::config::OverlayMode;
+    use crate::i18n::Language;
+
+    struct LanguageReset(Language);
+
+    impl Drop for LanguageReset {
+        fn drop(&mut self) {
+            i18n::set_language(self.0);
+        }
+    }
 
     #[test]
     fn finish_applies_onboarding_state_without_restoring_volume() {
@@ -383,5 +396,25 @@ mod tests {
         assert_eq!(restore_volume, Some(0.8));
         assert_eq!(config.overlay_mode, OverlayMode::WhenPlaying);
         assert_eq!(config.volume, 0.8);
+    }
+
+    #[test]
+    fn skip_restores_previewed_language_without_applying_state() {
+        let _reset_language = LanguageReset(i18n::current_language());
+        let mut config = Config {
+            language: Language::Es,
+            ..Config::default()
+        };
+        let mut state = OnboardingState::from_config(&config);
+
+        transitions::cycle_language(&mut state);
+        assert_eq!(state.language, Language::En);
+        assert_eq!(i18n::current_language(), Language::En);
+
+        let restore_volume = complete_outcome(Outcome::Skip, &state, &mut config, 0.8);
+
+        assert_eq!(restore_volume, Some(0.8));
+        assert_eq!(config.language, Language::Es);
+        assert_eq!(i18n::current_language(), Language::Es);
     }
 }
