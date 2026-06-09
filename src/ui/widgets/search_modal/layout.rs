@@ -15,6 +15,45 @@ pub(crate) struct ModalLayout {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct FilterListLayout {
+    pub input: Rect,
+    pub cap: Rect,
+    pub list: Rect,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct HeaderListLayout {
+    pub header: Rect,
+    pub list: Rect,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct RadioNameLayout {
+    pub subtab: Rect,
+    pub body: Rect,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct SettingsLayout {
+    pub items: Rect,
+    pub tooltip: Rect,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct SpotifyLayout {
+    pub subtab: Rect,
+    pub body: Rect,
+    pub footer: Rect,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct SpotifySearchLayout {
+    pub input: Rect,
+    pub cap: Rect,
+    pub list: Rect,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ListItemHeight {
     OneLine,
     TwoLines,
@@ -78,47 +117,28 @@ pub(crate) fn visible_rows(area: Option<Rect>, reserved_rows: u16) -> usize {
 }
 
 pub(crate) fn radio_search_results_list_area(area: Rect) -> Option<Rect> {
-    radio_name_body_area(area).map(|area| {
-        let [_gap, _input_row, _cap_row, list_area] = Layout::vertical([
-            Constraint::Length(1),
-            Constraint::Length(1),
-            Constraint::Length(1),
-            Constraint::Fill(1),
-        ])
-        .areas(area);
-        list_area
-    })
+    let body = modal_body_area(area)?;
+    Some(filter_list_layout(radio_name_layout(body).body).list)
 }
 
 pub(crate) fn radio_favorites_list_area(area: Rect) -> Option<Rect> {
-    radio_name_body_area(area).map(|area| {
-        let [_gap, list_area] =
-            Layout::vertical([Constraint::Length(1), Constraint::Fill(1)]).areas(area);
-        list_area
-    })
+    let body = modal_body_area(area)?;
+    Some(radio_favorites_list_layout(radio_name_layout(body).body))
 }
 
 pub(crate) fn radio_filter_list_area(area: Rect) -> Option<Rect> {
     let body = modal_body_area(area)?;
-    filter_list_area(body)
+    Some(filter_list_layout(body).list)
 }
 
 pub(crate) fn radio_filtered_results_list_area(area: Rect) -> Option<Rect> {
     let body = modal_body_area(area)?;
-    let [_header_row, list_area] =
-        Layout::vertical([Constraint::Length(1), Constraint::Fill(1)]).areas(body);
-    Some(list_area)
+    Some(header_list_layout(body).list)
 }
 
 pub(crate) fn settings_items_area(area: Rect) -> Option<Rect> {
     let body = modal_body_area(area)?;
-    let [_gap, items_area, _tooltip_area] = Layout::vertical([
-        Constraint::Length(1),
-        Constraint::Fill(1),
-        Constraint::Length(3),
-    ])
-    .areas(body);
-    Some(items_area)
+    Some(settings_layout(body).items)
 }
 
 pub(crate) fn settings_visible_rows(area: Rect) -> usize {
@@ -129,65 +149,102 @@ pub(crate) fn settings_visible_rows(area: Rect) -> usize {
 
 pub(crate) fn spotify_body_area(area: Rect) -> Option<Rect> {
     let body = modal_body_area(area)?;
-    let [_gap, _subtab_row, _body_gap, body, _footer_row] = Layout::vertical([
-        Constraint::Length(1),
-        Constraint::Length(1),
-        Constraint::Length(1),
-        Constraint::Fill(1),
-        Constraint::Length(1),
-    ])
-    .areas(body);
-    Some(body)
+    Some(spotify_layout(body).body)
 }
 
 pub(crate) fn spotify_search_list_area(area: Rect) -> Option<Rect> {
-    spotify_body_area(area).map(|area| {
-        let [_input_row, _cap_row, list_area] = Layout::vertical([
-            Constraint::Length(1),
-            Constraint::Length(1),
-            Constraint::Fill(1),
-        ])
-        .areas(area);
-        list_area
-    })
+    let body = spotify_body_area(area)?;
+    Some(spotify_search_layout(body).list)
 }
 
 pub(crate) fn spotify_titled_track_list_area(area: Rect) -> Option<Rect> {
-    spotify_body_area(area).map(|area| {
-        Rect::new(
-            area.x,
-            area.y.saturating_add(1),
-            area.width,
-            area.height.saturating_sub(1),
-        )
-    })
+    spotify_body_area(area).map(spotify_titled_track_list_layout)
 }
 
 pub(crate) fn youtube_list_area(area: Rect) -> Option<Rect> {
     let body = modal_body_area(area)?;
-    filter_list_area(body)
+    Some(filter_list_layout(body).list)
 }
 
-fn radio_name_body_area(area: Rect) -> Option<Rect> {
-    let body = modal_body_area(area)?;
-    let [_gap, _subtab_row, body] = Layout::vertical([
+pub(crate) fn radio_name_layout(area: Rect) -> RadioNameLayout {
+    let [_gap, subtab, body] = Layout::vertical([
         Constraint::Length(1),
         Constraint::Length(1),
         Constraint::Fill(1),
     ])
-    .areas(body);
-    Some(body)
+    .areas(area);
+
+    RadioNameLayout { subtab, body }
 }
 
-fn filter_list_area(area: Rect) -> Option<Rect> {
-    let [_gap, _input_row, _cap_row, list_area] = Layout::vertical([
+pub(crate) fn radio_favorites_list_layout(area: Rect) -> Rect {
+    let [_gap, list] = Layout::vertical([Constraint::Length(1), Constraint::Fill(1)]).areas(area);
+    list
+}
+
+pub(crate) fn header_list_layout(area: Rect) -> HeaderListLayout {
+    let [header, list] = Layout::vertical([Constraint::Length(1), Constraint::Fill(1)]).areas(area);
+    HeaderListLayout { header, list }
+}
+
+pub(crate) fn settings_layout(area: Rect) -> SettingsLayout {
+    let [_gap, items, tooltip] = Layout::vertical([
+        Constraint::Length(1),
+        Constraint::Fill(1),
+        Constraint::Length(3),
+    ])
+    .areas(area);
+
+    SettingsLayout { items, tooltip }
+}
+
+pub(crate) fn spotify_layout(area: Rect) -> SpotifyLayout {
+    let [_gap, subtab, _body_gap, body, footer] = Layout::vertical([
+        Constraint::Length(1),
+        Constraint::Length(1),
+        Constraint::Length(1),
+        Constraint::Fill(1),
+        Constraint::Length(1),
+    ])
+    .areas(area);
+
+    SpotifyLayout {
+        subtab,
+        body,
+        footer,
+    }
+}
+
+pub(crate) fn spotify_search_layout(area: Rect) -> SpotifySearchLayout {
+    let [input, cap, list] = Layout::vertical([
+        Constraint::Length(1),
+        Constraint::Length(1),
+        Constraint::Fill(1),
+    ])
+    .areas(area);
+
+    SpotifySearchLayout { input, cap, list }
+}
+
+pub(crate) fn spotify_titled_track_list_layout(area: Rect) -> Rect {
+    Rect::new(
+        area.x,
+        area.y.saturating_add(1),
+        area.width,
+        area.height.saturating_sub(1),
+    )
+}
+
+pub(crate) fn filter_list_layout(area: Rect) -> FilterListLayout {
+    let [_gap, input, cap, list] = Layout::vertical([
         Constraint::Length(1),
         Constraint::Length(1),
         Constraint::Length(1),
         Constraint::Fill(1),
     ])
     .areas(area);
-    Some(list_area)
+
+    FilterListLayout { input, cap, list }
 }
 
 #[cfg(test)]
