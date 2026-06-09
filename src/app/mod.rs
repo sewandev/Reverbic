@@ -648,6 +648,86 @@ mod tests {
         }
     }
 
+    fn favorite(key: &str, name: &str) -> FavoriteStation {
+        FavoriteStation {
+            key: key.to_string(),
+            name: name.to_string(),
+            url: format!("https://stream.example/{key}.mp3"),
+            bitrate_kbps: None,
+            country: String::new(),
+            tags: Vec::new(),
+            homepage: String::new(),
+        }
+    }
+
+    fn enriched(mut favorite: FavoriteStation) -> FavoriteStation {
+        favorite.country = "Chile".to_string();
+        favorite.tags = vec!["rock".to_string(), "indie".to_string()];
+        favorite.homepage = "https://radio.example".to_string();
+        favorite
+    }
+
+    #[tokio::test]
+    async fn favorites_enrichment_keeps_favorite_added_while_request_was_in_flight() {
+        let mut app = test_app();
+        let original = favorite("radio-a", "Radio A");
+        let added = favorite("radio-b", "Radio B");
+
+        app.favorites = vec![original.clone(), added.clone()];
+        app.apply_favorites_enrichment_result(vec![enriched(original.clone())]);
+
+        assert_eq!(app.favorites.len(), 2);
+        assert_eq!(app.favorites[0], enriched(original));
+        assert_eq!(app.favorites[1], added);
+    }
+
+    #[tokio::test]
+    async fn favorites_enrichment_does_not_restore_favorite_removed_while_request_was_in_flight() {
+        let mut app = test_app();
+        let removed = favorite("radio-a", "Radio A");
+
+        app.favorites = Vec::new();
+        app.apply_favorites_enrichment_result(vec![enriched(removed)]);
+
+        assert!(app.favorites.is_empty());
+    }
+
+    #[tokio::test]
+    async fn favorites_enrichment_preserves_rename_made_while_request_was_in_flight() {
+        let mut app = test_app();
+        let stale = favorite("radio-a", "Old name");
+        let mut renamed = stale.clone();
+        renamed.name = "New name".to_string();
+
+        app.favorites = vec![renamed.clone()];
+        app.apply_favorites_enrichment_result(vec![enriched(stale)]);
+
+        assert_eq!(app.favorites.len(), 1);
+        assert_eq!(app.favorites[0].name, "New name");
+        assert_eq!(app.favorites[0].country, "Chile");
+        assert_eq!(app.favorites[0].tags, ["rock", "indie"]);
+        assert_eq!(app.favorites[0].homepage, "https://radio.example");
+    }
+
+    #[tokio::test]
+    async fn favorites_enrichment_preserves_reorder_made_while_request_was_in_flight() {
+        let mut app = test_app();
+        let first = favorite("radio-a", "Radio A");
+        let second = favorite("radio-b", "Radio B");
+
+        app.favorites = vec![second.clone(), first.clone()];
+        app.apply_favorites_enrichment_result(vec![
+            enriched(first.clone()),
+            enriched(second.clone()),
+        ]);
+
+        assert_eq!(app.favorites.len(), 2);
+        assert_eq!(app.favorites[0].key, "radio-b");
+        assert_eq!(app.favorites[0].country, "Chile");
+        assert_eq!(app.favorites[1].key, "radio-a");
+        assert_eq!(app.favorites[1].country, "Chile");
+    }
+
     #[tokio::test]
     async fn switching_spotify_playback_from_remote_to_native_clears_remote_state() {
         let mut app = test_app();

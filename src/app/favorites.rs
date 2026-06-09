@@ -1,6 +1,6 @@
 use crossterm::event::KeyCode;
 
-use crate::favorites;
+use crate::favorites::{self, FavoriteStation};
 use crate::i18n::t;
 
 use super::App;
@@ -97,12 +97,16 @@ impl App {
     pub fn poll_favorites_enrichment(&mut self) {
         if let Some(ref rx) = self.fav_enrich_rx {
             if let Ok(updated) = rx.try_recv() {
-                self.favorites = updated;
+                self.apply_favorites_enrichment_result(updated);
                 favorites::save(&self.favorites);
                 self.fav_enrich_rx = None;
                 self.fav_enrich_task = None;
             }
         }
+    }
+
+    pub(super) fn apply_favorites_enrichment_result(&mut self, updated: Vec<FavoriteStation>) {
+        self.favorites = updated;
     }
 
     pub(super) fn remove_radio_fav_selected(&mut self) {
