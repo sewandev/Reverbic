@@ -15,6 +15,7 @@ pub use modal::{
     settings_items, AppFocus, RadioSubTab, SearchMode, SettingItem, SpotifyAuthStatus,
     SpotifyPlayerStatus, SpotifySubTab,
 };
+use spotify_state::SpotifyPlaybackBackend;
 pub use spotify_state::SpotifyState;
 pub use youtube_state::{YoutubeState, YoutubeStatus};
 
@@ -301,26 +302,37 @@ impl App {
                     SpotifyControlTarget::None
                 }
             }
-            SpotifyPlaybackMode::Auto => self
-                .spotify_remote_control_target()
-                .map(|(token, device_id)| SpotifyControlTarget::Remote { token, device_id })
-                .unwrap_or_else(|| {
+            SpotifyPlaybackMode::Auto => match self.spotify.active_backend {
+                Some(SpotifyPlaybackBackend::Native) => {
                     if self.spotify_native_controls_enabled() {
                         SpotifyControlTarget::Native
                     } else {
                         SpotifyControlTarget::None
                     }
-                }),
+                }
+                Some(SpotifyPlaybackBackend::Remote) | None => self
+                    .spotify_remote_control_target()
+                    .map(|(token, device_id)| SpotifyControlTarget::Remote { token, device_id })
+                    .unwrap_or_else(|| {
+                        if self.spotify_native_controls_enabled() {
+                            SpotifyControlTarget::Native
+                        } else {
+                            SpotifyControlTarget::None
+                        }
+                    }),
+            },
         }
     }
 
     fn spotify_native_status_is_active(&self) -> bool {
-        matches!(
-            self.spotify.player_status,
-            SpotifyPlayerStatus::Playing
-                | SpotifyPlayerStatus::Paused
-                | SpotifyPlayerStatus::Loading
-        ) && self.spotify_native_controls_enabled()
+        self.spotify.active_backend == Some(SpotifyPlaybackBackend::Native)
+            && matches!(
+                self.spotify.player_status,
+                SpotifyPlayerStatus::Playing
+                    | SpotifyPlayerStatus::Paused
+                    | SpotifyPlayerStatus::Loading
+            )
+            && self.spotify_native_controls_enabled()
     }
 
     pub(super) async fn toggle_spotify_playback(&mut self) {

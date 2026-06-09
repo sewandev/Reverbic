@@ -10,7 +10,7 @@ use crate::station::{filter_items, Station, COUNTRIES, GENRES};
 
 use super::modal::{settings_items, SettingItem};
 use super::modal::{AppFocus, RadioSubTab, SearchMode, SpotifyAuthStatus};
-use super::{abort_task, cycle_next, cycle_prev, scroll_by, App};
+use super::{abort_task, cycle_next, cycle_prev, scroll_by, App, SpotifyControlTarget};
 
 impl App {
     pub async fn on_key_event(&mut self, event: crossterm::event::KeyEvent) {
@@ -893,23 +893,20 @@ impl App {
                             let bar_start = prog.x + prefix_len;
                             let bar_w = prog.width.saturating_sub(prefix_len + suffix_len);
                             if bar_w > 0 && col >= bar_start {
-                                if self.config.spotify.playback_mode
-                                    == crate::config::SpotifyPlaybackMode::Native
-                                {
-                                    return;
-                                }
+                                let (token, device_id) = match self.spotify_control_target() {
+                                    SpotifyControlTarget::Remote { token, device_id } => {
+                                        (token, device_id)
+                                    }
+                                    SpotifyControlTarget::Native | SpotifyControlTarget::None => {
+                                        return
+                                    }
+                                };
                                 let fill_col = col.saturating_sub(bar_start);
                                 let ratio = (fill_col as f32 / bar_w as f32).clamp(0.0, 1.0);
                                 let pos_ms = (ratio * playback.duration_ms as f32) as u32;
                                 if let Some(ref mut p) = self.spotify.playback {
                                     p.progress_ms = pos_ms;
                                 }
-                                let Some(token) = self.spotify.access_token.clone() else {
-                                    return;
-                                };
-                                let Some(device_id) = self.spotify.active_device_id.clone() else {
-                                    return;
-                                };
                                 tokio::spawn(async move {
                                     if let Err(e) =
                                         crate::integrations::spotify::devices::seek_playback(
