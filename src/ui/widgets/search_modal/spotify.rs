@@ -16,6 +16,8 @@ use super::helpers::{render_filter_input, spin_frame};
 use super::SearchModalWidget;
 use super::{spotify_layout, spotify_search_layout, spotify_titled_track_list_layout};
 
+const FOOTER_BADGE_GAP_WIDTH: u16 = 2;
+
 fn fmt_duration(ms: u32) -> String {
     let secs = ms / 1000;
     format!("{}:{:02}", secs / 60, secs % 60)
@@ -209,7 +211,7 @@ impl<'a> SearchModalWidget<'a> {
         if let Some(badge) = premium_badge.filter(|_| badge_len + 4 < text_w) {
             let [mode_area, _gap, badge_area] = Layout::horizontal([
                 Constraint::Fill(1),
-                Constraint::Length(2),
+                Constraint::Length(FOOTER_BADGE_GAP_WIDTH),
                 Constraint::Length(badge_len),
             ])
             .areas(footer_area);

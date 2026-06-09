@@ -5,6 +5,22 @@ pub(crate) const MODAL_MIN_HEIGHT: u16 = 14;
 
 const MODAL_MAX_WIDTH: u16 = 120;
 const MODAL_MAX_HEIGHT: u16 = 30;
+const MODAL_TABS_ROWS: u16 = 1;
+const SEARCH_TOP_GAP_ROWS: u16 = 1;
+const SEARCH_INPUT_ROWS: u16 = 1;
+const SEARCH_CAP_ROWS: u16 = 1;
+const LIST_HEADER_ROWS: u16 = 1;
+const RADIO_TOP_GAP_ROWS: u16 = 1;
+const RADIO_SUBTAB_ROWS: u16 = 1;
+const RADIO_FAVORITES_TOP_GAP_ROWS: u16 = 1;
+const SETTINGS_TOP_GAP_ROWS: u16 = 1;
+const SETTINGS_TOOLTIP_ROWS: u16 = 3;
+const SPOTIFY_TOP_GAP_ROWS: u16 = 1;
+const SPOTIFY_SUBTAB_ROWS: u16 = 1;
+const SPOTIFY_BODY_GAP_ROWS: u16 = 1;
+const SPOTIFY_FOOTER_ROWS: u16 = 1;
+const SPOTIFY_TITLE_ROWS: u16 = 1;
+const SCROLLBAR_RESERVED_ROWS: u16 = 1;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct ModalLayout {
@@ -92,7 +108,8 @@ pub(crate) fn modal_layout(area: Rect) -> Option<ModalLayout> {
         panel.width.saturating_sub(2),
         panel.height.saturating_sub(2),
     );
-    let [tabs, body] = Layout::vertical([Constraint::Length(1), Constraint::Fill(1)]).areas(inner);
+    let [tabs, body] =
+        Layout::vertical([Constraint::Length(MODAL_TABS_ROWS), Constraint::Fill(1)]).areas(inner);
 
     Some(ModalLayout {
         panel,
@@ -114,6 +131,10 @@ pub(crate) fn visible_items(area: Option<Rect>, item_height: ListItemHeight) -> 
 pub(crate) fn visible_rows(area: Option<Rect>, reserved_rows: u16) -> usize {
     area.map(|area| area.height.saturating_sub(reserved_rows) as usize)
         .unwrap_or(0)
+}
+
+pub(crate) fn visible_rows_excluding_scrollbar(area: Option<Rect>) -> usize {
+    visible_rows(area, SCROLLBAR_RESERVED_ROWS)
 }
 
 pub(crate) fn radio_search_results_list_area(area: Rect) -> Option<Rect> {
@@ -142,9 +163,7 @@ pub(crate) fn settings_items_area(area: Rect) -> Option<Rect> {
 }
 
 pub(crate) fn settings_visible_rows(area: Rect) -> usize {
-    settings_items_area(area)
-        .map(|area| area.height.saturating_sub(1) as usize)
-        .unwrap_or(0)
+    visible_rows_excluding_scrollbar(settings_items_area(area))
 }
 
 pub(crate) fn spotify_body_area(area: Rect) -> Option<Rect> {
@@ -168,8 +187,8 @@ pub(crate) fn youtube_list_area(area: Rect) -> Option<Rect> {
 
 pub(crate) fn radio_name_layout(area: Rect) -> RadioNameLayout {
     let [_gap, subtab, body] = Layout::vertical([
-        Constraint::Length(1),
-        Constraint::Length(1),
+        Constraint::Length(RADIO_TOP_GAP_ROWS),
+        Constraint::Length(RADIO_SUBTAB_ROWS),
         Constraint::Fill(1),
     ])
     .areas(area);
@@ -178,20 +197,25 @@ pub(crate) fn radio_name_layout(area: Rect) -> RadioNameLayout {
 }
 
 pub(crate) fn radio_favorites_list_layout(area: Rect) -> Rect {
-    let [_gap, list] = Layout::vertical([Constraint::Length(1), Constraint::Fill(1)]).areas(area);
+    let [_gap, list] = Layout::vertical([
+        Constraint::Length(RADIO_FAVORITES_TOP_GAP_ROWS),
+        Constraint::Fill(1),
+    ])
+    .areas(area);
     list
 }
 
 pub(crate) fn header_list_layout(area: Rect) -> HeaderListLayout {
-    let [header, list] = Layout::vertical([Constraint::Length(1), Constraint::Fill(1)]).areas(area);
+    let [header, list] =
+        Layout::vertical([Constraint::Length(LIST_HEADER_ROWS), Constraint::Fill(1)]).areas(area);
     HeaderListLayout { header, list }
 }
 
 pub(crate) fn settings_layout(area: Rect) -> SettingsLayout {
     let [_gap, items, tooltip] = Layout::vertical([
-        Constraint::Length(1),
+        Constraint::Length(SETTINGS_TOP_GAP_ROWS),
         Constraint::Fill(1),
-        Constraint::Length(3),
+        Constraint::Length(SETTINGS_TOOLTIP_ROWS),
     ])
     .areas(area);
 
@@ -200,11 +224,11 @@ pub(crate) fn settings_layout(area: Rect) -> SettingsLayout {
 
 pub(crate) fn spotify_layout(area: Rect) -> SpotifyLayout {
     let [_gap, subtab, _body_gap, body, footer] = Layout::vertical([
-        Constraint::Length(1),
-        Constraint::Length(1),
-        Constraint::Length(1),
+        Constraint::Length(SPOTIFY_TOP_GAP_ROWS),
+        Constraint::Length(SPOTIFY_SUBTAB_ROWS),
+        Constraint::Length(SPOTIFY_BODY_GAP_ROWS),
         Constraint::Fill(1),
-        Constraint::Length(1),
+        Constraint::Length(SPOTIFY_FOOTER_ROWS),
     ])
     .areas(area);
 
@@ -217,8 +241,8 @@ pub(crate) fn spotify_layout(area: Rect) -> SpotifyLayout {
 
 pub(crate) fn spotify_search_layout(area: Rect) -> SpotifySearchLayout {
     let [input, cap, list] = Layout::vertical([
-        Constraint::Length(1),
-        Constraint::Length(1),
+        Constraint::Length(SEARCH_INPUT_ROWS),
+        Constraint::Length(SEARCH_CAP_ROWS),
         Constraint::Fill(1),
     ])
     .areas(area);
@@ -229,17 +253,17 @@ pub(crate) fn spotify_search_layout(area: Rect) -> SpotifySearchLayout {
 pub(crate) fn spotify_titled_track_list_layout(area: Rect) -> Rect {
     Rect::new(
         area.x,
-        area.y.saturating_add(1),
+        area.y.saturating_add(SPOTIFY_TITLE_ROWS),
         area.width,
-        area.height.saturating_sub(1),
+        area.height.saturating_sub(SPOTIFY_TITLE_ROWS),
     )
 }
 
 pub(crate) fn filter_list_layout(area: Rect) -> FilterListLayout {
     let [_gap, input, cap, list] = Layout::vertical([
-        Constraint::Length(1),
-        Constraint::Length(1),
-        Constraint::Length(1),
+        Constraint::Length(SEARCH_TOP_GAP_ROWS),
+        Constraint::Length(SEARCH_INPUT_ROWS),
+        Constraint::Length(SEARCH_CAP_ROWS),
         Constraint::Fill(1),
     ])
     .areas(area);
@@ -256,7 +280,8 @@ mod tests {
         settings_items_area, settings_layout, settings_visible_rows, spotify_body_area,
         spotify_layout, spotify_search_layout, spotify_search_list_area,
         spotify_titled_track_list_area, spotify_titled_track_list_layout, visible_items,
-        visible_rows, youtube_list_area, ListItemHeight, MODAL_MIN_HEIGHT, MODAL_MIN_WIDTH,
+        visible_rows, visible_rows_excluding_scrollbar, youtube_list_area, ListItemHeight,
+        MODAL_MIN_HEIGHT, MODAL_MIN_WIDTH,
     };
     use ratatui::layout::Rect;
 
@@ -316,7 +341,10 @@ mod tests {
             visible_items(spotify_search_list_area(area), ListItemHeight::TwoLines),
             0
         );
-        assert_eq!(visible_rows(radio_search_results_list_area(area), 1), 0);
+        assert_eq!(
+            visible_rows_excluding_scrollbar(radio_search_results_list_area(area)),
+            0
+        );
         assert_eq!(settings_visible_rows(area), 0);
     }
 
@@ -329,7 +357,10 @@ mod tests {
             visible_items(spotify_search_list_area(area), ListItemHeight::TwoLines),
             2
         );
-        assert_eq!(visible_rows(radio_search_results_list_area(area), 1), 5);
+        assert_eq!(
+            visible_rows_excluding_scrollbar(radio_search_results_list_area(area)),
+            5
+        );
         assert_eq!(settings_visible_rows(area), 6);
     }
 
@@ -421,7 +452,7 @@ mod tests {
         let input_list = radio_search_results_list_area(terminal);
 
         assert_eq!(input_list, Some(rendered_filter.list));
-        assert_eq!(visible_rows(input_list, 1), 21);
+        assert_eq!(visible_rows_excluding_scrollbar(input_list), 21);
     }
 
     #[test]
@@ -442,7 +473,7 @@ mod tests {
         let input_list = radio_filter_list_area(terminal);
 
         assert_eq!(input_list, Some(rendered.list));
-        assert_eq!(visible_rows(input_list, 1), 23);
+        assert_eq!(visible_rows_excluding_scrollbar(input_list), 23);
     }
 
     #[test]
@@ -452,7 +483,7 @@ mod tests {
         let input_list = radio_filtered_results_list_area(terminal);
 
         assert_eq!(input_list, Some(rendered.list));
-        assert_eq!(visible_rows(input_list, 1), 25);
+        assert_eq!(visible_rows_excluding_scrollbar(input_list), 25);
     }
 
     #[test]
@@ -464,7 +495,7 @@ mod tests {
         assert_eq!(input_items, Some(rendered.items));
         assert_eq!(
             settings_visible_rows(terminal),
-            visible_rows(input_items, 1)
+            visible_rows_excluding_scrollbar(input_items)
         );
         assert_eq!(settings_visible_rows(terminal), 22);
     }

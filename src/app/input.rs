@@ -12,8 +12,8 @@ use crate::ui::widgets::{
     search_modal::{
         radio_favorites_list_area, radio_filter_list_area, radio_filtered_results_list_area,
         radio_search_results_list_area, settings_visible_rows, spotify_body_area,
-        spotify_search_list_area, spotify_titled_track_list_area, visible_items, visible_rows,
-        youtube_list_area, ListItemHeight,
+        spotify_search_list_area, spotify_titled_track_list_area, visible_items,
+        visible_rows_excluding_scrollbar, youtube_list_area, ListItemHeight,
     },
 };
 
@@ -62,15 +62,11 @@ impl App {
         )
     }
 
-    fn youtube_visible_items(&self) -> usize {
-        visible_items(
+    fn keep_youtube_visible(&mut self) {
+        let visible = visible_items(
             youtube_list_area(self.terminal_area),
             ListItemHeight::TwoLines,
-        )
-    }
-
-    fn keep_youtube_visible(&mut self) {
-        let visible = self.youtube_visible_items();
+        );
         keep_selected_visible(
             &mut self.youtube.scroll_offset,
             self.youtube.selected,
@@ -79,11 +75,11 @@ impl App {
     }
 
     fn radio_search_results_visible_items(&self) -> usize {
-        visible_rows(radio_search_results_list_area(self.terminal_area), 1)
+        visible_rows_excluding_scrollbar(radio_search_results_list_area(self.terminal_area))
     }
 
     fn radio_filtered_results_visible_items(&self) -> usize {
-        visible_rows(radio_filtered_results_list_area(self.terminal_area), 1)
+        visible_rows_excluding_scrollbar(radio_filtered_results_list_area(self.terminal_area))
     }
 
     fn keep_radio_favorites_visible(&mut self) {
@@ -126,7 +122,7 @@ impl App {
     }
 
     fn radio_filter_visible_items(&self) -> usize {
-        visible_rows(radio_filter_list_area(self.terminal_area), 1)
+        visible_rows_excluding_scrollbar(radio_filter_list_area(self.terminal_area))
     }
 
     fn keep_genre_filter_visible(&mut self) {
