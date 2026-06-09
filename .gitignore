@@ -9,6 +9,7 @@
 # Local user configuration
 .env
 .env.local
+/.reverbic/
 
 # IDE files
 .idea/
