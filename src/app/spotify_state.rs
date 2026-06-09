@@ -29,7 +29,7 @@ pub(super) enum SpotifyPlaybackBackend {
 
 pub struct SpotifyState {
     pub status: SpotifyAuthStatus,
-    pub is_premium: bool,
+    pub is_premium: Option<bool>,
     pub access_token: Option<String>,
     pub now_playing: Option<SpotifyTrack>,
     pub player_status: SpotifyPlayerStatus,
@@ -176,7 +176,7 @@ impl Default for SpotifyState {
     fn default() -> Self {
         Self {
             status: SpotifyAuthStatus::Idle,
-            is_premium: false,
+            is_premium: None,
             access_token: None,
             now_playing: None,
             player_status: SpotifyPlayerStatus::Idle,

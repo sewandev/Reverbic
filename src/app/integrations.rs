@@ -122,11 +122,22 @@ fn spotify_native_error_is_fatal(raw: &str) -> bool {
 }
 
 fn friendly_spotify_error(raw: &str, client_id: &str) -> String {
+    let lower = raw.to_ascii_lowercase();
     let is_invalid_client = raw.contains("invalid_client")
         || raw.contains("invalid client")
         || raw.contains("access_token");
     if client_id.is_empty() || is_invalid_client {
         crate::i18n::t("integrations.spotify.error.invalid_client")
+    } else if lower.contains("premium") {
+        crate::i18n::t("integrations.spotify.error.premium_required")
+    } else if lower.contains("developer dashboard")
+        || lower.contains("development mode")
+        || lower.contains("allowlist")
+        || lower.contains("not registered")
+        || lower.contains("blocked")
+        || lower.contains("restricted")
+    {
+        crate::i18n::t("integrations.spotify.error.development_mode_restricted")
     } else {
         crate::i18n::t("integrations.spotify.error.generic")
     }
@@ -139,7 +150,7 @@ impl App {
         if !has_session {
             return;
         }
-        self.spotify.is_premium = self.config.spotify.is_premium.unwrap_or(false);
+        self.spotify.is_premium = self.config.spotify.is_premium;
 
         let refresh_token = self
             .config
@@ -148,7 +159,7 @@ impl App {
             .clone()
             .expect("checked above");
         let client_id = self.config.spotify.client_id.clone();
-        let is_premium_cached = self.config.spotify.is_premium.unwrap_or(false);
+        let is_premium_cached = self.config.spotify.is_premium;
         let country_cached = self.config.spotify.country.clone();
         let followers_cached = self.config.spotify.followers;
         let (tx, rx) = std::sync::mpsc::channel();
@@ -236,7 +247,7 @@ impl App {
                     }
                     self.config.spotify.search_token = Some(search_token.clone());
                     self.config.spotify.refresh_token = Some(refresh_token);
-                    self.config.spotify.is_premium = Some(is_premium);
+                    self.config.spotify.is_premium = is_premium;
                     self.spotify.is_premium = is_premium;
                     self.config.spotify.country = country;
                     self.config.spotify.followers = followers;
@@ -1763,5 +1774,32 @@ mod tests {
         assert!(spotify_native_error_is_fatal(
             "native_audio_backend_missing"
         ));
+    }
+
+    #[test]
+    fn friendly_spotify_error_maps_development_mode_restrictions() {
+        assert_eq!(
+            friendly_spotify_error(
+                "Spotify access is restricted by Development Mode or allowlist.",
+                "client-id"
+            ),
+            "integrations.spotify.error.development_mode_restricted"
+        );
+    }
+
+    #[test]
+    fn friendly_spotify_error_maps_premium_restrictions() {
+        assert_eq!(
+            friendly_spotify_error("Spotify Premium is required for this feature.", "client-id"),
+            "integrations.spotify.error.premium_required"
+        );
+    }
+
+    #[test]
+    fn friendly_spotify_error_keeps_invalid_client_message() {
+        assert_eq!(
+            friendly_spotify_error("invalid_client", "client-id"),
+            "integrations.spotify.error.invalid_client"
+        );
     }
 }

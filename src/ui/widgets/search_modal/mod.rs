@@ -70,7 +70,7 @@ pub struct SearchModalWidget<'a> {
     pub spotify_loading: bool,
     pub spotify_selected: usize,
     pub spotify_scroll_offset: usize,
-    pub spotify_is_premium: bool,
+    pub spotify_is_premium: Option<bool>,
     pub spotify_devices: &'a [crate::integrations::spotify::devices::SpotifyDevice],
     pub spotify_active_device_id: Option<&'a str>,
     pub spotify_stop_on_quit: bool,
