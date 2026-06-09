@@ -67,6 +67,8 @@ fn spotify_native_error_message(raw: &str) -> String {
     let lower = raw.to_ascii_lowercase();
     let key = if raw == "native_missing_credentials" {
         "integrations.spotify.error.native_missing_credentials"
+    } else if raw.starts_with("native_auth_failed") {
+        "integrations.spotify.error.native_auth_failed"
     } else if raw == "native_audio_backend_missing" || lower.contains("audio backend") {
         "integrations.spotify.error.native_audio_backend_missing"
     } else if lower.contains("premium") {
@@ -138,6 +140,7 @@ impl App {
                         search_token: access,
                         refresh_token: new_refresh,
                         audio_token: String::new(),
+                        native_error: None,
                         is_premium: is_premium_cached,
                         country: country_cached,
                         followers: followers_cached,
@@ -177,6 +180,8 @@ impl App {
         self.spotify.access_token = None;
         self.spotify.player_tx = None;
         self.spotify.player_rx = None;
+        self.spotify.native_available = false;
+        self.spotify.native_error = None;
         self.spotify.search_results.clear();
         self.spotify.search_query.clear();
         self.spotify.active_device_id = None;
@@ -193,6 +198,7 @@ impl App {
                     search_token,
                     refresh_token,
                     audio_token,
+                    native_error,
                     is_premium,
                     country,
                     followers,
@@ -215,13 +221,7 @@ impl App {
                     self.spotify.token_refreshed_at = Some(std::time::Instant::now());
                     self.fetch_spotify_devices();
                     self.start_playback_polling();
-                    {
-                        let (evt_tx, evt_rx) = std::sync::mpsc::sync_channel(32);
-                        let handle =
-                            crate::integrations::spotify::player::spawn_player(audio_token, evt_tx);
-                        self.spotify.player_tx = Some(handle);
-                        self.spotify.player_rx = Some(evt_rx);
-                    }
+                    self.configure_spotify_native_player(audio_token, native_error);
                 }
                 Ok(AuthResult::Failure(msg)) => {
                     if self.config.spotify.display_name.is_some() {
@@ -243,6 +243,40 @@ impl App {
                     ));
                 }
             }
+        }
+    }
+
+    fn configure_spotify_native_player(
+        &mut self,
+        audio_token: String,
+        native_error: Option<String>,
+    ) {
+        self.spotify.player_tx = None;
+        self.spotify.player_rx = None;
+
+        let has_audio_token = !audio_token.trim().is_empty();
+        let has_cached_credentials = crate::integrations::spotify::player::has_cached_credentials();
+
+        if has_audio_token || has_cached_credentials {
+            let (evt_tx, evt_rx) = std::sync::mpsc::sync_channel(32);
+            let handle = crate::integrations::spotify::player::spawn_player(audio_token, evt_tx);
+            self.spotify.player_tx = Some(handle);
+            self.spotify.player_rx = Some(evt_rx);
+            self.spotify.native_available = true;
+            self.spotify.native_error = None;
+            return;
+        }
+
+        let raw_error = native_error.unwrap_or_else(|| "native_missing_credentials".to_string());
+        let message = spotify_native_error_message(&raw_error);
+        tracing::warn!("spotify native player unavailable: {raw_error}");
+        self.spotify.native_available = false;
+        self.spotify.native_error = Some(message.clone());
+        if self.config.spotify.playback_mode == SpotifyPlaybackMode::Native {
+            self.spotify.player_status = SpotifyPlayerStatus::Error(message.clone());
+            self.save_notice = Some(format!("Spotify: {message}"));
+            self.save_notice_is_dup = false;
+            self.notice_until = Some(std::time::Instant::now() + std::time::Duration::from_secs(8));
         }
     }
 
@@ -276,13 +310,17 @@ impl App {
             let Ok(evt) = evt else { continue };
             match evt {
                 SpotifyPlayerEvent::Playing => {
-                    self.spotify.player_status = SpotifyPlayerStatus::Playing
+                    self.spotify.native_available = true;
+                    self.spotify.native_error = None;
+                    self.spotify.player_status = SpotifyPlayerStatus::Playing;
                 }
                 SpotifyPlayerEvent::Paused => {
                     self.spotify.player_status = SpotifyPlayerStatus::Paused
                 }
                 SpotifyPlayerEvent::TrackChanged(track) => {
                     let uri = track.uri.clone();
+                    self.spotify.native_available = true;
+                    self.spotify.native_error = None;
                     self.spotify.now_playing = Some(track);
                     self.spotify.player_status = SpotifyPlayerStatus::Playing;
                     self.spotify.recently_played.push_back(uri);
@@ -310,6 +348,8 @@ impl App {
                 SpotifyPlayerEvent::Error(e) => {
                     tracing::warn!("spotify native playback error: {e}");
                     let message = spotify_native_error_message(&e);
+                    self.spotify.native_available = false;
+                    self.spotify.native_error = Some(message.clone());
                     self.spotify.player_status = SpotifyPlayerStatus::Error(message.clone());
                     if self.config.spotify.playback_mode == SpotifyPlaybackMode::Native {
                         self.save_notice = Some(format!("Spotify: {message}"));
@@ -738,7 +778,7 @@ impl App {
             self.config.spotify.playback_mode,
             self.spotify.access_token.as_deref(),
             self.spotify.active_device_id.as_deref(),
-            self.spotify.player_tx.is_some(),
+            self.spotify.native_available && self.spotify.player_tx.is_some(),
         );
         match target {
             SpotifyPlaybackTarget::Remote { token, device_id } => {
@@ -771,7 +811,12 @@ impl App {
                 self.spotify.now_playing = Some(track);
                 self.spotify.player_status = SpotifyPlayerStatus::Loading;
             }
-            SpotifyPlaybackTarget::Unavailable(message) => {
+            SpotifyPlaybackTarget::Unavailable(mut message) => {
+                if self.config.spotify.playback_mode == SpotifyPlaybackMode::Native {
+                    if let Some(native_error) = self.spotify.native_error.clone() {
+                        message = native_error;
+                    }
+                }
                 tracing::warn!("spotify playback unavailable: {message}");
                 self.spotify.player_status = SpotifyPlayerStatus::Error(message.clone());
                 self.save_notice = Some(format!("Spotify: {message}"));
@@ -1360,6 +1405,14 @@ mod tests {
         assert_eq!(
             spotify_native_error_message("native_missing_credentials"),
             "integrations.spotify.error.native_missing_credentials"
+        );
+    }
+
+    #[test]
+    fn native_error_message_maps_auth_failures() {
+        assert_eq!(
+            spotify_native_error_message("native_auth_failed: Puerto 8898 ocupado"),
+            "integrations.spotify.error.native_auth_failed"
         );
     }
 

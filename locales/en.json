@@ -238,6 +238,7 @@
   "integrations.spotify.error.no_access_token": "The Spotify session is not ready. Sign in again.",
   "integrations.spotify.error.playback_unavailable": "No Spotify playback mode is available.",
   "integrations.spotify.error.native_missing_credentials": "Spotify native playback has no local credentials. Reconnect Spotify to enable local audio.",
+  "integrations.spotify.error.native_auth_failed": "Spotify remote control is connected, but native authorization did not complete. Reconnect Spotify to enable local audio.",
   "integrations.spotify.error.native_session_connect": "Spotify native playback could not start a local session. Reconnect Spotify and try again.",
   "integrations.spotify.error.native_audio_backend_missing": "No compatible audio backend was found for Spotify native playback.",
   "integrations.spotify.error.native_mixer": "Spotify native playback could not open the system audio mixer.",

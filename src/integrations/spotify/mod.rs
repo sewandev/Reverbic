@@ -18,6 +18,7 @@ pub enum AuthResult {
         search_token: String,
         refresh_token: String,
         audio_token: String,
+        native_error: Option<String>,
         is_premium: bool,
         country: Option<String>,
         followers: Option<u32>,

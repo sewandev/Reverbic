@@ -24,16 +24,20 @@ pub async fn start_flow(client_id: &str) -> AuthResult {
         .await
         .unwrap_or((userid, false, None, None));
 
-    let audio_token = pkce_flow(LIBRE_CLIENT_ID, 8898, "/login")
-        .await
-        .map(|(t, _, _)| t)
-        .unwrap_or_default();
+    let (audio_token, native_error) = match pkce_flow(LIBRE_CLIENT_ID, 8898, "/login").await {
+        Ok((token, _, _)) => (token, None),
+        Err(error) => {
+            tracing::warn!("spotify native auth failed: {error}");
+            (String::new(), Some(format!("native_auth_failed: {error}")))
+        }
+    };
 
     AuthResult::Success {
         username,
         search_token,
         refresh_token,
         audio_token,
+        native_error,
         is_premium,
         country,
         followers,

@@ -238,6 +238,7 @@
   "integrations.spotify.error.no_access_token": "La sesion de Spotify no esta lista. Inicia sesion de nuevo.",
   "integrations.spotify.error.playback_unavailable": "No hay ningun modo de reproduccion Spotify disponible.",
   "integrations.spotify.error.native_missing_credentials": "Spotify nativo no tiene credenciales locales. Reconecta Spotify para habilitar audio local.",
+  "integrations.spotify.error.native_auth_failed": "Spotify remoto quedo conectado, pero la autorizacion nativa no se completo. Reconecta Spotify para habilitar audio local.",
   "integrations.spotify.error.native_session_connect": "Spotify nativo no pudo iniciar sesion local. Reconecta Spotify e intenta de nuevo.",
   "integrations.spotify.error.native_audio_backend_missing": "No se encontro un backend de audio compatible para Spotify nativo.",
   "integrations.spotify.error.native_mixer": "Spotify nativo no pudo abrir el mixer de audio del sistema.",

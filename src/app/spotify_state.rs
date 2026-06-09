@@ -19,6 +19,8 @@ pub struct SpotifyState {
     pub now_playing: Option<SpotifyTrack>,
     pub player_status: SpotifyPlayerStatus,
     pub active_device_id: Option<String>,
+    pub native_available: bool,
+    pub native_error: Option<String>,
 
     pub sub_tab: SpotifySubTab,
 
@@ -156,6 +158,8 @@ impl Default for SpotifyState {
             now_playing: None,
             player_status: SpotifyPlayerStatus::Idle,
             active_device_id: None,
+            native_available: false,
+            native_error: None,
             sub_tab: SpotifySubTab::default(),
             search_query: String::new(),
             search_results: Vec::new(),

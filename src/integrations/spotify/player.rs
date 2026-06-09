@@ -56,6 +56,40 @@ pub fn spawn_player(
     SpotifyPlayerHandle { cmd_tx }
 }
 
+pub fn has_cached_credentials() -> bool {
+    open_cache()
+        .as_ref()
+        .and_then(|cache| cache.credentials())
+        .is_some()
+}
+
+fn open_cache() -> Option<Cache> {
+    Cache::new(
+        Some(&cache_dir()),
+        None::<&std::path::PathBuf>,
+        None::<&std::path::PathBuf>,
+        None,
+    )
+    .ok()
+}
+
+fn cache_dir() -> std::path::PathBuf {
+    #[cfg(target_os = "windows")]
+    {
+        std::env::var("APPDATA")
+            .map(|p| {
+                std::path::PathBuf::from(p)
+                    .join(".reverbic")
+                    .join("librespot")
+            })
+            .unwrap_or_else(|_| crate::config::reverbic_dir().join("librespot"))
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        crate::config::reverbic_dir().join("librespot")
+    }
+}
+
 async fn run_player(
     audio_token: String,
     mut cmd_rx: UnboundedReceiver<SpotifyPlayerCmd>,
@@ -65,23 +99,7 @@ async fn run_player(
         client_id: "65b708073fc0480ea92a077233ca87bd".to_string(),
         ..Default::default()
     };
-    #[cfg(target_os = "windows")]
-    let cache_dir = std::env::var("APPDATA")
-        .map(|p| {
-            std::path::PathBuf::from(p)
-                .join(".reverbic")
-                .join("librespot")
-        })
-        .unwrap_or_else(|_| crate::config::reverbic_dir().join("librespot"));
-    #[cfg(not(target_os = "windows"))]
-    let cache_dir = crate::config::reverbic_dir().join("librespot");
-    let cache = Cache::new(
-        Some(&cache_dir),
-        None::<&std::path::PathBuf>,
-        None::<&std::path::PathBuf>,
-        None,
-    )
-    .ok();
+    let cache = open_cache();
     let credentials = match cache.as_ref().and_then(|c| c.credentials()) {
         Some(cached) => {
             tracing::info!("librespot: using cached credentials");
