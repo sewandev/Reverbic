@@ -7,6 +7,7 @@ use crate::i18n::t;
 use crate::library;
 use crate::preview::{deezer_preview, parse_seek_input};
 use crate::station::{filter_items, Station, COUNTRIES, GENRES};
+use crate::ui::widgets::keep_selected_visible;
 
 use super::modal::{settings_items, SettingItem};
 use super::modal::{AppFocus, RadioSubTab, SearchMode, SpotifyAuthStatus};
@@ -15,35 +16,6 @@ use super::{abort_task, cycle_next, cycle_prev, scroll_by, App, SpotifyControlTa
 const SPOTIFY_ITEM_HEIGHT: usize = 2;
 const MODAL_MIN_HEIGHT: u16 = 14;
 const MODAL_MAX_HEIGHT: u16 = 30;
-
-fn keep_selected_visible(scroll_offset: &mut usize, selected: usize, visible: usize) {
-    if visible == 0 {
-        *scroll_offset = 0;
-    } else if selected < *scroll_offset {
-        *scroll_offset = selected;
-    } else if selected >= scroll_offset.saturating_add(visible) {
-        *scroll_offset = selected + 1 - visible;
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::keep_selected_visible;
-
-    #[test]
-    fn keep_selected_visible_preserves_window_until_selection_leaves_it() {
-        let mut offset = 14;
-
-        keep_selected_visible(&mut offset, 19, 7);
-        assert_eq!(offset, 14);
-
-        keep_selected_visible(&mut offset, 13, 7);
-        assert_eq!(offset, 13);
-
-        keep_selected_visible(&mut offset, 21, 7);
-        assert_eq!(offset, 15);
-    }
-}
 
 impl App {
     fn spotify_visible_items(&self, title_rows: u16) -> usize {
