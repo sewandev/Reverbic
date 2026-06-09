@@ -7,15 +7,19 @@ use crate::i18n::t;
 use crate::library;
 use crate::preview::{deezer_preview, parse_seek_input};
 use crate::station::{filter_items, Station, COUNTRIES, GENRES};
-use crate::ui::widgets::{keep_selected_visible, search_modal::modal_body_area};
+use crate::ui::widgets::{
+    keep_selected_visible,
+    search_modal::{
+        radio_favorites_list_area, radio_filter_list_area, radio_filtered_results_list_area,
+        radio_search_results_list_area, settings_visible_rows, spotify_body_area,
+        spotify_search_list_area, spotify_titled_track_list_area, visible_items, visible_rows,
+        youtube_list_area, ListItemHeight,
+    },
+};
 
 use super::modal::{settings_items, SettingItem};
 use super::modal::{AppFocus, RadioSubTab, SearchMode, SpotifyAuthStatus};
 use super::{abort_task, cycle_next, cycle_prev, scroll_by, App, SpotifyControlTarget};
-
-const MODAL_LIST_ITEM_HEIGHT: usize = 2;
-const SPOTIFY_CHROME_ROWS: u16 = 4;
-const SPOTIFY_SEARCH_INPUT_ROWS: u16 = 3;
 
 fn next_spotify_device_id(
     devices: &[crate::integrations::spotify::devices::SpotifyDevice],
@@ -51,26 +55,18 @@ fn next_spotify_device_id(
 }
 
 impl App {
-    fn modal_list_visible_rows(&self, rows_before_list: u16) -> usize {
-        modal_body_area(self.terminal_area)
-            .map(|area| area.height.saturating_sub(rows_before_list) as usize)
-            .unwrap_or(0)
-    }
-
-    fn modal_list_visible_items(&self, rows_before_list: u16) -> usize {
-        self.modal_list_visible_rows(rows_before_list) / MODAL_LIST_ITEM_HEIGHT
-    }
-
-    fn spotify_visible_items(&self, title_rows: u16) -> usize {
-        self.modal_list_visible_items(SPOTIFY_CHROME_ROWS + title_rows)
-    }
-
     fn spotify_search_visible_items(&self) -> usize {
-        self.spotify_visible_items(SPOTIFY_SEARCH_INPUT_ROWS)
+        visible_items(
+            spotify_search_list_area(self.terminal_area),
+            ListItemHeight::TwoLines,
+        )
     }
 
     fn youtube_visible_items(&self) -> usize {
-        self.modal_list_visible_items(3)
+        visible_items(
+            youtube_list_area(self.terminal_area),
+            ListItemHeight::TwoLines,
+        )
     }
 
     fn keep_youtube_visible(&mut self) {
@@ -82,13 +78,19 @@ impl App {
         );
     }
 
-    fn radio_results_visible_items(&self, rows_before_list: u16) -> usize {
-        self.modal_list_visible_rows(rows_before_list)
-            .saturating_sub(1)
+    fn radio_search_results_visible_items(&self) -> usize {
+        visible_rows(radio_search_results_list_area(self.terminal_area), 1)
+    }
+
+    fn radio_filtered_results_visible_items(&self) -> usize {
+        visible_rows(radio_filtered_results_list_area(self.terminal_area), 1)
     }
 
     fn keep_radio_favorites_visible(&mut self) {
-        let visible = self.modal_list_visible_rows(3);
+        let visible = visible_items(
+            radio_favorites_list_area(self.terminal_area),
+            ListItemHeight::OneLine,
+        );
         keep_selected_visible(
             &mut self.radio_fav_scroll_offset,
             self.radio_fav_selected,
@@ -97,7 +99,7 @@ impl App {
     }
 
     fn keep_radio_search_results_visible(&mut self) {
-        let visible = self.radio_results_visible_items(5);
+        let visible = self.radio_search_results_visible_items();
         keep_selected_visible(
             &mut self.radio_search_scroll_offset,
             self.modal_selected,
@@ -106,7 +108,7 @@ impl App {
     }
 
     fn keep_radio_genre_results_visible(&mut self) {
-        let visible = self.radio_results_visible_items(1);
+        let visible = self.radio_filtered_results_visible_items();
         keep_selected_visible(
             &mut self.radio_genre_results_scroll_offset,
             self.modal_selected,
@@ -115,7 +117,7 @@ impl App {
     }
 
     fn keep_radio_country_results_visible(&mut self) {
-        let visible = self.radio_results_visible_items(1);
+        let visible = self.radio_filtered_results_visible_items();
         keep_selected_visible(
             &mut self.radio_country_results_scroll_offset,
             self.modal_selected,
@@ -124,7 +126,7 @@ impl App {
     }
 
     fn radio_filter_visible_items(&self) -> usize {
-        self.radio_results_visible_items(3)
+        visible_rows(radio_filter_list_area(self.terminal_area), 1)
     }
 
     fn keep_genre_filter_visible(&mut self) {
@@ -146,7 +148,7 @@ impl App {
     }
 
     fn settings_visible_items(&self) -> usize {
-        self.radio_results_visible_items(4)
+        settings_visible_rows(self.terminal_area)
     }
 
     fn settings_selected_row(&self) -> usize {
@@ -195,7 +197,10 @@ impl App {
     }
 
     fn keep_spotify_liked_visible(&mut self) {
-        let visible = self.spotify_visible_items(0);
+        let visible = visible_items(
+            spotify_body_area(self.terminal_area),
+            ListItemHeight::TwoLines,
+        );
         keep_selected_visible(
             &mut self.spotify.liked_scroll_offset,
             self.spotify.liked_selected,
@@ -204,7 +209,10 @@ impl App {
     }
 
     fn keep_spotify_playlists_visible(&mut self) {
-        let visible = self.spotify_visible_items(0);
+        let visible = visible_items(
+            spotify_body_area(self.terminal_area),
+            ListItemHeight::TwoLines,
+        );
         keep_selected_visible(
             &mut self.spotify.playlists_scroll_offset,
             self.spotify.playlists_selected,
@@ -213,7 +221,10 @@ impl App {
     }
 
     fn keep_spotify_playlist_tracks_visible(&mut self) {
-        let visible = self.spotify_visible_items(1);
+        let visible = visible_items(
+            spotify_titled_track_list_area(self.terminal_area),
+            ListItemHeight::TwoLines,
+        );
         keep_selected_visible(
             &mut self.spotify.playlist_tracks_scroll_offset,
             self.spotify.playlist_tracks_selected,
@@ -231,7 +242,10 @@ impl App {
     }
 
     fn keep_spotify_top_tracks_visible(&mut self) {
-        let visible = self.spotify_visible_items(1);
+        let visible = visible_items(
+            spotify_body_area(self.terminal_area),
+            ListItemHeight::TwoLines,
+        );
         keep_selected_visible(
             &mut self.spotify.top_tracks_scroll_offset,
             self.spotify.top_tracks_selected,
@@ -240,7 +254,10 @@ impl App {
     }
 
     fn keep_spotify_recent_tracks_visible(&mut self) {
-        let visible = self.spotify_visible_items(0);
+        let visible = visible_items(
+            spotify_body_area(self.terminal_area),
+            ListItemHeight::TwoLines,
+        );
         keep_selected_visible(
             &mut self.spotify.recent_tracks_scroll_offset,
             self.spotify.recent_tracks_selected,
@@ -249,7 +266,10 @@ impl App {
     }
 
     fn keep_spotify_albums_visible(&mut self) {
-        let visible = self.spotify_visible_items(0);
+        let visible = visible_items(
+            spotify_body_area(self.terminal_area),
+            ListItemHeight::TwoLines,
+        );
         keep_selected_visible(
             &mut self.spotify.albums_scroll_offset,
             self.spotify.albums_selected,
@@ -258,7 +278,10 @@ impl App {
     }
 
     fn keep_spotify_album_tracks_visible(&mut self) {
-        let visible = self.spotify_visible_items(1);
+        let visible = visible_items(
+            spotify_titled_track_list_area(self.terminal_area),
+            ListItemHeight::TwoLines,
+        );
         keep_selected_visible(
             &mut self.spotify.album_tracks_scroll_offset,
             self.spotify.album_tracks_selected,
