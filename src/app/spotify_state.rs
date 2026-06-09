@@ -72,6 +72,7 @@ pub struct SpotifyState {
     pub liked_loading: bool,
     pub liked_has_more: bool,
     pub liked_offset: usize,
+    pub liked_rate_limited_until: Option<std::time::Instant>,
     pub(super) liked_task: Option<tokio::task::JoinHandle<()>>,
     pub(super) liked_rx: Option<TracksResultRx>,
 
@@ -197,6 +198,7 @@ impl Default for SpotifyState {
             liked_loading: false,
             liked_has_more: false,
             liked_offset: 0,
+            liked_rate_limited_until: None,
             liked_task: None,
             liked_rx: None,
             playlists: Vec::new(),

@@ -703,10 +703,18 @@ impl App {
 
     pub fn fetch_liked_tracks(&mut self) {
         use crate::integrations::spotify::library::get_saved_tracks;
+        if let Some(until) = self.spotify.liked_rate_limited_until {
+            if std::time::Instant::now() < until {
+                return;
+            }
+            self.spotify.liked_rate_limited_until = None;
+        }
         abort_task(&mut self.spotify.liked_task);
         let Some(token) = self.spotify.access_token.clone() else {
             return;
         };
+        self.spotify.liked_tracks.clear();
+        self.spotify.liked_selected = 0;
         self.spotify.liked_loading = true;
         self.spotify.liked_offset = 0;
         let (tx, rx) = std::sync::mpsc::channel();
@@ -718,22 +726,29 @@ impl App {
     }
 
     pub fn poll_liked_tracks(&mut self) {
+        use crate::integrations::spotify::SpotifyError;
+
         let Some(rx) = self.spotify.liked_rx.take() else {
             return;
         };
         match rx.try_recv() {
             Ok(Ok((tracks, has_more))) => {
                 self.spotify.liked_loading = false;
-                self.spotify.liked_tracks = tracks;
+                self.spotify.liked_tracks.extend(tracks);
                 self.spotify.liked_has_more = has_more;
-                self.spotify.liked_offset = 50;
+                self.spotify.liked_offset += 50;
             }
             Ok(Err(e)) => {
                 self.spotify.liked_loading = false;
                 tracing::warn!("liked tracks fetch: {e}");
-                self.save_notice = Some(format!("Spotify liked: {e}"));
-                self.notice_until =
-                    Some(std::time::Instant::now() + std::time::Duration::from_secs(8));
+                if let SpotifyError::RateLimit(secs) = e {
+                    self.spotify.liked_rate_limited_until =
+                        Some(std::time::Instant::now() + std::time::Duration::from_secs(secs));
+                } else {
+                    self.save_notice = Some(format!("Spotify liked: {e}"));
+                    self.notice_until =
+                        Some(std::time::Instant::now() + std::time::Duration::from_secs(8));
+                }
             }
             Err(std::sync::mpsc::TryRecvError::Empty) => {
                 self.spotify.liked_rx = Some(rx);
@@ -742,6 +757,30 @@ impl App {
                 self.spotify.liked_loading = false;
             }
         }
+    }
+
+    pub fn load_more_spotify_liked(&mut self) {
+        use crate::integrations::spotify::library::get_saved_tracks;
+        if self.spotify.liked_loading || !self.spotify.liked_has_more {
+            return;
+        }
+        if let Some(until) = self.spotify.liked_rate_limited_until {
+            if std::time::Instant::now() < until {
+                return;
+            }
+            self.spotify.liked_rate_limited_until = None;
+        }
+        let Some(token) = self.spotify.access_token.clone() else {
+            return;
+        };
+        self.spotify.liked_loading = true;
+        let offset = self.spotify.liked_offset;
+        let (tx, rx) = std::sync::mpsc::channel();
+        self.spotify.liked_rx = Some(rx);
+        let handle = tokio::spawn(async move {
+            let _ = tx.send(get_saved_tracks(&token, offset).await);
+        });
+        self.spotify.liked_task = Some(handle);
     }
 
     pub fn fetch_playlists(&mut self) {
