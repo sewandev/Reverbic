@@ -10,15 +10,16 @@ use crate::station::{filter_items, Station, COUNTRIES, GENRES};
 use crate::ui::widgets::{
     keep_selected_visible,
     search_modal::{
-        radio_favorites_list_area, radio_filter_list_area, radio_filtered_results_list_area,
-        radio_search_results_list_area, settings_visible_rows, spotify_body_area,
-        spotify_search_list_area, spotify_titled_track_list_area, visible_items,
-        visible_rows_excluding_scrollbar, youtube_list_area, ListItemHeight,
+        modal_tab_at, radio_favorites_list_area, radio_filter_list_area,
+        radio_filtered_results_list_area, radio_search_results_list_area, radio_subtab_at,
+        settings_visible_rows, spotify_body_area, spotify_search_list_area, spotify_subtab_at,
+        spotify_titled_track_list_area, visible_items, visible_rows_excluding_scrollbar,
+        youtube_list_area, ListItemHeight,
     },
 };
 
 use super::modal::{settings_items, SettingItem};
-use super::modal::{AppFocus, RadioSubTab, SearchMode, SpotifyAuthStatus};
+use super::modal::{AppFocus, RadioSubTab, SearchMode, SpotifyAuthStatus, SpotifySubTab};
 use super::{abort_task, cycle_next, cycle_prev, scroll_by, App, SpotifyControlTarget};
 
 fn next_spotify_device_id(
@@ -711,50 +712,13 @@ impl App {
         }
 
         if key == KeyCode::Tab {
-            self.modal_mode = match &self.modal_mode {
+            let next_mode = match &self.modal_mode {
                 SearchMode::Name | SearchMode::Genre | SearchMode::Country => SearchMode::Spotify,
                 SearchMode::Spotify => SearchMode::Youtube,
                 SearchMode::Youtube => SearchMode::Name,
                 other => *other,
             };
-            self.modal_selected = 0;
-            self.reset_radio_results_offsets();
-            self.search_results.clear();
-            self.search_query.clear();
-            self.genre_filter.clear();
-            self.genre_query.clear();
-            self.genre_selected = 0;
-            self.genre_filter_scroll_offset = 0;
-            self.country_filter.clear();
-            self.country_selected = 0;
-            self.country_filter_scroll_offset = 0;
-            abort_task(&mut self.search_task);
-            self.search_loading = false;
-            self.spotify.search_query.clear();
-            self.spotify.search_results.clear();
-            self.spotify.search_selected = 0;
-            self.spotify.search_scroll_offset = 0;
-            abort_task(&mut self.spotify.search_task);
-            self.spotify.search_rx = None;
-            self.reset_spotify_search_paging();
-            self.spotify.search_loading = false;
-            self.youtube.query.clear();
-            self.youtube.results.clear();
-            self.youtube.selected = 0;
-            self.youtube.scroll_offset = 0;
-            self.youtube.loading = false;
-            self.youtube.search_pending_until = None;
-            abort_task(&mut self.youtube.search_task);
-            self.youtube.search_rx = None;
-            if matches!(self.modal_mode, SearchMode::Spotify)
-                && matches!(self.spotify.status, SpotifyAuthStatus::LoggedIn)
-                && self.spotify.devices.is_empty()
-                && !self.spotify.devices_loading
-            {
-                self.fetch_spotify_devices();
-            } else if matches!(self.modal_mode, SearchMode::Youtube) {
-                self.ensure_youtube_ready();
-            }
+            self.switch_modal_mode(next_mode);
             return;
         }
 
@@ -768,15 +732,68 @@ impl App {
         }
     }
 
+    fn switch_modal_mode(&mut self, mode: SearchMode) {
+        self.modal_mode = mode;
+        self.modal_selected = 0;
+        self.reset_radio_results_offsets();
+        self.search_results.clear();
+        self.search_query.clear();
+        self.genre_filter.clear();
+        self.genre_query.clear();
+        self.genre_selected = 0;
+        self.genre_filter_scroll_offset = 0;
+        self.country_filter.clear();
+        self.country_selected = 0;
+        self.country_filter_scroll_offset = 0;
+        abort_task(&mut self.search_task);
+        self.search_loading = false;
+        self.spotify.search_query.clear();
+        self.spotify.search_results.clear();
+        self.spotify.search_selected = 0;
+        self.spotify.search_scroll_offset = 0;
+        abort_task(&mut self.spotify.search_task);
+        self.spotify.search_rx = None;
+        self.reset_spotify_search_paging();
+        self.spotify.search_loading = false;
+        self.youtube.query.clear();
+        self.youtube.results.clear();
+        self.youtube.selected = 0;
+        self.youtube.scroll_offset = 0;
+        self.youtube.loading = false;
+        self.youtube.search_pending_until = None;
+        abort_task(&mut self.youtube.search_task);
+        self.youtube.search_rx = None;
+
+        if matches!(self.modal_mode, SearchMode::Spotify)
+            && matches!(self.spotify.status, SpotifyAuthStatus::LoggedIn)
+            && self.spotify.devices.is_empty()
+            && !self.spotify.devices_loading
+        {
+            self.fetch_spotify_devices();
+        } else if matches!(self.modal_mode, SearchMode::Youtube) {
+            self.ensure_youtube_ready();
+        }
+    }
+
+    fn modal_tab_is_active(&self, mode: SearchMode) -> bool {
+        match mode {
+            SearchMode::Name => matches!(
+                self.modal_mode,
+                SearchMode::Name | SearchMode::Genre | SearchMode::Country
+            ),
+            SearchMode::Spotify => matches!(self.modal_mode, SearchMode::Spotify),
+            SearchMode::Youtube => matches!(self.modal_mode, SearchMode::Youtube),
+            SearchMode::Genre | SearchMode::Country | SearchMode::Settings => false,
+        }
+    }
+
     async fn on_key_modal_name(&mut self, key: KeyCode) {
         if matches!(key, KeyCode::Left | KeyCode::Right) {
-            self.radio_sub_tab = match self.radio_sub_tab {
+            let next_tab = match self.radio_sub_tab {
                 RadioSubTab::Search => RadioSubTab::Favorites,
                 RadioSubTab::Favorites => RadioSubTab::Search,
             };
-            self.radio_fav_selected = 0;
-            self.radio_fav_scroll_offset = 0;
-            self.radio_search_scroll_offset = 0;
+            self.switch_radio_sub_tab(next_tab);
             return;
         }
         if matches!(self.radio_sub_tab, RadioSubTab::Favorites) {
@@ -825,6 +842,13 @@ impl App {
             }
             _ => {}
         }
+    }
+
+    fn switch_radio_sub_tab(&mut self, tab: RadioSubTab) {
+        self.radio_sub_tab = tab;
+        self.radio_fav_selected = 0;
+        self.radio_fav_scroll_offset = 0;
+        self.radio_search_scroll_offset = 0;
     }
 
     async fn on_key_radio_favorites(&mut self, key: KeyCode) {
@@ -1271,6 +1295,7 @@ impl App {
         }
 
         if self.show_search_modal {
+            self.on_click_search_modal(col, row).await;
             return;
         }
 
@@ -1299,6 +1324,35 @@ impl App {
                 }
             }
             AppFocus::RecentTracks | AppFocus::OnDemandList => {}
+        }
+    }
+
+    async fn on_click_search_modal(&mut self, col: u16, row: u16) {
+        if let Some(mode) = modal_tab_at(self.terminal_area, col, row) {
+            if !self.modal_tab_is_active(mode) {
+                self.switch_modal_mode(mode);
+            }
+            return;
+        }
+
+        match self.modal_mode {
+            SearchMode::Name => {
+                if let Some(tab) =
+                    radio_subtab_at(self.terminal_area, col, row, self.favorites.len())
+                {
+                    if self.radio_sub_tab != tab {
+                        self.switch_radio_sub_tab(tab);
+                    }
+                }
+            }
+            SearchMode::Spotify if matches!(self.spotify.status, SpotifyAuthStatus::LoggedIn) => {
+                if let Some(tab) = spotify_subtab_at(self.terminal_area, col, row) {
+                    if self.spotify.sub_tab != tab {
+                        self.switch_spotify_sub_tab(tab);
+                    }
+                }
+            }
+            _ => {}
         }
     }
 
@@ -1709,7 +1763,6 @@ impl App {
                 }
             }
             KeyCode::Left | KeyCode::Right => {
-                use super::modal::SpotifySubTab;
                 let tabs = [
                     SpotifySubTab::Search,
                     SpotifySubTab::Liked,
@@ -1727,49 +1780,48 @@ impl App {
                 } else {
                     (current + tabs.len() - 1) % tabs.len()
                 };
-                self.spotify.sub_tab = tabs[next];
-                match self.spotify.sub_tab {
-                    SpotifySubTab::Liked
-                        if self.spotify.liked_tracks.is_empty() && !self.spotify.liked_loading =>
-                    {
-                        self.fetch_liked_tracks();
-                    }
-                    SpotifySubTab::Playlists
-                        if self.spotify.playlists.is_empty() && !self.spotify.playlists_loading =>
-                    {
-                        self.fetch_playlists();
-                    }
-                    SpotifySubTab::TopTracks
-                        if self.spotify.top_tracks.is_empty()
-                            && !self.spotify.top_tracks_loading =>
-                    {
-                        self.fetch_top_tracks();
-                    }
-                    SpotifySubTab::Recent
-                        if self.spotify.recent_tracks.is_empty()
-                            && !self.spotify.recent_tracks_loading =>
-                    {
-                        self.fetch_recent_tracks();
-                    }
-                    SpotifySubTab::Albums
-                        if self.spotify.albums.is_empty() && !self.spotify.albums_loading =>
-                    {
-                        self.fetch_albums();
-                    }
-                    _ => {}
-                }
+                self.switch_spotify_sub_tab(tabs[next]);
             }
-            _ => {
-                use super::modal::SpotifySubTab;
-                match self.spotify.sub_tab {
-                    SpotifySubTab::Search => self.on_key_spotify_search(key).await,
-                    SpotifySubTab::Liked => self.on_key_spotify_liked(key).await,
-                    SpotifySubTab::Playlists => self.on_key_spotify_playlists(key).await,
-                    SpotifySubTab::TopTracks => self.on_key_spotify_top_tracks(key).await,
-                    SpotifySubTab::Recent => self.on_key_spotify_recent_tracks(key).await,
-                    SpotifySubTab::Albums => self.on_key_spotify_albums(key).await,
-                }
+            _ => match self.spotify.sub_tab {
+                SpotifySubTab::Search => self.on_key_spotify_search(key).await,
+                SpotifySubTab::Liked => self.on_key_spotify_liked(key).await,
+                SpotifySubTab::Playlists => self.on_key_spotify_playlists(key).await,
+                SpotifySubTab::TopTracks => self.on_key_spotify_top_tracks(key).await,
+                SpotifySubTab::Recent => self.on_key_spotify_recent_tracks(key).await,
+                SpotifySubTab::Albums => self.on_key_spotify_albums(key).await,
+            },
+        }
+    }
+
+    fn switch_spotify_sub_tab(&mut self, tab: SpotifySubTab) {
+        self.spotify.sub_tab = tab;
+        match self.spotify.sub_tab {
+            SpotifySubTab::Liked
+                if self.spotify.liked_tracks.is_empty() && !self.spotify.liked_loading =>
+            {
+                self.fetch_liked_tracks();
             }
+            SpotifySubTab::Playlists
+                if self.spotify.playlists.is_empty() && !self.spotify.playlists_loading =>
+            {
+                self.fetch_playlists();
+            }
+            SpotifySubTab::TopTracks
+                if self.spotify.top_tracks.is_empty() && !self.spotify.top_tracks_loading =>
+            {
+                self.fetch_top_tracks();
+            }
+            SpotifySubTab::Recent
+                if self.spotify.recent_tracks.is_empty() && !self.spotify.recent_tracks_loading =>
+            {
+                self.fetch_recent_tracks();
+            }
+            SpotifySubTab::Albums
+                if self.spotify.albums.is_empty() && !self.spotify.albums_loading =>
+            {
+                self.fetch_albums();
+            }
+            _ => {}
         }
     }
 

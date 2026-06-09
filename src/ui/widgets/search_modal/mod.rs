@@ -13,10 +13,11 @@ use crate::ui::theme::{self, Palette};
 
 use helpers::{key, sep_s};
 pub(crate) use layout::{
-    filter_list_layout, header_list_layout, modal_layout, modal_rect, radio_favorites_list_area,
-    radio_favorites_list_layout, radio_filter_list_area, radio_filtered_results_list_area,
-    radio_name_layout, radio_search_results_list_area, settings_layout, settings_visible_rows,
-    spotify_body_area, spotify_layout, spotify_search_layout, spotify_search_list_area,
+    filter_list_layout, header_list_layout, modal_content_area, modal_layout, modal_rect,
+    modal_tab_at, radio_favorites_list_area, radio_favorites_list_layout, radio_filter_list_area,
+    radio_filtered_results_list_area, radio_name_layout, radio_search_results_list_area,
+    radio_subtab_at, settings_layout, settings_visible_rows, spotify_body_area, spotify_layout,
+    spotify_search_layout, spotify_search_list_area, spotify_subtab_at,
     spotify_titled_track_list_area, spotify_titled_track_list_layout, visible_items,
     visible_rows_excluding_scrollbar, youtube_list_area, ListItemHeight,
 };
@@ -159,9 +160,11 @@ impl Widget for SearchModalWidget<'_> {
 
         block.render(panel, buf);
 
-        let h_pad: u16 = 2;
-        let content_x = layout.inner.x + h_pad;
-        let content_w = layout.inner.width.saturating_sub(h_pad * 2);
+        let Some(content) = modal_content_area(area) else {
+            return;
+        };
+        let content_x = content.x;
+        let content_w = content.width;
 
         self.render_tabs(layout.tabs, content_x, content_w, buf);
 
