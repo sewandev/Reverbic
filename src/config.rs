@@ -534,13 +534,17 @@ pub(crate) fn reverbic_dir() -> PathBuf {
 mod tests {
     use super::*;
     use serde_json::json;
+    use std::cell::Cell;
     use std::path::PathBuf;
+    use std::rc::Rc;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     struct MockSpotifyTokenStore {
         get_password: Result<String, String>,
         set_password: Result<(), String>,
         delete_credential: Result<(), String>,
+        set_password_calls: Rc<Cell<usize>>,
+        delete_credential_calls: Rc<Cell<usize>>,
     }
 
     impl MockSpotifyTokenStore {
@@ -549,7 +553,23 @@ mod tests {
                 get_password: Ok("refresh-token".to_string()),
                 set_password: Ok(()),
                 delete_credential: Ok(()),
+                set_password_calls: Rc::new(Cell::new(0)),
+                delete_credential_calls: Rc::new(Cell::new(0)),
             }
+        }
+
+        fn ok_with_call_counters() -> (Self, Rc<Cell<usize>>, Rc<Cell<usize>>) {
+            let set_password_calls = Rc::new(Cell::new(0));
+            let delete_credential_calls = Rc::new(Cell::new(0));
+            (
+                Self {
+                    set_password_calls: Rc::clone(&set_password_calls),
+                    delete_credential_calls: Rc::clone(&delete_credential_calls),
+                    ..Self::ok()
+                },
+                set_password_calls,
+                delete_credential_calls,
+            )
         }
 
         fn with_get_error(message: &str) -> Self {
@@ -580,10 +600,14 @@ mod tests {
         }
 
         fn set_password(&self, _token: &str) -> Result<(), String> {
+            self.set_password_calls
+                .set(self.set_password_calls.get() + 1);
             self.set_password.clone()
         }
 
         fn delete_credential(&self) -> Result<(), String> {
+            self.delete_credential_calls
+                .set(self.delete_credential_calls.get() + 1);
             self.delete_credential.clone()
         }
     }
@@ -659,6 +683,18 @@ mod tests {
             result,
             Err(SpotifyTokenPersistenceError::DeleteFailed(_))
         ));
+    }
+
+    #[test]
+    fn clearing_spotify_refresh_token_deletes_keyring_credential() {
+        let (store, set_password_calls, delete_credential_calls) =
+            MockSpotifyTokenStore::ok_with_call_counters();
+
+        let result = save_spotify_refresh_token(None, Ok(store));
+
+        assert!(result.is_ok());
+        assert_eq!(set_password_calls.get(), 0);
+        assert_eq!(delete_credential_calls.get(), 1);
     }
 
     #[test]

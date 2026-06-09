@@ -679,4 +679,40 @@ mod tests {
         assert!(app.spotify.playback_rx.is_none());
         assert!(app.spotify.playback_task.is_none());
     }
+
+    #[tokio::test]
+    async fn spotify_logout_clears_persisted_spotify_fields_before_save() {
+        let mut app = test_app();
+        app.config.spotify.display_name = Some("listener".to_string());
+        app.config.spotify.search_token = Some("search-token".to_string());
+        app.config.spotify.refresh_token = Some("refresh-token".to_string());
+        app.config.spotify.is_premium = Some(true);
+        app.config.spotify.country = Some("CL".to_string());
+        app.config.spotify.followers = Some(42);
+
+        app.spotify_logout_with_save(|config| {
+            assert!(config.spotify.display_name.is_none());
+            assert!(config.spotify.search_token.is_none());
+            assert!(config.spotify.refresh_token.is_none());
+            assert!(config.spotify.is_premium.is_none());
+            assert!(config.spotify.country.is_none());
+            assert!(config.spotify.followers.is_none());
+        });
+    }
+
+    #[tokio::test]
+    async fn spotify_logout_drops_pending_spotify_receivers() {
+        let mut app = test_app();
+        app.spotify.auth_rx = Some(std::sync::mpsc::channel().1);
+        app.spotify.search_rx = Some(std::sync::mpsc::channel().1);
+        app.spotify.search_more_rx = Some(std::sync::mpsc::channel().1);
+        app.spotify.token_refresh_rx = Some(std::sync::mpsc::channel().1);
+
+        app.spotify_logout_with_save(|_| {});
+
+        assert!(app.spotify.auth_rx.is_none());
+        assert!(app.spotify.search_rx.is_none());
+        assert!(app.spotify.search_more_rx.is_none());
+        assert!(app.spotify.token_refresh_rx.is_none());
+    }
 }

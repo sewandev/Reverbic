@@ -1,7 +1,7 @@
 use super::modal::{SearchMode, SpotifyAuthStatus, SpotifyPlayerStatus};
 use super::spotify_state::SpotifyPlaybackBackend;
 use super::{abort_task, App, SpotifyControlTarget};
-use crate::config::SpotifyPlaybackMode;
+use crate::config::{Config, SpotifyPlaybackMode};
 
 #[derive(Debug, PartialEq)]
 enum SpotifyPlaybackTarget {
@@ -201,8 +201,12 @@ impl App {
     }
 
     pub(super) fn spotify_logout(&mut self) {
+        self.spotify_logout_with_save(|config| config.save());
+    }
+
+    pub(super) fn spotify_logout_with_save(&mut self, save_config: impl FnOnce(&Config)) {
         self.config.spotify.display_name = None;
-        self.config.save();
+        save_config(&self.config);
         self.spotify.is_premium = false;
         self.spotify.status = SpotifyAuthStatus::Idle;
         self.spotify.player_status = SpotifyPlayerStatus::Idle;
