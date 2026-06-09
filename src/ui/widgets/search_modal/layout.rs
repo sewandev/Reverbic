@@ -1,5 +1,7 @@
 use ratatui::layout::{Constraint, Layout, Rect};
 
+use crate::ui::widgets::scroll_offset_for_selection;
+
 pub(crate) const MODAL_MIN_WIDTH: u16 = 52;
 pub(crate) const MODAL_MIN_HEIGHT: u16 = 14;
 
@@ -135,6 +137,81 @@ pub(crate) fn visible_rows(area: Option<Rect>, reserved_rows: u16) -> usize {
 
 pub(crate) fn visible_rows_excluding_scrollbar(area: Option<Rect>) -> usize {
     visible_rows(area, SCROLLBAR_RESERVED_ROWS)
+}
+
+#[allow(dead_code)]
+pub(crate) fn contains(area: Rect, col: u16, row: u16) -> bool {
+    col >= area.x && col < area.right() && row >= area.y && row < area.bottom()
+}
+
+#[allow(dead_code)]
+pub(crate) fn one_line_list_index_at(
+    area: Option<Rect>,
+    col: u16,
+    row: u16,
+    selected: usize,
+    visible: usize,
+    scroll_offset: usize,
+    item_count: usize,
+) -> Option<usize> {
+    list_index_at(
+        area,
+        col,
+        row,
+        ListItemHeight::OneLine,
+        selected,
+        visible,
+        scroll_offset,
+        item_count,
+    )
+}
+
+#[allow(dead_code)]
+pub(crate) fn two_line_list_index_at(
+    area: Option<Rect>,
+    col: u16,
+    row: u16,
+    selected: usize,
+    visible: usize,
+    scroll_offset: usize,
+    item_count: usize,
+) -> Option<usize> {
+    list_index_at(
+        area,
+        col,
+        row,
+        ListItemHeight::TwoLines,
+        selected,
+        visible,
+        scroll_offset,
+        item_count,
+    )
+}
+
+fn list_index_at(
+    area: Option<Rect>,
+    col: u16,
+    row: u16,
+    item_height: ListItemHeight,
+    selected: usize,
+    visible: usize,
+    scroll_offset: usize,
+    item_count: usize,
+) -> Option<usize> {
+    let area = area?;
+    if !contains(area, col, row) || visible == 0 || item_count == 0 {
+        return None;
+    }
+
+    let clicked_slot = row.saturating_sub(area.y) as usize / item_height.rows();
+    if clicked_slot >= visible {
+        return None;
+    }
+
+    let selected = selected.min(item_count.saturating_sub(1));
+    let offset = scroll_offset_for_selection(selected, visible, scroll_offset);
+    let index = offset.saturating_add(clicked_slot);
+    (index < item_count).then_some(index)
 }
 
 pub(crate) fn radio_search_results_list_area(area: Rect) -> Option<Rect> {
@@ -274,14 +351,14 @@ pub(crate) fn filter_list_layout(area: Rect) -> FilterListLayout {
 #[cfg(test)]
 mod tests {
     use super::{
-        filter_list_layout, header_list_layout, modal_body_area, modal_layout, modal_rect,
-        radio_favorites_list_area, radio_favorites_list_layout, radio_filter_list_area,
-        radio_filtered_results_list_area, radio_name_layout, radio_search_results_list_area,
-        settings_items_area, settings_layout, settings_visible_rows, spotify_body_area,
-        spotify_layout, spotify_search_layout, spotify_search_list_area,
-        spotify_titled_track_list_area, spotify_titled_track_list_layout, visible_items,
-        visible_rows, visible_rows_excluding_scrollbar, youtube_list_area, ListItemHeight,
-        MODAL_MIN_HEIGHT, MODAL_MIN_WIDTH,
+        contains, filter_list_layout, header_list_layout, modal_body_area, modal_layout,
+        modal_rect, one_line_list_index_at, radio_favorites_list_area, radio_favorites_list_layout,
+        radio_filter_list_area, radio_filtered_results_list_area, radio_name_layout,
+        radio_search_results_list_area, settings_items_area, settings_layout,
+        settings_visible_rows, spotify_body_area, spotify_layout, spotify_search_layout,
+        spotify_search_list_area, spotify_titled_track_list_area, spotify_titled_track_list_layout,
+        two_line_list_index_at, visible_items, visible_rows, visible_rows_excluding_scrollbar,
+        youtube_list_area, ListItemHeight, MODAL_MIN_HEIGHT, MODAL_MIN_WIDTH,
     };
     use ratatui::layout::Rect;
 
@@ -377,6 +454,76 @@ mod tests {
         let area = Some(Rect::new(0, 0, 10, 9));
 
         assert_eq!(visible_rows(area, 1), 8);
+    }
+
+    #[test]
+    fn contains_uses_terminal_cell_bounds() {
+        let area = Rect::new(10, 4, 20, 6);
+
+        assert!(contains(area, 10, 4));
+        assert!(contains(area, 29, 9));
+        assert!(!contains(area, 9, 4));
+        assert!(!contains(area, 30, 9));
+        assert!(!contains(area, 10, 10));
+    }
+
+    #[test]
+    fn one_line_list_index_at_returns_clicked_visible_item() {
+        let area = Some(Rect::new(10, 4, 20, 6));
+
+        assert_eq!(one_line_list_index_at(area, 12, 6, 0, 6, 0, 10), Some(2));
+    }
+
+    #[test]
+    fn one_line_list_index_at_ignores_clicks_outside_area() {
+        let area = Some(Rect::new(10, 4, 20, 6));
+
+        assert_eq!(one_line_list_index_at(area, 9, 6, 0, 6, 0, 10), None);
+        assert_eq!(one_line_list_index_at(area, 12, 10, 0, 6, 0, 10), None);
+        assert_eq!(one_line_list_index_at(None, 12, 6, 0, 6, 0, 10), None);
+    }
+
+    #[test]
+    fn one_line_list_index_at_uses_rendered_visible_count() {
+        let area = Some(Rect::new(10, 4, 20, 6));
+
+        assert_eq!(one_line_list_index_at(area, 12, 7, 0, 4, 0, 10), Some(3));
+        assert_eq!(one_line_list_index_at(area, 12, 8, 0, 4, 0, 10), None);
+    }
+
+    #[test]
+    fn one_line_list_index_at_uses_scroll_offset_for_visible_window() {
+        let area = Some(Rect::new(10, 4, 20, 6));
+
+        assert_eq!(one_line_list_index_at(area, 12, 5, 8, 6, 3, 20), Some(4));
+        assert_eq!(one_line_list_index_at(area, 12, 4, 0, 6, 20, 20), Some(0));
+        assert_eq!(one_line_list_index_at(area, 12, 6, 3, 6, 20, 20), Some(5));
+    }
+
+    #[test]
+    fn list_index_at_returns_none_when_clicked_slot_has_no_item() {
+        let area = Some(Rect::new(10, 4, 20, 6));
+
+        assert_eq!(one_line_list_index_at(area, 12, 7, 0, 6, 0, 3), None);
+        assert_eq!(one_line_list_index_at(area, 12, 4, 0, 0, 0, 3), None);
+        assert_eq!(one_line_list_index_at(area, 12, 4, 0, 6, 0, 0), None);
+    }
+
+    #[test]
+    fn two_line_list_index_at_maps_both_rows_to_same_item() {
+        let area = Some(Rect::new(10, 4, 20, 6));
+
+        assert_eq!(two_line_list_index_at(area, 12, 4, 0, 3, 0, 10), Some(0));
+        assert_eq!(two_line_list_index_at(area, 12, 5, 0, 3, 0, 10), Some(0));
+        assert_eq!(two_line_list_index_at(area, 12, 6, 0, 3, 0, 10), Some(1));
+    }
+
+    #[test]
+    fn two_line_list_index_at_ignores_partial_item_rows() {
+        let area = Some(Rect::new(10, 4, 20, 5));
+
+        assert_eq!(two_line_list_index_at(area, 12, 7, 0, 2, 0, 10), Some(1));
+        assert_eq!(two_line_list_index_at(area, 12, 8, 0, 2, 0, 10), None);
     }
 
     #[test]
