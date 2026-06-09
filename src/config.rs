@@ -85,7 +85,6 @@ pub enum SpotifyPlaybackMode {
     Native,
 }
 
-#[allow(dead_code)] // Used once the Settings control is wired to this persisted mode.
 impl SpotifyPlaybackMode {
     pub fn display(self) -> String {
         use crate::i18n::t;

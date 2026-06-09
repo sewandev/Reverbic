@@ -68,6 +68,7 @@ pub enum SettingItem {
     SpotifyStopOnQuit,
     SpotifyStartOnSpotify,
     SpotifyClientId,
+    SpotifyPlaybackMode,
     SpotifyRadioMode,
     AutoUpdate,
     DiscordRpc,
@@ -98,6 +99,7 @@ impl SettingItem {
             Self::SpotifyStopOnQuit => t("config.setting.spotify_stop_on_quit"),
             Self::SpotifyStartOnSpotify => t("config.setting.spotify_start_on_spotify"),
             Self::SpotifyClientId => t("config.setting.spotify_client_id"),
+            Self::SpotifyPlaybackMode => t("config.setting.spotify_playback_mode"),
             Self::AutoUpdate => t("config.setting.auto_update"),
             Self::DiscordRpc => t("config.setting.discord_rpc"),
             Self::ReplayOnboarding => t("config.setting.replay_onboarding"),
@@ -128,6 +130,7 @@ impl SettingItem {
             Self::SpotifyStopOnQuit => "config.tooltip.spotify_stop_on_quit",
             Self::SpotifyStartOnSpotify => "config.tooltip.spotify_start_on_spotify",
             Self::SpotifyClientId => "config.tooltip.spotify_client_id",
+            Self::SpotifyPlaybackMode => "config.tooltip.spotify_playback_mode",
             Self::AutoUpdate => "config.tooltip.auto_update",
             Self::DiscordRpc => "config.tooltip.discord_rpc",
             Self::ReplayOnboarding => "config.tooltip.replay_onboarding",
@@ -159,6 +162,7 @@ impl SettingItem {
             Self::SpotifyStopOnQuit
             | Self::SpotifyStartOnSpotify
             | Self::SpotifyClientId
+            | Self::SpotifyPlaybackMode
             | Self::SpotifyRadioMode => "config.group.integrations",
         }
     }
@@ -194,6 +198,7 @@ pub fn settings_items(duck_enabled: bool) -> Vec<SettingItem> {
         SettingItem::SpotifyStopOnQuit,
         SettingItem::SpotifyStartOnSpotify,
         SettingItem::SpotifyClientId,
+        SettingItem::SpotifyPlaybackMode,
         SettingItem::SpotifyRadioMode,
     ]);
     items

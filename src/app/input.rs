@@ -1326,6 +1326,9 @@ impl App {
                 self.config.spotify.start_on_spotify = !self.config.spotify.start_on_spotify;
             }
             super::modal::SettingItem::SpotifyClientId => {}
+            super::modal::SettingItem::SpotifyPlaybackMode => {
+                self.config.spotify.playback_mode = self.config.spotify.playback_mode.next();
+            }
             super::modal::SettingItem::SpotifyRadioMode => {
                 self.config.spotify.radio_enabled = !self.config.spotify.radio_enabled;
             }
