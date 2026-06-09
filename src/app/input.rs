@@ -20,7 +20,7 @@ use crate::ui::widgets::{
 
 use super::modal::{settings_items, SettingItem};
 use super::modal::{AppFocus, RadioSubTab, SearchMode, SpotifyAuthStatus, SpotifySubTab};
-use super::{abort_task, cycle_next, cycle_prev, scroll_by, App, SpotifyControlTarget};
+use super::{abort_task, cycle_next, cycle_prev, scroll_by, App};
 
 fn next_spotify_device_id(
     devices: &[crate::integrations::spotify::devices::SpotifyDevice],
@@ -1271,65 +1271,9 @@ impl App {
     }
 
     pub async fn on_click(&mut self, col: u16, row: u16) {
+        let screensaver_was_active = self.screensaver_active();
         self.last_activity = Instant::now();
-        if self.screensaver_active() {
-            if let Some(ref playback) = self.spotify.playback.clone() {
-                if playback.duration_ms > 0 {
-                    let has_name = self.config.spotify.display_name.is_some();
-                    let has_plan =
-                        self.spotify.is_premium || self.config.spotify.followers.is_some();
-                    let profile_rows = u16::from(has_name || self.config.spotify.country.is_some())
-                        + u16::from(has_plan);
-                    if let Some(prog) = crate::ui::renderer::spotify_screensaver_progress_rect(
-                        self.terminal_area,
-                        profile_rows,
-                        self.config.screensaver_clock,
-                    ) {
-                        if row == prog.y && col >= prog.x && col < prog.x + prog.width {
-                            let time_cur = {
-                                let s = playback.progress_ms / 1000;
-                                format!("{}:{:02}", s / 60, s % 60)
-                            };
-                            let time_tot = {
-                                let s = playback.duration_ms / 1000;
-                                format!("{}:{:02}", s / 60, s % 60)
-                            };
-                            let vol_str = format!("vol {}%", playback.volume_pct);
-                            let prefix_len = (time_cur.len() + 1) as u16;
-                            let suffix_len = (format!(" {} {}", time_tot, vol_str).len()) as u16;
-                            let bar_start = prog.x + prefix_len;
-                            let bar_w = prog.width.saturating_sub(prefix_len + suffix_len);
-                            if bar_w > 0 && col >= bar_start {
-                                let (token, device_id) = match self.spotify_control_target() {
-                                    SpotifyControlTarget::Remote { token, device_id } => {
-                                        (token, device_id)
-                                    }
-                                    SpotifyControlTarget::Native | SpotifyControlTarget::None => {
-                                        return
-                                    }
-                                };
-                                let fill_col = col.saturating_sub(bar_start);
-                                let ratio = (fill_col as f32 / bar_w as f32).clamp(0.0, 1.0);
-                                let pos_ms = (ratio * playback.duration_ms as f32) as u32;
-                                if let Some(ref mut p) = self.spotify.playback {
-                                    p.progress_ms = pos_ms;
-                                }
-                                tokio::spawn(async move {
-                                    if let Err(e) =
-                                        crate::integrations::spotify::devices::seek_playback(
-                                            &token, &device_id, pos_ms,
-                                        )
-                                        .await
-                                    {
-                                        tracing::warn!("spotify seek error: {e}");
-                                    }
-                                });
-                            }
-                            return;
-                        }
-                    }
-                }
-            }
+        if screensaver_was_active {
             return;
         }
 
@@ -2748,6 +2692,7 @@ impl App {
 mod tests {
     use super::*;
     use crate::integrations::spotify::devices::SpotifyDevice;
+    use crate::integrations::youtube::YoutubeVideo;
 
     fn spotify_device(id: Option<&str>, is_active: bool) -> SpotifyDevice {
         SpotifyDevice {
@@ -2755,6 +2700,17 @@ mod tests {
             name: id.unwrap_or("missing").to_string(),
             device_type: "Computer".to_string(),
             is_active,
+        }
+    }
+
+    fn youtube_video(id: &str) -> YoutubeVideo {
+        YoutubeVideo {
+            id: id.to_string(),
+            title: format!("Video {id}"),
+            channel: "Channel".to_string(),
+            duration_secs: 120,
+            watch_url: format!("https://youtube.test/watch?v={id}"),
+            thumbnail: None,
         }
     }
 
@@ -2807,5 +2763,24 @@ mod tests {
         let items = settings_items(false);
 
         assert_eq!(settings_visual_row_count(&items), items.len() + 6);
+    }
+
+    #[tokio::test]
+    async fn first_click_while_screensaver_is_active_only_wakes_it() {
+        let mut app = App::new().await;
+        app.terminal_area = ratatui::layout::Rect::new(0, 0, 100, 40);
+        app.show_search_modal = true;
+        app.modal_mode = SearchMode::Youtube;
+        app.config.screensaver_secs = 1;
+        app.last_activity = Instant::now() - std::time::Duration::from_secs(2);
+        app.youtube.results = vec![youtube_video("one"), youtube_video("two")];
+        app.youtube.selected = 0;
+
+        let list_area = youtube_list_area(app.terminal_area).expect("youtube list should render");
+        app.on_click(list_area.x, list_area.y + 2).await;
+
+        assert!(!app.screensaver_active());
+        assert_eq!(app.youtube.selected, 0);
+        assert!(app.youtube.resolve_task.is_none());
     }
 }
