@@ -20,10 +20,6 @@ pub(crate) fn scroll_offset_for_selection(
     scroll_offset
 }
 
-pub(crate) fn scroll_offset(selected: usize, visible: usize) -> usize {
-    scroll_offset_for_selection(selected, visible, 0)
-}
-
 #[cfg(test)]
 mod tests {
     use super::{keep_selected_visible, scroll_offset_for_selection};

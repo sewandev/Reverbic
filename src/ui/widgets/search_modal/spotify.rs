@@ -615,7 +615,7 @@ impl<'a> SearchModalWidget<'a> {
         buf: &mut Buffer,
         tracks: &[crate::integrations::spotify::SpotifyTrack],
         selected: usize,
-        scroll_offset: Option<usize>,
+        scroll_offset: usize,
         loading: bool,
     ) {
         let lx = list_area.x;
@@ -640,10 +640,7 @@ impl<'a> SearchModalWidget<'a> {
 
         const ITEM_HEIGHT: usize = 2;
         let visible_n = (list_area.height as usize) / ITEM_HEIGHT;
-        let offset = scroll_offset.map_or_else(
-            || super::super::scroll_offset(selected, visible_n),
-            |offset| scroll_offset_for_selection(selected, visible_n, offset),
-        );
+        let offset = scroll_offset_for_selection(selected, visible_n, scroll_offset);
 
         let items: Vec<ListItem> = tracks
             .iter()
@@ -708,7 +705,7 @@ impl<'a> SearchModalWidget<'a> {
             buf,
             self.spotify_liked_tracks,
             self.spotify_liked_selected,
-            Some(self.spotify_liked_scroll_offset),
+            self.spotify_liked_scroll_offset,
             self.spotify_liked_loading,
         );
     }
@@ -817,7 +814,7 @@ impl<'a> SearchModalWidget<'a> {
             buf,
             self.spotify_playlist_tracks,
             self.spotify_playlist_tracks_selected,
-            Some(self.spotify_playlist_tracks_scroll_offset),
+            self.spotify_playlist_tracks_scroll_offset,
             self.spotify_playlist_tracks_loading,
         );
     }
@@ -841,7 +838,7 @@ impl<'a> SearchModalWidget<'a> {
             buf,
             self.spotify_top_tracks,
             self.spotify_top_tracks_selected,
-            Some(self.spotify_top_tracks_scroll_offset),
+            self.spotify_top_tracks_scroll_offset,
             self.spotify_top_tracks_loading,
         );
     }
@@ -852,7 +849,7 @@ impl<'a> SearchModalWidget<'a> {
             buf,
             self.spotify_recent_tracks,
             self.spotify_recent_tracks_selected,
-            Some(self.spotify_recent_tracks_scroll_offset),
+            self.spotify_recent_tracks_scroll_offset,
             self.spotify_recent_tracks_loading,
         );
     }
@@ -955,7 +952,7 @@ impl<'a> SearchModalWidget<'a> {
             buf,
             self.spotify_album_tracks,
             self.spotify_album_tracks_selected,
-            Some(self.spotify_album_tracks_scroll_offset),
+            self.spotify_album_tracks_scroll_offset,
             self.spotify_album_tracks_loading,
         );
     }
