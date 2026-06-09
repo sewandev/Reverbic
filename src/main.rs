@@ -118,8 +118,10 @@ fn init_logging() -> Option<tracing_appender::non_blocking::WorkerGuard> {
 async fn run(tui: &mut terminal::Tui) -> Result<()> {
     let mut app = App::new().await;
 
-    if config::Config::is_first_run() {
+    if !app.config.onboarding_completed {
         onboarding::run(tui, &mut app.config, &app.player).await?;
+        app.config.onboarding_completed = true;
+        app.config.save();
     }
 
     #[cfg(target_os = "windows")]

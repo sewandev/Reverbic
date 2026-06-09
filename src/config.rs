@@ -213,6 +213,8 @@ pub struct Config {
     pub auto_update: bool,
     #[serde(default)]
     pub discord_rpc: bool,
+    #[serde(default)]
+    pub onboarding_completed: bool,
 }
 
 fn default_true() -> bool {
@@ -277,6 +279,7 @@ impl Default for Config {
             screensaver_clock: true,
             auto_update: true,
             discord_rpc: false,
+            onboarding_completed: false,
         }
     }
 }
@@ -374,9 +377,6 @@ impl Config {
             );
         }
         config
-    }
-    pub fn is_first_run() -> bool {
-        !Self::path().exists()
     }
 
     pub fn save(&self) {

@@ -72,6 +72,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &OnboardingState, ctx: &View
         Step::Appearance => render_appearance_step(frame, body, state, palette),
         Step::OverlayPreferences => render_overlay_step(frame, body, state, palette),
         Step::PlaybackPreferences => render_playback_step(frame, body, state, palette),
+        Step::SpotifyPreferences => render_spotify_step(frame, body, state, palette),
         Step::Summary => render_summary(frame, body, state, palette),
     }
 
@@ -172,6 +173,11 @@ fn render_appearance_step(
 ) {
     let rows = [
         (
+            t("onboarding.appearance.language"),
+            state.language.display(),
+            t("config.tooltip.language"),
+        ),
+        (
             t("onboarding.appearance.theme"),
             state.theme.display(),
             t("config.tooltip.theme"),
@@ -265,6 +271,39 @@ fn render_playback_step(frame: &mut Frame, area: Rect, state: &OnboardingState, 
         frame,
         area,
         &t("onboarding.playback.heading"),
+        &rows,
+        state.focused_option,
+        palette,
+    );
+}
+
+fn render_spotify_step(frame: &mut Frame, area: Rect, state: &OnboardingState, palette: &Palette) {
+    let rows = [
+        (
+            t("config.setting.spotify_stop_on_quit"),
+            on_off_label(state.spotify_stop_on_quit),
+            t("config.tooltip.spotify_stop_on_quit"),
+        ),
+        (
+            t("config.setting.spotify_start_on_spotify"),
+            on_off_label(state.spotify_start_on_spotify),
+            t("config.tooltip.spotify_start_on_spotify"),
+        ),
+        (
+            t("config.setting.spotify_playback_mode"),
+            state.spotify_playback_mode.display(),
+            t("config.tooltip.spotify_playback_mode"),
+        ),
+        (
+            t("config.setting.spotify_radio_mode"),
+            on_off_label(state.spotify_radio_enabled),
+            t("config.tooltip.spotify_radio_mode"),
+        ),
+    ];
+    render_option_step(
+        frame,
+        area,
+        &t("config.group.spotify"),
         &rows,
         state.focused_option,
         palette,
@@ -409,14 +448,28 @@ fn render_summary(frame: &mut Frame, area: Rect, state: &OnboardingState, palett
 
     let list_x = area.x + 4;
     let list_w = area.width.saturating_sub(8);
-    let label_col_w = (list_w / 2) as usize;
+    let col_w = (list_w / 2).saturating_sub(2);
+    let rows_count = rows.len() as u16;
+    let rows_per_col = rows_count.div_ceil(2);
+
     for (i, (label, value)) in rows.iter().enumerate() {
-        let y = area.y + 3 + i as u16;
+        let col = i as u16 / rows_per_col;
+        let row = i as u16 % rows_per_col;
+
+        let y = area.y + 3 + row;
         if y >= area.bottom() {
-            break;
+            continue;
         }
-        let label_str = truncate(label, label_col_w);
-        let padding = label_col_w.saturating_sub(label_str.chars().count());
+
+        let x = if col == 0 { list_x } else { list_x + col_w + 4 };
+        let w = col_w;
+        let value_chars = value.chars().count();
+        let max_label_w = w.saturating_sub(value_chars as u16 + 1) as usize;
+
+        let label_str = truncate(label, max_label_w);
+        let padding = (w as usize)
+            .saturating_sub(label_str.chars().count())
+            .saturating_sub(value_chars);
         frame.render_widget(
             Paragraph::new(Line::from(vec![
                 Span::styled(label_str, Style::default().fg(palette.dim)),
@@ -424,25 +477,27 @@ fn render_summary(frame: &mut Frame, area: Rect, state: &OnboardingState, palett
                 Span::styled(value.clone(), Style::default().fg(palette.accent)),
             ]))
             .style(bg_style),
-            Rect::new(list_x, y, list_w, 1),
+            Rect::new(x, y, w, 1),
         );
     }
 
-    let body_y = area.y + 3 + rows.len() as u16;
+    let body_y = area.y + 5 + rows_per_col;
     if body_y < area.bottom() {
         frame.render_widget(
             Paragraph::new(Span::styled(
                 t("onboarding.summary.body"),
-                Style::default().fg(palette.dim),
+                Style::default()
+                    .fg(palette.highlight)
+                    .add_modifier(Modifier::BOLD),
             ))
             .alignment(Alignment::Center)
             .wrap(Wrap { trim: true })
             .style(bg_style),
-            Rect::new(area.x + 2, body_y, area.width.saturating_sub(4), 1),
+            Rect::new(area.x + 2, body_y, area.width.saturating_sub(4), 2),
         );
     }
 
-    let shortcuts_y = body_y + 1;
+    let shortcuts_y = body_y + 3;
     if shortcuts_y < area.bottom() {
         frame.render_widget(
             Paragraph::new(Span::styled(
@@ -459,6 +514,10 @@ fn render_summary(frame: &mut Frame, area: Rect, state: &OnboardingState, palett
 
 fn summary_rows(state: &OnboardingState) -> Vec<(String, String)> {
     vec![
+        (
+            t("onboarding.appearance.language"),
+            state.language.display(),
+        ),
         (t("onboarding.appearance.theme"), state.theme.display()),
         (
             t("config.setting.overlay_style"),
@@ -492,6 +551,22 @@ fn summary_rows(state: &OnboardingState) -> Vec<(String, String)> {
         (
             t("onboarding.playback.auto_update"),
             on_off_label(state.auto_update),
+        ),
+        (
+            t("config.setting.spotify_stop_on_quit"),
+            on_off_label(state.spotify_stop_on_quit),
+        ),
+        (
+            t("config.setting.spotify_start_on_spotify"),
+            on_off_label(state.spotify_start_on_spotify),
+        ),
+        (
+            t("config.setting.spotify_playback_mode"),
+            state.spotify_playback_mode.display(),
+        ),
+        (
+            t("config.setting.spotify_radio_mode"),
+            on_off_label(state.spotify_radio_enabled),
         ),
     ]
 }
@@ -577,6 +652,7 @@ fn render_footer(frame: &mut Frame, area: Rect, state: &OnboardingState, palette
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ratatui::{backend::TestBackend, Terminal};
 
     #[test]
     fn radio_markers_keep_the_same_visible_width() {
@@ -611,5 +687,18 @@ mod tests {
         assert!(labels.contains(&t("onboarding.playback.crossfade").as_str()));
         assert!(labels.contains(&t("onboarding.playback.screensaver").as_str()));
         assert!(labels.contains(&t("onboarding.playback.auto_update").as_str()));
+    }
+
+    #[test]
+    fn summary_render_handles_narrow_columns() -> std::io::Result<()> {
+        let state = OnboardingState::from_config(&crate::config::Config::default());
+        let mut terminal = Terminal::new(TestBackend::new(34, 18))?;
+        let palette = theme::palette(state.theme);
+
+        terminal.draw(|frame| {
+            render_summary(frame, Rect::new(0, 0, 34, 16), &state, palette);
+        })?;
+
+        Ok(())
     }
 }
