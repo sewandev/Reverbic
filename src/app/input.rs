@@ -10,11 +10,11 @@ use crate::station::{filter_items, Station, COUNTRIES, GENRES};
 use crate::ui::widgets::{
     keep_selected_visible,
     search_modal::{
-        modal_tab_at, radio_favorites_list_area, radio_filter_list_area,
+        modal_tab_at, one_line_list_index_at, radio_favorites_list_area, radio_filter_list_area,
         radio_filtered_results_list_area, radio_search_results_list_area, radio_subtab_at,
-        settings_visible_rows, spotify_body_area, spotify_search_list_area, spotify_subtab_at,
-        spotify_titled_track_list_area, visible_items, visible_rows_excluding_scrollbar,
-        youtube_list_area, ListItemHeight,
+        settings_items_area, settings_visible_rows, spotify_body_area, spotify_search_list_area,
+        spotify_subtab_at, spotify_titled_track_list_area, visible_items,
+        visible_rows_excluding_scrollbar, youtube_list_area, ListItemHeight,
     },
 };
 
@@ -53,6 +53,45 @@ fn next_spotify_device_id(
             .1
             .to_string(),
     )
+}
+
+fn setting_index_at_row(items: &[SettingItem], row_offset: usize) -> Option<usize> {
+    let mut row = 0usize;
+    let mut last_group = "";
+
+    for (item_idx, item) in items.iter().enumerate() {
+        let group = item.group_key();
+        if group != last_group {
+            if row == row_offset {
+                return None;
+            }
+            row += 1;
+            last_group = group;
+        }
+
+        if row == row_offset {
+            return Some(item_idx);
+        }
+        row += 1;
+    }
+
+    None
+}
+
+fn settings_visual_row_count(items: &[SettingItem]) -> usize {
+    let mut rows = 0usize;
+    let mut last_group = "";
+
+    for item in items {
+        let group = item.group_key();
+        if group != last_group {
+            rows += 1;
+            last_group = group;
+        }
+        rows += 1;
+    }
+
+    rows
 }
 
 impl App {
@@ -1343,17 +1382,163 @@ impl App {
                     if self.radio_sub_tab != tab {
                         self.switch_radio_sub_tab(tab);
                     }
+                    return;
                 }
+                self.on_click_radio_name(col, row).await;
             }
+            SearchMode::Genre => self.on_click_radio_genre(col, row).await,
+            SearchMode::Country => self.on_click_radio_country(col, row).await,
+            SearchMode::Settings => self.on_click_settings(col, row),
             SearchMode::Spotify if matches!(self.spotify.status, SpotifyAuthStatus::LoggedIn) => {
                 if let Some(tab) = spotify_subtab_at(self.terminal_area, col, row) {
                     if self.spotify.sub_tab != tab {
                         self.switch_spotify_sub_tab(tab);
                     }
+                    return;
                 }
             }
             _ => {}
         }
+    }
+
+    async fn on_click_radio_name(&mut self, col: u16, row: u16) {
+        match self.radio_sub_tab {
+            RadioSubTab::Search => self.on_click_radio_search_results(col, row).await,
+            RadioSubTab::Favorites => self.on_click_radio_favorites(col, row).await,
+        }
+    }
+
+    async fn on_click_radio_search_results(&mut self, col: u16, row: u16) {
+        let len = self.search_results.len();
+        let Some(idx) = one_line_list_index_at(
+            radio_search_results_list_area(self.terminal_area),
+            col,
+            row,
+            self.modal_selected,
+            self.radio_search_results_visible_items(),
+            self.radio_search_scroll_offset,
+            len,
+        ) else {
+            return;
+        };
+
+        self.modal_selected = idx;
+        self.activate_radio_result_selected().await;
+    }
+
+    async fn on_click_radio_favorites(&mut self, col: u16, row: u16) {
+        let len = self.favorites.len();
+        let visible = visible_items(
+            radio_favorites_list_area(self.terminal_area),
+            ListItemHeight::OneLine,
+        );
+        let Some(idx) = one_line_list_index_at(
+            radio_favorites_list_area(self.terminal_area),
+            col,
+            row,
+            self.radio_fav_selected,
+            visible,
+            self.radio_fav_scroll_offset,
+            len,
+        ) else {
+            return;
+        };
+
+        self.radio_fav_selected = idx;
+        self.activate_radio_favorite_selected().await;
+    }
+
+    async fn on_click_radio_genre(&mut self, col: u16, row: u16) {
+        if !self.search_results.is_empty() {
+            self.on_click_radio_filtered_results(col, row, self.radio_genre_results_scroll_offset)
+                .await;
+            return;
+        }
+
+        let filtered = filter_items(GENRES, &self.genre_filter);
+        let Some(idx) = one_line_list_index_at(
+            radio_filter_list_area(self.terminal_area),
+            col,
+            row,
+            self.genre_selected,
+            self.radio_filter_visible_items(),
+            self.genre_filter_scroll_offset,
+            filtered.len(),
+        ) else {
+            return;
+        };
+
+        self.genre_selected = idx;
+        self.activate_genre_filter_selected().await;
+    }
+
+    async fn on_click_radio_country(&mut self, col: u16, row: u16) {
+        if !self.search_results.is_empty() {
+            self.on_click_radio_filtered_results(
+                col,
+                row,
+                self.radio_country_results_scroll_offset,
+            )
+            .await;
+            return;
+        }
+
+        let filtered = filter_items(COUNTRIES, &self.country_filter);
+        let Some(idx) = one_line_list_index_at(
+            radio_filter_list_area(self.terminal_area),
+            col,
+            row,
+            self.country_selected,
+            self.radio_filter_visible_items(),
+            self.country_filter_scroll_offset,
+            filtered.len(),
+        ) else {
+            return;
+        };
+
+        self.country_selected = idx;
+        self.activate_country_filter_selected().await;
+    }
+
+    async fn on_click_radio_filtered_results(&mut self, col: u16, row: u16, scroll_offset: usize) {
+        let len = self.search_results.len();
+        let Some(idx) = one_line_list_index_at(
+            radio_filtered_results_list_area(self.terminal_area),
+            col,
+            row,
+            self.modal_selected,
+            self.radio_filtered_results_visible_items(),
+            scroll_offset,
+            len,
+        ) else {
+            return;
+        };
+
+        self.modal_selected = idx;
+        self.activate_radio_result_selected().await;
+    }
+
+    fn on_click_settings(&mut self, col: u16, row: u16) {
+        let items = settings_items(self.config.duck_enabled);
+        let visual_row_count = settings_visual_row_count(&items);
+        let Some(row_offset) = one_line_list_index_at(
+            settings_items_area(self.terminal_area),
+            col,
+            row,
+            self.settings_selected_row(),
+            self.settings_visible_items(),
+            self.settings_scroll_offset,
+            visual_row_count,
+        ) else {
+            return;
+        };
+
+        let Some(idx) = setting_index_at_row(&items, row_offset) else {
+            return;
+        };
+
+        self.settings_selected = idx;
+        self.activate_setting_selected();
     }
 
     pub async fn on_mouse_scroll(&mut self, delta: i32) {
@@ -2393,5 +2578,28 @@ mod tests {
             next_spotify_device_id(&devices, Some("current")).as_deref(),
             Some("next")
         );
+    }
+
+    #[test]
+    fn setting_index_at_row_ignores_visual_headers() {
+        let items = settings_items(false);
+
+        assert_eq!(setting_index_at_row(&items, 0), None);
+        assert_eq!(setting_index_at_row(&items, 6), None);
+    }
+
+    #[test]
+    fn setting_index_at_row_returns_item_index_for_visual_item_rows() {
+        let items = settings_items(false);
+
+        assert_eq!(setting_index_at_row(&items, 1), Some(0));
+        assert_eq!(setting_index_at_row(&items, 7), Some(5));
+    }
+
+    #[test]
+    fn settings_visual_row_count_includes_headers() {
+        let items = settings_items(false);
+
+        assert_eq!(settings_visual_row_count(&items), items.len() + 6);
     }
 }
