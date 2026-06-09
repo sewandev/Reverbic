@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
-use crossterm::event::{Event, EventStream, KeyEventKind, MouseEventKind};
+use crossterm::event::{Event, EventStream, KeyEventKind, MouseButton, MouseEventKind};
 use futures_util::{FutureExt, StreamExt};
 use tracing_subscriber::{fmt, fmt::time::ChronoLocal, EnvFilter};
 
@@ -163,8 +163,7 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
     let mut ticker = tokio::time::interval(Duration::from_millis(50));
     ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     let mut events = EventStream::new();
-    let mut last_click: Option<Instant> = None;
-    let mut click_count: u8 = 0;
+    let mut double_clicks = DoubleClickTracker::default();
 
     loop {
         app.poll_dead_url();
@@ -234,22 +233,11 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
                 app.should_quit = true;
             }
             maybe_event = events.next() => {
-                let now = Instant::now();
-                if let Some(prev) = last_click {
-                    if now.duration_since(prev).as_millis() < 300 {
-                        click_count = click_count.saturating_add(1);
-                    } else {
-                        click_count = 1;
-                    }
-                } else {
-                    click_count = 1;
-                }
-                last_click = Some(now);
-                handle_event(&mut app, maybe_event, click_count).await;
+                handle_event(&mut app, maybe_event, &mut double_clicks).await;
             }
         }
         while let Some(Some(maybe_event)) = events.next().now_or_never() {
-            handle_event(&mut app, Some(maybe_event), click_count).await;
+            handle_event(&mut app, Some(maybe_event), &mut double_clicks).await;
         }
 
         if app.replay_onboarding {
@@ -284,7 +272,36 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
     Ok(())
 }
 
-async fn handle_event(app: &mut App, maybe_event: Option<std::io::Result<Event>>, click_count: u8) {
+const DOUBLE_CLICK_THRESHOLD: Duration = Duration::from_millis(300);
+
+#[derive(Default)]
+struct DoubleClickTracker {
+    last_mouse_down: Option<LastMouseDown>,
+}
+
+struct LastMouseDown {
+    at: Instant,
+    button: MouseButton,
+    row: u16,
+}
+
+impl DoubleClickTracker {
+    fn register_mouse_down(&mut self, at: Instant, button: MouseButton, row: u16) -> bool {
+        let is_double_click = self.last_mouse_down.as_ref().is_some_and(|last| {
+            last.button == button
+                && last.row == row
+                && at.saturating_duration_since(last.at) < DOUBLE_CLICK_THRESHOLD
+        });
+        self.last_mouse_down = Some(LastMouseDown { at, button, row });
+        is_double_click
+    }
+}
+
+async fn handle_event(
+    app: &mut App,
+    maybe_event: Option<std::io::Result<Event>>,
+    double_clicks: &mut DoubleClickTracker,
+) {
     match maybe_event {
         Some(Ok(Event::Key(key))) if key.kind == KeyEventKind::Press => {
             app.on_key_event(key).await;
@@ -301,11 +318,12 @@ async fn handle_event(app: &mut App, maybe_event: Option<std::io::Result<Event>>
                 app.on_mouse_scroll(if app.show_search_modal { 1 } else { 3 })
                     .await;
             }
-            MouseEventKind::Down(_) if click_count >= 2 => {
-                app.on_double_click().await;
-            }
-            MouseEventKind::Down(_) => {
-                app.on_click(mouse.column, mouse.row).await;
+            MouseEventKind::Down(button) => {
+                if double_clicks.register_mouse_down(Instant::now(), button, mouse.row) {
+                    app.on_double_click().await;
+                } else {
+                    app.on_click(mouse.column, mouse.row).await;
+                }
             }
             _ => {}
         },
@@ -337,10 +355,29 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn mouse_down_with_non_click_count_is_not_a_double_click() {
+    async fn non_click_events_before_mouse_down_do_not_trigger_double_click() {
         let mut app = App::new().await;
         app.show_search_modal = false;
         app.terminal_area = Rect::new(0, 0, 80, 24);
+        let mut double_clicks = DoubleClickTracker::default();
+
+        handle_event(
+            &mut app,
+            Some(Ok(Event::Resize(80, 24))),
+            &mut double_clicks,
+        )
+        .await;
+        handle_event(
+            &mut app,
+            Some(Ok(Event::Mouse(MouseEvent {
+                kind: MouseEventKind::ScrollDown,
+                column: 10,
+                row: 4,
+                modifiers: KeyModifiers::empty(),
+            }))),
+            &mut double_clicks,
+        )
+        .await;
 
         handle_event(
             &mut app,
@@ -350,7 +387,7 @@ mod tests {
                 row: 4,
                 modifiers: KeyModifiers::empty(),
             }))),
-            2,
+            &mut double_clicks,
         )
         .await;
 
