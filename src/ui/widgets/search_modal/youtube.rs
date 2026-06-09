@@ -112,12 +112,18 @@ impl<'a> SearchModalWidget<'a> {
         buf: &mut Buffer,
     ) {
         let mut y = area.y;
+        let msg_len = message.chars().count() as u16;
+        let msg_height = (msg_len / text_w.max(1)) + 1;
+        let msg_height = msg_height.min(area.bottom().saturating_sub(y));
+
         Paragraph::new(Span::styled(
-            strings::truncate(message, text_w as usize),
+            message,
             Style::default().fg(self.palette.warning),
         ))
-        .render(Rect::new(text_x, y, text_w, 1), buf);
-        y += 2;
+        .wrap(Wrap { trim: true })
+        .render(Rect::new(text_x, y, text_w, msg_height), buf);
+
+        y += msg_height + 1;
         if y < area.bottom() {
             Paragraph::new(Span::styled(
                 t("modal.youtube.retry_hint"),
