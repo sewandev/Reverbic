@@ -1,5 +1,7 @@
 use super::{SpotifyError, SpotifyTrack};
 
+const SEARCH_TRACKS_PAGE_SIZE: usize = 10;
+
 pub async fn search_tracks(
     query: &str,
     access_token: &str,
@@ -12,18 +14,7 @@ pub async fn search_tracks(
     let client = crate::http::http_client_timeout(10)
         .ok_or_else(|| SpotifyError::Network("Failed to create HTTP client".to_string()))?;
 
-    let encoded = query.bytes().fold(String::new(), |mut s, b| {
-        match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
-                s.push(b as char)
-            }
-            _ => s.push_str(&format!("%{b:02X}")),
-        }
-        s
-    });
-    let url = format!(
-        "https://api.spotify.com/v1/search?type=track&limit=10&offset={offset}&q={encoded}"
-    );
+    let url = search_tracks_url(query, offset);
 
     let response = client
         .get(&url)
@@ -58,10 +49,31 @@ pub async fn search_tracks(
         return Err(SpotifyError::from_status(status, &body));
     }
 
-    parse_body(&body)
+    parse_search_tracks_body(&body)
 }
 
-fn parse_body(body: &str) -> Result<(Vec<SpotifyTrack>, bool), SpotifyError> {
+pub(crate) fn search_tracks_url(query: &str, offset: usize) -> String {
+    let encoded = encode_query_component(query);
+    format!(
+        "https://api.spotify.com/v1/search?type=track&limit={SEARCH_TRACKS_PAGE_SIZE}&offset={offset}&q={encoded}"
+    )
+}
+
+pub(crate) fn encode_query_component(query: &str) -> String {
+    query.bytes().fold(String::new(), |mut s, b| {
+        match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                s.push(b as char)
+            }
+            _ => s.push_str(&format!("%{b:02X}")),
+        }
+        s
+    })
+}
+
+pub(crate) fn parse_search_tracks_body(
+    body: &str,
+) -> Result<(Vec<SpotifyTrack>, bool), SpotifyError> {
     let json: serde_json::Value =
         serde_json::from_str(body).map_err(|e| SpotifyError::Parse(e.to_string()))?;
 
@@ -94,4 +106,47 @@ pub(crate) fn parse_track(item: &serde_json::Value) -> Option<SpotifyTrack> {
         duration_ms,
         uri,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn search_tracks_url_encodes_query_and_offset() {
+        let url = search_tracks_url("Bomba Estereo + Cafe", 20);
+
+        assert_eq!(
+            url,
+            "https://api.spotify.com/v1/search?type=track&limit=10&offset=20&q=Bomba%20Estereo%20%2B%20Cafe"
+        );
+    }
+
+    #[test]
+    fn parse_search_tracks_body_reads_items_and_next() {
+        let body = r#"{
+            "tracks": {
+                "items": [
+                    {
+                        "name": "Ojitos Lindos",
+                        "artists": [{ "name": "Bad Bunny" }],
+                        "album": { "name": "Un Verano Sin Ti" },
+                        "duration_ms": 258298,
+                        "uri": "spotify:track:abc"
+                    }
+                ],
+                "next": "https://api.spotify.com/v1/search?offset=10"
+            }
+        }"#;
+
+        let (tracks, has_more) = parse_search_tracks_body(body).expect("valid search body");
+
+        assert!(has_more);
+        assert_eq!(tracks.len(), 1);
+        assert_eq!(tracks[0].name, "Ojitos Lindos");
+        assert_eq!(tracks[0].artist, "Bad Bunny");
+        assert_eq!(tracks[0].album, "Un Verano Sin Ti");
+        assert_eq!(tracks[0].duration_ms, 258298);
+        assert_eq!(tracks[0].uri, "spotify:track:abc");
+    }
 }

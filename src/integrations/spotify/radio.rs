@@ -2,7 +2,12 @@ use std::collections::VecDeque;
 
 use rand::seq::SliceRandom;
 
-use super::{search::parse_track, SpotifyError, SpotifyTrack};
+use super::{
+    search::{encode_query_component, parse_search_tracks_body},
+    SpotifyError, SpotifyTrack,
+};
+
+const RADIO_SEARCH_LIMIT: usize = 20;
 
 pub async fn fetch_radio_pool(
     artist_name: &str,
@@ -13,17 +18,7 @@ pub async fn fetch_radio_pool(
     let client = crate::http::http_client_timeout(10)
         .ok_or_else(|| SpotifyError::Network("Failed to create HTTP client".to_string()))?;
 
-    let encoded: String = artist_name
-        .bytes()
-        .flat_map(|b| match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
-                vec![b as char]
-            }
-            _ => format!("%{b:02X}").chars().collect(),
-        })
-        .collect();
-
-    let url = format!("https://api.spotify.com/v1/search?q=artist%3A{encoded}&type=track&limit=20");
+    let url = radio_search_url(artist_name);
 
     let response = client
         .get(&url)
@@ -52,13 +47,7 @@ pub async fn fetch_radio_pool(
         return Err(SpotifyError::from_status(status, &body));
     }
 
-    let json: serde_json::Value =
-        serde_json::from_str(&body).map_err(|e| SpotifyError::Parse(e.to_string()))?;
-
-    let mut tracks: Vec<SpotifyTrack> = json["tracks"]["items"]
-        .as_array()
-        .map(|items| items.iter().filter_map(parse_track).collect())
-        .unwrap_or_default();
+    let (mut tracks, _) = parse_radio_search_body(&body)?;
 
     tracks.retain(|t| t.uri != seed_uri && !recently_played.contains(&t.uri));
 
@@ -66,4 +55,55 @@ pub async fn fetch_radio_pool(
     tracks.shuffle(&mut rng);
 
     Ok(tracks)
+}
+
+pub(crate) fn radio_search_url(artist_name: &str) -> String {
+    let encoded = encode_query_component(artist_name);
+    format!("https://api.spotify.com/v1/search?q=artist%3A{encoded}&type=track&limit={RADIO_SEARCH_LIMIT}")
+}
+
+pub(crate) fn parse_radio_search_body(
+    body: &str,
+) -> Result<(Vec<SpotifyTrack>, bool), SpotifyError> {
+    parse_search_tracks_body(body)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn radio_search_url_uses_artist_query() {
+        let url = radio_search_url("Los Bunkers");
+
+        assert_eq!(
+            url,
+            "https://api.spotify.com/v1/search?q=artist%3ALos%20Bunkers&type=track&limit=20"
+        );
+    }
+
+    #[test]
+    fn parse_radio_search_body_reads_search_tracks() {
+        let body = r#"{
+            "tracks": {
+                "items": [
+                    {
+                        "name": "Bailando Solo",
+                        "artists": [{ "name": "Los Bunkers" }],
+                        "album": { "name": "La Velocidad de la Luz" },
+                        "duration_ms": 232000,
+                        "uri": "spotify:track:ghi"
+                    }
+                ],
+                "next": null
+            }
+        }"#;
+
+        let (tracks, has_more) = parse_radio_search_body(body).expect("valid radio search body");
+
+        assert!(!has_more);
+        assert_eq!(tracks.len(), 1);
+        assert_eq!(tracks[0].artist, "Los Bunkers");
+        assert_eq!(tracks[0].uri, "spotify:track:ghi");
+    }
 }
