@@ -573,7 +573,7 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::integrations::spotify::SpotifyPlaybackState;
+    use crate::integrations::spotify::{SpotifyPlaybackState, SpotifyTrack};
 
     fn test_app() -> App {
         App {
@@ -648,6 +648,16 @@ mod tests {
         }
     }
 
+    fn spotify_track(name: &str) -> SpotifyTrack {
+        SpotifyTrack {
+            name: name.to_string(),
+            artist: "artist".to_string(),
+            album: "album".to_string(),
+            duration_ms: 180_000,
+            uri: format!("spotify:track:{name}"),
+        }
+    }
+
     #[tokio::test]
     async fn switching_spotify_playback_from_remote_to_native_clears_remote_state() {
         let mut app = test_app();
@@ -678,5 +688,90 @@ mod tests {
         assert!(app.spotify.playback.is_none());
         assert!(app.spotify.playback_rx.is_none());
         assert!(app.spotify.playback_task.is_none());
+    }
+
+    #[tokio::test]
+    async fn spotify_logout_clears_persisted_spotify_fields_before_save() {
+        let mut app = test_app();
+        app.config.spotify.display_name = Some("listener".to_string());
+        app.config.spotify.search_token = Some("search-token".to_string());
+        app.config.spotify.refresh_token = Some("refresh-token".to_string());
+        app.config.spotify.is_premium = Some(true);
+        app.config.spotify.country = Some("CL".to_string());
+        app.config.spotify.followers = Some(42);
+
+        app.spotify_logout_with_save(|config| {
+            assert!(config.spotify.display_name.is_none());
+            assert!(config.spotify.search_token.is_none());
+            assert!(config.spotify.refresh_token.is_none());
+            assert!(config.spotify.is_premium.is_none());
+            assert!(config.spotify.country.is_none());
+            assert!(config.spotify.followers.is_none());
+        });
+    }
+
+    #[tokio::test]
+    async fn spotify_logout_drops_pending_spotify_receivers() {
+        let mut app = test_app();
+        app.spotify.auth_rx = Some(std::sync::mpsc::channel().1);
+        app.spotify.search_rx = Some(std::sync::mpsc::channel().1);
+        app.spotify.search_more_rx = Some(std::sync::mpsc::channel().1);
+        app.spotify.token_refresh_rx = Some(std::sync::mpsc::channel().1);
+
+        app.spotify_logout_with_save(|_| {});
+
+        assert!(app.spotify.auth_rx.is_none());
+        assert!(app.spotify.search_rx.is_none());
+        assert!(app.spotify.search_more_rx.is_none());
+        assert!(app.spotify.token_refresh_rx.is_none());
+    }
+
+    #[tokio::test]
+    async fn spotify_search_clears_pending_load_more_when_query_changes() {
+        let mut app = test_app();
+        app.spotify.access_token = Some("access-token".to_string());
+        app.spotify.search_query = "daft punk".to_string();
+        app.spotify.search_offset = 10;
+        app.spotify.search_has_more = true;
+        app.spotify.search_loading_more = true;
+        app.spotify.search_more_rx = Some(std::sync::mpsc::channel().1);
+
+        app.perform_spotify_search();
+
+        assert!(app.spotify.search_more_rx.is_none());
+        assert!(!app.spotify.search_loading_more);
+        assert!(!app.spotify.search_has_more);
+        assert_eq!(app.spotify.search_offset, 0);
+    }
+
+    #[tokio::test]
+    async fn spotify_search_more_discards_stale_query_results() {
+        let mut app = test_app();
+        app.spotify.search_generation = 2;
+        app.spotify.search_query = "daft punk".to_string();
+        app.spotify.search_results = vec![spotify_track("current")];
+        app.spotify.search_offset = 0;
+        app.spotify.search_has_more = true;
+        app.spotify.search_loading_more = true;
+        let (tx, rx) = std::sync::mpsc::channel();
+        assert!(tx
+            .send(spotify_state::SpotifySearchPage {
+                generation: 1,
+                query: "radiohead".to_string(),
+                offset: 10,
+                results: vec![spotify_track("stale")],
+                has_more: true,
+                rate_limit_secs: None,
+            })
+            .is_ok());
+        app.spotify.search_more_rx = Some(rx);
+
+        app.poll_spotify_search_more();
+
+        assert_eq!(app.spotify.search_results.len(), 1);
+        assert_eq!(app.spotify.search_results[0].name, "current");
+        assert_eq!(app.spotify.search_offset, 0);
+        assert!(app.spotify.search_has_more);
+        assert!(!app.spotify.search_loading_more);
     }
 }

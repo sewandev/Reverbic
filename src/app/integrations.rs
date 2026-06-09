@@ -1,7 +1,7 @@
 use super::modal::{SearchMode, SpotifyAuthStatus, SpotifyPlayerStatus};
-use super::spotify_state::SpotifyPlaybackBackend;
+use super::spotify_state::{SpotifyPlaybackBackend, SpotifySearchPage};
 use super::{abort_task, App, SpotifyControlTarget};
-use crate::config::SpotifyPlaybackMode;
+use crate::config::{Config, SpotifyPlaybackMode};
 
 #[derive(Debug, PartialEq)]
 enum SpotifyPlaybackTarget {
@@ -201,23 +201,19 @@ impl App {
     }
 
     pub(super) fn spotify_logout(&mut self) {
+        self.spotify_logout_with_save(|config| config.save());
+    }
+
+    pub(super) fn spotify_logout_with_save(&mut self, save_config: impl FnOnce(&Config)) {
         self.config.spotify.display_name = None;
-        self.config.save();
-        self.spotify.is_premium = false;
-        self.spotify.status = SpotifyAuthStatus::Idle;
-        self.spotify.player_status = SpotifyPlayerStatus::Idle;
-        self.spotify.now_playing = None;
-        self.spotify.access_token = None;
-        self.spotify.player_tx = None;
-        self.spotify.player_rx = None;
-        self.spotify.native_available = false;
-        self.spotify.native_error = None;
-        self.spotify.active_backend = None;
-        self.spotify.search_results.clear();
-        self.spotify.search_query.clear();
-        self.spotify.active_device_id = None;
-        self.spotify.devices.clear();
-        self.stop_playback_polling();
+        self.config.spotify.search_token = None;
+        self.config.spotify.refresh_token = None;
+        self.config.spotify.is_premium = None;
+        self.config.spotify.country = None;
+        self.config.spotify.followers = None;
+        save_config(&self.config);
+        self.spotify.cleanup();
+        self.spotify = Default::default();
     }
 
     pub fn poll_spotify_auth(&mut self) {
@@ -479,17 +475,21 @@ impl App {
 
     pub(super) fn perform_spotify_search(&mut self) {
         use crate::integrations::spotify::{search::search_tracks, SpotifyError};
+        self.reset_spotify_search_paging();
+        abort_task(&mut self.spotify.search_task);
+        self.spotify.search_rx = None;
+        self.spotify.search_generation = self.spotify.search_generation.wrapping_add(1).max(1);
         if let Some(until) = self.spotify.rate_limited_until {
             if std::time::Instant::now() < until {
+                self.spotify.search_loading = false;
                 return;
             }
             self.spotify.rate_limited_until = None;
             self.spotify.search_rate_limited = false;
         }
         self.spotify.search_rate_limited = false;
-        self.spotify.search_loading_more = false;
-        abort_task(&mut self.spotify.search_task);
         let query = self.spotify.search_query.clone();
+        let generation = self.spotify.search_generation;
         let Some(token) = self.spotify.access_token.clone() else {
             self.spotify.search_loading = false;
             return;
@@ -513,9 +513,24 @@ impl App {
                     (vec![], false, None)
                 }
             };
-            let _ = tx.send((results, has_more, rate_limit_secs));
+            let _ = tx.send(SpotifySearchPage {
+                generation,
+                query,
+                offset: 0,
+                results,
+                has_more,
+                rate_limit_secs,
+            });
         });
         self.spotify.search_task = Some(handle);
+    }
+
+    pub(super) fn reset_spotify_search_paging(&mut self) {
+        abort_task(&mut self.spotify.search_more_task);
+        self.spotify.search_more_rx = None;
+        self.spotify.search_loading_more = false;
+        self.spotify.search_has_more = false;
+        self.spotify.search_offset = 0;
     }
 
     pub(super) fn fetch_spotify_devices(&mut self) {
@@ -712,18 +727,25 @@ impl App {
     pub fn poll_spotify_search(&mut self) {
         if let Some(rx) = self.spotify.search_rx.take() {
             match rx.try_recv() {
-                Ok((results, has_more, rate_limit_secs)) => {
-                    let rate_limited = rate_limit_secs.is_some();
+                Ok(page) => {
+                    if page.generation != self.spotify.search_generation
+                        || page.query != self.spotify.search_query
+                        || page.offset != 0
+                    {
+                        self.spotify.search_loading = false;
+                        return;
+                    }
+                    let rate_limited = page.rate_limit_secs.is_some();
                     self.spotify.search_rate_limited = rate_limited;
-                    if let Some(secs) = rate_limit_secs {
+                    if let Some(secs) = page.rate_limit_secs {
                         self.spotify.rate_limited_until =
                             Some(std::time::Instant::now() + std::time::Duration::from_secs(secs));
                     }
-                    self.spotify.search_has_more = !rate_limited && has_more;
-                    self.spotify.search_results = results;
+                    self.spotify.search_has_more = !rate_limited && page.has_more;
+                    self.spotify.search_results = page.results;
                     self.spotify.search_loading = false;
                     self.spotify.search_selected = 0;
-                    self.spotify.search_offset = 0;
+                    self.spotify.search_offset = page.offset;
                 }
                 Err(std::sync::mpsc::TryRecvError::Empty) => {
                     self.spotify.search_rx = Some(rx);
@@ -746,6 +768,7 @@ impl App {
             return;
         }
         let offset = self.spotify.search_offset + 10;
+        let generation = self.spotify.search_generation;
         let (tx, rx) = std::sync::mpsc::channel();
         self.spotify.search_more_rx = Some(rx);
         self.spotify.search_has_more = false;
@@ -758,7 +781,15 @@ impl App {
                     (vec![], false, None)
                 }
             };
-            let _ = tx.send(result);
+            let (results, has_more, rate_limit_secs) = result;
+            let _ = tx.send(SpotifySearchPage {
+                generation,
+                query,
+                offset,
+                results,
+                has_more,
+                rate_limit_secs,
+            });
         });
         self.spotify.search_more_task = Some(handle);
     }
@@ -766,11 +797,19 @@ impl App {
     pub fn poll_spotify_search_more(&mut self) {
         if let Some(rx) = self.spotify.search_more_rx.take() {
             match rx.try_recv() {
-                Ok((more, has_more, _)) => {
-                    self.spotify.search_offset += 10;
-                    self.spotify.search_has_more = has_more;
+                Ok(page) => {
+                    let expected_offset = self.spotify.search_offset + 10;
+                    if page.generation != self.spotify.search_generation
+                        || page.query != self.spotify.search_query
+                        || page.offset != expected_offset
+                    {
+                        self.spotify.search_loading_more = false;
+                        return;
+                    }
+                    self.spotify.search_offset = page.offset;
+                    self.spotify.search_has_more = page.has_more;
                     self.spotify.search_loading_more = false;
-                    self.spotify.search_results.extend(more);
+                    self.spotify.search_results.extend(page.results);
                 }
                 Err(std::sync::mpsc::TryRecvError::Empty) => {
                     self.spotify.search_more_rx = Some(rx);

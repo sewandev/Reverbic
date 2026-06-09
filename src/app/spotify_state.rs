@@ -6,7 +6,16 @@ use crate::integrations::spotify::{
     SpotifyAlbum, SpotifyError, SpotifyPlaybackState, SpotifyPlayerEvent, SpotifyTrack,
 };
 
-type SearchPageRx = std::sync::mpsc::Receiver<(Vec<SpotifyTrack>, bool, Option<u64>)>;
+pub(super) struct SpotifySearchPage {
+    pub(super) generation: u64,
+    pub(super) query: String,
+    pub(super) offset: usize,
+    pub(super) results: Vec<SpotifyTrack>,
+    pub(super) has_more: bool,
+    pub(super) rate_limit_secs: Option<u64>,
+}
+
+type SearchPageRx = std::sync::mpsc::Receiver<SpotifySearchPage>;
 type TracksResultRx = std::sync::mpsc::Receiver<Result<(Vec<SpotifyTrack>, bool), SpotifyError>>;
 type PlaylistsResultRx =
     std::sync::mpsc::Receiver<Result<(Vec<SpotifyPlaylist>, bool), SpotifyError>>;
@@ -38,6 +47,7 @@ pub struct SpotifyState {
     pub search_offset: usize,
     pub search_has_more: bool,
     pub search_rate_limited: bool,
+    pub(super) search_generation: u64,
     pub rate_limited_until: Option<std::time::Instant>,
     pub volume_pending_until: Option<std::time::Instant>,
 
@@ -176,6 +186,7 @@ impl Default for SpotifyState {
             search_offset: 0,
             search_has_more: false,
             search_rate_limited: false,
+            search_generation: 0,
             rate_limited_until: None,
             volume_pending_until: None,
             devices: Vec::new(),
