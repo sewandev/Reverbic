@@ -10,6 +10,7 @@ use crate::app::SearchMode;
 use crate::i18n::t;
 use crate::station::{COUNTRIES, GENRES};
 use crate::ui::strings;
+use crate::ui::widgets::scroll_offset_for_selection;
 
 use super::helpers::{placeholder_example, render_filter_list_body, spin_frame, FilterListParams};
 use super::SearchModalWidget;
@@ -182,7 +183,11 @@ impl<'a> SearchModalWidget<'a> {
         let needs_scroll = self.favorites.len() > visible_n;
         let items_w = text_w.saturating_sub(if needs_scroll { 1 } else { 0 });
         let items_area = Rect::new(text_x, list_area.y, items_w, list_area.height);
-        let offset = crate::ui::widgets::scroll_offset(self.radio_fav_selected, visible_n);
+        let offset = scroll_offset_for_selection(
+            self.radio_fav_selected,
+            visible_n,
+            self.radio_fav_scroll_offset,
+        );
 
         let items: Vec<ListItem> = self
             .favorites
@@ -303,6 +308,7 @@ impl<'a> SearchModalWidget<'a> {
                 placeholder: &t("modal.genre.placeholder"),
                 items: GENRES,
                 selected: self.genre_selected,
+                scroll_offset: self.genre_filter_scroll_offset,
                 loading: self.loading,
                 loading_text: &t("modal.loading.genre"),
             },
@@ -314,7 +320,12 @@ impl<'a> SearchModalWidget<'a> {
         );
 
         if needs_scroll {
-            self.render_scrollbar(list_area, total, self.genre_selected, buf);
+            self.render_scrollbar(
+                list_area,
+                total,
+                self.genre_selected.min(total.saturating_sub(1)),
+                buf,
+            );
         }
     }
 
@@ -350,6 +361,7 @@ impl<'a> SearchModalWidget<'a> {
                 placeholder: &t("modal.country.placeholder"),
                 items: COUNTRIES,
                 selected: self.country_selected,
+                scroll_offset: self.country_filter_scroll_offset,
                 loading: self.loading,
                 loading_text: &t("modal.loading.country"),
             },
@@ -361,7 +373,12 @@ impl<'a> SearchModalWidget<'a> {
         );
 
         if needs_scroll {
-            self.render_scrollbar(list_area, total, self.country_selected, buf);
+            self.render_scrollbar(
+                list_area,
+                total,
+                self.country_selected.min(total.saturating_sub(1)),
+                buf,
+            );
         }
     }
 
@@ -399,7 +416,12 @@ impl<'a> SearchModalWidget<'a> {
             return;
         }
 
-        let offset = super::super::scroll_offset(self.selected, visible_n);
+        let scroll_offset = match self.mode {
+            SearchMode::Genre => self.radio_genre_results_scroll_offset,
+            SearchMode::Country => self.radio_country_results_scroll_offset,
+            _ => self.radio_search_scroll_offset,
+        };
+        let offset = scroll_offset_for_selection(self.selected, visible_n, scroll_offset);
 
         let items: Vec<ListItem> = self
             .results
