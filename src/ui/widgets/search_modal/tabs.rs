@@ -1,6 +1,6 @@
 use ratatui::{
     buffer::Buffer,
-    layout::{Constraint, Layout, Rect},
+    layout::Rect,
     style::{Modifier, Style},
     text::{Line, Span},
     widgets::{List, ListItem, Paragraph, Widget},
@@ -14,6 +14,9 @@ use crate::ui::widgets::scroll_offset_for_selection;
 
 use super::helpers::{placeholder_example, render_filter_list_body, spin_frame, FilterListParams};
 use super::SearchModalWidget;
+use super::{
+    filter_list_layout, header_list_layout, radio_favorites_list_layout, radio_name_layout,
+};
 
 impl<'a> SearchModalWidget<'a> {
     pub(super) fn render_tabs(&self, area: Rect, content_x: u16, content_w: u16, buf: &mut Buffer) {
@@ -61,38 +64,29 @@ impl<'a> SearchModalWidget<'a> {
     ) {
         use crate::app::RadioSubTab;
 
-        let [_gap, subtab_row, body] = Layout::vertical([
-            Constraint::Length(1),
-            Constraint::Length(1),
-            Constraint::Fill(1),
-        ])
-        .areas(area);
+        let layout = radio_name_layout(area);
 
-        self.render_radio_subtabs(subtab_row, content_x, content_w, buf);
+        self.render_radio_subtabs(layout.subtab, content_x, content_w, buf);
 
         match self.radio_sub_tab {
-            RadioSubTab::Search => self.render_name_search(body, content_x, content_w, buf),
-            RadioSubTab::Favorites => self.render_favorites_body(body, content_x, content_w, buf),
+            RadioSubTab::Search => self.render_name_search(layout.body, content_x, content_w, buf),
+            RadioSubTab::Favorites => {
+                self.render_favorites_body(layout.body, content_x, content_w, buf)
+            }
         }
     }
 
     fn render_name_search(&self, area: Rect, content_x: u16, content_w: u16, buf: &mut Buffer) {
-        let [_gap, input_row, cap_row, list_area] = Layout::vertical([
-            Constraint::Length(1),
-            Constraint::Length(1),
-            Constraint::Length(1),
-            Constraint::Fill(1),
-        ])
-        .areas(area);
+        let layout = filter_list_layout(area);
 
-        buf[(content_x, input_row.y)]
+        buf[(content_x, layout.input.y)]
             .set_symbol("┃")
             .set_fg(self.palette.accent)
             .set_bg(self.palette.panel_bg);
 
         let text_x = content_x + 2;
         let text_w = content_w.saturating_sub(2);
-        let text_area = Rect::new(text_x, input_row.y, text_w, 1);
+        let text_area = Rect::new(text_x, layout.input.y, text_w, 1);
 
         if self.query.is_empty() {
             Paragraph::new(Span::styled(
@@ -126,12 +120,12 @@ impl<'a> SearchModalWidget<'a> {
             .render(text_area, buf);
         }
 
-        buf[(content_x, cap_row.y)]
+        buf[(content_x, layout.cap.y)]
             .set_symbol("╹")
             .set_fg(self.palette.accent)
             .set_bg(self.palette.panel_bg);
 
-        self.render_results(list_area, content_x, content_w, buf);
+        self.render_results(layout.list, content_x, content_w, buf);
     }
 
     fn render_radio_subtabs(&self, area: Rect, content_x: u16, content_w: u16, buf: &mut Buffer) {
@@ -167,8 +161,7 @@ impl<'a> SearchModalWidget<'a> {
     fn render_favorites_body(&self, area: Rect, content_x: u16, content_w: u16, buf: &mut Buffer) {
         let text_x = content_x + 2;
         let text_w = content_w.saturating_sub(2);
-        let [_gap, list_area] =
-            Layout::vertical([Constraint::Length(1), Constraint::Fill(1)]).areas(area);
+        let list_area = radio_favorites_list_layout(area);
 
         if self.favorites.is_empty() {
             Paragraph::new(Span::styled(
@@ -282,10 +275,9 @@ impl<'a> SearchModalWidget<'a> {
         buf: &mut Buffer,
     ) {
         if !self.results.is_empty() {
-            let [header_row, list_area] =
-                Layout::vertical([Constraint::Length(1), Constraint::Fill(1)]).areas(area);
+            let layout = header_list_layout(area);
 
-            let header = Rect::new(content_x, header_row.y, content_w, 1);
+            let header = Rect::new(content_x, layout.header.y, content_w, 1);
             Paragraph::new(Line::from(vec![
                 Span::styled("< ", Style::default().fg(self.palette.muted)),
                 Span::styled(
@@ -298,7 +290,7 @@ impl<'a> SearchModalWidget<'a> {
             ]))
             .render(header, buf);
 
-            self.render_results(list_area, content_x, content_w, buf);
+            self.render_results(layout.list, content_x, content_w, buf);
             return;
         }
 
@@ -337,9 +329,8 @@ impl<'a> SearchModalWidget<'a> {
         buf: &mut Buffer,
     ) {
         if !self.results.is_empty() {
-            let [header_row, list_area] =
-                Layout::vertical([Constraint::Length(1), Constraint::Fill(1)]).areas(area);
-            let header = Rect::new(content_x, header_row.y, content_w, 1);
+            let layout = header_list_layout(area);
+            let header = Rect::new(content_x, layout.header.y, content_w, 1);
             Paragraph::new(Line::from(vec![
                 Span::styled("< ", Style::default().fg(self.palette.muted)),
                 Span::styled(
@@ -351,7 +342,7 @@ impl<'a> SearchModalWidget<'a> {
                 Span::styled("  >", Style::default().fg(self.palette.muted)),
             ]))
             .render(header, buf);
-            self.render_results(list_area, content_x, content_w, buf);
+            self.render_results(layout.list, content_x, content_w, buf);
             return;
         }
 

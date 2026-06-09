@@ -1,6 +1,6 @@
 use ratatui::{
     buffer::Buffer,
-    layout::{Alignment, Constraint, Layout, Rect},
+    layout::{Alignment, Rect},
     style::Style,
     text::{Line, Span},
     widgets::{Block, BorderType, Borders, Clear, Widget},
@@ -12,29 +12,22 @@ use crate::station::DynamicStation;
 use crate::ui::theme::{self, Palette};
 
 use helpers::{key, sep_s};
+pub(crate) use layout::{
+    filter_list_layout, header_list_layout, modal_layout, modal_rect, radio_favorites_list_area,
+    radio_favorites_list_layout, radio_filter_list_area, radio_filtered_results_list_area,
+    radio_name_layout, radio_search_results_list_area, settings_layout, settings_visible_rows,
+    spotify_body_area, spotify_layout, spotify_search_layout, spotify_search_list_area,
+    spotify_titled_track_list_area, spotify_titled_track_list_layout, visible_items,
+    visible_rows_excluding_scrollbar, youtube_list_area, ListItemHeight,
+};
+pub(in crate::ui) use layout::{MODAL_MIN_HEIGHT, MODAL_MIN_WIDTH};
 
 mod helpers;
+mod layout;
 mod settings;
 mod spotify;
 mod tabs;
 mod youtube;
-
-pub(in crate::ui) const MODAL_MIN_WIDTH: u16 = 52;
-pub(in crate::ui) const MODAL_MIN_HEIGHT: u16 = 14;
-const MODAL_MAX_WIDTH: u16 = 120;
-const MODAL_MAX_HEIGHT: u16 = 30;
-
-pub(in crate::ui) fn modal_rect(area: Rect) -> Rect {
-    let w = (area.width * 78 / 100)
-        .clamp(MODAL_MIN_WIDTH, MODAL_MAX_WIDTH)
-        .min(area.width);
-    let h = (area.height * 75 / 100)
-        .clamp(MODAL_MIN_HEIGHT, MODAL_MAX_HEIGHT)
-        .min(area.height);
-    let x = area.x + area.width.saturating_sub(w) / 2;
-    let y = area.y + area.height.saturating_sub(h) / 2;
-    Rect::new(x, y, w, h)
-}
 
 pub struct SearchModalWidget<'a> {
     pub palette: &'a Palette,
@@ -147,11 +140,10 @@ impl Widget for SearchModalWidget<'_> {
             }
         }
 
-        if area.width < MODAL_MIN_WIDTH || area.height < MODAL_MIN_HEIGHT {
+        let Some(layout) = modal_layout(area) else {
             return;
-        }
-
-        let panel = modal_rect(area);
+        };
+        let panel = layout.panel;
 
         Clear.render(panel, buf);
 
@@ -165,25 +157,23 @@ impl Widget for SearchModalWidget<'_> {
             )
             .style(Style::default().bg(self.palette.panel_bg));
 
-        let inner = block.inner(panel);
         block.render(panel, buf);
 
         let h_pad: u16 = 2;
-        let content_x = inner.x + h_pad;
-        let content_w = inner.width.saturating_sub(h_pad * 2);
+        let content_x = layout.inner.x + h_pad;
+        let content_w = layout.inner.width.saturating_sub(h_pad * 2);
 
-        let [tabs_row, body_area] =
-            Layout::vertical([Constraint::Length(1), Constraint::Fill(1)]).areas(inner);
-
-        self.render_tabs(tabs_row, content_x, content_w, buf);
+        self.render_tabs(layout.tabs, content_x, content_w, buf);
 
         match self.mode {
             SearchMode::Name | SearchMode::Genre | SearchMode::Country => {
-                self.render_radio_body(body_area, content_x, content_w, buf)
+                self.render_radio_body(layout.body, content_x, content_w, buf)
             }
-            SearchMode::Settings => self.render_settings_body(body_area, content_x, content_w, buf),
-            SearchMode::Spotify => self.render_spotify_body(body_area, content_x, content_w, buf),
-            SearchMode::Youtube => self.render_youtube_body(body_area, content_x, content_w, buf),
+            SearchMode::Settings => {
+                self.render_settings_body(layout.body, content_x, content_w, buf)
+            }
+            SearchMode::Spotify => self.render_spotify_body(layout.body, content_x, content_w, buf),
+            SearchMode::Youtube => self.render_youtube_body(layout.body, content_x, content_w, buf),
         }
     }
 }
@@ -513,30 +503,5 @@ impl SearchModalWidget<'_> {
                 }
             }
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{modal_rect, MODAL_MIN_HEIGHT, MODAL_MIN_WIDTH};
-    use ratatui::layout::Rect;
-
-    #[test]
-    fn modal_rect_does_not_exceed_small_terminal_area() {
-        let area = Rect::new(0, 0, 40, MODAL_MIN_HEIGHT - 4);
-        let modal = modal_rect(area);
-
-        assert!(modal.right() <= area.right());
-        assert!(modal.bottom() <= area.bottom());
-        assert_eq!(modal.width, 40);
-        assert_eq!(modal.height, MODAL_MIN_HEIGHT - 4);
-    }
-
-    #[test]
-    fn modal_rect_uses_minimum_size_when_area_allows_it() {
-        let area = Rect::new(0, 0, MODAL_MIN_WIDTH, MODAL_MIN_HEIGHT);
-        let modal = modal_rect(area);
-
-        assert_eq!(modal, area);
     }
 }
