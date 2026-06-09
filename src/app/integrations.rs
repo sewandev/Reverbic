@@ -632,6 +632,8 @@ impl App {
         use crate::audio::PlayerCommand;
         self.player.send(PlayerCommand::Stop).await;
         self.spotify.playback_queue = queue.into_iter().collect();
+        self.spotify.radio_queue.clear();
+        abort_task(&mut self.spotify.radio_task);
         tracing::debug!(
             "play_spotify_track_with_queue: track='{}' queue_len={}",
             track.name,
@@ -677,20 +679,24 @@ impl App {
                 tracing::debug!("advance_playback_queue: no player handle");
             }
         } else if self.config.spotify.radio_enabled {
-            let artist_name = self
-                .spotify
-                .now_playing
-                .as_ref()
-                .map(|t| t.artist.clone())
-                .filter(|a| !a.is_empty());
-            let seed_uri = self
-                .spotify
-                .now_playing
-                .as_ref()
-                .map(|t| t.uri.clone())
-                .unwrap_or_default();
-            if let Some(name) = artist_name {
-                self.fetch_radio_tracks(name, seed_uri);
+            if !self.spotify.radio_queue.is_empty() {
+                self.play_next_radio_track();
+            } else {
+                let artist_name = self
+                    .spotify
+                    .now_playing
+                    .as_ref()
+                    .map(|t| t.artist.clone())
+                    .filter(|a| !a.is_empty());
+                let seed_uri = self
+                    .spotify
+                    .now_playing
+                    .as_ref()
+                    .map(|t| t.uri.clone())
+                    .unwrap_or_default();
+                if let Some(name) = artist_name {
+                    self.fetch_radio_tracks(name, seed_uri);
+                }
             }
         }
     }
