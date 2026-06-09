@@ -1436,6 +1436,13 @@ impl App {
                 }
             }
             KeyCode::Enter => {
+                if self.config.spotify.playback_mode == crate::config::SpotifyPlaybackMode::Native {
+                    self.save_notice = Some(t("modal.spotify.devices_native_hint"));
+                    self.save_notice_is_dup = false;
+                    self.notice_until =
+                        Some(std::time::Instant::now() + std::time::Duration::from_secs(5));
+                    return;
+                }
                 if let Some(device) = self.spotify.devices.get(self.spotify.devices_selected) {
                     if let Some(id) = device.id.clone() {
                         self.transfer_to_spotify_device(id).await;
