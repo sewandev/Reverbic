@@ -478,15 +478,16 @@ pub(super) fn render_modal_spotify_strip(
     use crate::app::SpotifyPlayerStatus;
     const H_PAD: u16 = 2;
 
-    let (is_playing, is_paused) = if let Some(pb) = playback {
-        (pb.is_playing, !pb.is_playing)
+    let (is_playing, is_paused, is_loading) = if let Some(pb) = playback {
+        (pb.is_playing, !pb.is_playing, false)
     } else {
         (
             matches!(player_status, SpotifyPlayerStatus::Playing),
             matches!(player_status, SpotifyPlayerStatus::Paused),
+            matches!(player_status, SpotifyPlayerStatus::Loading),
         )
     };
-    if !is_playing && !is_paused {
+    if !is_playing && !is_paused && !is_loading {
         return;
     }
 
@@ -538,8 +539,10 @@ pub(super) fn render_modal_spotify_strip(
 
     let border_color = if is_playing {
         theme::border_color_for(palette, border_tick)
-    } else {
+    } else if is_paused {
         palette.warning
+    } else {
+        palette.buffering
     };
 
     let block = Block::default()
@@ -553,7 +556,13 @@ pub(super) fn render_modal_spotify_strip(
 
     let cx = inner.x + H_PAD;
     let cw = inner.width.saturating_sub(H_PAD * 2);
-    let icon = if is_playing { "▶  " } else { "⏸  " };
+    let icon = if is_playing {
+        "▶  "
+    } else if is_paused {
+        "⏸  "
+    } else {
+        "…  "
+    };
 
     let artist_display = crate::ui::strings::truncate(artist, cw.saturating_sub(3) as usize);
     frame.render_widget(
@@ -681,6 +690,7 @@ pub(super) fn render_help_overlay(
     frame: &mut Frame,
     mode: &crate::app::SearchMode,
     spotify_logged_in: bool,
+    spotify_can_cycle_device: bool,
     update_available: Option<&str>,
     palette: &Palette,
 ) {
@@ -702,7 +712,7 @@ pub(super) fn render_help_overlay(
         ],
         SearchMode::Spotify => {
             if spotify_logged_in {
-                vec![
+                let mut lines = vec![
                     ("[←→]", t("help.shortcut.switch_subtab")),
                     ("[↵]", t("help.shortcut.transfer_play")),
                     ("[↑↓]", t("help.shortcut.navigate")),
@@ -710,8 +720,12 @@ pub(super) fn render_help_overlay(
                     ("[Alt+O]", t("help.shortcut.settings")),
                     ("[Alt+D]", t("integrations.spotify.hint_disconnect")),
                     ("[Alt+R]", t("help.shortcut.reload_devices")),
-                    ("[Esc]", t("hint.close")),
-                ]
+                ];
+                if spotify_can_cycle_device {
+                    lines.push(("[Ctrl+D]", t("help.shortcut.switch_device")));
+                }
+                lines.push(("[Esc]", t("hint.close")));
+                lines
             } else {
                 vec![
                     ("[↵]", t("help.shortcut.connect_spotify")),

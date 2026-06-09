@@ -480,6 +480,18 @@ impl App {
         }
     }
 
+    fn spotify_remote_status_is_active(&self) -> bool {
+        self.spotify.playback.is_some()
+            || (self.spotify.active_backend == Some(SpotifyPlaybackBackend::Remote)
+                && self.spotify.now_playing.is_some()
+                && matches!(
+                    self.spotify.player_status,
+                    SpotifyPlayerStatus::Playing
+                        | SpotifyPlayerStatus::Paused
+                        | SpotifyPlayerStatus::Loading
+                ))
+    }
+
     pub fn active_source_is_spotify(&self) -> bool {
         use crate::audio::PlayerStatus;
         let radio_active = matches!(
@@ -493,10 +505,10 @@ impl App {
             return false;
         }
         match self.config.spotify.playback_mode {
-            SpotifyPlaybackMode::Remote => self.spotify.playback.is_some(),
+            SpotifyPlaybackMode::Remote => self.spotify_remote_status_is_active(),
             SpotifyPlaybackMode::Native => self.spotify_native_status_is_active(),
             SpotifyPlaybackMode::Auto => {
-                self.spotify.playback.is_some() || self.spotify_native_status_is_active()
+                self.spotify_remote_status_is_active() || self.spotify_native_status_is_active()
             }
         }
     }
@@ -801,6 +813,27 @@ mod tests {
         assert!(app.spotify.playback.is_none());
         assert!(app.spotify.playback_rx.is_none());
         assert!(app.spotify.playback_task.is_none());
+    }
+
+    #[tokio::test]
+    async fn remote_loading_track_counts_as_active_spotify_source_before_playback_poll() {
+        let mut app = test_app();
+        app.config.spotify.playback_mode = SpotifyPlaybackMode::Remote;
+        app.spotify.active_backend = Some(SpotifyPlaybackBackend::Remote);
+        app.spotify.now_playing = Some(spotify_track("Loading track"));
+        app.spotify.player_status = SpotifyPlayerStatus::Loading;
+
+        assert!(app.active_source_is_spotify());
+    }
+
+    #[tokio::test]
+    async fn remote_loading_without_track_does_not_count_as_active_spotify_source() {
+        let mut app = test_app();
+        app.config.spotify.playback_mode = SpotifyPlaybackMode::Remote;
+        app.spotify.active_backend = Some(SpotifyPlaybackBackend::Remote);
+        app.spotify.player_status = SpotifyPlayerStatus::Loading;
+
+        assert!(!app.active_source_is_spotify());
     }
 
     #[tokio::test]

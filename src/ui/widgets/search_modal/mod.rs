@@ -77,8 +77,7 @@ pub struct SearchModalWidget<'a> {
     pub spotify_scroll_offset: usize,
     pub spotify_is_premium: bool,
     pub spotify_devices: &'a [crate::integrations::spotify::devices::SpotifyDevice],
-    pub spotify_devices_selected: usize,
-    pub spotify_devices_loading: bool,
+    pub spotify_active_device_id: Option<&'a str>,
     pub spotify_stop_on_quit: bool,
     pub spotify_start_on_spotify: bool,
     pub spotify_playback_mode: String,
@@ -102,7 +101,6 @@ pub struct SearchModalWidget<'a> {
     pub spotify_playlist_tracks_selected: usize,
     pub spotify_playlist_tracks_scroll_offset: usize,
     pub spotify_playlist_tracks_loading: bool,
-    pub spotify_top_tracks_range: &'a str,
     pub spotify_top_tracks: &'a [crate::integrations::spotify::SpotifyTrack],
     pub spotify_top_tracks_selected: usize,
     pub spotify_top_tracks_scroll_offset: usize,
@@ -235,8 +233,7 @@ impl<'a> SearchModalWidget<'a> {
             spotify_scroll_offset: sp.search_scroll_offset,
             spotify_is_premium: sp.is_premium,
             spotify_devices: &sp.devices,
-            spotify_devices_selected: sp.devices_selected,
-            spotify_devices_loading: sp.devices_loading,
+            spotify_active_device_id: sp.active_device_id.as_deref(),
             spotify_stop_on_quit: app.config.spotify.stop_on_quit,
             spotify_start_on_spotify: app.config.spotify.start_on_spotify,
             spotify_playback_mode: app.config.spotify.playback_mode.display(),
@@ -266,7 +263,6 @@ impl<'a> SearchModalWidget<'a> {
             spotify_playlist_tracks_selected: sp.playlist_tracks_selected,
             spotify_playlist_tracks_scroll_offset: sp.playlist_tracks_scroll_offset,
             spotify_playlist_tracks_loading: sp.playlist_tracks_loading,
-            spotify_top_tracks_range: &sp.top_tracks_range,
             spotify_top_tracks: &sp.top_tracks,
             spotify_top_tracks_selected: sp.top_tracks_selected,
             spotify_top_tracks_scroll_offset: sp.top_tracks_scroll_offset,
@@ -333,6 +329,8 @@ impl SearchModalWidget<'_> {
         let key = |s| key(self.palette, s);
         let sep_s = |s| sep_s(self.palette, s);
         let showing = !self.results.is_empty();
+        let spotify_can_cycle_device = matches!(self.mode, SearchMode::Spotify)
+            && self.spotify_playback_mode_kind != crate::config::SpotifyPlaybackMode::Native;
         if showing {
             let mut spans = vec![
                 Span::raw(" "),
@@ -344,6 +342,10 @@ impl SearchModalWidget<'_> {
             if matches!(self.mode, crate::app::SearchMode::Spotify) {
                 spans.push(key("[Alt+L]"));
                 spans.push(sep_s(format!(" {}  ", t("hint.like"))));
+                if spotify_can_cycle_device {
+                    spans.push(key("[Ctrl+D]"));
+                    spans.push(sep_s(format!(" {}  ", t("help.shortcut.switch_device"))));
+                }
             } else {
                 spans.push(key("[Alt+F]"));
                 spans.push(sep_s(format!(" {}  ", t("hint.fav"))));
@@ -447,7 +449,7 @@ impl SearchModalWidget<'_> {
                 sep_s(format!(" {} ", t("hint.help"))),
             ],
             SearchMode::Spotify => {
-                use crate::app::{SpotifyAuthStatus, SpotifySubTab};
+                use crate::app::SpotifyAuthStatus;
                 match self.spotify_status {
                     SpotifyAuthStatus::Connecting => vec![
                         Span::raw(" "),
@@ -455,29 +457,8 @@ impl SearchModalWidget<'_> {
                         sep_s(format!(" {} ", t("hint.back"))),
                     ],
                     SpotifyAuthStatus::LoggedIn => {
-                        if matches!(self.spotify_sub_tab, SpotifySubTab::Devices) {
-                            let mut hints = vec![Span::raw(" ")];
-                            if self.spotify_playback_mode_kind
-                                != crate::config::SpotifyPlaybackMode::Native
-                            {
-                                hints.extend([
-                                    key("[↵]"),
-                                    sep_s(format!(" {}  ", t("hint.transfer"))),
-                                ]);
-                            }
-                            hints.extend([
-                                key("[↑↓]"),
-                                sep_s(format!(" {}  ", t("hint.nav"))),
-                                key("[←→]"),
-                                sep_s(format!(" {}  ", t("hint.search"))),
-                                key("[Alt+R]"),
-                                sep_s(format!(" {}  ", t("hint.reload"))),
-                                key("[?]"),
-                                sep_s(format!(" {} ", t("hint.help"))),
-                            ]);
-                            hints
-                        } else if !self.spotify_results.is_empty() {
-                            vec![
+                        if !self.spotify_results.is_empty() {
+                            let mut hints = vec![
                                 Span::raw(" "),
                                 key("[↵]"),
                                 sep_s(format!(" {}  ", t("hint.play"))),
@@ -489,11 +470,17 @@ impl SearchModalWidget<'_> {
                                 sep_s(format!(" {}  ", t("hint.nav"))),
                                 key("[←→]"),
                                 sep_s(format!(" {}  ", t("hint.tabs"))),
-                                key("[?]"),
-                                sep_s(format!(" {} ", t("hint.help"))),
-                            ]
+                            ];
+                            if spotify_can_cycle_device {
+                                hints.extend([
+                                    key("[Ctrl+D]"),
+                                    sep_s(format!(" {}  ", t("help.shortcut.switch_device"))),
+                                ]);
+                            }
+                            hints.extend([key("[?]"), sep_s(format!(" {} ", t("hint.help")))]);
+                            hints
                         } else {
-                            vec![
+                            let mut hints = vec![
                                 Span::raw(" "),
                                 key("[Space]"),
                                 sep_s(format!(" {}  ", t("hint.pause"))),
@@ -503,9 +490,15 @@ impl SearchModalWidget<'_> {
                                 sep_s(format!(" {}  ", t("hint.tabs"))),
                                 key("[Alt+D]"),
                                 sep_s(format!(" {}  ", t("hint.disconnect"))),
-                                key("[?]"),
-                                sep_s(format!(" {} ", t("hint.help"))),
-                            ]
+                            ];
+                            if spotify_can_cycle_device {
+                                hints.extend([
+                                    key("[Ctrl+D]"),
+                                    sep_s(format!(" {}  ", t("help.shortcut.switch_device"))),
+                                ]);
+                            }
+                            hints.extend([key("[?]"), sep_s(format!(" {} ", t("hint.help")))]);
+                            hints
                         }
                     }
                     _ => vec![

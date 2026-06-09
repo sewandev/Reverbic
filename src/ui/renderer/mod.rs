@@ -212,7 +212,7 @@ pub fn render(frame: &mut Frame, app: &App) {
     let remaining_h = full_area.bottom().saturating_sub(strip_y);
     if remaining_h >= 3 {
         let strip = Rect::new(modal.x, strip_y, modal.width, remaining_h);
-        if matches!(app.modal_mode, crate::app::SearchMode::Spotify)
+        if app.active_source_is_spotify()
             && (app.spotify.playback.is_some() || app.spotify.now_playing.is_some())
         {
             render_modal_spotify_strip(
@@ -255,10 +255,13 @@ pub fn render(frame: &mut Frame, app: &App) {
     if app.show_help {
         use crate::app::SpotifyAuthStatus;
         let spotify_logged_in = matches!(app.spotify.status, SpotifyAuthStatus::LoggedIn);
+        let spotify_can_cycle_device = spotify_logged_in
+            && app.config.spotify.playback_mode != crate::config::SpotifyPlaybackMode::Native;
         render_help_overlay(
             frame,
             &app.modal_mode,
             spotify_logged_in,
+            spotify_can_cycle_device,
             app.update_available.as_deref(),
             palette,
         );

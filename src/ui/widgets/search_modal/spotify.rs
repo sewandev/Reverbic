@@ -7,8 +7,8 @@ use ratatui::{
 };
 
 use crate::app::SpotifyAuthStatus;
-use crate::config::SpotifyPlaybackMode;
 use crate::i18n::t;
+use crate::integrations::spotify::devices::SpotifyDevice;
 use crate::ui::strings;
 use crate::ui::widgets::scroll_offset_for_selection;
 
@@ -18,6 +18,19 @@ use super::SearchModalWidget;
 fn fmt_duration(ms: u32) -> String {
     let secs = ms / 1000;
     format!("{}:{:02}", secs / 60, secs % 60)
+}
+
+fn active_spotify_device<'a>(
+    devices: &'a [SpotifyDevice],
+    active_device_id: Option<&str>,
+) -> Option<&'a SpotifyDevice> {
+    active_device_id
+        .and_then(|id| {
+            devices
+                .iter()
+                .find(|device| device.id.as_deref() == Some(id))
+        })
+        .or_else(|| devices.iter().find(|device| device.is_active))
 }
 
 impl<'a> SearchModalWidget<'a> {
@@ -51,10 +64,12 @@ impl<'a> SearchModalWidget<'a> {
     ) {
         use crate::app::SpotifySubTab;
 
-        let [_gap, subtab_row, body] = Layout::vertical([
+        let [_gap, subtab_row, _body_gap, body, footer_row] = Layout::vertical([
             Constraint::Length(1),
-            Constraint::Length(3),
+            Constraint::Length(1),
+            Constraint::Length(1),
             Constraint::Fill(1),
+            Constraint::Length(1),
         ])
         .areas(area);
 
@@ -89,13 +104,6 @@ impl<'a> SearchModalWidget<'a> {
                 ),
                 Span::raw("  "),
                 Span::styled(
-                    t("modal.spotify.subtab.devices"),
-                    tab_style(self.spotify_sub_tab == SpotifySubTab::Devices),
-                ),
-            ]));
-            text.lines.push(Line::from(vec![Span::raw("")]));
-            text.lines.push(Line::from(vec![
-                Span::styled(
                     t("Top Tracks"),
                     tab_style(self.spotify_sub_tab == SpotifySubTab::TopTracks),
                 ),
@@ -119,8 +127,7 @@ impl<'a> SearchModalWidget<'a> {
 
         match self.spotify_sub_tab {
             SpotifySubTab::Search => {
-                let [_gap, input_row, cap_row, list_area] = Layout::vertical([
-                    Constraint::Length(1),
+                let [input_row, cap_row, list_area] = Layout::vertical([
                     Constraint::Length(1),
                     Constraint::Length(1),
                     Constraint::Fill(1),
@@ -141,21 +148,6 @@ impl<'a> SearchModalWidget<'a> {
                     self.palette.spotify,
                 );
 
-                if self.spotify_is_premium {
-                    let badge = format!("★ {}", t("integrations.spotify.premium"));
-                    let badge_len = badge.chars().count() as u16;
-                    if badge_len + 4 < text_w {
-                        let bx = text_x + text_w.saturating_sub(badge_len);
-                        Paragraph::new(Span::styled(
-                            badge,
-                            Style::default()
-                                .fg(self.palette.spotify)
-                                .add_modifier(Modifier::BOLD),
-                        ))
-                        .render(Rect::new(bx, input_row.y, badge_len, 1), buf);
-                    }
-                }
-
                 buf[(content_x, cap_row.y)]
                     .set_symbol("╹")
                     .set_fg(self.palette.spotify)
@@ -173,9 +165,6 @@ impl<'a> SearchModalWidget<'a> {
                     self.render_spotify_playlists(body, text_x, text_w, buf);
                 }
             }
-            SpotifySubTab::Devices => {
-                self.render_spotify_devices(body, text_x, text_w, buf);
-            }
             SpotifySubTab::TopTracks => {
                 self.render_spotify_top_tracks(body, text_x, text_w, buf);
             }
@@ -189,6 +178,68 @@ impl<'a> SearchModalWidget<'a> {
                     self.render_spotify_albums(body, text_x, text_w, buf);
                 }
             }
+        }
+
+        let active_device =
+            active_spotify_device(self.spotify_devices, self.spotify_active_device_id);
+        let mode_text =
+            if self.spotify_playback_mode_kind == crate::config::SpotifyPlaybackMode::Native {
+                t("modal.spotify.footer.mode_native")
+            } else {
+                let dev_name = active_device
+                    .map(|d| d.name.clone())
+                    .unwrap_or_else(|| t("modal.spotify.footer.unknown_device"));
+                let dev_type = active_device.map(|d| d.device_type.as_str()).unwrap_or("");
+                let switch_hint = if self.spotify_devices.len() > 1 {
+                    t("modal.spotify.footer.mode_remote_switch_hint")
+                } else {
+                    String::new()
+                };
+                let mode = t("modal.spotify.footer.mode_remote");
+                let active = t("modal.spotify.footer.active");
+
+                format!("{mode} {dev_name} * {dev_type} [{active}]{switch_hint}")
+            };
+
+        let footer_area = Rect::new(text_x, footer_row.y, text_w, 1);
+        let mode_style = Style::default()
+            .fg(ratatui::style::Color::Yellow)
+            .add_modifier(Modifier::BOLD);
+        let badge_style = Style::default()
+            .fg(self.palette.spotify)
+            .add_modifier(Modifier::BOLD);
+
+        let premium_badge = self
+            .spotify_is_premium
+            .then(|| t("integrations.spotify.account_premium"));
+        let badge_len = premium_badge
+            .as_ref()
+            .map(|badge| badge.chars().count() as u16)
+            .unwrap_or(0);
+
+        if let Some(badge) = premium_badge.filter(|_| badge_len + 4 < text_w) {
+            let [mode_area, _gap, badge_area] = Layout::horizontal([
+                Constraint::Fill(1),
+                Constraint::Length(2),
+                Constraint::Length(badge_len),
+            ])
+            .areas(footer_area);
+
+            if mode_area.width > 0 {
+                Paragraph::new(Span::styled(
+                    strings::truncate(&mode_text, mode_area.width as usize),
+                    mode_style,
+                ))
+                .render(mode_area, buf);
+            }
+
+            Paragraph::new(Span::styled(badge, badge_style)).render(badge_area, buf);
+        } else {
+            Paragraph::new(Span::styled(
+                strings::truncate(&mode_text, footer_area.width as usize),
+                mode_style,
+            ))
+            .render(footer_area, buf);
         }
     }
 
@@ -478,137 +529,6 @@ impl<'a> SearchModalWidget<'a> {
         }
     }
 
-    pub(super) fn render_spotify_devices(
-        &self,
-        area: Rect,
-        list_x: u16,
-        list_w: u16,
-        buf: &mut Buffer,
-    ) {
-        let mut y = area.y;
-        if y >= area.bottom() {
-            return;
-        }
-
-        Paragraph::new(Line::from(vec![
-            Span::styled(
-                t("modal.spotify.devices_mode"),
-                Style::default().fg(self.palette.dim),
-            ),
-            Span::styled(" ", Style::default().fg(self.palette.dim)),
-            Span::styled(
-                self.spotify_playback_mode.clone(),
-                Style::default()
-                    .fg(self.palette.spotify)
-                    .add_modifier(Modifier::BOLD),
-            ),
-        ]))
-        .render(Rect::new(list_x, y, list_w, 1), buf);
-        y += 1;
-        if y >= area.bottom() {
-            return;
-        }
-
-        let hint_key = if self.spotify_playback_mode_kind == SpotifyPlaybackMode::Native {
-            "modal.spotify.devices_native_hint"
-        } else {
-            "modal.spotify.devices_remote_hint"
-        };
-        Paragraph::new(Span::styled(
-            t(hint_key),
-            Style::default().fg(self.palette.muted),
-        ))
-        .wrap(Wrap { trim: true })
-        .render(Rect::new(list_x, y, list_w, 2), buf);
-        y += 3;
-
-        if self.spotify_devices_loading {
-            if y < area.bottom() {
-                Paragraph::new(Span::styled(
-                    format!(
-                        "{}  {}",
-                        super::helpers::spin_frame(),
-                        t("modal.spotify.devices_loading")
-                    ),
-                    Style::default().fg(self.palette.muted),
-                ))
-                .render(Rect::new(list_x, y, list_w, 1), buf);
-            }
-            return;
-        }
-
-        if self.spotify_devices.is_empty() {
-            if y < area.bottom() {
-                Paragraph::new(Span::styled(
-                    t("modal.spotify.no_devices"),
-                    Style::default().fg(self.palette.dim),
-                ))
-                .render(Rect::new(list_x, y, list_w, 1), buf);
-            }
-            return;
-        }
-
-        let visible_n = area.bottom().saturating_sub(y) as usize;
-        let items: Vec<ratatui::widgets::ListItem> = self
-            .spotify_devices
-            .iter()
-            .enumerate()
-            .take(visible_n)
-            .map(|(i, dev)| {
-                let selected = i == self.spotify_devices_selected;
-                let playing = dev.is_active;
-
-                let type_label: String = match dev.device_type.to_lowercase().as_str() {
-                    "computer" => "PC".to_owned(),
-                    "smartphone" => t("spotify.device.smartphone"),
-                    "speaker" => t("spotify.device.speaker"),
-                    "tv" => "TV".to_owned(),
-                    "tablet" => "Tablet".to_owned(),
-                    _ => t("spotify.device.other"),
-                };
-
-                let suffix = if playing {
-                    format!(
-                        "  ·  {}  [{}]",
-                        type_label,
-                        t("modal.spotify.device_active")
-                    )
-                } else {
-                    format!("  ·  {}", type_label)
-                };
-                let name_max = list_w.saturating_sub(3 + suffix.chars().count() as u16) as usize;
-                let name = strings::truncate(&dev.name, name_max);
-
-                let (prefix, name_st, meta_st) = if selected || playing {
-                    (
-                        "▶  ",
-                        Style::default()
-                            .fg(self.palette.spotify)
-                            .add_modifier(Modifier::BOLD),
-                        Style::default().fg(self.palette.spotify),
-                    )
-                } else {
-                    (
-                        "   ",
-                        Style::default().fg(self.palette.highlight),
-                        Style::default().fg(self.palette.muted),
-                    )
-                };
-
-                ratatui::widgets::ListItem::new(Line::from(vec![
-                    Span::styled(prefix, name_st),
-                    Span::styled(name, name_st),
-                    Span::styled(suffix, meta_st),
-                ]))
-            })
-            .collect();
-
-        ratatui::widgets::List::new(items).render(
-            Rect::new(list_x, y, list_w, area.bottom().saturating_sub(y)),
-            buf,
-        );
-    }
-
     fn render_generic_track_list(
         &self,
         list_area: Rect,
@@ -820,21 +740,8 @@ impl<'a> SearchModalWidget<'a> {
     }
 
     fn render_spotify_top_tracks(&self, area: Rect, list_x: u16, list_w: u16, buf: &mut Buffer) {
-        let filter_text = match self.spotify_top_tracks_range {
-            "short_term" => t("modal.spotify.top.short"),
-            "medium_term" => t("modal.spotify.top.medium"),
-            _ => t("modal.spotify.top.long"),
-        };
-        Paragraph::new(Span::styled(
-            format!("[Tab] {} ", filter_text),
-            Style::default().fg(self.palette.dim),
-        ))
-        .alignment(ratatui::layout::Alignment::Right)
-        .render(Rect::new(list_x, area.y, list_w, 1), buf);
-
-        let list_area = Rect::new(list_x, area.y + 1, list_w, area.height.saturating_sub(1));
         self.render_generic_track_list(
-            list_area,
+            Rect::new(list_x, area.y, list_w, area.height),
             buf,
             self.spotify_top_tracks,
             self.spotify_top_tracks_selected,
@@ -954,6 +861,47 @@ impl<'a> SearchModalWidget<'a> {
             self.spotify_album_tracks_selected,
             self.spotify_album_tracks_scroll_offset,
             self.spotify_album_tracks_loading,
+        );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn spotify_device(id: Option<&str>, name: &str, is_active: bool) -> SpotifyDevice {
+        SpotifyDevice {
+            id: id.map(str::to_string),
+            name: name.to_string(),
+            device_type: "Computer".to_string(),
+            is_active,
+        }
+    }
+
+    #[test]
+    fn active_spotify_device_uses_active_device_id_before_spotify_active_flag() {
+        let devices = vec![
+            spotify_device(Some("preserved"), "Preserved", false),
+            spotify_device(Some("spotify-active"), "Spotify Active", true),
+        ];
+
+        let active = active_spotify_device(&devices, Some("preserved"));
+
+        assert_eq!(active.map(|device| device.name.as_str()), Some("Preserved"));
+    }
+
+    #[test]
+    fn active_spotify_device_falls_back_to_spotify_active_flag() {
+        let devices = vec![
+            spotify_device(Some("available"), "Available", false),
+            spotify_device(Some("spotify-active"), "Spotify Active", true),
+        ];
+
+        let active = active_spotify_device(&devices, None);
+
+        assert_eq!(
+            active.map(|device| device.name.as_str()),
+            Some("Spotify Active")
         );
     }
 }
