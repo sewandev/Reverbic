@@ -1,10 +1,10 @@
 {
   "href": "https://api.spotify.com/v1/me/albums?offset=0&limit=50",
   "limit": 50,
-  "next": null,
+  "next": "https://api.spotify.com/v1/me/albums?offset=50&limit=50",
   "offset": 0,
   "previous": null,
-  "total": 1,
+  "total": 3,
   "items": [
     {
       "added_at": "2026-02-15T12:00:00Z",
@@ -20,6 +20,20 @@
           }
         ]
       }
+    },
+    {
+      "added_at": "2026-02-16T12:00:00Z",
+      "album": {
+        "id": "sparse-album",
+        "name": "Sparse Album",
+        "type": "album",
+        "uri": "spotify:album:sparse-album",
+        "artists": []
+      }
+    },
+    {
+      "added_at": "2026-02-17T12:00:00Z",
+      "album": null
     }
   ]
 }

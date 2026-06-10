@@ -4,7 +4,7 @@
   "next": null,
   "offset": 0,
   "previous": null,
-  "total": 2,
+  "total": 3,
   "items": [
     {
       "id": "playlist-legacy-tracks",
@@ -23,6 +23,13 @@
         "display_name": "Sewan"
       },
       "total_tracks": 7
+    },
+    {
+      "id": "playlist-missing-total",
+      "name": "Missing Total",
+      "owner": {
+        "display_name": "Reverbic"
+      }
     }
   ]
 }

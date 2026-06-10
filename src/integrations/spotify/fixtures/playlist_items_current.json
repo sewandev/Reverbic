@@ -4,7 +4,7 @@
   "next": null,
   "offset": 0,
   "previous": null,
-  "total": 2,
+  "total": 4,
   "items": [
     {
       "added_at": "2026-02-15T12:00:00Z",
@@ -31,6 +31,27 @@
         "name": "Podcast Episode",
         "type": "episode",
         "uri": "spotify:episode:playlist-episode-1"
+      }
+    },
+    {
+      "added_at": "2026-02-15T12:10:00Z",
+      "item": null
+    },
+    {
+      "added_at": "2026-02-15T12:15:00Z",
+      "item": {
+        "id": "playlist-track-untyped",
+        "name": "Untyped Track",
+        "uri": "spotify:track:untyped",
+        "duration_ms": 123000,
+        "artists": [
+          {
+            "name": "Untyped Artist"
+          }
+        ],
+        "album": {
+          "name": "Untyped Album"
+        }
       }
     }
   ]
