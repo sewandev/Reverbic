@@ -1,0 +1,35 @@
+{
+  "href": "https://api.spotify.com/v1/me/player/recently-played?limit=50",
+  "limit": 50,
+  "next": null,
+  "cursors": {
+    "after": "1770000000000",
+    "before": "1769999999000"
+  },
+  "items": [
+    {
+      "played_at": "2026-02-17T12:00:00Z",
+      "track": {
+        "id": "recent-track-1",
+        "name": "Lisztomania",
+        "type": "track",
+        "uri": "spotify:track:recent-track-1",
+        "duration_ms": 241000,
+        "artists": [
+          {
+            "name": "Phoenix"
+          }
+        ],
+        "album": {
+          "name": "Wolfgang Amadeus Phoenix"
+        }
+      },
+      "context": null
+    },
+    {
+      "played_at": "2026-02-17T11:30:00Z",
+      "track": null,
+      "context": null
+    }
+  ]
+}

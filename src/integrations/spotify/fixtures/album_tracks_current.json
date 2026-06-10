@@ -1,0 +1,33 @@
+{
+  "href": "https://api.spotify.com/v1/albums/album-1/tracks?offset=0&limit=50",
+  "limit": 50,
+  "next": "https://api.spotify.com/v1/albums/album-1/tracks?offset=50&limit=50",
+  "offset": 0,
+  "previous": null,
+  "total": 23,
+  "items": [
+    {
+      "id": "album-track-1",
+      "name": "Moscow Mule",
+      "type": "track",
+      "uri": "spotify:track:album-track-1",
+      "duration_ms": 245939,
+      "artists": [
+        {
+          "name": "Bad Bunny"
+        }
+      ]
+    },
+    {
+      "id": "album-track-missing-uri",
+      "name": "Missing URI Album Track",
+      "type": "track",
+      "duration_ms": 180000,
+      "artists": [
+        {
+          "name": "Filtered Artist"
+        }
+      ]
+    }
+  ]
+}

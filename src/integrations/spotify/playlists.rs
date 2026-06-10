@@ -188,6 +188,7 @@ fn parse_playlist_item_track(item: &serde_json::Value) -> Option<SpotifyTrack> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::integrations::spotify::test_fixtures;
 
     #[test]
     fn user_playlists_url_uses_expected_page_size() {
@@ -211,200 +212,97 @@ mod tests {
 
     #[test]
     fn parse_user_playlists_body_reads_legacy_tracks_total() {
-        let body = r#"{
-            "items": [
-                {
-                    "id": "playlist-1",
-                    "name": "Favorites",
-                    "owner": { "display_name": "Sewan" },
-                    "tracks": { "total": 42 }
-                }
-            ],
-            "next": "https://api.spotify.com/v1/me/playlists?offset=20"
-        }"#;
+        let (playlists, has_more) =
+            parse_user_playlists_body(test_fixtures::USER_PLAYLISTS_LEGACY_TRACKS_TOTAL)
+                .expect("valid playlists body");
 
-        let (playlists, has_more) = parse_user_playlists_body(body).expect("valid playlists body");
-
-        assert!(has_more);
-        assert_eq!(playlists.len(), 1);
-        assert_eq!(playlists[0].id, "playlist-1");
-        assert_eq!(playlists[0].name, "Favorites");
+        assert!(!has_more);
+        assert_eq!(playlists.len(), 3);
+        assert_eq!(playlists[0].id, "playlist-legacy-tracks");
+        assert_eq!(playlists[0].name, "Legacy Favorites");
         assert_eq!(playlists[0].owner, "Sewan");
         assert_eq!(playlists[0].tracks_total, 42);
     }
 
     #[test]
     fn parse_user_playlists_body_prefers_current_items_total() {
-        let body = r#"{
-            "items": [
-                {
-                    "id": "playlist-2",
-                    "name": "Now",
-                    "owner": { "display_name": "Reverbic" },
-                    "items": { "total": 7 },
-                    "tracks": { "total": 42 }
-                }
-            ],
-            "next": null
-        }"#;
+        let (playlists, has_more) =
+            parse_user_playlists_body(test_fixtures::USER_PLAYLISTS_CURRENT_ITEMS_TOTAL)
+                .expect("valid playlists body");
 
-        let (playlists, has_more) = parse_user_playlists_body(body).expect("valid playlists body");
-
-        assert!(!has_more);
+        assert!(has_more);
         assert_eq!(playlists.len(), 1);
-        assert_eq!(playlists[0].tracks_total, 7);
+        assert_eq!(playlists[0].id, "playlist-current");
+        assert_eq!(playlists[0].name, "Current Favorites");
+        assert_eq!(playlists[0].owner, "Reverbic");
+        assert_eq!(playlists[0].tracks_total, 17);
     }
 
     #[test]
     fn parse_user_playlists_body_reads_total_tracks_fallback() {
-        let body = r#"{
-            "items": [
-                {
-                    "id": "playlist-3",
-                    "name": "Fallback",
-                    "owner": { "display_name": "Legacy" },
-                    "total_tracks": 13
-                }
-            ],
-            "next": null
-        }"#;
-
-        let (playlists, has_more) = parse_user_playlists_body(body).expect("valid playlists body");
+        let (playlists, has_more) =
+            parse_user_playlists_body(test_fixtures::USER_PLAYLISTS_LEGACY_TRACKS_TOTAL)
+                .expect("valid playlists body");
 
         assert!(!has_more);
-        assert_eq!(playlists.len(), 1);
-        assert_eq!(playlists[0].tracks_total, 13);
+        assert_eq!(playlists.len(), 3);
+        assert_eq!(playlists[1].id, "playlist-legacy-total-tracks");
+        assert_eq!(playlists[1].tracks_total, 7);
     }
 
     #[test]
     fn parse_user_playlists_body_defaults_missing_track_totals_to_zero() {
-        let body = r#"{
-            "items": [
-                {
-                    "id": "playlist-4",
-                    "name": "Unknown count",
-                    "owner": { "display_name": "Reverbic" }
-                }
-            ],
-            "next": null
-        }"#;
+        let (playlists, _) =
+            parse_user_playlists_body(test_fixtures::USER_PLAYLISTS_LEGACY_TRACKS_TOTAL)
+                .expect("valid playlists body");
 
-        let (playlists, _) = parse_user_playlists_body(body).expect("valid playlists body");
-
-        assert_eq!(playlists.len(), 1);
-        assert_eq!(playlists[0].tracks_total, 0);
+        assert_eq!(playlists.len(), 3);
+        assert_eq!(playlists[2].id, "playlist-missing-total");
+        assert_eq!(playlists[2].tracks_total, 0);
     }
 
     #[test]
     fn parse_playlist_tracks_body_reads_wrapped_items() {
-        let body = r#"{
-            "items": [
-                {
-                    "item": {
-                        "name": "Sweet Disposition",
-                        "type": "track",
-                        "artists": [{ "name": "The Temper Trap" }],
-                        "album": { "name": "Conditions" },
-                        "duration_ms": 231200,
-                        "uri": "spotify:track:def"
-                    }
-                },
-                {
-                    "item": {
-                        "name": "Podcast Episode",
-                        "type": "episode",
-                        "duration_ms": 900000,
-                        "uri": "spotify:episode:skip"
-                    }
-                },
-                { "item": null }
-            ],
-            "next": null
-        }"#;
-
-        let (tracks, has_more) =
-            parse_playlist_tracks_body(body).expect("valid playlist items body");
+        let (tracks, has_more) = parse_playlist_tracks_body(test_fixtures::PLAYLIST_ITEMS_CURRENT)
+            .expect("valid playlist items body");
 
         assert!(!has_more);
-        assert_eq!(tracks.len(), 1);
-        assert_eq!(tracks[0].name, "Sweet Disposition");
-        assert_eq!(tracks[0].artist, "The Temper Trap");
-        assert_eq!(tracks[0].uri, "spotify:track:def");
+        assert_eq!(tracks.len(), 2);
+        assert_eq!(tracks[0].name, "New Gold");
+        assert_eq!(tracks[0].artist, "Gorillaz");
+        assert_eq!(tracks[0].uri, "spotify:track:playlist-track-1");
     }
 
     #[test]
     fn parse_playlist_tracks_body_accepts_direct_track_items() {
-        let body = r#"{
-            "items": [
-                {
-                    "name": "Direct Track",
-                    "type": "track",
-                    "artists": [{ "name": "Direct Artist" }],
-                    "album": { "name": "Direct Album" },
-                    "duration_ms": 123000,
-                    "uri": "spotify:track:direct"
-                }
-            ],
-            "next": null
-        }"#;
+        let (tracks, has_more) =
+            parse_playlist_tracks_body(test_fixtures::PLAYLIST_ITEMS_LEGACY_DIRECT_TRACKS)
+                .expect("valid playlist items body");
 
-        let (tracks, _) = parse_playlist_tracks_body(body).expect("valid playlist items body");
-
+        assert!(has_more);
         assert_eq!(tracks.len(), 1);
-        assert_eq!(tracks[0].name, "Direct Track");
-        assert_eq!(tracks[0].artist, "Direct Artist");
-        assert_eq!(tracks[0].uri, "spotify:track:direct");
+        assert_eq!(tracks[0].name, "Midnight City");
+        assert_eq!(tracks[0].artist, "M83");
+        assert_eq!(tracks[0].uri, "spotify:track:legacy-track-1");
     }
 
     #[test]
     fn parse_playlist_tracks_body_accepts_track_without_type() {
-        let body = r#"{
-            "items": [
-                {
-                    "item": {
-                        "name": "Untyped Track",
-                        "artists": [{ "name": "Untyped Artist" }],
-                        "album": { "name": "Untyped Album" },
-                        "duration_ms": 123000,
-                        "uri": "spotify:track:untyped"
-                    }
-                }
-            ],
-            "next": null
-        }"#;
+        let (tracks, _) = parse_playlist_tracks_body(test_fixtures::PLAYLIST_ITEMS_CURRENT)
+            .expect("valid playlist items body");
 
-        let (tracks, _) = parse_playlist_tracks_body(body).expect("valid playlist items body");
-
-        assert_eq!(tracks.len(), 1);
-        assert_eq!(tracks[0].name, "Untyped Track");
-        assert_eq!(tracks[0].uri, "spotify:track:untyped");
+        assert_eq!(tracks.len(), 2);
+        assert_eq!(tracks[1].name, "Untyped Track");
+        assert_eq!(tracks[1].uri, "spotify:track:untyped");
     }
 
     #[test]
     fn parse_playlist_tracks_body_skips_direct_episode_items() {
-        let body = r#"{
-            "items": [
-                {
-                    "name": "Direct Episode",
-                    "type": "episode",
-                    "duration_ms": 900000,
-                    "uri": "spotify:episode:direct"
-                },
-                {
-                    "name": "Direct Track",
-                    "type": "track",
-                    "artists": [{ "name": "Direct Artist" }],
-                    "album": { "name": "Direct Album" },
-                    "duration_ms": 123000,
-                    "uri": "spotify:track:direct"
-                }
-            ],
-            "next": null
-        }"#;
-
-        let (tracks, _) = parse_playlist_tracks_body(body).expect("valid playlist items body");
+        let (tracks, _) =
+            parse_playlist_tracks_body(test_fixtures::PLAYLIST_ITEMS_LEGACY_DIRECT_TRACKS)
+                .expect("valid playlist items body");
 
         assert_eq!(tracks.len(), 1);
-        assert_eq!(tracks[0].uri, "spotify:track:direct");
+        assert_eq!(tracks[0].uri, "spotify:track:legacy-track-1");
     }
 }

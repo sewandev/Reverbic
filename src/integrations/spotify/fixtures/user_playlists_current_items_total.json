@@ -1,0 +1,23 @@
+{
+  "href": "https://api.spotify.com/v1/me/playlists?offset=0&limit=20",
+  "limit": 20,
+  "next": "https://api.spotify.com/v1/me/playlists?offset=20&limit=20",
+  "offset": 0,
+  "previous": null,
+  "total": 1,
+  "items": [
+    {
+      "id": "playlist-current",
+      "name": "Current Favorites",
+      "owner": {
+        "display_name": "Reverbic"
+      },
+      "items": {
+        "total": 17
+      },
+      "tracks": {
+        "total": 99
+      }
+    }
+  ]
+}

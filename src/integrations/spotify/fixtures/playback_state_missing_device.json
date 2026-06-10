@@ -1,0 +1,20 @@
+{
+  "is_playing": true,
+  "progress_ms": 12000,
+  "item": {
+    "id": "playback-track-missing-device",
+    "name": "Device Missing Track",
+    "type": "track",
+    "uri": "spotify:track:playback-track-missing-device",
+    "duration_ms": 180000,
+    "artists": [
+      {
+        "name": "Fallback Artist"
+      }
+    ],
+    "album": {
+      "name": "Fallback Album"
+    }
+  },
+  "currently_playing_type": "track"
+}

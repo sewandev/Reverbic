@@ -1,0 +1,58 @@
+{
+  "href": "https://api.spotify.com/v1/playlists/playlist-current/items?offset=0&limit=50",
+  "limit": 50,
+  "next": null,
+  "offset": 0,
+  "previous": null,
+  "total": 4,
+  "items": [
+    {
+      "added_at": "2026-02-15T12:00:00Z",
+      "item": {
+        "id": "playlist-track-1",
+        "name": "New Gold",
+        "type": "track",
+        "uri": "spotify:track:playlist-track-1",
+        "duration_ms": 215000,
+        "artists": [
+          {
+            "name": "Gorillaz"
+          }
+        ],
+        "album": {
+          "name": "Cracker Island"
+        }
+      }
+    },
+    {
+      "added_at": "2026-02-15T12:05:00Z",
+      "item": {
+        "id": "playlist-episode-1",
+        "name": "Podcast Episode",
+        "type": "episode",
+        "uri": "spotify:episode:playlist-episode-1"
+      }
+    },
+    {
+      "added_at": "2026-02-15T12:10:00Z",
+      "item": null
+    },
+    {
+      "added_at": "2026-02-15T12:15:00Z",
+      "item": {
+        "id": "playlist-track-untyped",
+        "name": "Untyped Track",
+        "uri": "spotify:track:untyped",
+        "duration_ms": 123000,
+        "artists": [
+          {
+            "name": "Untyped Artist"
+          }
+        ],
+        "album": {
+          "name": "Untyped Album"
+        }
+      }
+    }
+  ]
+}

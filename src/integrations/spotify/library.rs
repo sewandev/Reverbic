@@ -36,8 +36,14 @@ pub async fn get_saved_tracks(
         return Err(SpotifyError::from_status(status, &body));
     }
 
+    parse_saved_tracks_body(&body)
+}
+
+pub(crate) fn parse_saved_tracks_body(
+    body: &str,
+) -> Result<(Vec<SpotifyTrack>, bool), SpotifyError> {
     let json: serde_json::Value =
-        serde_json::from_str(&body).map_err(|e| SpotifyError::Parse(e.to_string()))?;
+        serde_json::from_str(body).map_err(|e| SpotifyError::Parse(e.to_string()))?;
 
     let tracks: Vec<SpotifyTrack> = json["items"]
         .as_array()
@@ -119,15 +125,7 @@ pub async fn get_top_tracks(
         .await
         .map_err(|e| SpotifyError::Network(e.to_string()))?;
 
-    let json: serde_json::Value =
-        serde_json::from_str(&body).map_err(|e| SpotifyError::Parse(e.to_string()))?;
-
-    let tracks: Vec<SpotifyTrack> = json["items"]
-        .as_array()
-        .map(|items| items.iter().filter_map(parse_track).collect())
-        .unwrap_or_default();
-
-    Ok(tracks)
+    parse_top_tracks_body(&body)
 }
 
 pub async fn get_recently_played(access_token: &str) -> Result<Vec<SpotifyTrack>, SpotifyError> {
@@ -154,10 +152,24 @@ pub async fn get_recently_played(access_token: &str) -> Result<Vec<SpotifyTrack>
         .await
         .map_err(|e| SpotifyError::Network(e.to_string()))?;
 
-    let json: serde_json::Value =
-        serde_json::from_str(&body).map_err(|e| SpotifyError::Parse(e.to_string()))?;
+    parse_recently_played_body(&body)
+}
 
-    let tracks: Vec<SpotifyTrack> = json["items"]
+pub(crate) fn parse_top_tracks_body(body: &str) -> Result<Vec<SpotifyTrack>, SpotifyError> {
+    let json: serde_json::Value =
+        serde_json::from_str(body).map_err(|e| SpotifyError::Parse(e.to_string()))?;
+
+    Ok(json["items"]
+        .as_array()
+        .map(|items| items.iter().filter_map(parse_track).collect())
+        .unwrap_or_default())
+}
+
+pub(crate) fn parse_recently_played_body(body: &str) -> Result<Vec<SpotifyTrack>, SpotifyError> {
+    let json: serde_json::Value =
+        serde_json::from_str(body).map_err(|e| SpotifyError::Parse(e.to_string()))?;
+
+    Ok(json["items"]
         .as_array()
         .map(|items| {
             items
@@ -165,7 +177,51 @@ pub async fn get_recently_played(access_token: &str) -> Result<Vec<SpotifyTrack>
                 .filter_map(|item| parse_track(&item["track"]))
                 .collect()
         })
-        .unwrap_or_default();
+        .unwrap_or_default())
+}
 
-    Ok(tracks)
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::integrations::spotify::test_fixtures;
+
+    #[test]
+    fn parse_saved_tracks_body_reads_wrapped_tracks_and_next() {
+        let (tracks, has_more) = parse_saved_tracks_body(test_fixtures::SAVED_TRACKS_CURRENT)
+            .expect("valid saved tracks body");
+
+        assert!(has_more);
+        assert_eq!(tracks.len(), 1);
+        assert_eq!(tracks[0].name, "Sweet Disposition");
+        assert_eq!(tracks[0].artist, "The Temper Trap");
+        assert_eq!(tracks[0].album, "Conditions");
+        assert_eq!(tracks[0].duration_ms, 232000);
+        assert_eq!(tracks[0].uri, "spotify:track:saved-track-1");
+    }
+
+    #[test]
+    fn parse_top_tracks_body_reads_direct_track_items() {
+        let tracks = parse_top_tracks_body(test_fixtures::TOP_TRACKS_CURRENT)
+            .expect("valid top tracks body");
+
+        assert_eq!(tracks.len(), 1);
+        assert_eq!(tracks[0].name, "Electric Feel");
+        assert_eq!(tracks[0].artist, "MGMT");
+        assert_eq!(tracks[0].album, "Oracular Spectacular");
+        assert_eq!(tracks[0].duration_ms, 229000);
+        assert_eq!(tracks[0].uri, "spotify:track:top-track-1");
+    }
+
+    #[test]
+    fn parse_recently_played_body_reads_wrapped_tracks() {
+        let tracks = parse_recently_played_body(test_fixtures::RECENTLY_PLAYED_CURRENT)
+            .expect("valid recently played body");
+
+        assert_eq!(tracks.len(), 1);
+        assert_eq!(tracks[0].name, "Lisztomania");
+        assert_eq!(tracks[0].artist, "Phoenix");
+        assert_eq!(tracks[0].album, "Wolfgang Amadeus Phoenix");
+        assert_eq!(tracks[0].duration_ms, 241000);
+        assert_eq!(tracks[0].uri, "spotify:track:recent-track-1");
+    }
 }

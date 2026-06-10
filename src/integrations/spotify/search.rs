@@ -111,6 +111,7 @@ pub(crate) fn parse_track(item: &serde_json::Value) -> Option<SpotifyTrack> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::integrations::spotify::test_fixtures;
 
     #[test]
     fn search_tracks_url_encodes_query_and_offset() {
@@ -124,22 +125,8 @@ mod tests {
 
     #[test]
     fn parse_search_tracks_body_reads_items_and_next() {
-        let body = r#"{
-            "tracks": {
-                "items": [
-                    {
-                        "name": "Ojitos Lindos",
-                        "artists": [{ "name": "Bad Bunny" }],
-                        "album": { "name": "Un Verano Sin Ti" },
-                        "duration_ms": 258298,
-                        "uri": "spotify:track:abc"
-                    }
-                ],
-                "next": "https://api.spotify.com/v1/search?offset=10"
-            }
-        }"#;
-
-        let (tracks, has_more) = parse_search_tracks_body(body).expect("valid search body");
+        let (tracks, has_more) = parse_search_tracks_body(test_fixtures::SEARCH_TRACKS_CURRENT)
+            .expect("valid search body");
 
         assert!(has_more);
         assert_eq!(tracks.len(), 1);
@@ -147,6 +134,21 @@ mod tests {
         assert_eq!(tracks[0].artist, "Bad Bunny");
         assert_eq!(tracks[0].album, "Un Verano Sin Ti");
         assert_eq!(tracks[0].duration_ms, 258298);
-        assert_eq!(tracks[0].uri, "spotify:track:abc");
+        assert_eq!(tracks[0].uri, "spotify:track:6Xom58OOXk2SoU711L2IXO");
+    }
+
+    #[test]
+    fn parse_search_tracks_body_handles_missing_optional_fields() {
+        let (tracks, has_more) =
+            parse_search_tracks_body(test_fixtures::SEARCH_TRACKS_MISSING_OPTIONAL_FIELDS)
+                .expect("valid minimal search body");
+
+        assert!(!has_more);
+        assert_eq!(tracks.len(), 1);
+        assert_eq!(tracks[0].name, "Minimal Track");
+        assert_eq!(tracks[0].artist, "Unknown");
+        assert_eq!(tracks[0].album, "");
+        assert_eq!(tracks[0].duration_ms, 0);
+        assert_eq!(tracks[0].uri, "spotify:track:minimal-track");
     }
 }

@@ -168,6 +168,24 @@ cargo build --release
 .\target\release\reverbic.exe
 ```
 
+### Spotify test coverage
+
+`cargo test` includes local Spotify Web API fixtures under `src/integrations/spotify/fixtures/`.
+These tests are offline and do not require Spotify credentials, an allowlisted account, Premium,
+or network access.
+
+| Area | Fixtures validate | Live requirement not covered by local tests |
+|------|-------------------|---------------------------------------------|
+| Search | Track result parsing, pagination, missing optional fields | Valid client ID, scopes, API availability |
+| Library | Saved tracks, top tracks, recently played wrappers | User library contents and account history |
+| Albums | Saved albums and album track pagination | User library contents |
+| Playlists | Current and legacy playlist totals, item wrappers, non-track filtering | Private playlist access and scopes |
+| Playback / Devices | Track playback state, empty or non-track playback, device list parsing | Premium, active devices, playback transfer |
+| Profile | Full and minimal user profiles, missing optional fields | Account allowlist and `/v1/me` availability |
+
+Any future live Spotify checks should stay opt-in behind explicit environment variables.
+They should not run as part of normal `cargo test`.
+
 ### Spotify setup
 
 Spotify integration requires a client ID from the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard).
