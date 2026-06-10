@@ -52,7 +52,7 @@ cargo build --release
 ## Features
 
 - **Radio** — Search and play thousands of internet radio stations by name, genre, or country
-- **Spotify** — Remote control: search, play, pause, seek, volume, and device transfer (Premium required for playback)
+- **Spotify** — Remote control: search, play, pause, seek, volume, and device transfer (Premium required)
 - **YouTube** — Search and stream audio directly from YouTube
 - **Lightweight** — ~25 MB RAM and < 1% CPU at idle, starts in under a second
 - **Floating overlay** — always on top, with automatic game detection
@@ -61,7 +61,7 @@ cargo build --release
 - **Screensaver mode** — clock, station info, and track metadata when idle
 
 > [!NOTE]
-> Spotify's 2026 policy changes could restrict native playback (librespot) at any time. Remote Control mode (search and playback control via the official Spotify API) is unaffected and always works as a fallback. See [LEGAL.md](LEGAL.md) for details.
+> Spotify's 2026 policy changes could restrict native playback (librespot) at any time. Remote Control mode (search and playback control via the official Spotify API) does not depend on librespot and is a reasonable fallback for that risk, though it has its own requirements (your own Spotify Premium account and Developer app). See [LEGAL.md](LEGAL.md) for details.
 
 ---
 

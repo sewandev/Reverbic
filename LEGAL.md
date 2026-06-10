@@ -28,12 +28,13 @@ The librespot project is independent of Spotify AB and is not affiliated with or
 Spotify's 2026 policy updates around Widevine DRM enforcement and stricter API access (Developer Mode quotas, anti-scraping and anti-AI-misuse measures) target unofficial Spotify Connect clients like librespot and could change at any time without notice.
 
 - **Native playback risk**: Spotify could block or degrade librespot-based audio streaming for accounts that use it, up to and including temporary restrictions on the affected account. This risk applies only to native playback, not to the account itself in normal use.
-- **Remote Control is unaffected**: search, playback control, and device transfer via the official Spotify Web API (Remote Control mode) do not depend on librespot and will continue to work as a reliable fallback even if native playback is restricted.
+- **Remote Control mode**: search, playback control, and device transfer via the official Spotify Web API do not depend on librespot, so they are not subject to the native playback risk above. Remote Control mode still depends on the Spotify Developer Mode application that each user registers under their own account (see above) — Spotify's Developer Mode terms (including the Premium requirement for the app owner) can change at any time, so this is a reasonable fallback for the native playback risk specifically, not a permanent guarantee.
 - Users who prefer to avoid this risk entirely can use Reverbic exclusively in Remote Control mode, controlling playback on another official Spotify client (desktop, mobile, web).
 
 **References:**
 - [Spotify Developer Policy](https://developer.spotify.com/policy)
 - [Spotify Web Player Help (DRM/Widevine)](https://support.spotify.com/us/article/web-player-help/)
+- [Update on Developer Access and Platform Security (Feb 2026)](https://developer.spotify.com/blog/2026-02-06-update-on-developer-access-and-platform-security)
 
 ## Disclaimer
 
