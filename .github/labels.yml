@@ -45,3 +45,7 @@
 - name: radio
   color: "e44d26"
   description: Related to radio playback
+
+- name: youtube
+  color: "ff0000"
+  description: Related to YouTube integration
