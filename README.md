@@ -22,7 +22,7 @@
 </p>
 
 <p align="center">
-  <img src="assets/Preview-Reverbic.gif" alt="Reverbic preview" width="100%">
+  <img src="assets/Preview-Reverbic-1.5.0.gif" alt="Reverbic preview" width="100%">
 </p>
 
 ---

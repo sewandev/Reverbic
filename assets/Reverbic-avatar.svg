@@ -1,0 +1,57 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Degradado espectral de frecuencias (Diagonal) -->
+    <linearGradient id="reverbic-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00F0FF" />
+      <stop offset="50%" stop-color="#7000FF" />
+      <stop offset="100%" stop-color="#FF0055" />
+    </linearGradient>
+    
+    <!-- Filtro de brillo sutil estilo monitor CRT ajustado para 512x512 -->
+    <filter id="neon-glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="5" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Aplicamos el brillo a todos los elementos del logo -->
+  <g filter="url(#neon-glow)">
+    
+    <!-- ================= ICONO (Centrado arriba, tamaño x8) ================= -->
+    <!-- X: 116 a 396 | Y: 102 a 294 -->
+    <g transform="translate(36, -2) scale(8)">
+      <!-- Prompt '>' -->
+      <path d="M10 13L22 25L10 37V31L19 25L10 19V13Z" fill="url(#reverbic-gradient)" />
+      
+      <!-- Barras de Ecualizador (Colores estáticos para mantener el golpe visual) -->
+      <rect x="27" y="20" width="4" height="10" rx="1" fill="#00F0FF" />
+      <rect x="34" y="14" width="4" height="22" rx="1" fill="#7000FF" />
+      <rect x="41" y="23" width="4" height="4" rx="1" fill="#FF0055" />
+    </g>
+
+    <!-- ================= TIPOGRAFÍA (Centrada abajo, tamaño x2) ================= -->
+    <!-- X: 56 a 456 | Y: 358 a 410 -->
+    <g transform="translate(-54, 334) scale(2)" fill="url(#reverbic-gradient)">
+      <!-- R -->
+      <path d="M55 12H73C77 12 77 15 77 17V23C77 25 75 26 73 26H61V38H55V12ZM61 17V21H71V17H61ZM68 26L76 38H70L63 26H68Z" />
+      <!-- E -->
+      <path d="M83 12H103V17H89V22H100V27H89V33H103V38H83V12Z" />
+      <!-- V -->
+      <path d="M111 12H117L122 30L127 12H133L125 38H119L111 12Z" />
+      <!-- E -->
+      <path d="M139 12H159V17H145V22H156V27H145V33H159V38H139V12Z" />
+      <!-- R -->
+      <path d="M167 12H185C189 12 189 15 189 17V23C189 25 187 26 185 26H173V38H167V12ZM173 17V21H183V17H173ZM180 26L188 38H182L175 26H180Z" />
+      <!-- B -->
+      <path d="M195 12H211C215 12 215 15 215 17V23C215 24 213 25 211 25C214 25 215 27 215 29V33C215 36 212 38 209 38H195V12ZM201 17V22H208V17H201ZM201 27V33H209V27H201Z" />
+      <!-- I -->
+      <path d="M221 12H227V38H221V12Z" />
+      <!-- C -->
+      <path d="M255 17H239V33H255V38H233V12H255V17Z" />
+    </g>
+
+  </g>
+</svg>
