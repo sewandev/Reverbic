@@ -11,7 +11,7 @@ Versioning: [Semantic Versioning](https://semver.org/)
 ## [Unreleased]
 
 ### Security
-- Updated dependencies (OpenSSL and others) to resolve known security advisories reported by Dependabot
+- Updated dependencies (OpenSSL, ratatui, crossterm and others) to resolve known security advisories reported by Dependabot
 
 ---
 
