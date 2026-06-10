@@ -20,7 +20,8 @@ Write-Host "        Instalador de Reverbic         " -ForegroundColor Cyan
 Write-Host "  =====================================" -ForegroundColor Cyan
 Write-Host ""
 
-# REVERBIC_PRERELEASE=1 permite probar versiones beta publicadas como pre-release en GitHub.
+# Cualquier valor no vacio en REVERBIC_PRERELEASE activa este modo
+# (incluye versiones marcadas como pre-release en GitHub).
 if ($env:REVERBIC_PRERELEASE) {
     $releaseUrl = "https://api.github.com/repos/$repo/releases"
 } else {
@@ -46,13 +47,20 @@ try {
 
 $releaseData = if ($env:REVERBIC_PRERELEASE) { $response | Select-Object -First 1 } else { $response }
 
+# PROCESSOR_ARCHITECTURE refleja la arquitectura del proceso, no la del sistema:
+# en PowerShell de 32 bits sobre Windows de 64 bits, la real esta en PROCESSOR_ARCHITEW6432.
+$architecture = $env:PROCESSOR_ARCHITECTURE
+if ($env:PROCESSOR_ARCHITEW6432) {
+    $architecture = $env:PROCESSOR_ARCHITEW6432
+}
+
 # Solo se publican binarios x86_64. En ARM64 se usa ese mismo binario via emulacion.
-switch ($env:PROCESSOR_ARCHITECTURE) {
+switch ($architecture) {
     "ARM64" { $patterns = @("aarch64-windows", "x86_64-windows") }
     "AMD64" { $patterns = @("x86_64-windows") }
     default {
         Write-Host ""
-        Write-Host "Arquitectura no soportada: $($env:PROCESSOR_ARCHITECTURE)." -ForegroundColor Red
+        Write-Host "Arquitectura no soportada: $architecture." -ForegroundColor Red
         Write-Host "Reverbic requiere Windows de 64 bits (x86_64 o ARM64)." -ForegroundColor Yellow
         exit 1
     }
@@ -66,7 +74,7 @@ foreach ($pattern in $patterns) {
 
 if (-not $asset) {
     Write-Host ""
-    Write-Host "Error: No se encontro un ejecutable de Windows compatible en el release mas reciente." -ForegroundColor Red
+    Write-Host "Error: No se encontro un release con un ejecutable de Windows compatible." -ForegroundColor Red
     exit 1
 }
 
@@ -82,6 +90,9 @@ try {
 } catch {
     Write-Host ""
     Write-Host "La descarga fallo: $($_.Exception.Message)" -ForegroundColor Red
+    if ($_.Exception -is [System.IO.IOException]) {
+        Write-Host "Si Reverbic ya esta abierto desde una instalacion anterior, cierralo (presiona 'q') e intenta de nuevo." -ForegroundColor Yellow
+    }
     Remove-Item -Path $tempPath -Force -ErrorAction SilentlyContinue
     exit 1
 }
@@ -112,15 +123,26 @@ Write-Host "Reverbic se abrira a continuacion en esta misma terminal." -Foregrou
 Write-Host "Presiona 'q' para salir y ver el resumen de la instalacion." -ForegroundColor Yellow
 Write-Host ""
 
-& $tempPath
+try {
+    & $tempPath
+} catch {
+    Remove-Item -Path $tempPath -Force -ErrorAction SilentlyContinue
+    Write-Host ""
+    Write-Host "No se pudo iniciar Reverbic: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "Es posible que el antivirus haya bloqueado el ejecutable. Revisa Windows Defender" -ForegroundColor Yellow
+    Write-Host "o descarga manualmente desde: https://github.com/$repo/releases/latest" -ForegroundColor Yellow
+    exit 1
+}
 
 Remove-Item -Path $tempPath -Force -ErrorAction SilentlyContinue
 
 # Solo se agrega la carpeta de instalacion al PATH de esta sesion, sin pisar
 # otras variables que la sesion actual pudiera tener (ej. entornos virtuales).
-$installDir = Join-Path $env:LOCALAPPDATA "Programs\reverbic"
-if ($env:PATH -notlike "*$installDir*") {
-    $env:PATH += ";$installDir"
+if ($env:LOCALAPPDATA) {
+    $installDir = Join-Path $env:LOCALAPPDATA "Programs\reverbic"
+    if ($env:PATH -notlike "*$installDir*") {
+        $env:PATH += ";$installDir"
+    }
 }
 
 Write-Host ""
