@@ -1,0 +1,22 @@
+{
+  "devices": [
+    {
+      "id": "device-1",
+      "is_active": true,
+      "is_private_session": false,
+      "is_restricted": false,
+      "name": "MacBook Pro",
+      "type": "Computer",
+      "volume_percent": 74
+    },
+    {
+      "id": null,
+      "is_active": false,
+      "is_private_session": false,
+      "is_restricted": false,
+      "name": "Web Player",
+      "type": "Computer",
+      "volume_percent": 50
+    }
+  ]
+}

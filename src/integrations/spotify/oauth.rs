@@ -361,6 +361,7 @@ pub async fn fetch_username_from_token(token: &str) -> Result<String, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::integrations::spotify::test_fixtures;
 
     #[test]
     fn client_id_log_prefix_accepts_short_client_id() {
@@ -378,20 +379,12 @@ mod tests {
     }
 
     #[test]
-    fn parse_user_profile_accepts_complete_premium_profile() {
-        let profile = parse_user_profile_body(
-            r#"{
-                "display_name": "Sewan",
-                "id": "spotify-id",
-                "product": "premium",
-                "country": "CL",
-                "followers": { "total": 42 }
-            }"#,
-        )
-        .expect("profile parses");
+    fn parse_user_profile_accepts_complete_legacy_profile() {
+        let profile =
+            parse_user_profile_body(test_fixtures::PROFILE_LEGACY_FULL).expect("profile parses");
 
         assert_eq!(profile.display_name, "Sewan");
-        assert_eq!(profile.is_premium, Some(true));
+        assert_eq!(profile.is_premium, Some(false));
         assert_eq!(profile.country.as_deref(), Some("CL"));
         assert_eq!(profile.followers, Some(42));
     }
@@ -414,14 +407,10 @@ mod tests {
 
     #[test]
     fn parse_user_profile_keeps_premium_unknown_when_product_is_absent() {
-        let profile = parse_user_profile_body(
-            r#"{
-                "display_name": "Listener",
-                "id": "listener-id"
-            }"#,
-        )
-        .expect("profile parses");
+        let profile = parse_user_profile_body(test_fixtures::PROFILE_CURRENT_MINIMAL)
+            .expect("profile parses");
 
+        assert_eq!(profile.display_name, "Listener");
         assert_eq!(profile.is_premium, None);
         assert_eq!(profile.country, None);
         assert_eq!(profile.followers, None);

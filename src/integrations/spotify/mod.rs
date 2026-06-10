@@ -85,6 +85,11 @@ pub(crate) mod test_fixtures {
         include_str!("fixtures/playback_state_track_current.json");
     pub(crate) const PLAYBACK_STATE_EPISODE_OR_MISSING_ITEM: &str =
         include_str!("fixtures/playback_state_episode_or_missing_item.json");
+    pub(crate) const PLAYBACK_STATE_EPISODE_CURRENT: &str =
+        include_str!("fixtures/playback_state_episode_current.json");
+    pub(crate) const PLAYBACK_STATE_MISSING_DEVICE: &str =
+        include_str!("fixtures/playback_state_missing_device.json");
+    pub(crate) const DEVICES_CURRENT: &str = include_str!("fixtures/devices_current.json");
     pub(crate) const PROFILE_CURRENT_MINIMAL: &str =
         include_str!("fixtures/profile_current_minimal.json");
     pub(crate) const PROFILE_LEGACY_FULL: &str = include_str!("fixtures/profile_legacy_full.json");
@@ -118,6 +123,15 @@ pub(crate) mod test_fixtures {
             "playback_state_episode_or_missing_item",
             PLAYBACK_STATE_EPISODE_OR_MISSING_ITEM,
         ),
+        (
+            "playback_state_episode_current",
+            PLAYBACK_STATE_EPISODE_CURRENT,
+        ),
+        (
+            "playback_state_missing_device",
+            PLAYBACK_STATE_MISSING_DEVICE,
+        ),
+        ("devices_current", DEVICES_CURRENT),
         ("profile_current_minimal", PROFILE_CURRENT_MINIMAL),
         ("profile_legacy_full", PROFILE_LEGACY_FULL),
     ];

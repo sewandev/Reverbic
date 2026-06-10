@@ -1,0 +1,19 @@
+{
+  "device": {
+    "id": "device-1",
+    "is_active": true,
+    "name": "MacBook Pro",
+    "type": "Computer",
+    "volume_percent": 33
+  },
+  "is_playing": true,
+  "progress_ms": 1000,
+  "item": {
+    "id": "episode-1",
+    "name": "Episode Current",
+    "type": "episode",
+    "uri": "spotify:episode:episode-1",
+    "duration_ms": 1800000
+  },
+  "currently_playing_type": "episode"
+}
