@@ -1,0 +1,324 @@
+---
+import Layout from '../layouts/Layout.astro';
+import logo from '../assets/logo.svg';
+import reverbicAvatar from '../assets/reverbic-avatar.svg';
+---
+
+<Layout title="Reverbic - TUI Radio & Spotify Player">
+	<main>
+		<nav class="navbar glass">
+			<div class="nav-content">
+				<div class="logo-container">
+					<img src={logo.src} alt="Reverbic" class="nav-logo" />
+				</div>
+				<div class="nav-links">
+					<a href="https://github.com/sewandev/Reverbic" target="_blank" class="nav-link">GitHub</a>
+					<a href="https://github.com/sewandev/Reverbic/releases" target="_blank" class="btn btn-outline">Descargar</a>
+				</div>
+			</div>
+		</nav>
+
+		<section class="hero">
+			<div class="glow-effect"></div>
+			<img src={reverbicAvatar.src} alt="Reverbic" class="hero-logo" />
+			<h1>La terminal nunca sonó <span class="text-gradient">tan bien</span></h1>
+			<p class="subtitle">
+				Un reproductor ultraligero de Radio global, Spotify y YouTube directamente desde tu consola. Construido en Rust para Windows, macOS y Linux.
+			</p>
+			<div class="cta-group">
+				<a href="https://github.com/sewandev/Reverbic/releases/latest" class="btn btn-primary">
+					<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+					Descargar
+				</a>
+				<a href="https://github.com/sewandev/Reverbic" class="btn btn-secondary glass">
+					Ver código fuente
+				</a>
+			</div>
+		</section>
+
+		<section class="features">
+			<h2 class="section-title">Características Principales</h2>
+			<div class="grid">
+				<div class="card glass">
+					<div class="icon-wrapper">
+						<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 0 1 0 8.49m-8.48-.01a6 6 0 0 1 0-8.49m11.31-2.82a10 10 0 0 1 0 14.14m-14.14 0a10 10 0 0 1 0-14.14"/></svg>
+					</div>
+					<h3>Radio Global</h3>
+					<p>Busca y reproduce miles de estaciones de radio por nombre, género o país al instante.</p>
+				</div>
+				<div class="card glass">
+					<div class="icon-wrapper">
+						<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+					</div>
+					<h3>Control Spotify</h3>
+					<p>Busca, reproduce, pausa y transfiere de dispositivo mediante control remoto (Premium requerido para reproducir).</p>
+				</div>
+				<div class="card glass">
+					<div class="icon-wrapper">
+						<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17Z"/><path d="m10 15 5-3-5-3z"/></svg>
+					</div>
+					<h3>YouTube</h3>
+					<p>Busca y reproduce audio directamente desde YouTube sin salir de la terminal.</p>
+				</div>
+				<div class="card glass">
+					<div class="icon-wrapper">
+						<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 12h4"/><path d="M8 10v4"/><line x1="15" y1="13" x2="15.01" y2="13"/><line x1="18" y1="11" x2="18.01" y2="11"/></svg>
+					</div>
+					<h3>Gaming Overlay</h3>
+					<p>Widget flotante con detección automática de juegos para ver qué está sonando sin interrumpir tus partidas.</p>
+				</div>
+				<div class="card glass">
+					<div class="icon-wrapper">
+						<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+					</div>
+					<h3>Ligero y Rápido</h3>
+					<p>Desarrollado en Rust. Consume apenas ~25MB de RAM y &lt;1% de CPU en reposo. Sin instaladores.</p>
+				</div>
+			</div>
+		</section>
+		
+		<footer class="glass">
+			<p>Hecho con ❤️ por <a href="https://github.com/sewandev">sewandev</a></p>
+		</footer>
+	</main>
+</Layout>
+
+<style>
+	main {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		padding: 0 1rem;
+	}
+
+	.navbar {
+		width: 100%;
+		position: fixed;
+		top: 0;
+		z-index: 100;
+		padding: 1rem 0;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+	}
+
+	.nav-content {
+		max-width: 1200px;
+		margin: 0 auto;
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		padding: 0 2rem;
+	}
+
+	.logo-container {
+		display: flex;
+		align-items: center;
+	}
+
+	.nav-logo {
+		height: 32px;
+		width: auto;
+		object-fit: contain;
+	}
+
+	.nav-links {
+		display: flex;
+		align-items: center;
+		gap: 1.5rem;
+	}
+
+	.nav-link {
+		color: var(--text-muted);
+		text-decoration: none;
+		font-weight: 500;
+		transition: color 0.2s;
+	}
+
+	.nav-link:hover {
+		color: white;
+	}
+
+	.hero {
+		position: relative;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		text-align: center;
+		padding: 10rem 1rem 6rem;
+		max-width: 800px;
+	}
+
+	.glow-effect {
+		position: absolute;
+		top: 40%;
+		left: 50%;
+		transform: translate(-50%, -50%);
+		width: 500px;
+		height: 500px;
+		background: var(--primary);
+		filter: blur(140px);
+		opacity: 0.25;
+		z-index: -1;
+		border-radius: 50%;
+	}
+
+	.hero-logo {
+		width: 400px;
+		max-width: 90vw;
+		height: auto;
+		margin-bottom: 3rem;
+		filter: drop-shadow(0 0 30px rgba(23, 61, 220, 0.2));
+		animation: float 6s ease-in-out infinite;
+	}
+
+	@keyframes float {
+		0% { transform: translateY(0px); }
+		50% { transform: translateY(-8px); }
+		100% { transform: translateY(0px); }
+	}
+
+	h1 {
+		font-size: 3.5rem;
+		font-weight: 700;
+		line-height: 1.1;
+		margin-bottom: 1.5rem;
+		letter-spacing: -1px;
+	}
+
+	.text-gradient {
+		background: linear-gradient(135deg, #60a5fa, var(--primary));
+		-webkit-background-clip: text;
+		-webkit-text-fill-color: transparent;
+		background-clip: text;
+	}
+
+	.subtitle {
+		font-size: 1.25rem;
+		color: var(--text-muted);
+		margin-bottom: 3rem;
+		max-width: 600px;
+		line-height: 1.6;
+	}
+
+	.cta-group {
+		display: flex;
+		gap: 1rem;
+		flex-wrap: wrap;
+		justify-content: center;
+	}
+
+	.btn {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.875rem 1.5rem;
+		border-radius: 8px;
+		font-weight: 600;
+		text-decoration: none;
+		transition: all 0.2s ease;
+		font-family: 'Inter', sans-serif;
+	}
+
+	.btn-primary {
+		background: var(--primary);
+		color: white;
+		box-shadow: 0 4px 14px rgba(23, 61, 220, 0.4);
+	}
+
+	.btn-primary:hover {
+		background: var(--primary-hover);
+		transform: translateY(-2px);
+		box-shadow: 0 6px 20px rgba(23, 61, 220, 0.6);
+	}
+
+	.btn-secondary {
+		color: white;
+	}
+
+	.btn-secondary:hover {
+		background: rgba(255, 255, 255, 0.1);
+		transform: translateY(-2px);
+	}
+
+	.btn-outline {
+		border: 1px solid rgba(255,255,255,0.2);
+		color: white;
+		padding: 0.5rem 1rem;
+	}
+	
+	.btn-outline:hover {
+		background: rgba(255,255,255,0.1);
+	}
+
+	.features {
+		max-width: 1200px;
+		width: 100%;
+		padding: 4rem 1rem;
+	}
+
+	.section-title {
+		text-align: center;
+		font-size: 2.5rem;
+		margin-bottom: 3rem;
+	}
+
+	.grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+		gap: 2rem;
+	}
+
+	.card {
+		padding: 2.5rem 2rem;
+		border-radius: 16px;
+		transition: transform 0.3s ease, background 0.3s ease;
+		border: 1px solid rgba(255, 255, 255, 0.03);
+	}
+
+	.card:hover {
+		transform: translateY(-5px);
+		background: rgba(255, 255, 255, 0.08);
+		border-color: rgba(23, 61, 220, 0.3);
+	}
+
+	.icon-wrapper {
+		margin-bottom: 1.5rem;
+		display: inline-flex;
+		padding: 12px;
+		border-radius: 12px;
+		background: rgba(23, 61, 220, 0.1);
+	}
+
+	.card h3 {
+		font-size: 1.25rem;
+		margin-bottom: 1rem;
+	}
+
+	.card p {
+		color: var(--text-muted);
+		line-height: 1.6;
+	}
+	
+	footer {
+		width: 100%;
+		text-align: center;
+		padding: 2rem;
+		margin-top: 4rem;
+		border-top: 1px solid rgba(255, 255, 255, 0.05);
+		color: var(--text-muted);
+	}
+	
+	footer a {
+		color: var(--primary);
+		text-decoration: none;
+		font-weight: 600;
+	}
+
+	@media (max-width: 768px) {
+		h1 {
+			font-size: 2.5rem;
+		}
+		.nav-links {
+			display: none;
+		}
+	}
+</style>

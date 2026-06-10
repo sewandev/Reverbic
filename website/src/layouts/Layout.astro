@@ -1,0 +1,64 @@
+---
+interface Props {
+	title: string;
+}
+
+const { title } = Astro.props;
+---
+
+<!doctype html>
+<html lang="es">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="description" content="Reverbic - The Ultimate TUI Radio & Spotify Player for Windows" />
+		<meta name="viewport" content="width=device-width" />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<meta name="generator" content={Astro.generator} />
+		<link rel="preconnect" href="https://fonts.googleapis.com">
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+		<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+		<title>{title}</title>
+	</head>
+	<body>
+		<slot />
+	</body>
+</html>
+<style is:global>
+	:root {
+		--primary: #173DDC;
+		--primary-hover: #2951f2;
+		--bg-dark: #0a0a0f;
+		--bg-card: rgba(255, 255, 255, 0.03);
+		--text-main: #ffffff;
+		--text-muted: #94a3b8;
+	}
+	* {
+		box-sizing: border-box;
+		margin: 0;
+		padding: 0;
+	}
+	html {
+		font-family: 'Inter', system-ui, sans-serif;
+		background: var(--bg-dark);
+		color: var(--text-main);
+		scroll-behavior: smooth;
+	}
+	body {
+		min-height: 100vh;
+		background-image: 
+			radial-gradient(circle at 15% 50%, rgba(23, 61, 220, 0.15), transparent 25%),
+			radial-gradient(circle at 85% 30%, rgba(23, 61, 220, 0.1), transparent 25%);
+		background-attachment: fixed;
+	}
+	h1, h2, h3, h4, h5, h6 {
+		font-family: 'Poppins', sans-serif;
+	}
+	
+	/* Glassmorphism utilities */
+	.glass {
+		background: var(--bg-card);
+		backdrop-filter: blur(10px);
+		-webkit-backdrop-filter: blur(10px);
+		border: 1px solid rgba(255, 255, 255, 0.05);
+	}
+</style>
