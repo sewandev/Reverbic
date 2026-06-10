@@ -10,6 +10,9 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ## [Unreleased]
 
+### Fixed
+- Fixed a version mismatch where the application reported v1.4.2 instead of v1.5.0, which caused the auto-updater to repeatedly suggest updating to the version already installed
+
 ---
 
 ## [1.5.0] — 2026-06-09
