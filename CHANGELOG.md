@@ -10,6 +10,10 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ## [Unreleased]
 
+---
+
+## [1.5.0] — 2026-06-09
+
 ### Added
 - First-launch welcome stepper with logo animation, ambient music and initial setup options (overlay, autoplay, volume restore)
 - "Show welcome again" option in Settings to replay the first-launch experience
@@ -147,7 +151,11 @@ Versioning: [Semantic Versioning](https://semver.org/)
 - Issue templates (bug, feature, question)
 - Logo and assets embedded in the executable (no external dependencies)
 
-[Unreleased]: https://github.com/sewandev/Reverbic/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/sewandev/Reverbic/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/sewandev/Reverbic/compare/v1.4.2...v1.5.0
+[1.4.2]: https://github.com/sewandev/Reverbic/compare/v1.4.1...v1.4.2
+[1.4.1]: https://github.com/sewandev/Reverbic/compare/v1.4.0...v1.4.1
+[1.4.0]: https://github.com/sewandev/Reverbic/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/sewandev/Reverbic/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/sewandev/Reverbic/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/sewandev/Reverbic/compare/v1.0.0...v1.1.0
