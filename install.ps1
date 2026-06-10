@@ -98,19 +98,28 @@ try {
 }
 
 Write-Host "[3/4] Verificando integridad..."
-if ($asset.digest -and $asset.digest -match '^sha256:([0-9a-fA-F]{64})$') {
-    $expectedHash = $matches[1].ToLower()
-    $actualHash = (Get-FileHash -Path $tempPath -Algorithm SHA256).Hash.ToLower()
-    if ($actualHash -ne $expectedHash) {
-        Write-Host ""
-        Write-Host "La verificacion de integridad SHA256 fallo." -ForegroundColor Red
-        Write-Host "La descarga pudo haberse corrompido o manipulado. Instalacion abortada." -ForegroundColor Yellow
-        Remove-Item -Path $tempPath -Force -ErrorAction SilentlyContinue
-        exit 1
+try {
+    if ($asset.digest -and $asset.digest -match '^sha256:([0-9a-fA-F]{64})$') {
+        $expectedHash = $matches[1].ToLower()
+        $actualHash = (Get-FileHash -Path $tempPath -Algorithm SHA256).Hash.ToLower()
+        if ($actualHash -ne $expectedHash) {
+            Write-Host ""
+            Write-Host "La verificacion de integridad SHA256 fallo." -ForegroundColor Red
+            Write-Host "La descarga pudo haberse corrompido o manipulado. Instalacion abortada." -ForegroundColor Yellow
+            Remove-Item -Path $tempPath -Force -ErrorAction SilentlyContinue
+            exit 1
+        }
+        Write-Host "      Hash SHA256 verificado correctamente." -ForegroundColor DarkGray
+    } else {
+        Write-Host "      Advertencia: el release no incluye un hash SHA256 para verificar." -ForegroundColor DarkYellow
     }
-    Write-Host "      Hash SHA256 verificado correctamente." -ForegroundColor DarkGray
-} else {
-    Write-Host "      Advertencia: el release no incluye un hash SHA256 para verificar." -ForegroundColor DarkYellow
+} catch {
+    Write-Host ""
+    Write-Host "No se pudo verificar el archivo descargado: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "Es posible que el antivirus lo haya puesto en cuarentena o lo este bloqueando." -ForegroundColor Yellow
+    Write-Host "Revisa Windows Defender u otro antivirus e intenta de nuevo." -ForegroundColor Yellow
+    Remove-Item -Path $tempPath -Force -ErrorAction SilentlyContinue
+    exit 1
 }
 
 # Quita la marca "descargado de internet" del binario ya verificado para evitar
