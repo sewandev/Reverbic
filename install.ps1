@@ -4,8 +4,8 @@ $ErrorActionPreference = "Stop"
 
 $repo = "sewandev/Reverbic"
 
-# Solo agrega parametros de proxy si Windows tiene uno configurado para esta URL;
-# pasar -ProxyUseDefaultCredentials sin -Proxy provoca un error en redes sin proxy.
+# Only add proxy parameters if Windows has one configured for this URL;
+# passing -ProxyUseDefaultCredentials without -Proxy causes an error on networks without a proxy.
 function Get-ProxyParams([string]$uri) {
     $proxy = [System.Net.WebRequest]::GetSystemWebProxy().GetProxy([Uri]$uri)
     if ($proxy -and $proxy.AbsoluteUri -ne $uri) {
@@ -16,52 +16,52 @@ function Get-ProxyParams([string]$uri) {
 
 Write-Host ""
 Write-Host "  =====================================" -ForegroundColor Cyan
-Write-Host "        Instalador de Reverbic         " -ForegroundColor Cyan
+Write-Host "          Reverbic Installer           " -ForegroundColor Cyan
 Write-Host "  =====================================" -ForegroundColor Cyan
 Write-Host ""
 
-# Cualquier valor no vacio en REVERBIC_PRERELEASE activa este modo
-# (incluye versiones marcadas como pre-release en GitHub).
+# Any non-empty value in REVERBIC_PRERELEASE enables this mode
+# (includes versions marked as pre-release on GitHub).
 if ($env:REVERBIC_PRERELEASE) {
     $releaseUrl = "https://api.github.com/repos/$repo/releases"
 } else {
     $releaseUrl = "https://api.github.com/repos/$repo/releases/latest"
 }
 
-Write-Host "[1/4] Buscando la ultima version en GitHub..."
+Write-Host "[1/4] Looking for the latest version on GitHub..."
 try {
     $proxyParams = Get-ProxyParams $releaseUrl
     $response = Invoke-RestMethod -Uri $releaseUrl -UseBasicParsing @proxyParams
 } catch {
     if ($_.Exception.Response -and $_.Exception.Response.StatusCode.value__ -eq 403) {
         Write-Host ""
-        Write-Host "GitHub limito temporalmente las peticiones anonimas desde tu red (HTTP 403)." -ForegroundColor Red
-        Write-Host "Intenta de nuevo en unos minutos o descarga Reverbic manualmente desde:" -ForegroundColor Yellow
+        Write-Host "GitHub temporarily rate-limited anonymous requests from your network (HTTP 403)." -ForegroundColor Red
+        Write-Host "Try again in a few minutes or download Reverbic manually from:" -ForegroundColor Yellow
         Write-Host "  https://github.com/$repo/releases/latest" -ForegroundColor Cyan
     } else {
         Write-Host ""
-        Write-Host "No se pudo contactar a GitHub: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "Could not contact GitHub: $($_.Exception.Message)" -ForegroundColor Red
     }
     exit 1
 }
 
 $releaseData = if ($env:REVERBIC_PRERELEASE) { $response | Select-Object -First 1 } else { $response }
 
-# PROCESSOR_ARCHITECTURE refleja la arquitectura del proceso, no la del sistema:
-# en PowerShell de 32 bits sobre Windows de 64 bits, la real esta en PROCESSOR_ARCHITEW6432.
+# PROCESSOR_ARCHITECTURE reflects the process architecture, not the system's:
+# on 32-bit PowerShell running on 64-bit Windows, the real one is in PROCESSOR_ARCHITEW6432.
 $architecture = $env:PROCESSOR_ARCHITECTURE
 if ($env:PROCESSOR_ARCHITEW6432) {
     $architecture = $env:PROCESSOR_ARCHITEW6432
 }
 
-# Solo se publican binarios x86_64. En ARM64 se usa ese mismo binario via emulacion.
+# Only x86_64 binaries are published. On ARM64, the same binary is used via emulation.
 switch ($architecture) {
     "ARM64" { $patterns = @("aarch64-windows", "x86_64-windows") }
     "AMD64" { $patterns = @("x86_64-windows") }
     default {
         Write-Host ""
-        Write-Host "Arquitectura no soportada: $architecture." -ForegroundColor Red
-        Write-Host "Reverbic requiere Windows de 64 bits (x86_64 o ARM64)." -ForegroundColor Yellow
+        Write-Host "Unsupported architecture: $architecture." -ForegroundColor Red
+        Write-Host "Reverbic requires 64-bit Windows (x86_64 or ARM64)." -ForegroundColor Yellow
         exit 1
     }
 }
@@ -74,7 +74,7 @@ foreach ($pattern in $patterns) {
 
 if (-not $asset) {
     Write-Host ""
-    Write-Host "Error: No se encontro un release con un ejecutable de Windows compatible." -ForegroundColor Red
+    Write-Host "Error: No release with a compatible Windows executable was found." -ForegroundColor Red
     exit 1
 }
 
@@ -83,53 +83,53 @@ $fileName = $asset.name
 $tempDir = [System.IO.Path]::GetTempPath()
 $tempPath = Join-Path $tempDir $fileName
 
-Write-Host "[2/4] Descargando $($releaseData.tag_name) ($fileName)..."
+Write-Host "[2/4] Downloading $($releaseData.tag_name) ($fileName)..."
 try {
     $proxyParams = Get-ProxyParams $downloadUrl
     Invoke-WebRequest -Uri $downloadUrl -OutFile $tempPath -UseBasicParsing @proxyParams
 } catch {
     Write-Host ""
-    Write-Host "La descarga fallo: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "Download failed: $($_.Exception.Message)" -ForegroundColor Red
     if ($_.Exception -is [System.IO.IOException]) {
-        Write-Host "Si Reverbic ya esta abierto desde una instalacion anterior, cierralo (presiona 'q') e intenta de nuevo." -ForegroundColor Yellow
+        Write-Host "If Reverbic is already open from a previous installation, close it (press 'q') and try again." -ForegroundColor Yellow
     }
     Remove-Item -Path $tempPath -Force -ErrorAction SilentlyContinue
     exit 1
 }
 
-Write-Host "[3/4] Verificando integridad..."
+Write-Host "[3/4] Verifying integrity..."
 try {
     if ($asset.digest -and $asset.digest -match '^sha256:([0-9a-fA-F]{64})$') {
         $expectedHash = $matches[1].ToLower()
         $actualHash = (Get-FileHash -Path $tempPath -Algorithm SHA256).Hash.ToLower()
         if ($actualHash -ne $expectedHash) {
             Write-Host ""
-            Write-Host "La verificacion de integridad SHA256 fallo." -ForegroundColor Red
-            Write-Host "La descarga pudo haberse corrompido o manipulado. Instalacion abortada." -ForegroundColor Yellow
+            Write-Host "SHA256 integrity verification failed." -ForegroundColor Red
+            Write-Host "The download may have been corrupted or tampered with. Installation aborted." -ForegroundColor Yellow
             Remove-Item -Path $tempPath -Force -ErrorAction SilentlyContinue
             exit 1
         }
-        Write-Host "      Hash SHA256 verificado correctamente." -ForegroundColor DarkGray
+        Write-Host "      SHA256 hash verified successfully." -ForegroundColor DarkGray
     } else {
-        Write-Host "      Advertencia: el release no incluye un hash SHA256 para verificar." -ForegroundColor DarkYellow
+        Write-Host "      Warning: the release does not include a SHA256 hash to verify." -ForegroundColor DarkYellow
     }
 } catch {
     Write-Host ""
-    Write-Host "No se pudo verificar el archivo descargado: $($_.Exception.Message)" -ForegroundColor Red
-    Write-Host "Es posible que el antivirus lo haya puesto en cuarentena o lo este bloqueando." -ForegroundColor Yellow
-    Write-Host "Revisa Windows Defender u otro antivirus e intenta de nuevo." -ForegroundColor Yellow
+    Write-Host "Could not verify the downloaded file: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "Your antivirus may have quarantined or is blocking it." -ForegroundColor Yellow
+    Write-Host "Check Windows Defender or your antivirus and try again." -ForegroundColor Yellow
     Remove-Item -Path $tempPath -Force -ErrorAction SilentlyContinue
     exit 1
 }
 
-# Quita la marca "descargado de internet" del binario ya verificado para evitar
-# el aviso de SmartScreen al iniciarlo.
+# Removes the "downloaded from the internet" mark from the already-verified binary to avoid
+# the SmartScreen warning when launching it.
 Unblock-File -Path $tempPath -ErrorAction SilentlyContinue
 
-Write-Host "[4/4] Iniciando Reverbic..."
+Write-Host "[4/4] Starting Reverbic..."
 Write-Host ""
-Write-Host "Reverbic se abrira a continuacion en esta misma terminal." -ForegroundColor Yellow
-Write-Host "Presiona 'q' para salir y ver el resumen de la instalacion." -ForegroundColor Yellow
+Write-Host "Reverbic will now open in this same terminal." -ForegroundColor Yellow
+Write-Host "Press 'q' to exit and see the installation summary." -ForegroundColor Yellow
 Write-Host ""
 
 try {
@@ -137,16 +137,16 @@ try {
 } catch {
     Remove-Item -Path $tempPath -Force -ErrorAction SilentlyContinue
     Write-Host ""
-    Write-Host "No se pudo iniciar Reverbic: $($_.Exception.Message)" -ForegroundColor Red
-    Write-Host "Es posible que el antivirus haya bloqueado el ejecutable. Revisa Windows Defender" -ForegroundColor Yellow
-    Write-Host "o descarga manualmente desde: https://github.com/$repo/releases/latest" -ForegroundColor Yellow
+    Write-Host "Could not start Reverbic: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "Your antivirus may have blocked the executable. Check Windows Defender" -ForegroundColor Yellow
+    Write-Host "or download it manually from: https://github.com/$repo/releases/latest" -ForegroundColor Yellow
     exit 1
 }
 
 Remove-Item -Path $tempPath -Force -ErrorAction SilentlyContinue
 
-# Solo se agrega la carpeta de instalacion al PATH de esta sesion, sin pisar
-# otras variables que la sesion actual pudiera tener (ej. entornos virtuales).
+# Only append Reverbic's install folder to this session's PATH, without overwriting
+# other variables the current session might have (e.g. virtual environments).
 if ($env:LOCALAPPDATA) {
     $installDir = Join-Path $env:LOCALAPPDATA "Programs\reverbic"
     if ($env:PATH -notlike "*$installDir*") {
@@ -156,9 +156,9 @@ if ($env:LOCALAPPDATA) {
 
 Write-Host ""
 Write-Host "======================================================" -ForegroundColor Green
-Write-Host "Instalacion completada con exito!" -ForegroundColor Green
+Write-Host "Installation completed successfully!" -ForegroundColor Green
 Write-Host "======================================================" -ForegroundColor Green
 Write-Host ""
-Write-Host "Reverbic se ha copiado a tu carpeta local y se ha anadido a tu PATH." -ForegroundColor Yellow
-Write-Host "Ya puedes escribir 'reverbic' desde esta o cualquier otra terminal." -ForegroundColor Yellow
+Write-Host "Reverbic has been copied to your local folder and added to your PATH." -ForegroundColor Yellow
+Write-Host "You can now type 'reverbic' from this or any other terminal." -ForegroundColor Yellow
 Write-Host ""
