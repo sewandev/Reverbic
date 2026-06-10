@@ -60,6 +60,9 @@ cargo build --release
 - **Favorites & crossfade** — save your favorite stations with smooth crossfade between them
 - **Screensaver mode** — clock, station info, and track metadata when idle
 
+> [!NOTE]
+> Spotify's 2026 policy changes could restrict native playback (librespot) at any time. Remote Control mode (search and playback control via the official Spotify API) is unaffected and always works as a fallback. See [LEGAL.md](LEGAL.md) for details.
+
 ---
 
 ## Screenshots

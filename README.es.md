@@ -60,6 +60,9 @@ cargo build --release
 - **Favoritas y crossfade** — guarda tus estaciones favoritas con crossfade suave entre ellas
 - **Protector de pantalla** — reloj, información de la estación y metadatos de la canción cuando está inactivo
 
+> [!NOTE]
+> Los cambios de política de Spotify en 2026 podrían restringir la reproducción nativa (librespot) en cualquier momento. El modo de Control Remoto (búsqueda y control de reproducción vía la API oficial de Spotify) no se ve afectado y siempre funciona como respaldo. Ver [LEGAL.md](LEGAL.md) para más detalles (en inglés).
+
 ---
 
 ## Capturas de pantalla
