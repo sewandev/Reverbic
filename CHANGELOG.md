@@ -10,14 +10,6 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ## [Unreleased]
 
-### Added
-- First-launch welcome stepper with logo animation, ambient music and initial setup options (overlay, autoplay, volume restore)
-- "Show welcome again" option in Settings to replay the first-launch experience
-- Spotify continuous playback: after a track ends, the next track in the loaded context plays automatically (batch-load via Spirc for gapless advance)
-- Spotify radio mode: when the queue is exhausted, similar tracks from the same artist play automatically; can be toggled in Settings
-- Spotify "Liked Songs" tab: browse and play saved tracks with pagination
-- Spotify Playlists tab: browse user playlists, open them, and play tracks with sequential continuation
-
 ---
 
 ## [1.5.0] — 2026-06-09
