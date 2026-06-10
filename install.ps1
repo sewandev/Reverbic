@@ -97,6 +97,8 @@ try {
     exit 1
 }
 
+# By default the script aborts if the release asset has no SHA256 digest to check
+# against. REVERBIC_SKIP_VERIFY is an explicit opt-in to run an unverified binary.
 Write-Host "[3/4] Verifying integrity..."
 try {
     if ($asset.digest -and $asset.digest -match '^sha256:([0-9a-fA-F]{64})$') {
@@ -110,8 +112,16 @@ try {
             exit 1
         }
         Write-Host "      SHA256 hash verified successfully." -ForegroundColor DarkGray
+    } elseif ($env:REVERBIC_SKIP_VERIFY) {
+        Write-Host ""
+        Write-Host "      Warning: the release does not include a SHA256 hash, and REVERBIC_SKIP_VERIFY is set." -ForegroundColor DarkYellow
+        Write-Host "      Running the downloaded file WITHOUT integrity verification." -ForegroundColor DarkYellow
     } else {
-        Write-Host "      Warning: the release does not include a SHA256 hash to verify." -ForegroundColor DarkYellow
+        Write-Host ""
+        Write-Host "Error: the release asset does not include a SHA256 hash to verify." -ForegroundColor Red
+        Write-Host "Installation aborted for safety. To proceed at your own risk, set REVERBIC_SKIP_VERIFY=1 and try again." -ForegroundColor Yellow
+        Remove-Item -Path $tempPath -Force -ErrorAction SilentlyContinue
+        exit 1
     }
 } catch {
     Write-Host ""

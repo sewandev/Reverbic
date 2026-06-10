@@ -13,6 +13,7 @@ Versionado: [Semantic Versioning](https://semver.org/)
 ### Seguridad
 - Se actualizaron dependencias (OpenSSL, ratatui, crossterm y otras) para corregir vulnerabilidades conocidas reportadas por Dependabot
 - El instalador de Windows ahora verifica el hash SHA256 del binario descargado antes de ejecutarlo, y solo retira la marca de "descargado de internet" tras una verificación exitosa
+- El instalador de Windows ahora aborta si el asset del release no incluye un hash SHA256 contra el cual verificar, en vez de ejecutar un binario sin verificar; esto se puede omitir bajo el propio riesgo del usuario mediante la variable de entorno `REVERBIC_SKIP_VERIFY`
 
 ### Cambiado
 - El instalador de Windows ya no sobrescribe el PATH de la sesión actual; solo agrega la carpeta de instalación de Reverbic si falta
