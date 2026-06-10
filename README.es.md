@@ -52,7 +52,7 @@ cargo build --release
 ## Funcionalidades
 
 - **Radio** — Busca y reproduce miles de estaciones de radio por nombre, género o país
-- **Spotify** — Control remoto: buscar, reproducir, pausar, seek, volumen y transferencia de dispositivos (Premium requerido para reproducir)
+- **Spotify** — Control remoto: buscar, reproducir, pausar, seek, volumen y transferencia de dispositivos (Premium requerido)
 - **YouTube** — Busca y reproduce audio directamente desde YouTube
 - **Liviano** — ~25 MB de RAM y < 1% de CPU en reposo, inicia en menos de un segundo
 - **Overlay flotante** — siempre encima, con detección automática de juegos
@@ -61,7 +61,7 @@ cargo build --release
 - **Protector de pantalla** — reloj, información de la estación y metadatos de la canción cuando está inactivo
 
 > [!NOTE]
-> Los cambios de política de Spotify en 2026 podrían restringir la reproducción nativa (librespot) en cualquier momento. El modo de Control Remoto (búsqueda y control de reproducción vía la API oficial de Spotify) no se ve afectado y siempre funciona como respaldo. Ver [LEGAL.md](LEGAL.md) para más detalles (en inglés).
+> Los cambios de política de Spotify en 2026 podrían restringir la reproducción nativa (librespot) en cualquier momento. El modo de Control Remoto (búsqueda y control de reproducción vía la API oficial de Spotify) no depende de librespot y es un respaldo razonable para ese riesgo, aunque tiene sus propios requisitos (tu propia cuenta Premium de Spotify y app de Developer). Ver [LEGAL.md](LEGAL.md) para más detalles (en inglés).
 
 ---
 
