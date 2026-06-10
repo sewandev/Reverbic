@@ -12,6 +12,15 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ### Security
 - Updated dependencies (OpenSSL, ratatui, crossterm and others) to resolve known security advisories reported by Dependabot
+- The Windows install script now verifies the SHA256 checksum of the downloaded binary before running it, and removes the "downloaded from the internet" mark only after verification succeeds
+- The Windows install script now aborts if the release asset has no SHA256 digest to verify against, instead of running an unverified binary; this can be overridden at the user's own risk via the `REVERBIC_SKIP_VERIFY` environment variable
+
+### Changed
+- The Windows install script no longer overwrites the current session's PATH; it only appends Reverbic's install folder if missing
+- The Windows install script now shows a clearer message before launching Reverbic, since the terminal stays occupied until the app is closed with `q`
+
+### Fixed
+- The Windows install script now handles network failures and GitHub API rate limits with friendly messages instead of raw errors, removes the temporary installer file afterwards, and supports ARM64 (via x86_64 emulation) and pre-release builds (via the `REVERBIC_PRERELEASE` environment variable)
 
 ---
 
