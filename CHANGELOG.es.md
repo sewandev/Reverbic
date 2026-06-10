@@ -10,6 +10,9 @@ Versionado: [Semantic Versioning](https://semver.org/)
 
 ## [Sin publicar]
 
+### Corregido
+- Se corrigió un desajuste de versión donde la aplicación reportaba v1.4.2 en lugar de v1.5.0, lo que provocaba que el actualizador automático sugiriera repetidamente actualizar a la versión ya instalada
+
 ---
 
 ## [1.5.0] — 2026-06-09
