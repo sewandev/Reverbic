@@ -10,6 +10,10 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ## [Unreleased]
 
+---
+
+## [1.5.1] — 2026-06-10
+
 ### Fixed
 - Fixed a version mismatch where the application reported v1.4.2 instead of v1.5.0, which caused the auto-updater to repeatedly suggest updating to the version already installed
 
@@ -154,7 +158,8 @@ Versioning: [Semantic Versioning](https://semver.org/)
 - Issue templates (bug, feature, question)
 - Logo and assets embedded in the executable (no external dependencies)
 
-[Unreleased]: https://github.com/sewandev/Reverbic/compare/v1.5.0...HEAD
+[Unreleased]: https://github.com/sewandev/Reverbic/compare/v1.5.1...HEAD
+[1.5.1]: https://github.com/sewandev/Reverbic/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/sewandev/Reverbic/compare/v1.4.2...v1.5.0
 [1.4.2]: https://github.com/sewandev/Reverbic/compare/v1.4.1...v1.4.2
 [1.4.1]: https://github.com/sewandev/Reverbic/compare/v1.4.0...v1.4.1
