@@ -14,12 +14,12 @@ pub use devices::SpotifyPlaybackState;
 
 pub enum AuthResult {
     Success {
-        username: String,
+        username: Option<String>,
         search_token: String,
         refresh_token: String,
         audio_token: String,
         native_error: Option<String>,
-        is_premium: bool,
+        is_premium: Option<bool>,
         country: Option<String>,
         followers: Option<u32>,
     },

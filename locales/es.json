@@ -170,6 +170,7 @@
   "integrations.spotify.web.retry": "[Esc] Volver",
   "integrations.spotify.error.premium_required": "Esta funcionalidad requiere cuenta Spotify Premium",
   "integrations.spotify.error.not_authorized": "Cuenta no autorizada — agrega tu email al allowlist en el Spotify Developer Dashboard",
+  "integrations.spotify.error.development_mode_restricted": "Spotify rechazo el acceso por Development Mode. Revisa que el owner tenga Premium y que esta cuenta este en el allowlist del Developer Dashboard.",
   "integrations.spotify.error.invalid_client": "Client ID inválido o no configurado. Ve a Ajustes (Alt+O) > Spotify Client ID.",
   "integrations.spotify.error.generic": "No se pudo conectar a Spotify. Intenta iniciar sesión de nuevo.",
   "integrations.spotify.error.hint": "Instrucciones: github.com/sewandev/Reverbic",

@@ -202,6 +202,7 @@ impl<'a> SearchModalWidget<'a> {
 
         let premium_badge = self
             .spotify_is_premium
+            .is_some_and(|is_premium| is_premium)
             .then(|| t("integrations.spotify.account_premium"));
         let badge_len = premium_badge
             .as_ref()

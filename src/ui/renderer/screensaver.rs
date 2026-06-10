@@ -19,7 +19,7 @@ pub(super) struct ScreensaverCtx<'a> {
     pub details: Option<&'a StationDetails>,
     pub is_favorite: bool,
     pub spotify_name: Option<&'a str>,
-    pub spotify_premium: bool,
+    pub spotify_premium: Option<bool>,
     pub enriched_track: Option<&'a crate::metadata::EnrichedTrack>,
     pub show_clock: bool,
     pub border_tick: u32,
@@ -251,7 +251,7 @@ pub(super) fn render_screensaver(frame: &mut Frame, area: Rect, ctx: Screensaver
     }
     if let Some(name) = spotify_name {
         let name_tc = strings::title_case(name);
-        let label = if spotify_premium {
+        let label = if spotify_premium.is_some_and(|is_premium| is_premium) {
             format!("★  {}  ·  {}", name_tc, t("integrations.spotify.premium"))
         } else {
             name_tc
@@ -661,7 +661,7 @@ pub(super) fn render_spotify_screensaver(
     profile_name: Option<&str>,
     country: Option<&str>,
     followers: Option<u32>,
-    is_premium: bool,
+    is_premium: Option<bool>,
     show_clock: bool,
     border_tick: u32,
     palette: &Palette,
@@ -678,7 +678,7 @@ pub(super) fn render_spotify_screensaver(
     }
 
     let has_name_row = profile_name.is_some() || country.is_some();
-    let has_plan_row = is_premium || followers.is_some();
+    let has_plan_row = is_premium.is_some_and(|is_premium| is_premium) || followers.is_some();
     let profile_rows = u16::from(has_name_row) + u16::from(has_plan_row);
     let has_profile = profile_rows > 0;
 
@@ -891,7 +891,7 @@ pub(super) fn render_spotify_screensaver(
         }
 
         if has_plan_row {
-            let plan_str = if is_premium {
+            let plan_str = if is_premium.is_some_and(|is_premium| is_premium) {
                 t("integrations.spotify.premium")
             } else {
                 String::new()

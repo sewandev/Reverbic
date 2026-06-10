@@ -122,24 +122,37 @@ fn spotify_native_error_is_fatal(raw: &str) -> bool {
 }
 
 fn friendly_spotify_error(raw: &str, client_id: &str) -> String {
+    let lower = raw.to_ascii_lowercase();
     let is_invalid_client = raw.contains("invalid_client")
         || raw.contains("invalid client")
         || raw.contains("access_token");
     if client_id.is_empty() || is_invalid_client {
         crate::i18n::t("integrations.spotify.error.invalid_client")
+    } else if lower.contains("premium") {
+        crate::i18n::t("integrations.spotify.error.premium_required")
+    } else if lower.contains("developer dashboard")
+        || lower.contains("development mode")
+        || lower.contains("allowlist")
+        || lower.contains("not registered")
+        || lower.contains("blocked")
+        || lower.contains("restricted")
+    {
+        crate::i18n::t("integrations.spotify.error.development_mode_restricted")
     } else {
         crate::i18n::t("integrations.spotify.error.generic")
     }
 }
 
+fn has_spotify_session(config: &Config) -> bool {
+    config.spotify.refresh_token.is_some()
+}
+
 impl App {
     pub fn init_integrations(&mut self) {
-        let has_session = self.config.spotify.display_name.is_some()
-            && self.config.spotify.refresh_token.is_some();
-        if !has_session {
+        if !has_spotify_session(&self.config) {
             return;
         }
-        self.spotify.is_premium = self.config.spotify.is_premium.unwrap_or(false);
+        self.spotify.is_premium = self.config.spotify.is_premium;
 
         let refresh_token = self
             .config
@@ -148,7 +161,7 @@ impl App {
             .clone()
             .expect("checked above");
         let client_id = self.config.spotify.client_id.clone();
-        let is_premium_cached = self.config.spotify.is_premium.unwrap_or(false);
+        let is_premium_cached = self.config.spotify.is_premium;
         let country_cached = self.config.spotify.country.clone();
         let followers_cached = self.config.spotify.followers;
         let (tx, rx) = std::sync::mpsc::channel();
@@ -165,7 +178,7 @@ impl App {
                     let username =
                         crate::integrations::spotify::oauth::fetch_username_from_token(&access)
                             .await
-                            .unwrap_or_default();
+                            .ok();
                     crate::integrations::spotify::AuthResult::Success {
                         username,
                         search_token: access,
@@ -231,12 +244,12 @@ impl App {
                     country,
                     followers,
                 }) => {
-                    if !username.is_empty() {
+                    if let Some(username) = username {
                         self.config.spotify.display_name = Some(username);
                     }
                     self.config.spotify.search_token = Some(search_token.clone());
                     self.config.spotify.refresh_token = Some(refresh_token);
-                    self.config.spotify.is_premium = Some(is_premium);
+                    self.config.spotify.is_premium = is_premium;
                     self.spotify.is_premium = is_premium;
                     self.config.spotify.country = country;
                     self.config.spotify.followers = followers;
@@ -252,7 +265,9 @@ impl App {
                     self.configure_spotify_native_player(audio_token, native_error);
                 }
                 Ok(AuthResult::Failure(msg)) => {
-                    if self.config.spotify.display_name.is_some() {
+                    if self.config.spotify.refresh_token.is_some()
+                        || self.config.spotify.search_token.is_some()
+                    {
                         self.config.spotify.refresh_token = None;
                         self.config.spotify.search_token = None;
                         self.config.save();
@@ -1763,5 +1778,46 @@ mod tests {
         assert!(spotify_native_error_is_fatal(
             "native_audio_backend_missing"
         ));
+    }
+
+    #[test]
+    fn friendly_spotify_error_maps_development_mode_restrictions() {
+        assert_eq!(
+            friendly_spotify_error(
+                "Spotify access is restricted by Development Mode or allowlist.",
+                "client-id"
+            ),
+            "integrations.spotify.error.development_mode_restricted"
+        );
+    }
+
+    #[test]
+    fn friendly_spotify_error_maps_premium_restrictions() {
+        assert_eq!(
+            friendly_spotify_error("Spotify Premium is required for this feature.", "client-id"),
+            "integrations.spotify.error.premium_required"
+        );
+    }
+
+    #[test]
+    fn friendly_spotify_error_keeps_invalid_client_message() {
+        assert_eq!(
+            friendly_spotify_error("invalid_client", "client-id"),
+            "integrations.spotify.error.invalid_client"
+        );
+    }
+
+    #[test]
+    fn spotify_session_depends_on_refresh_token_not_display_name() {
+        let mut config = Config::default();
+
+        assert!(!has_spotify_session(&config));
+
+        config.spotify.display_name = Some("listener".to_string());
+        assert!(!has_spotify_session(&config));
+
+        config.spotify.display_name = None;
+        config.spotify.refresh_token = Some("refresh-token".to_string());
+        assert!(has_spotify_session(&config));
     }
 }
