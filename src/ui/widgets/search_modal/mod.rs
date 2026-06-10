@@ -509,3 +509,28 @@ impl SearchModalWidget<'_> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{modal_rect, MODAL_MIN_HEIGHT, MODAL_MIN_WIDTH};
+    use ratatui::layout::Rect;
+
+    #[test]
+    fn modal_rect_does_not_exceed_small_terminal_area() {
+        let area = Rect::new(0, 0, 40, MODAL_MIN_HEIGHT - 4);
+        let modal = modal_rect(area);
+
+        assert!(modal.right() <= area.right());
+        assert!(modal.bottom() <= area.bottom());
+        assert_eq!(modal.width, 40);
+        assert_eq!(modal.height, MODAL_MIN_HEIGHT - 4);
+    }
+
+    #[test]
+    fn modal_rect_uses_minimum_size_when_area_allows_it() {
+        let area = Rect::new(0, 0, MODAL_MIN_WIDTH, MODAL_MIN_HEIGHT);
+        let modal = modal_rect(area);
+
+        assert_eq!(modal, area);
+    }
+}
