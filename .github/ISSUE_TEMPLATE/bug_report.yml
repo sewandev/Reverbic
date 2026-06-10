@@ -14,6 +14,11 @@ body:
       label: Reverbic version
       description: You can find this in the help screen (Alt+H) or in the executable filename.
       options:
+        - v1.5.1
+        - v1.5.0
+        - v1.4.2
+        - v1.4.1
+        - v1.4.0
         - v1.3.1
         - v1.3.0
         - v1.2.0

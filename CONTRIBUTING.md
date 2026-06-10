@@ -4,7 +4,7 @@ Thanks for your interest in contributing. This is an open-source project maintai
 
 ## Current Priorities (What We're Focusing On)
 
-Right now, our main focus is on **security hardening** (specially around the auto-updater and credential management) and finishing full **native support for macOS**. Because of this, massive new features might take a backseat or take a bit longer to get reviewed.
+Right now, our main focus is on **security hardening** (specially around the auto-updater and credential management) and bringing platform-specific features — overlay, audio ducking, Discord Rich Presence, game detection, currently Windows-only — to macOS and Linux. Because of this, massive new features might take a backseat or take a bit longer to get reviewed.
 
 ## Branching Strategy & CI
 

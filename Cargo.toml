@@ -1,7 +1,14 @@
 [package]
-name    = "reverbic"
-version = "1.5.1"
-edition = "2021"
+name        = "reverbic"
+version     = "1.5.1"
+edition     = "2021"
+description = "Terminal player for radio, Spotify and YouTube with gaming overlay and Discord Rich Presence"
+repository  = "https://github.com/sewandev/Reverbic"
+license     = "MIT"
+authors     = ["Esteban Jaramillo"]
+readme      = "README.md"
+keywords    = ["radio", "spotify", "youtube", "terminal", "tui"]
+categories  = ["command-line-utilities", "multimedia::audio"]
 
 [dependencies]
 ratatui            = "0.29"
