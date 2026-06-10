@@ -11,7 +11,7 @@ Versionado: [Semantic Versioning](https://semver.org/)
 ## [Sin publicar]
 
 ### Seguridad
-- Se actualizaron dependencias (OpenSSL y otras) para corregir vulnerabilidades conocidas reportadas por Dependabot
+- Se actualizaron dependencias (OpenSSL, ratatui, crossterm y otras) para corregir vulnerabilidades conocidas reportadas por Dependabot
 
 ---
 

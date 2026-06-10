@@ -11,8 +11,8 @@ keywords    = ["radio", "spotify", "youtube", "terminal", "tui"]
 categories  = ["command-line-utilities", "multimedia::audio"]
 
 [dependencies]
-ratatui            = "0.29"
-crossterm          = { version = "0.28", features = ["event-stream"] }
+ratatui            = "0.30"
+crossterm          = { version = "0.29", features = ["event-stream"] }
 tokio              = { version = "1",    features = ["full"] }
 reqwest            = { version = "0.12", features = ["stream", "json"] }
 rodio              = { version = "0.22", default-features = false, features = ["symphonia-all", "playback"] }

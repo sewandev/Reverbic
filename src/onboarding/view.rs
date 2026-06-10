@@ -690,15 +690,16 @@ mod tests {
     }
 
     #[test]
-    fn summary_render_handles_narrow_columns() -> std::io::Result<()> {
+    fn summary_render_handles_narrow_columns() {
         let state = OnboardingState::from_config(&crate::config::Config::default());
-        let mut terminal = Terminal::new(TestBackend::new(34, 18))?;
+        let mut terminal =
+            Terminal::new(TestBackend::new(34, 18)).expect("TestBackend creation is infallible");
         let palette = theme::palette(state.theme);
 
-        terminal.draw(|frame| {
-            render_summary(frame, Rect::new(0, 0, 34, 16), &state, palette);
-        })?;
-
-        Ok(())
+        terminal
+            .draw(|frame| {
+                render_summary(frame, Rect::new(0, 0, 34, 16), &state, palette);
+            })
+            .expect("TestBackend draw is infallible");
     }
 }
