@@ -20,20 +20,21 @@ pub async fn start_flow(client_id: &str) -> AuthResult {
         Ok(t) => t,
         Err(e) => return AuthResult::Failure(e),
     };
-    let profile = match fetch_user_profile(&search_token).await {
-        Ok(profile) => profile,
-        Err(error) => {
-            if userid.is_empty() || profile_error_blocks_auth(&error) {
-                return AuthResult::Failure(error);
-            }
-            SpotifyUserProfile {
-                display_name: userid,
-                is_premium: None,
-                country: None,
-                followers: None,
-            }
-        }
-    };
+    let profile =
+        match auth_profile_from_profile_result(fetch_user_profile(&search_token).await, &userid) {
+            Ok(profile) => profile,
+            Err(error) => return AuthResult::Failure(error),
+        };
+    let (username, is_premium, country, followers) = profile
+        .map(|profile| {
+            (
+                Some(profile.display_name),
+                profile.is_premium,
+                profile.country,
+                profile.followers,
+            )
+        })
+        .unwrap_or((None, None, None, None));
 
     let (audio_token, native_error) = match pkce_flow(LIBRE_CLIENT_ID, 8898, "/login").await {
         Ok((token, _, _)) => (token, None),
@@ -44,14 +45,14 @@ pub async fn start_flow(client_id: &str) -> AuthResult {
     };
 
     AuthResult::Success {
-        username: profile.display_name,
+        username,
         search_token,
         refresh_token,
         audio_token,
         native_error,
-        is_premium: profile.is_premium,
-        country: profile.country,
-        followers: profile.followers,
+        is_premium,
+        country,
+        followers,
     }
 }
 pub async fn refresh_search_token(
@@ -287,6 +288,33 @@ fn parse_user_profile_json(json: &serde_json::Value) -> Result<SpotifyUserProfil
     })
 }
 
+fn auth_profile_from_profile_result(
+    result: Result<SpotifyUserProfile, String>,
+    token_userid: &str,
+) -> Result<Option<SpotifyUserProfile>, String> {
+    match result {
+        Ok(profile) => Ok(Some(profile)),
+        Err(error) if profile_error_blocks_auth(&error) => Err(error),
+        Err(error) => {
+            tracing::debug!("spotify profile unavailable during auth, continuing: {error}");
+            Ok(token_userid_profile(token_userid))
+        }
+    }
+}
+
+fn token_userid_profile(token_userid: &str) -> Option<SpotifyUserProfile> {
+    let display_name = token_userid.trim();
+    if display_name.is_empty() {
+        return None;
+    }
+    Some(SpotifyUserProfile {
+        display_name: display_name.to_string(),
+        is_premium: None,
+        country: None,
+        followers: None,
+    })
+}
+
 fn profile_error_blocks_auth(error: &str) -> bool {
     let lower = error.to_ascii_lowercase();
     lower.contains("premium")
@@ -435,5 +463,58 @@ mod tests {
             "Spotify Premium is required for this feature."
         ));
         assert!(!profile_error_blocks_auth("Network error: timeout"));
+    }
+
+    #[test]
+    fn auth_profile_keeps_successful_profile() {
+        let profile = SpotifyUserProfile {
+            display_name: "Listener".to_string(),
+            is_premium: Some(true),
+            country: Some("CL".to_string()),
+            followers: Some(42),
+        };
+
+        let resolved = auth_profile_from_profile_result(Ok(profile.clone()), "")
+            .expect("profile should resolve");
+
+        assert_eq!(resolved, Some(profile));
+    }
+
+    #[test]
+    fn auth_profile_allows_non_restrictive_profile_error_without_token_userid() {
+        let resolved =
+            auth_profile_from_profile_result(Err("Network error: timeout".to_string()), "")
+                .expect("non-restrictive profile errors should not fail auth");
+
+        assert_eq!(resolved, None);
+    }
+
+    #[test]
+    fn auth_profile_falls_back_to_token_userid_for_non_restrictive_profile_error() {
+        let resolved = auth_profile_from_profile_result(
+            Err("Network error: timeout".to_string()),
+            " listener ",
+        )
+        .expect("non-restrictive profile errors should not fail auth")
+        .expect("token userid should become a partial profile");
+
+        assert_eq!(resolved.display_name, "listener");
+        assert_eq!(resolved.is_premium, None);
+        assert_eq!(resolved.country, None);
+        assert_eq!(resolved.followers, None);
+    }
+
+    #[test]
+    fn auth_profile_rejects_restrictive_profile_error() {
+        let error = auth_profile_from_profile_result(
+            Err("Spotify access is restricted by Development Mode or allowlist.".to_string()),
+            "listener",
+        )
+        .expect_err("restrictive profile errors should fail auth");
+
+        assert_eq!(
+            error,
+            "Spotify access is restricted by Development Mode or allowlist."
+        );
     }
 }

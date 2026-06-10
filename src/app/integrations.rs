@@ -143,11 +143,13 @@ fn friendly_spotify_error(raw: &str, client_id: &str) -> String {
     }
 }
 
+fn has_spotify_session(config: &Config) -> bool {
+    config.spotify.refresh_token.is_some()
+}
+
 impl App {
     pub fn init_integrations(&mut self) {
-        let has_session = self.config.spotify.display_name.is_some()
-            && self.config.spotify.refresh_token.is_some();
-        if !has_session {
+        if !has_spotify_session(&self.config) {
             return;
         }
         self.spotify.is_premium = self.config.spotify.is_premium;
@@ -176,7 +178,7 @@ impl App {
                     let username =
                         crate::integrations::spotify::oauth::fetch_username_from_token(&access)
                             .await
-                            .unwrap_or_default();
+                            .ok();
                     crate::integrations::spotify::AuthResult::Success {
                         username,
                         search_token: access,
@@ -242,7 +244,7 @@ impl App {
                     country,
                     followers,
                 }) => {
-                    if !username.is_empty() {
+                    if let Some(username) = username {
                         self.config.spotify.display_name = Some(username);
                     }
                     self.config.spotify.search_token = Some(search_token.clone());
@@ -263,7 +265,9 @@ impl App {
                     self.configure_spotify_native_player(audio_token, native_error);
                 }
                 Ok(AuthResult::Failure(msg)) => {
-                    if self.config.spotify.display_name.is_some() {
+                    if self.config.spotify.refresh_token.is_some()
+                        || self.config.spotify.search_token.is_some()
+                    {
                         self.config.spotify.refresh_token = None;
                         self.config.spotify.search_token = None;
                         self.config.save();
@@ -1801,5 +1805,19 @@ mod tests {
             friendly_spotify_error("invalid_client", "client-id"),
             "integrations.spotify.error.invalid_client"
         );
+    }
+
+    #[test]
+    fn spotify_session_depends_on_refresh_token_not_display_name() {
+        let mut config = Config::default();
+
+        assert!(!has_spotify_session(&config));
+
+        config.spotify.display_name = Some("listener".to_string());
+        assert!(!has_spotify_session(&config));
+
+        config.spotify.display_name = None;
+        config.spotify.refresh_token = Some("refresh-token".to_string());
+        assert!(has_spotify_session(&config));
     }
 }
