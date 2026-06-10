@@ -44,6 +44,10 @@
 - Sub-tabs: Search and Devices
 - Rate-limit handling with countdown
 
+**YouTube**
+- Search and stream audio from YouTube
+- Note: Playback does not use cookies or account credentials. Age-restricted, private, or authentication-required videos may fail to play.
+
 **Windows / Desktop**
 - Floating overlay — always on top, configurable position (4 corners) and transparency
 - System tray icon with balloon notifications
@@ -164,12 +168,30 @@ cargo build --release
 .\target\release\reverbic.exe
 ```
 
+### Spotify test coverage
+
+`cargo test` includes local Spotify Web API fixtures under `src/integrations/spotify/fixtures/`.
+These tests are offline and do not require Spotify credentials, an allowlisted account, Premium,
+or network access.
+
+| Area | Fixtures validate | Live requirement not covered by local tests |
+|------|-------------------|---------------------------------------------|
+| Search | Track result parsing, pagination, missing optional fields | Valid client ID, scopes, API availability |
+| Library | Saved tracks, top tracks, recently played wrappers | User library contents and account history |
+| Albums | Saved albums and album track pagination | User library contents |
+| Playlists | Current and legacy playlist totals, item wrappers, non-track filtering | Private playlist access and scopes |
+| Playback / Devices | Track playback state, empty or non-track playback, device list parsing | Premium, active devices, playback transfer |
+| Profile | Full and minimal user profiles, missing optional fields | Account allowlist and `/v1/me` availability |
+
+Any future live Spotify checks should stay opt-in behind explicit environment variables.
+They should not run as part of normal `cargo test`.
+
 ### Spotify setup
 
 Spotify integration requires a client ID from the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard).
 
 1. Create an app in the dashboard
-2. Add `http://localhost:8888/callback` as a Redirect URI
+2. Add `http://127.0.0.1:8888/callback` as a Redirect URI
 3. Open Reverbic, press `Alt+O` to open Settings, navigate to **Spotify Client ID** and press `Space`
 4. Paste your Client ID and press `Enter` — no recompile needed
 

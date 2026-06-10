@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
-use crossterm::event::{Event, EventStream, KeyEventKind, MouseEventKind};
+use crossterm::event::{Event, EventStream, KeyEventKind, MouseButton, MouseEventKind};
 use futures_util::{FutureExt, StreamExt};
 use tracing_subscriber::{fmt, fmt::time::ChronoLocal, EnvFilter};
 
@@ -21,6 +21,7 @@ mod install;
 mod integrations;
 mod library;
 mod metadata;
+mod onboarding;
 #[cfg(target_os = "windows")]
 mod overlay;
 mod preview;
@@ -117,6 +118,12 @@ fn init_logging() -> Option<tracing_appender::non_blocking::WorkerGuard> {
 async fn run(tui: &mut terminal::Tui) -> Result<()> {
     let mut app = App::new().await;
 
+    if !app.config.onboarding_completed {
+        onboarding::run(tui, &mut app.config, &app.player).await?;
+        app.config.onboarding_completed = true;
+        app.config.save();
+    }
+
     #[cfg(target_os = "windows")]
     unsafe {
         let _ = windows::Win32::System::Console::SetConsoleCtrlHandler(
@@ -156,9 +163,9 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
         }
     }
     let mut ticker = tokio::time::interval(Duration::from_millis(50));
+    ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     let mut events = EventStream::new();
-    let mut last_click: Option<Instant> = None;
-    let mut click_count: u8 = 0;
+    let mut double_clicks = DoubleClickTracker::default();
 
     loop {
         app.poll_dead_url();
@@ -175,6 +182,15 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
         app.poll_spotify_search();
         app.poll_spotify_search_more();
         app.poll_spotify_player_events();
+        app.poll_spotify_radio();
+        app.poll_liked_tracks();
+        app.poll_save_track();
+        app.poll_playlists();
+        app.poll_playlist_tracks();
+        app.poll_top_tracks();
+        app.poll_recent_tracks();
+        app.poll_albums();
+        app.poll_album_tracks();
         app.poll_spotify_devices();
         app.poll_remote_playback();
         app.poll_youtube_install();
@@ -219,22 +235,19 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
                 app.should_quit = true;
             }
             maybe_event = events.next() => {
-                let now = Instant::now();
-                if let Some(prev) = last_click {
-                    if now.duration_since(prev).as_millis() < 300 {
-                        click_count = click_count.saturating_add(1);
-                    } else {
-                        click_count = 1;
-                    }
-                } else {
-                    click_count = 1;
-                }
-                last_click = Some(now);
-                handle_event(&mut app, maybe_event, click_count).await;
+                handle_event(&mut app, maybe_event, &mut double_clicks).await;
             }
         }
         while let Some(Some(maybe_event)) = events.next().now_or_never() {
-            handle_event(&mut app, Some(maybe_event), click_count).await;
+            handle_event(&mut app, Some(maybe_event), &mut double_clicks).await;
+        }
+
+        if app.replay_onboarding {
+            app.replay_onboarding = false;
+            onboarding::run(tui, &mut app.config, &app.player).await?;
+            if let Some(ref tx) = app.windows_tx {
+                let _ = tx.send(app.config.clone());
+            }
         }
 
         if SHUTDOWN_REQUESTED.load(Ordering::Relaxed) {
@@ -261,7 +274,49 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
     Ok(())
 }
 
-async fn handle_event(app: &mut App, maybe_event: Option<std::io::Result<Event>>, click_count: u8) {
+const DOUBLE_CLICK_THRESHOLD: Duration = Duration::from_millis(300);
+
+#[derive(Default)]
+struct DoubleClickTracker {
+    last_mouse_down: Option<LastMouseDown>,
+}
+
+struct LastMouseDown {
+    at: Instant,
+    button: MouseButton,
+    column: u16,
+    row: u16,
+}
+
+impl DoubleClickTracker {
+    fn register_mouse_down(
+        &mut self,
+        at: Instant,
+        button: MouseButton,
+        column: u16,
+        row: u16,
+    ) -> bool {
+        let is_double_click = self.last_mouse_down.as_ref().is_some_and(|last| {
+            last.button == button
+                && last.column == column
+                && last.row == row
+                && at.saturating_duration_since(last.at) < DOUBLE_CLICK_THRESHOLD
+        });
+        self.last_mouse_down = Some(LastMouseDown {
+            at,
+            button,
+            column,
+            row,
+        });
+        is_double_click
+    }
+}
+
+async fn handle_event(
+    app: &mut App,
+    maybe_event: Option<std::io::Result<Event>>,
+    double_clicks: &mut DoubleClickTracker,
+) {
     match maybe_event {
         Some(Ok(Event::Key(key))) if key.kind == KeyEventKind::Press => {
             app.on_key_event(key).await;
@@ -278,11 +333,17 @@ async fn handle_event(app: &mut App, maybe_event: Option<std::io::Result<Event>>
                 app.on_mouse_scroll(if app.show_search_modal { 1 } else { 3 })
                     .await;
             }
-            MouseEventKind::Down(_) if click_count >= 2 => {
-                app.on_double_click().await;
-            }
-            MouseEventKind::Down(_) => {
-                app.on_click(mouse.column, mouse.row).await;
+            MouseEventKind::Down(button) => {
+                if double_clicks.register_mouse_down(
+                    Instant::now(),
+                    button,
+                    mouse.column,
+                    mouse.row,
+                ) {
+                    app.on_double_click().await;
+                } else {
+                    app.on_click(mouse.column, mouse.row).await;
+                }
             }
             _ => {}
         },
@@ -297,6 +358,8 @@ async fn handle_event(app: &mut App, maybe_event: Option<std::io::Result<Event>>
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crossterm::event::{KeyModifiers, MouseButton, MouseEvent};
+    use ratatui::layout::Rect;
 
     #[test]
     fn log_file_path_uses_reverbic_dir() {
@@ -309,5 +372,87 @@ mod tests {
     #[test]
     fn log_file_path_is_not_relative_to_working_directory() {
         assert_ne!(log_file_path(), PathBuf::from("logs").join("reverbic.log"));
+    }
+
+    #[test]
+    fn double_click_tracker_triggers_for_same_button_row_and_column_within_threshold() {
+        let start = Instant::now();
+        let mut double_clicks = DoubleClickTracker::default();
+
+        assert!(!double_clicks.register_mouse_down(start, MouseButton::Left, 10, 4));
+        assert!(double_clicks.register_mouse_down(
+            start + DOUBLE_CLICK_THRESHOLD / 2,
+            MouseButton::Left,
+            10,
+            4
+        ));
+    }
+
+    #[test]
+    fn double_click_tracker_ignores_same_row_with_different_column() {
+        let start = Instant::now();
+        let mut double_clicks = DoubleClickTracker::default();
+
+        assert!(!double_clicks.register_mouse_down(start, MouseButton::Left, 10, 4));
+        assert!(!double_clicks.register_mouse_down(
+            start + DOUBLE_CLICK_THRESHOLD / 2,
+            MouseButton::Left,
+            11,
+            4
+        ));
+    }
+
+    #[test]
+    fn double_click_tracker_ignores_clicks_outside_threshold() {
+        let start = Instant::now();
+        let mut double_clicks = DoubleClickTracker::default();
+
+        assert!(!double_clicks.register_mouse_down(start, MouseButton::Left, 10, 4));
+        assert!(!double_clicks.register_mouse_down(
+            start + DOUBLE_CLICK_THRESHOLD,
+            MouseButton::Left,
+            10,
+            4
+        ));
+    }
+
+    #[tokio::test]
+    async fn non_click_events_before_mouse_down_do_not_trigger_double_click() {
+        let mut app = App::new().await;
+        app.show_search_modal = false;
+        app.terminal_area = Rect::new(0, 0, 80, 24);
+        let mut double_clicks = DoubleClickTracker::default();
+
+        handle_event(
+            &mut app,
+            Some(Ok(Event::Resize(80, 24))),
+            &mut double_clicks,
+        )
+        .await;
+        handle_event(
+            &mut app,
+            Some(Ok(Event::Mouse(MouseEvent {
+                kind: MouseEventKind::ScrollDown,
+                column: 10,
+                row: 4,
+                modifiers: KeyModifiers::empty(),
+            }))),
+            &mut double_clicks,
+        )
+        .await;
+
+        handle_event(
+            &mut app,
+            Some(Ok(Event::Mouse(MouseEvent {
+                kind: MouseEventKind::Down(MouseButton::Left),
+                column: 10,
+                row: 4,
+                modifiers: KeyModifiers::empty(),
+            }))),
+            &mut double_clicks,
+        )
+        .await;
+
+        assert!(app.click_flash.is_none());
     }
 }

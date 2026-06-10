@@ -38,8 +38,11 @@ pub enum PlayerCommand {
         url: String,
         title: String,
         raw_track: String,
+        preview_id: Option<u64>,
+        start_at_secs: f32,
     },
     StopPreview,
+    StopPreviewIfCurrent(u64),
     SetPreviewSearching(bool),
     SetPreviewLoadingTrack(Option<String>),
     MarkPreviewUnavailable(String),
@@ -358,6 +361,7 @@ struct AudioLoopState {
     level: Arc<AtomicU32>,
     player: Option<Player>,
     preview_player: Option<Player>,
+    preview_id: Option<u64>,
     current_volume: f32,
     volume_before_duck: Option<f32>,
     title_rx: Option<std_mpsc::Receiver<String>>,
@@ -380,6 +384,7 @@ impl AudioLoopState {
             level: Arc::new(AtomicU32::new((-60.0f32).to_bits())),
             player: None,
             preview_player: None,
+            preview_id: None,
             current_volume: 1.0,
             volume_before_duck: None,
             title_rx: None,
@@ -814,11 +819,17 @@ fn handle_crossfade_cmd(
     }
 }
 
-fn handle_play_preview(
-    st: &mut AudioLoopState,
+struct PreviewSource {
     url: String,
     title: String,
     raw_track: String,
+    preview_id: Option<u64>,
+    start_at_secs: f32,
+}
+
+fn handle_play_preview(
+    st: &mut AudioLoopState,
+    source: PreviewSource,
     handle: &tokio::runtime::Handle,
     device_sink: &MixerDeviceSink,
     state_tx: &watch::Sender<PlayerState>,
@@ -826,7 +837,8 @@ fn handle_play_preview(
     if let Some(p) = st.preview_player.take() {
         p.stop();
     }
-    let preview_reader = StreamReader::connect_preview(url, handle.clone());
+    st.preview_id = None;
+    let preview_reader = StreamReader::connect_preview(source.url, handle.clone());
     let reader = std::io::BufReader::new(preview_reader);
     match Decoder::try_from(reader) {
         Ok(decoder) => {
@@ -834,11 +846,14 @@ fn handle_play_preview(
             if let Some(ref p) = st.player {
                 p.set_volume(0.05);
             }
-            st.preview_player = Some(attach_player(decoder, st.current_volume, device_sink));
+            let audio =
+                decoder.skip_duration(std::time::Duration::from_secs_f32(source.start_at_secs));
+            st.preview_player = Some(attach_player(audio, st.current_volume, device_sink));
+            st.preview_id = source.preview_id;
             update_state(state_tx, |s| {
-                s.preview_title = Some(title);
+                s.preview_title = Some(source.title);
                 s.preview_searching = false;
-                s.preview_playing_track = Some(raw_track);
+                s.preview_playing_track = Some(source.raw_track);
             });
             info!("Preview streaming iniciado (volumen radio → 5%)");
         }
@@ -850,6 +865,44 @@ fn handle_play_preview(
             });
         }
     }
+}
+fn stop_preview(st: &mut AudioLoopState, state_tx: &watch::Sender<PlayerState>) {
+    if let Some(p) = st.preview_player.take() {
+        p.stop();
+    }
+    st.preview_id = None;
+    if let Some(pre_duck) = st.volume_before_duck.take() {
+        if let Some(ref p) = st.player {
+            p.set_volume(pre_duck);
+        }
+        info!(
+            "Preview stopped (radio volume restored -> {:.0}%)",
+            pre_duck * 100.0
+        );
+    }
+    update_state(state_tx, |s| {
+        s.preview_title = None;
+        s.preview_searching = false;
+        s.preview_loading_track = None;
+        s.preview_playing_track = None;
+    });
+}
+
+fn stop_preview_if_current(
+    st: &mut AudioLoopState,
+    preview_id: u64,
+    state_tx: &watch::Sender<PlayerState>,
+) {
+    if st.preview_id == Some(preview_id) {
+        stop_preview(st, state_tx);
+    }
+}
+
+fn check_preview_ended(st: &mut AudioLoopState, state_tx: &watch::Sender<PlayerState>) {
+    if !st.preview_player.as_ref().is_some_and(|p| p.empty()) {
+        return;
+    }
+    stop_preview(st, state_tx);
 }
 
 fn handle_seek_cmd(
@@ -1006,41 +1059,40 @@ fn audio_loop(
         process_icy_titles(&mut st, &state_tx, api_fresh, download_done);
         update_level_and_position(&state_tx, &st);
         check_stream_stall(&mut st);
+        check_preview_ended(&mut st, &state_tx);
 
         let mut is_auto_reconnect = false;
-        let cmd = if let Ok(user_cmd) = cmd_rx.try_recv() {
-            Some(user_cmd)
-        } else if st
-            .reconnect_at
-            .map(|t| std::time::Instant::now() >= t)
-            .unwrap_or(false)
-        {
-            st.reconnect_at = None;
-            is_auto_reconnect = true;
-            if st.od.active {
-                Some(PlayerCommand::Seek(st.od.current_pos()))
-            } else {
-                st.current_station.clone().map(PlayerCommand::Play)
-            }
-        } else if st
-            .stream_retry_at
-            .map(|(_, t)| std::time::Instant::now() >= t)
-            .unwrap_or(false)
-        {
-            is_auto_reconnect = true;
-            if st.od.active {
-                Some(PlayerCommand::Seek(st.od.current_pos()))
-            } else {
-                st.current_station.clone().map(PlayerCommand::Play)
-            }
-        } else {
-            let result = handle.block_on(async {
-                tokio::time::timeout(std::time::Duration::from_millis(50), cmd_rx.recv()).await
-            });
-            match result {
-                Ok(Some(c)) => Some(c),
-                Ok(None) => break,
-                Err(_) => None,
+        let cmd = match cmd_rx.try_recv() {
+            Ok(user_cmd) => Some(user_cmd),
+            Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => break,
+            Err(tokio::sync::mpsc::error::TryRecvError::Empty) => {
+                if st
+                    .reconnect_at
+                    .map(|t| std::time::Instant::now() >= t)
+                    .unwrap_or(false)
+                {
+                    st.reconnect_at = None;
+                    is_auto_reconnect = true;
+                    if st.od.active {
+                        Some(PlayerCommand::Seek(st.od.current_pos()))
+                    } else {
+                        st.current_station.clone().map(PlayerCommand::Play)
+                    }
+                } else if st
+                    .stream_retry_at
+                    .map(|(_, t)| std::time::Instant::now() >= t)
+                    .unwrap_or(false)
+                {
+                    is_auto_reconnect = true;
+                    if st.od.active {
+                        Some(PlayerCommand::Seek(st.od.current_pos()))
+                    } else {
+                        st.current_station.clone().map(PlayerCommand::Play)
+                    }
+                } else {
+                    std::thread::sleep(std::time::Duration::from_millis(50));
+                    None
+                }
             }
         };
 
@@ -1085,12 +1137,18 @@ fn audio_loop(
                 url,
                 title,
                 raw_track,
+                preview_id,
+                start_at_secs,
             } => {
                 handle_play_preview(
                     &mut st,
-                    url,
-                    title,
-                    raw_track,
+                    PreviewSource {
+                        url,
+                        title,
+                        raw_track,
+                        preview_id,
+                        start_at_secs,
+                    },
                     &handle,
                     &device_sink,
                     &state_tx,
@@ -1151,6 +1209,9 @@ fn audio_loop(
                 } else {
                     st.volume_before_duck = Some(st.current_volume);
                 }
+                if let Some(ref p) = st.preview_player {
+                    p.set_volume(st.current_volume);
+                }
                 update_state(&state_tx, |s| s.volume = st.current_volume);
             }
 
@@ -1159,24 +1220,11 @@ fn audio_loop(
             }
 
             PlayerCommand::StopPreview => {
-                if let Some(p) = st.preview_player.take() {
-                    p.stop();
-                }
-                if let Some(pre_duck) = st.volume_before_duck.take() {
-                    if let Some(ref p) = st.player {
-                        p.set_volume(pre_duck);
-                    }
-                    info!(
-                        "Preview stopped (radio volume restored -> {:.0}%)",
-                        pre_duck * 100.0
-                    );
-                }
-                update_state(&state_tx, |s| {
-                    s.preview_title = None;
-                    s.preview_searching = false;
-                    s.preview_loading_track = None;
-                    s.preview_playing_track = None;
-                });
+                stop_preview(&mut st, &state_tx);
+            }
+
+            PlayerCommand::StopPreviewIfCurrent(preview_id) => {
+                stop_preview_if_current(&mut st, preview_id, &state_tx);
             }
 
             PlayerCommand::SetPreviewLoadingTrack(track) => {
@@ -1260,5 +1308,41 @@ mod tests {
         let station = station_with_bitrate(None);
 
         assert_eq!(on_demand_byte_offset(10.0, &station), 160_000);
+    }
+
+    #[test]
+    fn conditional_preview_stop_ignores_stale_preview_timer() {
+        let mut st = AudioLoopState::new();
+        st.preview_id = Some(2);
+        let (state_tx, state_rx) = watch::channel(PlayerState {
+            preview_title: Some("Preview A".into()),
+            preview_playing_track: Some("Track A".into()),
+            ..Default::default()
+        });
+
+        stop_preview_if_current(&mut st, 1, &state_tx);
+
+        assert_eq!(st.preview_id, Some(2));
+        assert_eq!(
+            state_rx.borrow().preview_playing_track.as_deref(),
+            Some("Track A")
+        );
+    }
+
+    #[test]
+    fn conditional_preview_stop_clears_matching_preview() {
+        let mut st = AudioLoopState::new();
+        st.preview_id = Some(1);
+        let (state_tx, state_rx) = watch::channel(PlayerState {
+            preview_title: Some("Preview A".into()),
+            preview_playing_track: Some("Track A".into()),
+            ..Default::default()
+        });
+
+        stop_preview_if_current(&mut st, 1, &state_tx);
+
+        assert_eq!(st.preview_id, None);
+        assert_eq!(state_rx.borrow().preview_title, None);
+        assert_eq!(state_rx.borrow().preview_playing_track, None);
     }
 }

@@ -7,12 +7,324 @@ use crate::i18n::t;
 use crate::library;
 use crate::preview::{deezer_preview, parse_seek_input};
 use crate::station::{filter_items, Station, COUNTRIES, GENRES};
+use crate::ui::widgets::{
+    keep_selected_visible,
+    search_modal::{
+        modal_tab_at, one_line_list_index_at, radio_favorites_list_area, radio_filter_list_area,
+        radio_filtered_results_list_area, radio_search_results_list_area, radio_subtab_at,
+        settings_items_area, settings_visible_rows, spotify_body_area, spotify_search_list_area,
+        spotify_subtab_at, spotify_titled_track_list_area, two_line_list_index_at, visible_items,
+        visible_rows_excluding_scrollbar, youtube_list_area, ListItemHeight,
+    },
+};
 
-use super::modal::settings_items;
-use super::modal::{AppFocus, RadioSubTab, SearchMode, SpotifyAuthStatus, SpotifyPlayerStatus};
+use super::modal::{settings_items, SettingItem};
+use super::modal::{AppFocus, RadioSubTab, SearchMode, SpotifyAuthStatus, SpotifySubTab};
 use super::{abort_task, cycle_next, cycle_prev, scroll_by, App};
 
+fn next_spotify_device_id(
+    devices: &[crate::integrations::spotify::devices::SpotifyDevice],
+    active_device_id: Option<&str>,
+) -> Option<String> {
+    let transferable: Vec<(usize, &str)> = devices
+        .iter()
+        .enumerate()
+        .filter_map(|(idx, device)| device.id.as_deref().map(|id| (idx, id)))
+        .collect();
+    if transferable.len() <= 1 {
+        return None;
+    }
+
+    let current = active_device_id
+        .and_then(|id| {
+            transferable
+                .iter()
+                .position(|(_, device_id)| *device_id == id)
+        })
+        .or_else(|| {
+            transferable
+                .iter()
+                .position(|(idx, _)| devices[*idx].is_active)
+        })
+        .unwrap_or(0);
+
+    Some(
+        transferable[(current + 1) % transferable.len()]
+            .1
+            .to_string(),
+    )
+}
+
+fn setting_index_at_visual_row(items: &[SettingItem], visual_row: usize) -> Option<usize> {
+    let mut row = 0usize;
+    let mut last_group = "";
+
+    for (item_idx, item) in items.iter().enumerate() {
+        let group = item.group_key();
+        if group != last_group {
+            if row == visual_row {
+                return None;
+            }
+            row += 1;
+            last_group = group;
+        }
+
+        if row == visual_row {
+            return Some(item_idx);
+        }
+        row += 1;
+    }
+
+    None
+}
+
+fn settings_visual_row_count(items: &[SettingItem]) -> usize {
+    let mut rows = 0usize;
+    let mut last_group = "";
+
+    for item in items {
+        let group = item.group_key();
+        if group != last_group {
+            rows += 1;
+            last_group = group;
+        }
+        rows += 1;
+    }
+
+    rows
+}
+
 impl App {
+    fn spotify_search_visible_items(&self) -> usize {
+        visible_items(
+            spotify_search_list_area(self.terminal_area),
+            ListItemHeight::TwoLines,
+        )
+    }
+
+    fn keep_youtube_visible(&mut self) {
+        let visible = visible_items(
+            youtube_list_area(self.terminal_area),
+            ListItemHeight::TwoLines,
+        );
+        keep_selected_visible(
+            &mut self.youtube.scroll_offset,
+            self.youtube.selected,
+            visible,
+        );
+    }
+
+    fn radio_search_results_visible_items(&self) -> usize {
+        visible_rows_excluding_scrollbar(radio_search_results_list_area(self.terminal_area))
+    }
+
+    fn radio_filtered_results_visible_items(&self) -> usize {
+        visible_rows_excluding_scrollbar(radio_filtered_results_list_area(self.terminal_area))
+    }
+
+    fn keep_radio_favorites_visible(&mut self) {
+        let visible = visible_items(
+            radio_favorites_list_area(self.terminal_area),
+            ListItemHeight::OneLine,
+        );
+        keep_selected_visible(
+            &mut self.radio_fav_scroll_offset,
+            self.radio_fav_selected,
+            visible,
+        );
+    }
+
+    fn keep_radio_search_results_visible(&mut self) {
+        let visible = self.radio_search_results_visible_items();
+        keep_selected_visible(
+            &mut self.radio_search_scroll_offset,
+            self.modal_selected,
+            visible,
+        );
+    }
+
+    fn keep_radio_genre_results_visible(&mut self) {
+        let visible = self.radio_filtered_results_visible_items();
+        keep_selected_visible(
+            &mut self.radio_genre_results_scroll_offset,
+            self.modal_selected,
+            visible,
+        );
+    }
+
+    fn keep_radio_country_results_visible(&mut self) {
+        let visible = self.radio_filtered_results_visible_items();
+        keep_selected_visible(
+            &mut self.radio_country_results_scroll_offset,
+            self.modal_selected,
+            visible,
+        );
+    }
+
+    fn radio_filter_visible_items(&self) -> usize {
+        visible_rows_excluding_scrollbar(radio_filter_list_area(self.terminal_area))
+    }
+
+    fn keep_genre_filter_visible(&mut self) {
+        let visible = self.radio_filter_visible_items();
+        keep_selected_visible(
+            &mut self.genre_filter_scroll_offset,
+            self.genre_selected,
+            visible,
+        );
+    }
+
+    fn keep_country_filter_visible(&mut self) {
+        let visible = self.radio_filter_visible_items();
+        keep_selected_visible(
+            &mut self.country_filter_scroll_offset,
+            self.country_selected,
+            visible,
+        );
+    }
+
+    fn settings_visible_items(&self) -> usize {
+        settings_visible_rows(self.terminal_area)
+    }
+
+    fn settings_selected_row(&self) -> usize {
+        let mut row = 0usize;
+        let mut last_group = "";
+        for (item_idx, item) in settings_items(self.config.duck_enabled).iter().enumerate() {
+            let group = item.group_key();
+            if group != last_group {
+                row += 1;
+                last_group = group;
+            }
+            if item_idx == self.settings_selected {
+                return row;
+            }
+            row += 1;
+        }
+        0
+    }
+
+    fn keep_settings_visible(&mut self) {
+        let selected_row = self.settings_selected_row();
+        let visible = self.settings_visible_items();
+        keep_selected_visible(&mut self.settings_scroll_offset, selected_row, visible);
+    }
+
+    fn keep_active_radio_results_visible(&mut self) {
+        match self.modal_mode {
+            SearchMode::Genre => self.keep_radio_genre_results_visible(),
+            SearchMode::Country => self.keep_radio_country_results_visible(),
+            _ => self.keep_radio_search_results_visible(),
+        }
+    }
+
+    fn reset_active_radio_results_offset(&mut self) {
+        match self.modal_mode {
+            SearchMode::Genre => self.radio_genre_results_scroll_offset = 0,
+            SearchMode::Country => self.radio_country_results_scroll_offset = 0,
+            _ => self.radio_search_scroll_offset = 0,
+        }
+    }
+
+    fn reset_radio_results_offsets(&mut self) {
+        self.radio_search_scroll_offset = 0;
+        self.radio_genre_results_scroll_offset = 0;
+        self.radio_country_results_scroll_offset = 0;
+    }
+
+    fn keep_spotify_liked_visible(&mut self) {
+        let visible = visible_items(
+            spotify_body_area(self.terminal_area),
+            ListItemHeight::TwoLines,
+        );
+        keep_selected_visible(
+            &mut self.spotify.liked_scroll_offset,
+            self.spotify.liked_selected,
+            visible,
+        );
+    }
+
+    fn keep_spotify_playlists_visible(&mut self) {
+        let visible = visible_items(
+            spotify_body_area(self.terminal_area),
+            ListItemHeight::TwoLines,
+        );
+        keep_selected_visible(
+            &mut self.spotify.playlists_scroll_offset,
+            self.spotify.playlists_selected,
+            visible,
+        );
+    }
+
+    fn keep_spotify_playlist_tracks_visible(&mut self) {
+        let visible = visible_items(
+            spotify_titled_track_list_area(self.terminal_area),
+            ListItemHeight::TwoLines,
+        );
+        keep_selected_visible(
+            &mut self.spotify.playlist_tracks_scroll_offset,
+            self.spotify.playlist_tracks_selected,
+            visible,
+        );
+    }
+
+    fn keep_spotify_search_visible(&mut self) {
+        let visible = self.spotify_search_visible_items();
+        keep_selected_visible(
+            &mut self.spotify.search_scroll_offset,
+            self.spotify.search_selected,
+            visible,
+        );
+    }
+
+    fn keep_spotify_top_tracks_visible(&mut self) {
+        let visible = visible_items(
+            spotify_body_area(self.terminal_area),
+            ListItemHeight::TwoLines,
+        );
+        keep_selected_visible(
+            &mut self.spotify.top_tracks_scroll_offset,
+            self.spotify.top_tracks_selected,
+            visible,
+        );
+    }
+
+    fn keep_spotify_recent_tracks_visible(&mut self) {
+        let visible = visible_items(
+            spotify_body_area(self.terminal_area),
+            ListItemHeight::TwoLines,
+        );
+        keep_selected_visible(
+            &mut self.spotify.recent_tracks_scroll_offset,
+            self.spotify.recent_tracks_selected,
+            visible,
+        );
+    }
+
+    fn keep_spotify_albums_visible(&mut self) {
+        let visible = visible_items(
+            spotify_body_area(self.terminal_area),
+            ListItemHeight::TwoLines,
+        );
+        keep_selected_visible(
+            &mut self.spotify.albums_scroll_offset,
+            self.spotify.albums_selected,
+            visible,
+        );
+    }
+
+    fn keep_spotify_album_tracks_visible(&mut self) {
+        let visible = visible_items(
+            spotify_titled_track_list_area(self.terminal_area),
+            ListItemHeight::TwoLines,
+        );
+        keep_selected_visible(
+            &mut self.spotify.album_tracks_scroll_offset,
+            self.spotify.album_tracks_selected,
+            visible,
+        );
+    }
+
     pub async fn on_key_event(&mut self, event: crossterm::event::KeyEvent) {
         use crossterm::event::KeyModifiers;
 
@@ -55,6 +367,7 @@ impl App {
                     crate::favorites::save(&self.favorites);
                     if idx > 0 {
                         self.radio_fav_selected -= 1;
+                        self.keep_radio_favorites_visible();
                     }
                     return;
                 }
@@ -63,6 +376,7 @@ impl App {
                     crate::favorites::save(&self.favorites);
                     if idx + 1 < self.favorites.len() {
                         self.radio_fav_selected += 1;
+                        self.keep_radio_favorites_visible();
                     }
                     return;
                 }
@@ -90,6 +404,15 @@ impl App {
             return;
         }
 
+        if event.modifiers.contains(KeyModifiers::CONTROL) {
+            if let KeyCode::Char('d') | KeyCode::Char('D') = event.code {
+                if self.show_search_modal && matches!(self.modal_mode, SearchMode::Spotify) {
+                    self.cycle_spotify_device().await;
+                    return;
+                }
+            }
+        }
+
         self.on_key(event.code).await;
     }
 
@@ -99,16 +422,19 @@ impl App {
                 self.show_search_modal = true;
                 self.modal_mode = SearchMode::Settings;
                 self.settings_selected = 0;
+                self.settings_scroll_offset = 0;
             }
             KeyCode::Char('g') | KeyCode::Char('G') if self.show_search_modal => {
                 self.modal_mode = SearchMode::Genre;
                 self.genre_filter.clear();
                 self.genre_selected = 0;
+                self.genre_filter_scroll_offset = 0;
             }
             KeyCode::Char('c') | KeyCode::Char('C') if self.show_search_modal => {
                 self.modal_mode = SearchMode::Country;
                 self.country_filter.clear();
                 self.country_selected = 0;
+                self.country_filter_scroll_offset = 0;
             }
             KeyCode::Char('d') | KeyCode::Char('D')
                 if self.show_search_modal
@@ -131,6 +457,7 @@ impl App {
                     && matches!(self.radio_sub_tab, RadioSubTab::Favorites) =>
             {
                 self.remove_radio_fav_selected();
+                self.keep_radio_favorites_visible();
             }
             KeyCode::Char('f') | KeyCode::Char('F')
                 if self.show_search_modal && !self.search_results.is_empty() =>
@@ -155,6 +482,58 @@ impl App {
                 self.player.send(PlayerCommand::Stop).await;
                 self.saved_tracks = Vec::new();
             }
+            KeyCode::Char('l') | KeyCode::Char('L') => {
+                if self.show_search_modal && matches!(self.modal_mode, SearchMode::Spotify) {
+                    use super::modal::SpotifySubTab;
+                    let track = match self.spotify.sub_tab {
+                        SpotifySubTab::Search => self
+                            .spotify
+                            .search_results
+                            .get(self.spotify.search_selected)
+                            .cloned(),
+                        SpotifySubTab::TopTracks => self
+                            .spotify
+                            .top_tracks
+                            .get(self.spotify.top_tracks_selected)
+                            .cloned(),
+                        SpotifySubTab::Recent => self
+                            .spotify
+                            .recent_tracks
+                            .get(self.spotify.recent_tracks_selected)
+                            .cloned(),
+                        SpotifySubTab::Liked => self
+                            .spotify
+                            .liked_tracks
+                            .get(self.spotify.liked_selected)
+                            .cloned(),
+                        SpotifySubTab::Playlists => {
+                            if self.spotify.open_playlist.is_some() {
+                                self.spotify
+                                    .playlist_tracks
+                                    .get(self.spotify.playlist_tracks_selected)
+                                    .cloned()
+                            } else {
+                                None
+                            }
+                        }
+                        SpotifySubTab::Albums => {
+                            if self.spotify.open_album.is_some() {
+                                self.spotify
+                                    .album_tracks
+                                    .get(self.spotify.album_tracks_selected)
+                                    .cloned()
+                            } else {
+                                None
+                            }
+                        }
+                    };
+                    if let Some(t) = track {
+                        self.like_spotify_track(&t);
+                    }
+                } else if let Some(t) = self.spotify.now_playing.clone() {
+                    self.like_spotify_track(&t);
+                }
+            }
             _ => {}
         }
     }
@@ -171,19 +550,23 @@ impl App {
             SearchMode::Name => {
                 self.search_query.push_str(&filtered);
                 self.modal_selected = 0;
+                self.radio_search_scroll_offset = 0;
                 self.perform_search();
             }
             SearchMode::Genre => {
                 self.genre_filter.push_str(&filtered);
                 self.genre_selected = 0;
+                self.genre_filter_scroll_offset = 0;
             }
             SearchMode::Country => {
                 self.country_filter.push_str(&filtered);
                 self.country_selected = 0;
+                self.country_filter_scroll_offset = 0;
             }
             SearchMode::Youtube => {
                 self.youtube.query.push_str(&filtered);
                 self.youtube.selected = 0;
+                self.youtube.scroll_offset = 0;
                 self.perform_youtube_search();
             }
             _ => {}
@@ -213,54 +596,7 @@ impl App {
                 }
                 KeyCode::Char(' ') => {
                     if self.active_source_is_spotify() {
-                        use super::modal::SpotifyPlayerStatus;
-                        if let Some(device_id) = self.spotify.active_device_id.clone() {
-                            let token = self.spotify.access_token.clone().unwrap_or_default();
-                            match self.spotify.player_status {
-                                SpotifyPlayerStatus::Playing => {
-                                    self.spotify.player_status = SpotifyPlayerStatus::Paused;
-                                    std::thread::spawn(move || {
-                                        if let Ok(rt) =
-                                            tokio::runtime::Builder::new_current_thread()
-                                                .enable_all()
-                                                .build()
-                                        {
-                                            let _ = rt.block_on(
-                                                crate::integrations::spotify::devices::pause_device(
-                                                    &token, &device_id,
-                                                ),
-                                            );
-                                        }
-                                    });
-                                }
-                                SpotifyPlayerStatus::Paused => {
-                                    self.spotify.player_status = SpotifyPlayerStatus::Playing;
-                                    std::thread::spawn(move || {
-                                        if let Ok(rt) =
-                                            tokio::runtime::Builder::new_current_thread()
-                                                .enable_all()
-                                                .build()
-                                        {
-                                            let _ = rt.block_on(crate::integrations::spotify::devices::resume_device(&token, &device_id));
-                                        }
-                                    });
-                                }
-                                _ => {}
-                            }
-                        } else if let Some(handle) = &self.spotify.player_tx {
-                            use super::modal::SpotifyPlayerStatus;
-                            match self.spotify.player_status {
-                                SpotifyPlayerStatus::Playing => {
-                                    handle.pause();
-                                    self.spotify.player_status = SpotifyPlayerStatus::Paused;
-                                }
-                                SpotifyPlayerStatus::Paused => {
-                                    handle.resume();
-                                    self.spotify.player_status = SpotifyPlayerStatus::Playing;
-                                }
-                                _ => {}
-                            }
-                        }
+                        self.toggle_spotify_playback().await;
                     } else {
                         match self.player.state().status {
                             PlayerStatus::Playing => {
@@ -415,43 +751,13 @@ impl App {
         }
 
         if key == KeyCode::Tab {
-            self.modal_mode = match &self.modal_mode {
+            let next_mode = match &self.modal_mode {
                 SearchMode::Name | SearchMode::Genre | SearchMode::Country => SearchMode::Spotify,
                 SearchMode::Spotify => SearchMode::Youtube,
                 SearchMode::Youtube => SearchMode::Name,
                 other => *other,
             };
-            self.modal_selected = 0;
-            self.search_results.clear();
-            self.search_query.clear();
-            self.genre_filter.clear();
-            self.genre_query.clear();
-            self.genre_selected = 0;
-            self.country_filter.clear();
-            self.country_selected = 0;
-            abort_task(&mut self.search_task);
-            self.search_loading = false;
-            self.spotify.search_query.clear();
-            self.spotify.search_results.clear();
-            self.spotify.search_selected = 0;
-            abort_task(&mut self.spotify.search_task);
-            self.spotify.search_loading = false;
-            self.youtube.query.clear();
-            self.youtube.results.clear();
-            self.youtube.selected = 0;
-            self.youtube.loading = false;
-            self.youtube.search_pending_until = None;
-            abort_task(&mut self.youtube.search_task);
-            self.youtube.search_rx = None;
-            if matches!(self.modal_mode, SearchMode::Spotify)
-                && matches!(self.spotify.status, SpotifyAuthStatus::LoggedIn)
-                && self.spotify.devices.is_empty()
-                && !self.spotify.devices_loading
-            {
-                self.fetch_spotify_devices();
-            } else if matches!(self.modal_mode, SearchMode::Youtube) {
-                self.ensure_youtube_ready();
-            }
+            self.switch_modal_mode(next_mode);
             return;
         }
 
@@ -465,13 +771,68 @@ impl App {
         }
     }
 
+    fn switch_modal_mode(&mut self, mode: SearchMode) {
+        self.modal_mode = mode;
+        self.modal_selected = 0;
+        self.reset_radio_results_offsets();
+        self.search_results.clear();
+        self.search_query.clear();
+        self.genre_filter.clear();
+        self.genre_query.clear();
+        self.genre_selected = 0;
+        self.genre_filter_scroll_offset = 0;
+        self.country_filter.clear();
+        self.country_selected = 0;
+        self.country_filter_scroll_offset = 0;
+        abort_task(&mut self.search_task);
+        self.search_loading = false;
+        self.spotify.search_query.clear();
+        self.spotify.search_results.clear();
+        self.spotify.search_selected = 0;
+        self.spotify.search_scroll_offset = 0;
+        abort_task(&mut self.spotify.search_task);
+        self.spotify.search_rx = None;
+        self.reset_spotify_search_paging();
+        self.spotify.search_loading = false;
+        self.youtube.query.clear();
+        self.youtube.results.clear();
+        self.youtube.selected = 0;
+        self.youtube.scroll_offset = 0;
+        self.youtube.loading = false;
+        self.youtube.search_pending_until = None;
+        abort_task(&mut self.youtube.search_task);
+        self.youtube.search_rx = None;
+
+        if matches!(self.modal_mode, SearchMode::Spotify)
+            && matches!(self.spotify.status, SpotifyAuthStatus::LoggedIn)
+            && self.spotify.devices.is_empty()
+            && !self.spotify.devices_loading
+        {
+            self.fetch_spotify_devices();
+        } else if matches!(self.modal_mode, SearchMode::Youtube) {
+            self.ensure_youtube_ready();
+        }
+    }
+
+    fn modal_tab_is_active(&self, mode: SearchMode) -> bool {
+        match mode {
+            SearchMode::Name => matches!(
+                self.modal_mode,
+                SearchMode::Name | SearchMode::Genre | SearchMode::Country
+            ),
+            SearchMode::Spotify => matches!(self.modal_mode, SearchMode::Spotify),
+            SearchMode::Youtube => matches!(self.modal_mode, SearchMode::Youtube),
+            SearchMode::Genre | SearchMode::Country | SearchMode::Settings => false,
+        }
+    }
+
     async fn on_key_modal_name(&mut self, key: KeyCode) {
         if matches!(key, KeyCode::Left | KeyCode::Right) {
-            self.radio_sub_tab = match self.radio_sub_tab {
+            let next_tab = match self.radio_sub_tab {
                 RadioSubTab::Search => RadioSubTab::Favorites,
                 RadioSubTab::Favorites => RadioSubTab::Search,
             };
-            self.radio_fav_selected = 0;
+            self.switch_radio_sub_tab(next_tab);
             return;
         }
         if matches!(self.radio_sub_tab, RadioSubTab::Favorites) {
@@ -487,6 +848,7 @@ impl App {
                     self.search_query.clear();
                     self.search_results.clear();
                     self.modal_selected = 0;
+                    self.radio_search_scroll_offset = 0;
                 }
             }
             KeyCode::Char('R') if !self.search_results.is_empty() => {
@@ -495,33 +857,37 @@ impl App {
                 }
             }
             KeyCode::Enter => {
-                if !self.search_results.is_empty() {
-                    let idx = self.modal_selected.min(self.search_results.len() - 1);
-                    if !self.search_query.is_empty() {
-                        self.config.add_to_history(self.search_query.clone());
-                        self.save_config();
-                    }
-                    self.play_dynamic_station(idx).await;
-                }
+                self.activate_radio_result_selected().await;
             }
-            KeyCode::Up => {
+            KeyCode::Up | KeyCode::Char('k') => {
                 self.modal_selected = cycle_prev(self.modal_selected, self.search_results.len());
+                self.keep_radio_search_results_visible();
             }
-            KeyCode::Down => {
+            KeyCode::Down | KeyCode::Char('j') => {
                 self.modal_selected = cycle_next(self.modal_selected, self.search_results.len());
+                self.keep_radio_search_results_visible();
             }
             KeyCode::Backspace => {
                 self.search_query.pop();
                 self.modal_selected = 0;
+                self.radio_search_scroll_offset = 0;
                 self.perform_search();
             }
             KeyCode::Char(c) if !c.is_control() => {
                 self.search_query.push(c);
                 self.modal_selected = 0;
+                self.radio_search_scroll_offset = 0;
                 self.perform_search();
             }
             _ => {}
         }
+    }
+
+    fn switch_radio_sub_tab(&mut self, tab: RadioSubTab) {
+        self.radio_sub_tab = tab;
+        self.radio_fav_selected = 0;
+        self.radio_fav_scroll_offset = 0;
+        self.radio_search_scroll_offset = 0;
     }
 
     async fn on_key_radio_favorites(&mut self, key: KeyCode) {
@@ -529,15 +895,19 @@ impl App {
         match key {
             KeyCode::Esc => {
                 self.radio_sub_tab = RadioSubTab::Search;
+                self.radio_fav_scroll_offset = 0;
+                self.radio_search_scroll_offset = 0;
             }
             KeyCode::Up | KeyCode::Char('k') => {
                 self.radio_fav_selected = super::cycle_prev(self.radio_fav_selected, len);
+                self.keep_radio_favorites_visible();
             }
             KeyCode::Down | KeyCode::Char('j') => {
                 self.radio_fav_selected = super::cycle_next(self.radio_fav_selected, len);
+                self.keep_radio_favorites_visible();
             }
             KeyCode::Enter => {
-                self.play_favorite_station(self.radio_fav_selected).await;
+                self.activate_radio_favorite_selected().await;
             }
             KeyCode::Char('R') if self.radio_fav_selected < len => {
                 self.renaming_favorite = Some(self.radio_fav_selected);
@@ -554,10 +924,10 @@ impl App {
                 self.search_results.clear();
                 self.genre_query.clear();
                 self.modal_selected = 0;
+                self.reset_active_radio_results_offset();
             }
             KeyCode::Enter => {
-                let idx = self.modal_selected.min(self.search_results.len() - 1);
-                self.play_dynamic_station(idx).await;
+                self.activate_radio_result_selected().await;
             }
             KeyCode::Char('R') => {
                 if let Some(idx) = self.play_random_result() {
@@ -566,9 +936,11 @@ impl App {
             }
             KeyCode::Up | KeyCode::Char('k') => {
                 self.modal_selected = cycle_prev(self.modal_selected, self.search_results.len());
+                self.keep_active_radio_results_visible();
             }
             KeyCode::Down | KeyCode::Char('j') => {
                 self.modal_selected = cycle_next(self.modal_selected, self.search_results.len());
+                self.keep_active_radio_results_visible();
             }
             _ => {}
         }
@@ -579,18 +951,21 @@ impl App {
             self.on_key_modal_results(key).await;
             return;
         }
-        let filtered = filter_items(GENRES, &self.genre_filter);
         if key == KeyCode::Enter {
-            if let Some(&(tag, label)) = filtered.get(self.genre_selected) {
-                self.genre_query = label.to_string();
-                self.modal_selected = 0;
-                self.perform_genre_search(tag);
-            }
+            self.activate_genre_filter_selected().await;
             return;
         }
+        let filtered = filter_items(GENRES, &self.genre_filter);
         let len = filtered.len();
-        if super::handle_filter_list_key(key, &mut self.genre_filter, &mut self.genre_selected, len)
-        {
+        let visible = self.radio_filter_visible_items();
+        if super::handle_filter_list_key(
+            key,
+            &mut self.genre_filter,
+            &mut self.genre_selected,
+            &mut self.genre_filter_scroll_offset,
+            len,
+            visible,
+        ) {
             self.modal_mode = SearchMode::Name;
         }
     }
@@ -600,21 +975,20 @@ impl App {
             self.on_key_modal_results(key).await;
             return;
         }
-        let filtered = filter_items(COUNTRIES, &self.country_filter);
         if key == KeyCode::Enter {
-            if let Some(&(tag, label)) = filtered.get(self.country_selected) {
-                self.genre_query = label.to_string();
-                self.modal_selected = 0;
-                self.perform_country_search(tag);
-            }
+            self.activate_country_filter_selected().await;
             return;
         }
+        let filtered = filter_items(COUNTRIES, &self.country_filter);
         let len = filtered.len();
+        let visible = self.radio_filter_visible_items();
         if super::handle_filter_list_key(
             key,
             &mut self.country_filter,
             &mut self.country_selected,
+            &mut self.country_filter_scroll_offset,
             len,
+            visible,
         ) {
             self.modal_mode = SearchMode::Name;
         }
@@ -626,27 +1000,87 @@ impl App {
             KeyCode::Esc => {
                 self.show_help = false;
                 self.modal_mode = SearchMode::Name;
+                self.settings_scroll_offset = 0;
             }
             KeyCode::Up | KeyCode::Char('k') => {
                 self.settings_selected = cycle_prev(self.settings_selected, count);
+                self.keep_settings_visible();
             }
             KeyCode::Down | KeyCode::Char('j') => {
                 self.settings_selected = cycle_next(self.settings_selected, count);
+                self.keep_settings_visible();
             }
             KeyCode::Enter => {
-                let items = settings_items(self.config.duck_enabled);
-                match items.get(self.settings_selected) {
-                    Some(super::modal::SettingItem::SpotifyClientId) => {
-                        self.client_id_input = self.config.spotify.client_id.clone();
-                        self.editing_client_id = true;
-                    }
-                    Some(super::modal::SettingItem::Theme) => self.open_theme_picker(),
-                    Some(_) => self.apply_settings_toggle(self.settings_selected),
-                    None => {}
-                }
+                self.activate_setting_selected();
             }
-            KeyCode::Char(' ') => self.apply_settings_toggle(self.settings_selected),
+            KeyCode::Char(' ') => {
+                self.activate_setting_selected();
+            }
             _ => {}
+        }
+    }
+
+    async fn activate_radio_result_selected(&mut self) {
+        if self.search_results.is_empty() {
+            return;
+        }
+
+        let idx = self.modal_selected.min(self.search_results.len() - 1);
+        if matches!(self.modal_mode, SearchMode::Name) && !self.search_query.is_empty() {
+            self.config.add_to_history(self.search_query.clone());
+            self.save_config();
+        }
+        self.play_dynamic_station(idx).await;
+    }
+
+    async fn activate_radio_favorite_selected(&mut self) {
+        self.play_favorite_station(self.radio_fav_selected).await;
+    }
+
+    async fn activate_genre_filter_selected(&mut self) {
+        let filtered = filter_items(GENRES, &self.genre_filter);
+        if let Some(&(tag, label)) = filtered.get(self.genre_selected) {
+            self.genre_query = label.to_string();
+            self.modal_selected = 0;
+            self.radio_genre_results_scroll_offset = 0;
+            self.perform_genre_search(tag);
+        }
+    }
+
+    async fn activate_country_filter_selected(&mut self) {
+        let filtered = filter_items(COUNTRIES, &self.country_filter);
+        if let Some(&(tag, label)) = filtered.get(self.country_selected) {
+            self.genre_query = label.to_string();
+            self.modal_selected = 0;
+            self.radio_country_results_scroll_offset = 0;
+            self.perform_country_search(tag);
+        }
+    }
+
+    fn activate_setting_selected(&mut self) {
+        let items = settings_items(self.config.duck_enabled);
+        if let Some(item) = items.get(self.settings_selected).copied() {
+            self.activate_setting_item(item);
+            if matches!(self.modal_mode, SearchMode::Settings) {
+                self.keep_settings_visible();
+            }
+        }
+    }
+
+    fn activate_setting_item(&mut self, item: SettingItem) {
+        match item {
+            SettingItem::SpotifyClientId => {
+                self.client_id_input = self.config.spotify.client_id.clone();
+                self.editing_client_id = true;
+            }
+            SettingItem::Theme => self.open_theme_picker(),
+            SettingItem::ReplayOnboarding => {
+                self.replay_onboarding = true;
+                self.show_search_modal = true;
+                self.modal_mode = SearchMode::Name;
+                self.settings_scroll_offset = 0;
+            }
+            _ => self.apply_settings_toggle(self.settings_selected),
         }
     }
 
@@ -746,6 +1180,7 @@ impl App {
                 self.search_query.clear();
                 self.search_results.clear();
                 self.modal_selected = 0;
+                self.reset_radio_results_offsets();
             }
             KeyCode::Right => {
                 if !self.on_demand_shows.is_empty() || self.on_demand_loading {
@@ -836,65 +1271,14 @@ impl App {
     }
 
     pub async fn on_click(&mut self, col: u16, row: u16) {
+        let screensaver_was_active = self.screensaver_active();
         self.last_activity = Instant::now();
-        if self.screensaver_active() {
-            if let Some(ref playback) = self.spotify.playback.clone() {
-                if playback.duration_ms > 0 {
-                    let has_name = self.config.spotify.display_name.is_some();
-                    let has_plan =
-                        self.spotify.is_premium || self.config.spotify.followers.is_some();
-                    let profile_rows = u16::from(has_name || self.config.spotify.country.is_some())
-                        + u16::from(has_plan);
-                    if let Some(prog) = crate::ui::renderer::spotify_screensaver_progress_rect(
-                        self.terminal_area,
-                        profile_rows,
-                        self.config.screensaver_clock,
-                    ) {
-                        if row == prog.y && col >= prog.x && col < prog.x + prog.width {
-                            let time_cur = {
-                                let s = playback.progress_ms / 1000;
-                                format!("{}:{:02}", s / 60, s % 60)
-                            };
-                            let time_tot = {
-                                let s = playback.duration_ms / 1000;
-                                format!("{}:{:02}", s / 60, s % 60)
-                            };
-                            let vol_str = format!("vol {}%", playback.volume_pct);
-                            let prefix_len = (time_cur.len() + 1) as u16;
-                            let suffix_len = (format!(" {} {}", time_tot, vol_str).len()) as u16;
-                            let bar_start = prog.x + prefix_len;
-                            let bar_w = prog.width.saturating_sub(prefix_len + suffix_len);
-                            if bar_w > 0 && col >= bar_start {
-                                let fill_col = col.saturating_sub(bar_start);
-                                let ratio = (fill_col as f32 / bar_w as f32).clamp(0.0, 1.0);
-                                let pos_ms = (ratio * playback.duration_ms as f32) as u32;
-                                if let Some(ref mut p) = self.spotify.playback {
-                                    p.progress_ms = pos_ms;
-                                }
-                                if let Some(token) = self.spotify.access_token.clone() {
-                                    let device_id =
-                                        self.spotify.active_device_id.clone().unwrap_or_default();
-                                    tokio::spawn(async move {
-                                        if let Err(e) =
-                                            crate::integrations::spotify::devices::seek_playback(
-                                                &token, &device_id, pos_ms,
-                                            )
-                                            .await
-                                        {
-                                            tracing::warn!("spotify seek error: {e}");
-                                        }
-                                    });
-                                }
-                            }
-                            return;
-                        }
-                    }
-                }
-            }
+        if screensaver_was_active {
             return;
         }
 
         if self.show_search_modal {
+            self.on_click_search_modal(col, row).await;
             return;
         }
 
@@ -926,34 +1310,536 @@ impl App {
         }
     }
 
+    async fn on_click_search_modal(&mut self, col: u16, row: u16) {
+        if let Some(mode) = modal_tab_at(self.terminal_area, col, row) {
+            if !self.modal_tab_is_active(mode) {
+                self.switch_modal_mode(mode);
+            }
+            return;
+        }
+
+        match self.modal_mode {
+            SearchMode::Name => {
+                if let Some(tab) =
+                    radio_subtab_at(self.terminal_area, col, row, self.favorites.len())
+                {
+                    if self.radio_sub_tab != tab {
+                        self.switch_radio_sub_tab(tab);
+                    }
+                    return;
+                }
+                self.on_click_radio_name(col, row).await;
+            }
+            SearchMode::Genre => self.on_click_radio_genre(col, row).await,
+            SearchMode::Country => self.on_click_radio_country(col, row).await,
+            SearchMode::Settings => self.on_click_settings(col, row),
+            SearchMode::Spotify if matches!(self.spotify.status, SpotifyAuthStatus::LoggedIn) => {
+                if let Some(tab) = spotify_subtab_at(self.terminal_area, col, row) {
+                    if self.spotify.sub_tab != tab {
+                        self.switch_spotify_sub_tab(tab);
+                    }
+                    return;
+                }
+                self.on_click_spotify(col, row).await;
+            }
+            SearchMode::Youtube => self.on_click_youtube(col, row).await,
+            _ => {}
+        }
+    }
+
+    async fn on_click_radio_name(&mut self, col: u16, row: u16) {
+        match self.radio_sub_tab {
+            RadioSubTab::Search => self.on_click_radio_search_results(col, row).await,
+            RadioSubTab::Favorites => self.on_click_radio_favorites(col, row).await,
+        }
+    }
+
+    async fn on_click_radio_search_results(&mut self, col: u16, row: u16) {
+        let len = self.search_results.len();
+        let Some(idx) = one_line_list_index_at(
+            radio_search_results_list_area(self.terminal_area),
+            col,
+            row,
+            self.modal_selected,
+            self.radio_search_results_visible_items(),
+            self.radio_search_scroll_offset,
+            len,
+        ) else {
+            return;
+        };
+
+        self.modal_selected = idx;
+        self.activate_radio_result_selected().await;
+    }
+
+    async fn on_click_radio_favorites(&mut self, col: u16, row: u16) {
+        let len = self.favorites.len();
+        let visible = visible_items(
+            radio_favorites_list_area(self.terminal_area),
+            ListItemHeight::OneLine,
+        );
+        let Some(idx) = one_line_list_index_at(
+            radio_favorites_list_area(self.terminal_area),
+            col,
+            row,
+            self.radio_fav_selected,
+            visible,
+            self.radio_fav_scroll_offset,
+            len,
+        ) else {
+            return;
+        };
+
+        self.radio_fav_selected = idx;
+        self.activate_radio_favorite_selected().await;
+    }
+
+    async fn on_click_radio_genre(&mut self, col: u16, row: u16) {
+        if !self.search_results.is_empty() {
+            self.on_click_radio_filtered_results(col, row, self.radio_genre_results_scroll_offset)
+                .await;
+            return;
+        }
+
+        let filtered = filter_items(GENRES, &self.genre_filter);
+        let Some(idx) = one_line_list_index_at(
+            radio_filter_list_area(self.terminal_area),
+            col,
+            row,
+            self.genre_selected,
+            self.radio_filter_visible_items(),
+            self.genre_filter_scroll_offset,
+            filtered.len(),
+        ) else {
+            return;
+        };
+
+        self.genre_selected = idx;
+        self.activate_genre_filter_selected().await;
+    }
+
+    async fn on_click_radio_country(&mut self, col: u16, row: u16) {
+        if !self.search_results.is_empty() {
+            self.on_click_radio_filtered_results(
+                col,
+                row,
+                self.radio_country_results_scroll_offset,
+            )
+            .await;
+            return;
+        }
+
+        let filtered = filter_items(COUNTRIES, &self.country_filter);
+        let Some(idx) = one_line_list_index_at(
+            radio_filter_list_area(self.terminal_area),
+            col,
+            row,
+            self.country_selected,
+            self.radio_filter_visible_items(),
+            self.country_filter_scroll_offset,
+            filtered.len(),
+        ) else {
+            return;
+        };
+
+        self.country_selected = idx;
+        self.activate_country_filter_selected().await;
+    }
+
+    async fn on_click_radio_filtered_results(&mut self, col: u16, row: u16, scroll_offset: usize) {
+        let len = self.search_results.len();
+        let Some(idx) = one_line_list_index_at(
+            radio_filtered_results_list_area(self.terminal_area),
+            col,
+            row,
+            self.modal_selected,
+            self.radio_filtered_results_visible_items(),
+            scroll_offset,
+            len,
+        ) else {
+            return;
+        };
+
+        self.modal_selected = idx;
+        self.activate_radio_result_selected().await;
+    }
+
+    fn on_click_settings(&mut self, col: u16, row: u16) {
+        let items = settings_items(self.config.duck_enabled);
+        let visual_row_count = settings_visual_row_count(&items);
+        let Some(visual_row) = one_line_list_index_at(
+            settings_items_area(self.terminal_area),
+            col,
+            row,
+            self.settings_selected_row(),
+            self.settings_visible_items(),
+            self.settings_scroll_offset,
+            visual_row_count,
+        ) else {
+            return;
+        };
+
+        let Some(idx) = setting_index_at_visual_row(&items, visual_row) else {
+            return;
+        };
+
+        self.settings_selected = idx;
+        self.activate_setting_selected();
+    }
+
+    async fn on_click_spotify(&mut self, col: u16, row: u16) {
+        match self.spotify.sub_tab {
+            SpotifySubTab::Search => self.on_click_spotify_search(col, row).await,
+            SpotifySubTab::Liked => self.on_click_spotify_liked(col, row).await,
+            SpotifySubTab::Playlists => self.on_click_spotify_playlists(col, row).await,
+            SpotifySubTab::TopTracks => self.on_click_spotify_top_tracks(col, row).await,
+            SpotifySubTab::Recent => self.on_click_spotify_recent_tracks(col, row).await,
+            SpotifySubTab::Albums => self.on_click_spotify_albums(col, row).await,
+        }
+    }
+
+    async fn on_click_spotify_search(&mut self, col: u16, row: u16) {
+        let Some(idx) = two_line_list_index_at(
+            spotify_search_list_area(self.terminal_area),
+            col,
+            row,
+            self.spotify.search_selected,
+            self.spotify_search_visible_items(),
+            self.spotify.search_scroll_offset,
+            self.spotify.search_results.len(),
+        ) else {
+            return;
+        };
+
+        self.spotify.search_selected = idx;
+        self.activate_spotify_search_selected().await;
+    }
+
+    async fn on_click_spotify_liked(&mut self, col: u16, row: u16) {
+        let Some(idx) = two_line_list_index_at(
+            spotify_body_area(self.terminal_area),
+            col,
+            row,
+            self.spotify.liked_selected,
+            visible_items(
+                spotify_body_area(self.terminal_area),
+                ListItemHeight::TwoLines,
+            ),
+            self.spotify.liked_scroll_offset,
+            self.spotify.liked_tracks.len(),
+        ) else {
+            return;
+        };
+
+        self.spotify.liked_selected = idx;
+        self.activate_spotify_liked_selected().await;
+    }
+
+    async fn on_click_spotify_playlists(&mut self, col: u16, row: u16) {
+        if self.spotify.open_playlist.is_some() {
+            self.on_click_spotify_playlist_tracks(col, row).await;
+        } else {
+            self.on_click_spotify_playlist_list(col, row).await;
+        }
+    }
+
+    async fn on_click_spotify_playlist_list(&mut self, col: u16, row: u16) {
+        let Some(idx) = two_line_list_index_at(
+            spotify_body_area(self.terminal_area),
+            col,
+            row,
+            self.spotify.playlists_selected,
+            visible_items(
+                spotify_body_area(self.terminal_area),
+                ListItemHeight::TwoLines,
+            ),
+            self.spotify.playlists_scroll_offset,
+            self.spotify.playlists.len(),
+        ) else {
+            return;
+        };
+
+        self.spotify.playlists_selected = idx;
+        self.activate_spotify_playlist_selected().await;
+    }
+
+    async fn on_click_spotify_playlist_tracks(&mut self, col: u16, row: u16) {
+        let Some(idx) = two_line_list_index_at(
+            spotify_titled_track_list_area(self.terminal_area),
+            col,
+            row,
+            self.spotify.playlist_tracks_selected,
+            visible_items(
+                spotify_titled_track_list_area(self.terminal_area),
+                ListItemHeight::TwoLines,
+            ),
+            self.spotify.playlist_tracks_scroll_offset,
+            self.spotify.playlist_tracks.len(),
+        ) else {
+            return;
+        };
+
+        self.spotify.playlist_tracks_selected = idx;
+        self.activate_spotify_playlist_track_selected().await;
+    }
+
+    async fn on_click_spotify_top_tracks(&mut self, col: u16, row: u16) {
+        let Some(idx) = two_line_list_index_at(
+            spotify_body_area(self.terminal_area),
+            col,
+            row,
+            self.spotify.top_tracks_selected,
+            visible_items(
+                spotify_body_area(self.terminal_area),
+                ListItemHeight::TwoLines,
+            ),
+            self.spotify.top_tracks_scroll_offset,
+            self.spotify.top_tracks.len(),
+        ) else {
+            return;
+        };
+
+        self.spotify.top_tracks_selected = idx;
+        self.activate_spotify_top_track_selected().await;
+    }
+
+    async fn on_click_spotify_recent_tracks(&mut self, col: u16, row: u16) {
+        let Some(idx) = two_line_list_index_at(
+            spotify_body_area(self.terminal_area),
+            col,
+            row,
+            self.spotify.recent_tracks_selected,
+            visible_items(
+                spotify_body_area(self.terminal_area),
+                ListItemHeight::TwoLines,
+            ),
+            self.spotify.recent_tracks_scroll_offset,
+            self.spotify.recent_tracks.len(),
+        ) else {
+            return;
+        };
+
+        self.spotify.recent_tracks_selected = idx;
+        self.activate_spotify_recent_track_selected().await;
+    }
+
+    async fn on_click_spotify_albums(&mut self, col: u16, row: u16) {
+        if self.spotify.open_album.is_some() {
+            self.on_click_spotify_album_tracks(col, row).await;
+        } else {
+            self.on_click_spotify_album_list(col, row).await;
+        }
+    }
+
+    async fn on_click_spotify_album_list(&mut self, col: u16, row: u16) {
+        let Some(idx) = two_line_list_index_at(
+            spotify_body_area(self.terminal_area),
+            col,
+            row,
+            self.spotify.albums_selected,
+            visible_items(
+                spotify_body_area(self.terminal_area),
+                ListItemHeight::TwoLines,
+            ),
+            self.spotify.albums_scroll_offset,
+            self.spotify.albums.len(),
+        ) else {
+            return;
+        };
+
+        self.spotify.albums_selected = idx;
+        self.activate_spotify_album_selected().await;
+    }
+
+    async fn on_click_spotify_album_tracks(&mut self, col: u16, row: u16) {
+        let Some(idx) = two_line_list_index_at(
+            spotify_titled_track_list_area(self.terminal_area),
+            col,
+            row,
+            self.spotify.album_tracks_selected,
+            visible_items(
+                spotify_titled_track_list_area(self.terminal_area),
+                ListItemHeight::TwoLines,
+            ),
+            self.spotify.album_tracks_scroll_offset,
+            self.spotify.album_tracks.len(),
+        ) else {
+            return;
+        };
+
+        self.spotify.album_tracks_selected = idx;
+        self.activate_spotify_album_track_selected().await;
+    }
+
+    async fn on_click_youtube(&mut self, col: u16, row: u16) {
+        let Some(idx) = two_line_list_index_at(
+            youtube_list_area(self.terminal_area),
+            col,
+            row,
+            self.youtube.selected,
+            visible_items(
+                youtube_list_area(self.terminal_area),
+                ListItemHeight::TwoLines,
+            ),
+            self.youtube.scroll_offset,
+            self.youtube.results.len(),
+        ) else {
+            return;
+        };
+
+        self.youtube.selected = idx;
+        self.activate_youtube_selected().await;
+    }
+
     pub async fn on_mouse_scroll(&mut self, delta: i32) {
         self.last_activity = Instant::now();
         if self.show_search_modal {
-            let (len, sel) =
-                if self.search_results.is_empty() && matches!(self.modal_mode, SearchMode::Genre) {
-                    (
-                        filter_items(GENRES, &self.genre_filter).len(),
-                        &mut self.genre_selected,
-                    )
-                } else if self.search_results.is_empty()
-                    && matches!(self.modal_mode, SearchMode::Country)
-                {
-                    (
-                        filter_items(COUNTRIES, &self.country_filter).len(),
-                        &mut self.country_selected,
-                    )
-                } else if matches!(self.modal_mode, SearchMode::Settings) {
-                    (
-                        settings_items(self.config.duck_enabled).len(),
-                        &mut self.settings_selected,
-                    )
-                } else {
-                    (self.search_results.len(), &mut self.modal_selected)
-                };
-            if len == 0 {
-                return;
+            match self.modal_mode {
+                SearchMode::Youtube => {
+                    let len = self.youtube.results.len();
+                    if len > 0 {
+                        self.youtube.selected = scroll_by(self.youtube.selected, delta, len);
+                        self.keep_youtube_visible();
+                    }
+                }
+                SearchMode::Spotify => {
+                    use crate::app::SpotifySubTab;
+                    match self.spotify.sub_tab {
+                        SpotifySubTab::Search => {
+                            let len = self.spotify.search_results.len();
+                            if len > 0 {
+                                self.spotify.search_selected =
+                                    scroll_by(self.spotify.search_selected, delta, len);
+                                self.keep_spotify_search_visible();
+                            }
+                        }
+                        SpotifySubTab::Liked => {
+                            let len = self.spotify.liked_tracks.len();
+                            if len > 0 {
+                                self.spotify.liked_selected =
+                                    scroll_by(self.spotify.liked_selected, delta, len);
+                                self.keep_spotify_liked_visible();
+                                if delta > 0
+                                    && self.spotify.liked_selected >= len - 1
+                                    && self.spotify.liked_has_more
+                                {
+                                    self.load_more_spotify_liked();
+                                }
+                            }
+                        }
+                        SpotifySubTab::Playlists => {
+                            if self.spotify.open_playlist.is_some() {
+                                let len = self.spotify.playlist_tracks.len();
+                                if len > 0 {
+                                    self.spotify.playlist_tracks_selected = scroll_by(
+                                        self.spotify.playlist_tracks_selected,
+                                        delta,
+                                        len,
+                                    );
+                                    self.keep_spotify_playlist_tracks_visible();
+                                }
+                            } else {
+                                let len = self.spotify.playlists.len();
+                                if len > 0 {
+                                    self.spotify.playlists_selected =
+                                        scroll_by(self.spotify.playlists_selected, delta, len);
+                                    self.keep_spotify_playlists_visible();
+                                }
+                            }
+                        }
+                        SpotifySubTab::TopTracks => {
+                            let len = self.spotify.top_tracks.len();
+                            if len > 0 {
+                                self.spotify.top_tracks_selected =
+                                    scroll_by(self.spotify.top_tracks_selected, delta, len);
+                                self.keep_spotify_top_tracks_visible();
+                            }
+                        }
+                        SpotifySubTab::Recent => {
+                            let len = self.spotify.recent_tracks.len();
+                            if len > 0 {
+                                self.spotify.recent_tracks_selected =
+                                    scroll_by(self.spotify.recent_tracks_selected, delta, len);
+                                self.keep_spotify_recent_tracks_visible();
+                            }
+                        }
+                        SpotifySubTab::Albums => {
+                            if self.spotify.open_album.is_some() {
+                                let len = self.spotify.album_tracks.len();
+                                if len > 0 {
+                                    self.spotify.album_tracks_selected =
+                                        scroll_by(self.spotify.album_tracks_selected, delta, len);
+                                    self.keep_spotify_album_tracks_visible();
+                                }
+                            } else {
+                                let len = self.spotify.albums.len();
+                                if len > 0 {
+                                    self.spotify.albums_selected =
+                                        scroll_by(self.spotify.albums_selected, delta, len);
+                                    self.keep_spotify_albums_visible();
+                                }
+                            }
+                        }
+                    }
+                }
+                _ => {
+                    if matches!(self.modal_mode, SearchMode::Name)
+                        && matches!(self.radio_sub_tab, RadioSubTab::Favorites)
+                    {
+                        let len = self.favorites.len();
+                        if len > 0 {
+                            self.radio_fav_selected =
+                                scroll_by(self.radio_fav_selected, delta, len);
+                            self.keep_radio_favorites_visible();
+                        }
+                        return;
+                    }
+
+                    if !self.search_results.is_empty()
+                        && matches!(
+                            self.modal_mode,
+                            SearchMode::Name | SearchMode::Genre | SearchMode::Country
+                        )
+                    {
+                        let len = self.search_results.len();
+                        self.modal_selected = scroll_by(self.modal_selected, delta, len);
+                        self.keep_active_radio_results_visible();
+                        return;
+                    }
+
+                    match self.modal_mode {
+                        SearchMode::Genre if self.search_results.is_empty() => {
+                            let len = filter_items(GENRES, &self.genre_filter).len();
+                            if len > 0 {
+                                self.genre_selected = scroll_by(self.genre_selected, delta, len);
+                                self.keep_genre_filter_visible();
+                            }
+                        }
+                        SearchMode::Country if self.search_results.is_empty() => {
+                            let len = filter_items(COUNTRIES, &self.country_filter).len();
+                            if len > 0 {
+                                self.country_selected =
+                                    scroll_by(self.country_selected, delta, len);
+                                self.keep_country_filter_visible();
+                            }
+                        }
+                        SearchMode::Settings => {
+                            let len = settings_items(self.config.duck_enabled).len();
+                            if len > 0 {
+                                self.settings_selected =
+                                    scroll_by(self.settings_selected, delta, len);
+                                self.keep_settings_visible();
+                            }
+                        }
+                        _ => {
+                            let len = self.search_results.len();
+                            if len > 0 {
+                                self.modal_selected = scroll_by(self.modal_selected, delta, len);
+                            }
+                        }
+                    }
+                }
             }
-            *sel = scroll_by(*sel, delta, len);
             return;
         }
 
@@ -1162,6 +2048,13 @@ impl App {
                 self.config.spotify.start_on_spotify = !self.config.spotify.start_on_spotify;
             }
             super::modal::SettingItem::SpotifyClientId => {}
+            super::modal::SettingItem::SpotifyPlaybackMode => {
+                self.set_spotify_playback_mode(self.config.spotify.playback_mode.next());
+            }
+            super::modal::SettingItem::SpotifyRadioMode => {
+                self.config.spotify.radio_enabled = !self.config.spotify.radio_enabled;
+            }
+            super::modal::SettingItem::ReplayOnboarding => {}
             super::modal::SettingItem::AutoUpdate => {
                 self.config.auto_update = !self.config.auto_update
             }
@@ -1184,33 +2077,86 @@ impl App {
         match key {
             KeyCode::Esc => {
                 self.show_help = false;
-                if !self.spotify.search_query.is_empty() {
+                use super::modal::SpotifySubTab;
+                if self.spotify.sub_tab == SpotifySubTab::Playlists
+                    && self.spotify.open_playlist.is_some()
+                {
+                    self.spotify.open_playlist = None;
+                } else if self.spotify.sub_tab == SpotifySubTab::Albums
+                    && self.spotify.open_album.is_some()
+                {
+                    self.spotify.open_album = None;
+                    self.spotify.album_tracks_selected = 0;
+                    self.spotify.album_tracks_scroll_offset = 0;
+                } else if !self.spotify.search_query.is_empty() {
                     self.spotify.search_query.clear();
                     self.spotify.search_results.clear();
                     self.spotify.search_selected = 0;
+                    self.spotify.search_scroll_offset = 0;
                 } else {
                     self.should_quit = true;
                 }
             }
             KeyCode::Left | KeyCode::Right => {
-                use super::modal::SpotifySubTab;
-                self.spotify.sub_tab = match self.spotify.sub_tab {
-                    SpotifySubTab::Search => {
-                        if self.spotify.devices.is_empty() && !self.spotify.devices_loading {
-                            self.fetch_spotify_devices();
-                        }
-                        SpotifySubTab::Devices
-                    }
-                    SpotifySubTab::Devices => SpotifySubTab::Search,
+                let tabs = [
+                    SpotifySubTab::Search,
+                    SpotifySubTab::Liked,
+                    SpotifySubTab::Playlists,
+                    SpotifySubTab::TopTracks,
+                    SpotifySubTab::Recent,
+                    SpotifySubTab::Albums,
+                ];
+                let current = tabs
+                    .iter()
+                    .position(|t| *t == self.spotify.sub_tab)
+                    .unwrap_or(0);
+                let next = if key == KeyCode::Right {
+                    (current + 1) % tabs.len()
+                } else {
+                    (current + tabs.len() - 1) % tabs.len()
                 };
+                self.switch_spotify_sub_tab(tabs[next]);
             }
-            _ => {
-                use super::modal::SpotifySubTab;
-                match self.spotify.sub_tab {
-                    SpotifySubTab::Search => self.on_key_spotify_search(key).await,
-                    SpotifySubTab::Devices => self.on_key_spotify_devices(key).await,
-                }
+            _ => match self.spotify.sub_tab {
+                SpotifySubTab::Search => self.on_key_spotify_search(key).await,
+                SpotifySubTab::Liked => self.on_key_spotify_liked(key).await,
+                SpotifySubTab::Playlists => self.on_key_spotify_playlists(key).await,
+                SpotifySubTab::TopTracks => self.on_key_spotify_top_tracks(key).await,
+                SpotifySubTab::Recent => self.on_key_spotify_recent_tracks(key).await,
+                SpotifySubTab::Albums => self.on_key_spotify_albums(key).await,
+            },
+        }
+    }
+
+    fn switch_spotify_sub_tab(&mut self, tab: SpotifySubTab) {
+        self.spotify.sub_tab = tab;
+        match self.spotify.sub_tab {
+            SpotifySubTab::Liked
+                if self.spotify.liked_tracks.is_empty() && !self.spotify.liked_loading =>
+            {
+                self.fetch_liked_tracks();
             }
+            SpotifySubTab::Playlists
+                if self.spotify.playlists.is_empty() && !self.spotify.playlists_loading =>
+            {
+                self.fetch_playlists();
+            }
+            SpotifySubTab::TopTracks
+                if self.spotify.top_tracks.is_empty() && !self.spotify.top_tracks_loading =>
+            {
+                self.fetch_top_tracks();
+            }
+            SpotifySubTab::Recent
+                if self.spotify.recent_tracks.is_empty() && !self.spotify.recent_tracks_loading =>
+            {
+                self.fetch_recent_tracks();
+            }
+            SpotifySubTab::Albums
+                if self.spotify.albums.is_empty() && !self.spotify.albums_loading =>
+            {
+                self.fetch_albums();
+            }
+            _ => {}
         }
     }
 
@@ -1233,65 +2179,103 @@ impl App {
         }
     }
 
-    async fn on_key_spotify_devices(&mut self, key: KeyCode) {
-        match key {
-            KeyCode::Up => {
-                if self.spotify.devices_selected > 0 {
-                    self.spotify.devices_selected -= 1;
-                }
+    async fn cycle_spotify_device(&mut self) {
+        if self.config.spotify.playback_mode == crate::config::SpotifyPlaybackMode::Native {
+            self.save_notice = Some(t("modal.spotify.devices_native_hint"));
+            self.save_notice_is_dup = false;
+            self.notice_until = Some(std::time::Instant::now() + std::time::Duration::from_secs(5));
+            return;
+        }
+        let len = self.spotify.devices.len();
+        if len > 1 {
+            if let Some(id) = next_spotify_device_id(
+                &self.spotify.devices,
+                self.spotify.active_device_id.as_deref(),
+            ) {
+                self.transfer_to_spotify_device(id).await;
             }
-            KeyCode::Down => {
-                if self.spotify.devices_selected + 1 < self.spotify.devices.len() {
-                    self.spotify.devices_selected += 1;
-                }
-            }
-            KeyCode::Enter => {
-                if let Some(device) = self.spotify.devices.get(self.spotify.devices_selected) {
-                    if let Some(id) = device.id.clone() {
-                        self.transfer_to_spotify_device(id).await;
-                    }
-                }
-            }
-            KeyCode::Char(' ') => {
-                if let Some(device_id) = self.spotify.active_device_id.clone() {
-                    let token = self.spotify.access_token.clone().unwrap_or_default();
-                    match self.spotify.player_status {
-                        SpotifyPlayerStatus::Playing => {
-                            self.spotify.player_status = SpotifyPlayerStatus::Paused;
-                            tokio::spawn(async move {
-                                if let Err(e) = crate::integrations::spotify::devices::pause_device(
-                                    &token, &device_id,
-                                )
-                                .await
-                                {
-                                    tracing::warn!("spotify pause error: {e}");
-                                }
-                            });
-                        }
-                        SpotifyPlayerStatus::Paused => {
-                            self.spotify.player_status = SpotifyPlayerStatus::Playing;
-                            tokio::spawn(async move {
-                                if let Err(e) =
-                                    crate::integrations::spotify::devices::resume_device(
-                                        &token, &device_id,
-                                    )
-                                    .await
-                                {
-                                    tracing::warn!("spotify resume error: {e}");
-                                }
-                            });
-                        }
-                        _ => {}
-                    }
-                } else if let Some(handle) = &self.spotify.player_tx {
-                    match self.spotify.player_status {
-                        SpotifyPlayerStatus::Playing => handle.pause(),
-                        SpotifyPlayerStatus::Paused => handle.resume(),
-                        _ => {}
-                    }
-                }
-            }
-            _ => {}
+        } else if len <= 1 && !self.spotify.devices_loading {
+            self.fetch_spotify_devices();
+        }
+    }
+
+    async fn activate_spotify_search_selected(&mut self) {
+        if let Some(track) = self
+            .spotify
+            .search_results
+            .get(self.spotify.search_selected)
+            .cloned()
+        {
+            self.save_notice = Some(t("notice.spotify_radio_stopped"));
+            self.save_notice_is_dup = false;
+            self.notice_until = Some(std::time::Instant::now() + std::time::Duration::from_secs(5));
+            let sel = self.spotify.search_selected;
+            let queue = self.spotify.search_results[sel.saturating_add(1)..].to_vec();
+            self.play_spotify_track_with_queue(track, queue).await;
+        }
+    }
+
+    async fn activate_spotify_liked_selected(&mut self) {
+        let sel = self.spotify.liked_selected;
+        if sel < self.spotify.liked_tracks.len() {
+            let track = self.spotify.liked_tracks[sel].clone();
+            let queue = self.spotify.liked_tracks[sel + 1..].to_vec();
+            self.play_spotify_track_with_queue(track, queue).await;
+        }
+    }
+
+    async fn activate_spotify_playlist_selected(&mut self) {
+        let sel = self.spotify.playlists_selected;
+        if let Some(pl) = self.spotify.playlists.get(sel).cloned() {
+            let id = pl.id.clone();
+            self.spotify.open_playlist = Some(pl);
+            self.fetch_playlist_tracks(id);
+        }
+    }
+
+    async fn activate_spotify_playlist_track_selected(&mut self) {
+        let sel = self.spotify.playlist_tracks_selected;
+        if sel < self.spotify.playlist_tracks.len() {
+            let track = self.spotify.playlist_tracks[sel].clone();
+            let queue = self.spotify.playlist_tracks[sel + 1..].to_vec();
+            self.play_spotify_track_with_queue(track, queue).await;
+        }
+    }
+
+    async fn activate_spotify_top_track_selected(&mut self) {
+        let sel = self.spotify.top_tracks_selected;
+        if sel < self.spotify.top_tracks.len() {
+            let track = self.spotify.top_tracks[sel].clone();
+            let queue = self.spotify.top_tracks[sel + 1..].to_vec();
+            self.play_spotify_track_with_queue(track, queue).await;
+        }
+    }
+
+    async fn activate_spotify_recent_track_selected(&mut self) {
+        let sel = self.spotify.recent_tracks_selected;
+        if sel < self.spotify.recent_tracks.len() {
+            let track = self.spotify.recent_tracks[sel].clone();
+            let queue = self.spotify.recent_tracks[sel + 1..].to_vec();
+            self.play_spotify_track_with_queue(track, queue).await;
+        }
+    }
+
+    async fn activate_spotify_album_selected(&mut self) {
+        let sel = self.spotify.albums_selected;
+        if let Some(album) = self.spotify.albums.get(sel).cloned() {
+            self.spotify.open_album = Some(album);
+            self.spotify.album_tracks_selected = 0;
+            self.spotify.album_tracks_scroll_offset = 0;
+            self.fetch_album_tracks();
+        }
+    }
+
+    async fn activate_spotify_album_track_selected(&mut self) {
+        let sel = self.spotify.album_tracks_selected;
+        if sel < self.spotify.album_tracks.len() {
+            let track = self.spotify.album_tracks[sel].clone();
+            let queue = self.spotify.album_tracks[sel + 1..].to_vec();
+            self.play_spotify_track_with_queue(track, queue).await;
         }
     }
 
@@ -1303,6 +2287,7 @@ impl App {
                         self.spotify.search_selected,
                         self.spotify.search_results.len(),
                     );
+                    self.keep_spotify_search_visible();
                 }
             }
             KeyCode::Down => {
@@ -1315,56 +2300,224 @@ impl App {
                             self.spotify.search_selected,
                             self.spotify.search_results.len(),
                         );
+                        self.keep_spotify_search_visible();
                     }
                 }
             }
             KeyCode::Enter => {
-                if let Some(track) = self
-                    .spotify
-                    .search_results
-                    .get(self.spotify.search_selected)
-                    .cloned()
-                {
-                    self.player.send(PlayerCommand::Stop).await;
-                    self.save_notice = Some(t("notice.spotify_radio_stopped"));
-                    self.save_notice_is_dup = false;
-                    self.notice_until =
-                        Some(std::time::Instant::now() + std::time::Duration::from_secs(5));
-                    if let Some(device_id) = self.spotify.active_device_id.clone() {
-                        let token = self.spotify.access_token.clone().unwrap_or_default();
-                        let uri = track.uri.clone();
-                        self.spotify.now_playing = Some(track);
-                        self.spotify.player_status = SpotifyPlayerStatus::Loading;
-                        let (tx, rx) = std::sync::mpsc::channel();
-                        self.spotify.play_result_rx = Some(rx);
-                        tokio::spawn(async move {
-                            let result = crate::integrations::spotify::devices::play_on_device(
-                                &token, &device_id, &uri,
-                            )
-                            .await;
-                            let _ = tx.send(result);
-                        });
-                        self.start_playback_polling();
-                    } else if let Some(handle) = &self.spotify.player_tx {
-                        handle.play(track.clone());
-                        self.spotify.now_playing = Some(track);
-                        self.spotify.player_status = SpotifyPlayerStatus::Loading;
-                    } else {
-                        self.spotify.player_status = SpotifyPlayerStatus::Error(
-                            "Player no inicializado. Reconecta Spotify.".to_string(),
-                        );
-                    }
-                }
+                self.activate_spotify_search_selected().await;
             }
             KeyCode::Backspace => {
                 self.spotify.search_query.pop();
                 self.spotify.search_selected = 0;
+                self.spotify.search_scroll_offset = 0;
                 self.perform_spotify_search();
             }
             KeyCode::Char(c) if !c.is_control() => {
                 self.spotify.search_query.push(c);
                 self.spotify.search_selected = 0;
+                self.spotify.search_scroll_offset = 0;
                 self.perform_spotify_search();
+            }
+            _ => {}
+        }
+    }
+
+    async fn on_key_spotify_liked(&mut self, key: KeyCode) {
+        let len = self.spotify.liked_tracks.len();
+        match key {
+            KeyCode::Up => {
+                if self.spotify.liked_selected > 0 {
+                    self.spotify.liked_selected -= 1;
+                    self.keep_spotify_liked_visible();
+                }
+            }
+            KeyCode::Down => {
+                if len > 0 {
+                    let last = len - 1;
+                    if self.spotify.liked_selected >= last && self.spotify.liked_has_more {
+                        self.load_more_spotify_liked();
+                    } else if self.spotify.liked_selected < last {
+                        self.spotify.liked_selected += 1;
+                        self.keep_spotify_liked_visible();
+                    }
+                }
+            }
+            KeyCode::Enter => {
+                self.activate_spotify_liked_selected().await;
+            }
+            _ => {}
+        }
+    }
+
+    async fn on_key_spotify_playlists(&mut self, key: KeyCode) {
+        if self.spotify.open_playlist.is_some() {
+            self.on_key_spotify_playlist_tracks(key).await;
+        } else {
+            self.on_key_spotify_playlist_list(key).await;
+        }
+    }
+
+    async fn on_key_spotify_playlist_list(&mut self, key: KeyCode) {
+        let len = self.spotify.playlists.len();
+        match key {
+            KeyCode::Up => {
+                if self.spotify.playlists_selected > 0 {
+                    self.spotify.playlists_selected -= 1;
+                    self.keep_spotify_playlists_visible();
+                }
+            }
+            KeyCode::Down => {
+                if len > 0 {
+                    let last = len - 1;
+                    if self.spotify.playlists_selected >= last && self.spotify.playlists_has_more {
+                        self.load_more_spotify_playlists();
+                    } else if self.spotify.playlists_selected < last {
+                        self.spotify.playlists_selected += 1;
+                        self.keep_spotify_playlists_visible();
+                    }
+                }
+            }
+            KeyCode::Enter => {
+                self.activate_spotify_playlist_selected().await;
+            }
+            _ => {}
+        }
+    }
+
+    async fn on_key_spotify_playlist_tracks(&mut self, key: KeyCode) {
+        let len = self.spotify.playlist_tracks.len();
+        match key {
+            KeyCode::Esc | KeyCode::Backspace => {
+                self.spotify.open_playlist = None;
+            }
+            KeyCode::Up => {
+                if self.spotify.playlist_tracks_selected > 0 {
+                    self.spotify.playlist_tracks_selected -= 1;
+                    self.keep_spotify_playlist_tracks_visible();
+                }
+            }
+            KeyCode::Down => {
+                if len > 0 {
+                    let last = len - 1;
+                    if self.spotify.playlist_tracks_selected >= last
+                        && self.spotify.playlist_tracks_has_more
+                    {
+                        self.load_more_spotify_playlist_tracks();
+                    } else if self.spotify.playlist_tracks_selected < last {
+                        self.spotify.playlist_tracks_selected += 1;
+                        self.keep_spotify_playlist_tracks_visible();
+                    }
+                }
+            }
+            KeyCode::Enter => {
+                self.activate_spotify_playlist_track_selected().await;
+            }
+            _ => {}
+        }
+    }
+
+    async fn on_key_spotify_top_tracks(&mut self, key: KeyCode) {
+        let len = self.spotify.top_tracks.len();
+        match key {
+            KeyCode::Up => {
+                if self.spotify.top_tracks_selected > 0 {
+                    self.spotify.top_tracks_selected -= 1;
+                    self.keep_spotify_top_tracks_visible();
+                }
+            }
+            KeyCode::Down => {
+                if len > 0 && self.spotify.top_tracks_selected < len - 1 {
+                    self.spotify.top_tracks_selected += 1;
+                    self.keep_spotify_top_tracks_visible();
+                }
+            }
+            KeyCode::Enter => {
+                self.activate_spotify_top_track_selected().await;
+            }
+            _ => {}
+        }
+    }
+
+    async fn on_key_spotify_recent_tracks(&mut self, key: KeyCode) {
+        let len = self.spotify.recent_tracks.len();
+        match key {
+            KeyCode::Up => {
+                if self.spotify.recent_tracks_selected > 0 {
+                    self.spotify.recent_tracks_selected -= 1;
+                    self.keep_spotify_recent_tracks_visible();
+                }
+            }
+            KeyCode::Down => {
+                if len > 0 && self.spotify.recent_tracks_selected < len - 1 {
+                    self.spotify.recent_tracks_selected += 1;
+                    self.keep_spotify_recent_tracks_visible();
+                }
+            }
+            KeyCode::Enter => {
+                self.activate_spotify_recent_track_selected().await;
+            }
+            _ => {}
+        }
+    }
+
+    async fn on_key_spotify_albums(&mut self, key: KeyCode) {
+        if self.spotify.open_album.is_some() {
+            self.on_key_spotify_album_tracks(key).await;
+        } else {
+            self.on_key_spotify_album_list(key).await;
+        }
+    }
+
+    async fn on_key_spotify_album_list(&mut self, key: KeyCode) {
+        let len = self.spotify.albums.len();
+        match key {
+            KeyCode::Up => {
+                if self.spotify.albums_selected > 0 {
+                    self.spotify.albums_selected -= 1;
+                    self.keep_spotify_albums_visible();
+                }
+            }
+            KeyCode::Down => {
+                if len > 0 {
+                    let last = len - 1;
+                    if self.spotify.albums_selected >= last && self.spotify.albums_has_more {
+                        self.load_more_spotify_albums();
+                    } else if self.spotify.albums_selected < last {
+                        self.spotify.albums_selected += 1;
+                        self.keep_spotify_albums_visible();
+                    }
+                }
+            }
+            KeyCode::Enter => {
+                self.activate_spotify_album_selected().await;
+            }
+            _ => {}
+        }
+    }
+
+    async fn on_key_spotify_album_tracks(&mut self, key: KeyCode) {
+        let len = self.spotify.album_tracks.len();
+        match key {
+            KeyCode::Esc | KeyCode::Backspace => {
+                self.spotify.open_album = None;
+                self.spotify.album_tracks_selected = 0;
+                self.spotify.album_tracks_scroll_offset = 0;
+            }
+            KeyCode::Up => {
+                if self.spotify.album_tracks_selected > 0 {
+                    self.spotify.album_tracks_selected -= 1;
+                    self.keep_spotify_album_tracks_visible();
+                }
+            }
+            KeyCode::Down => {
+                if len > 0 && self.spotify.album_tracks_selected < len - 1 {
+                    self.spotify.album_tracks_selected += 1;
+                    self.keep_spotify_album_tracks_visible();
+                }
+            }
+            KeyCode::Enter => {
+                self.activate_spotify_album_track_selected().await;
             }
             _ => {}
         }
@@ -1380,6 +2533,7 @@ impl App {
                     self.youtube.query.clear();
                     self.youtube.results.clear();
                     self.youtube.selected = 0;
+                    self.youtube.scroll_offset = 0;
                     self.youtube.loading = false;
                     self.youtube.search_pending_until = None;
                     abort_task(&mut self.youtube.search_task);
@@ -1395,34 +2549,42 @@ impl App {
                 if !self.youtube.results.is_empty() {
                     self.youtube.selected =
                         cycle_prev(self.youtube.selected, self.youtube.results.len());
+                    self.keep_youtube_visible();
                 }
             }
             KeyCode::Down => {
                 if !self.youtube.results.is_empty() {
                     self.youtube.selected =
                         cycle_next(self.youtube.selected, self.youtube.results.len());
+                    self.keep_youtube_visible();
                 }
             }
             KeyCode::Enter => {
-                if !self.youtube.results.is_empty() {
-                    self.start_youtube_resolve();
-                } else if !self.youtube.query.trim().is_empty() {
-                    self.start_youtube_search_now();
-                } else {
-                    self.ensure_youtube_ready();
-                }
+                self.activate_youtube_selected().await;
             }
             KeyCode::Backspace => {
                 self.youtube.query.pop();
                 self.youtube.selected = 0;
+                self.youtube.scroll_offset = 0;
                 self.perform_youtube_search();
             }
             KeyCode::Char(c) if !c.is_control() => {
                 self.youtube.query.push(c);
                 self.youtube.selected = 0;
+                self.youtube.scroll_offset = 0;
                 self.perform_youtube_search();
             }
             _ => {}
+        }
+    }
+
+    async fn activate_youtube_selected(&mut self) {
+        if !self.youtube.results.is_empty() {
+            self.start_youtube_resolve();
+        } else if !self.youtube.query.trim().is_empty() {
+            self.start_youtube_search_now();
+        } else {
+            self.ensure_youtube_ready();
         }
     }
 
@@ -1473,6 +2635,7 @@ impl App {
                         .await;
                 } else if !titles.is_empty() {
                     let raw = titles[self.recent_selected].clone();
+                    let preview_id = self.next_preview_id();
                     let cmd_tx = self.player.clone_sender();
                     let _ = cmd_tx.send(PlayerCommand::SetPreviewSearching(true)).await;
                     let _ = cmd_tx
@@ -1489,6 +2652,8 @@ impl App {
                                         url,
                                         title,
                                         raw_track: raw,
+                                        preview_id: Some(preview_id),
+                                        start_at_secs: 0.0,
                                     })
                                     .await
                                     .is_err()
@@ -1496,7 +2661,9 @@ impl App {
                                     return;
                                 }
                                 tokio::time::sleep(std::time::Duration::from_secs(35)).await;
-                                let _ = cmd_tx.send(PlayerCommand::StopPreview).await;
+                                let _ = cmd_tx
+                                    .send(PlayerCommand::StopPreviewIfCurrent(preview_id))
+                                    .await;
                             }
                             None => {
                                 tracing::warn!("Deezer: no result for '{raw}'");
@@ -1518,5 +2685,102 @@ impl App {
             }
             _ => {}
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::integrations::spotify::devices::SpotifyDevice;
+    use crate::integrations::youtube::YoutubeVideo;
+
+    fn spotify_device(id: Option<&str>, is_active: bool) -> SpotifyDevice {
+        SpotifyDevice {
+            id: id.map(str::to_string),
+            name: id.unwrap_or("missing").to_string(),
+            device_type: "Computer".to_string(),
+            is_active,
+        }
+    }
+
+    fn youtube_video(id: &str) -> YoutubeVideo {
+        YoutubeVideo {
+            id: id.to_string(),
+            title: format!("Video {id}"),
+            channel: "Channel".to_string(),
+            duration_secs: 120,
+            watch_url: format!("https://youtube.test/watch?v={id}"),
+            thumbnail: None,
+        }
+    }
+
+    #[test]
+    fn next_spotify_device_uses_active_device_id_before_spotify_active_flag() {
+        let devices = vec![
+            spotify_device(Some("preserved"), false),
+            spotify_device(Some("spotify-active"), true),
+            spotify_device(Some("next"), false),
+        ];
+
+        assert_eq!(
+            next_spotify_device_id(&devices, Some("preserved")).as_deref(),
+            Some("spotify-active")
+        );
+    }
+
+    #[test]
+    fn next_spotify_device_skips_devices_without_transfer_id() {
+        let devices = vec![
+            spotify_device(Some("current"), false),
+            spotify_device(None, true),
+            spotify_device(Some("next"), false),
+        ];
+
+        assert_eq!(
+            next_spotify_device_id(&devices, Some("current")).as_deref(),
+            Some("next")
+        );
+    }
+
+    #[test]
+    fn setting_index_at_visual_row_ignores_headers() {
+        let items = settings_items(false);
+
+        assert_eq!(setting_index_at_visual_row(&items, 0), None);
+        assert_eq!(setting_index_at_visual_row(&items, 6), None);
+    }
+
+    #[test]
+    fn setting_index_at_visual_row_returns_item_index() {
+        let items = settings_items(false);
+
+        assert_eq!(setting_index_at_visual_row(&items, 1), Some(0));
+        assert_eq!(setting_index_at_visual_row(&items, 7), Some(5));
+    }
+
+    #[test]
+    fn settings_visual_row_count_includes_headers() {
+        let items = settings_items(false);
+
+        assert_eq!(settings_visual_row_count(&items), items.len() + 6);
+    }
+
+    #[tokio::test]
+    async fn first_click_while_screensaver_is_active_only_wakes_it() {
+        let mut app = App::new().await;
+        app.terminal_area = ratatui::layout::Rect::new(0, 0, 100, 40);
+        app.show_search_modal = true;
+        app.modal_mode = SearchMode::Youtube;
+        app.config.screensaver_secs = 1;
+        app.last_activity = Instant::now() - std::time::Duration::from_secs(2);
+        app.youtube.results = vec![youtube_video("one"), youtube_video("two")];
+        app.youtube.selected = 0;
+
+        let list_area = youtube_list_area(app.terminal_area).expect("youtube list should render");
+        app.on_click(list_area.x, list_area.y + 2).await;
+
+        assert!(!app.screensaver_active());
+        assert_eq!(app.youtube.selected, 0);
+        assert!(app.youtube.resolve_task.is_none());
     }
 }

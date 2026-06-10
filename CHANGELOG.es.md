@@ -10,6 +10,52 @@ Versionado: [Semantic Versioning](https://semver.org/)
 
 ## [Sin publicar]
 
+### Agregado
+- Bienvenida inicial con animación del logo, música ambiental y opciones de configuración inicial (overlay, autoplay, restaurar volumen)
+- Opción "Ver bienvenida de nuevo" en Ajustes para repetir la experiencia de primer inicio
+- Reproducción continua en Spotify: al terminar una canción, la siguiente del contexto cargado avanza automáticamente (carga en lote via Spirc para reproducción sin pausas)
+- Modo radio en Spotify: cuando se agota la cola, se reproducen automáticamente canciones similares del mismo artista; se puede desactivar en Ajustes
+- Pestaña "Me gusta" en Spotify: explorar y reproducir canciones guardadas con paginación
+- Pestaña Listas de reproducción en Spotify: explorar listas propias, abrirlas y reproducir canciones con continuación secuencial
+
+---
+
+## [1.4.2] — 2026-06-06
+
+### Agregado
+- Extracción del tema de UI a un sistema modular de paletas para permitir temas dinámicos
+- Nuevo estilo de overlay compacto (`compact`)
+- CI obligatorio y protección estricta de GitHub Actions en `develop`
+
+### Corregido
+- Corregida una aserción rota del test unitario para el ancho del layout del modal
+
+---
+
+## [1.4.1] — 2026-06-06
+
+### Agregado
+- Fortalecida la validación de payloads del updater contra riesgos de seguridad
+
+---
+
+## [1.4.2] — 2026-06-06
+
+### Agregado
+- Extracción del tema de UI a un sistema modular de paletas para permitir temas dinámicos
+- Nuevo estilo de overlay compacto (`compact`)
+- CI obligatorio y protección estricta de GitHub Actions en `develop`
+
+### Corregido
+- Corregida una aserción rota del test unitario para el ancho del layout del modal
+
+---
+
+## [1.4.1] — 2026-06-06
+
+### Agregado
+- Fortalecida la validación de payloads del updater contra riesgos de seguridad
+
 ---
 
 ## [1.4.2] — 2026-06-06

@@ -19,7 +19,7 @@ pub(super) struct ScreensaverCtx<'a> {
     pub details: Option<&'a StationDetails>,
     pub is_favorite: bool,
     pub spotify_name: Option<&'a str>,
-    pub spotify_premium: bool,
+    pub spotify_premium: Option<bool>,
     pub enriched_track: Option<&'a crate::metadata::EnrichedTrack>,
     pub show_clock: bool,
     pub border_tick: u32,
@@ -166,7 +166,7 @@ pub(super) fn render_screensaver(frame: &mut Frame, area: Rect, ctx: Screensaver
                     bg,
                 ))
                 .style(Style::default().bg(bg)),
-                Rect::new(clock_x, row, clock_w, 1),
+                Rect::new(clock_x, row, clock_w, 1).intersection(inner),
             );
             row += 1;
         }
@@ -189,7 +189,7 @@ pub(super) fn render_screensaver(frame: &mut Frame, area: Rect, ctx: Screensaver
         )))
         .alignment(Alignment::Center)
         .style(Style::default().bg(bg)),
-        Rect::new(cx, row, cw, 1),
+        Rect::new(cx, row, cw, 1).intersection(inner),
     );
     row += 1;
     if let Some(et) = enriched_track {
@@ -200,7 +200,7 @@ pub(super) fn render_screensaver(frame: &mut Frame, area: Rect, ctx: Screensaver
             ))
             .alignment(Alignment::Center)
             .style(Style::default().bg(bg)),
-            Rect::new(cx, row, cw, 1),
+            Rect::new(cx, row, cw, 1).intersection(inner),
         );
         row += 1;
         frame.render_widget(
@@ -212,7 +212,7 @@ pub(super) fn render_screensaver(frame: &mut Frame, area: Rect, ctx: Screensaver
             ))
             .alignment(Alignment::Center)
             .style(Style::default().bg(bg)),
-            Rect::new(cx, row, cw, 1),
+            Rect::new(cx, row, cw, 1).intersection(inner),
         );
         row += 1;
         let duration_str = if et.duration_secs > 0 {
@@ -233,7 +233,7 @@ pub(super) fn render_screensaver(frame: &mut Frame, area: Rect, ctx: Screensaver
             ))
             .alignment(Alignment::Center)
             .style(Style::default().bg(bg)),
-            Rect::new(cx, row, cw, 1),
+            Rect::new(cx, row, cw, 1).intersection(inner),
         );
         row += 1;
     } else {
@@ -245,13 +245,13 @@ pub(super) fn render_screensaver(frame: &mut Frame, area: Rect, ctx: Screensaver
             .alignment(Alignment::Center)
             .wrap(Wrap { trim: true })
             .style(Style::default().bg(bg)),
-            Rect::new(cx, row, cw, title_rows),
+            Rect::new(cx, row, cw, title_rows).intersection(inner),
         );
         row += title_rows;
     }
     if let Some(name) = spotify_name {
         let name_tc = strings::title_case(name);
-        let label = if spotify_premium {
+        let label = if spotify_premium.is_some_and(|is_premium| is_premium) {
             format!("★  {}  ·  {}", name_tc, t("integrations.spotify.premium"))
         } else {
             name_tc
@@ -265,7 +265,7 @@ pub(super) fn render_screensaver(frame: &mut Frame, area: Rect, ctx: Screensaver
             )))
             .alignment(Alignment::Center)
             .style(Style::default().bg(bg)),
-            Rect::new(cx, row, cw, 1),
+            Rect::new(cx, row, cw, 1).intersection(inner),
         );
         row += 1;
     }
@@ -275,7 +275,7 @@ pub(super) fn render_screensaver(frame: &mut Frame, area: Rect, ctx: Screensaver
         {
             frame.render_widget(
                 Paragraph::new(progress_line).style(Style::default().bg(bg)),
-                Rect::new(cx, row, cw, 1),
+                Rect::new(cx, row, cw, 1).intersection(inner),
             );
             row += 1;
         }
@@ -284,7 +284,7 @@ pub(super) fn render_screensaver(frame: &mut Frame, area: Rect, ctx: Screensaver
     frame.render_widget(
         Paragraph::new(visualizer_line(state.level_db, cw as usize, bg, palette))
             .style(Style::default().bg(bg)),
-        Rect::new(cx, row, cw, 1),
+        Rect::new(cx, row, cw, 1).intersection(inner),
     );
     row += 1;
     row += 1;
@@ -296,7 +296,7 @@ pub(super) fn render_screensaver(frame: &mut Frame, area: Rect, ctx: Screensaver
                 Style::default().fg(palette.dim),
             )))
             .style(Style::default().bg(bg)),
-            Rect::new(cx, row, cw, 1),
+            Rect::new(cx, row, cw, 1).intersection(inner),
         );
         row += 1;
 
@@ -327,7 +327,7 @@ pub(super) fn render_screensaver(frame: &mut Frame, area: Rect, ctx: Screensaver
                 }
                 frame.render_widget(
                     Paragraph::new(Line::from(spans)).style(Style::default().bg(bg)),
-                    Rect::new(cx, row, cw, 1),
+                    Rect::new(cx, row, cw, 1).intersection(inner),
                 );
                 row += 1;
             }
@@ -342,7 +342,7 @@ pub(super) fn render_screensaver(frame: &mut Frame, area: Rect, ctx: Screensaver
                 frame.render_widget(
                     Paragraph::new(Span::styled(display, Style::default().fg(palette.muted)))
                         .style(Style::default().bg(bg)),
-                    Rect::new(cx, row, cw, 1),
+                    Rect::new(cx, row, cw, 1).intersection(inner),
                 );
                 row += 1;
             }
@@ -362,7 +362,7 @@ pub(super) fn render_screensaver(frame: &mut Frame, area: Rect, ctx: Screensaver
                         ),
                     ]))
                     .style(Style::default().bg(bg)),
-                    Rect::new(cx, row, cw, 1),
+                    Rect::new(cx, row, cw, 1).intersection(inner),
                 );
                 row += 1;
             }
@@ -376,7 +376,7 @@ pub(super) fn render_screensaver(frame: &mut Frame, area: Rect, ctx: Screensaver
                 Style::default().fg(palette.dim),
             )))
             .style(Style::default().bg(bg)),
-            Rect::new(cx, row, cw, 1),
+            Rect::new(cx, row, cw, 1).intersection(inner),
         );
         row += 1;
 
@@ -386,7 +386,7 @@ pub(super) fn render_screensaver(frame: &mut Frame, area: Rect, ctx: Screensaver
                 Style::default().fg(palette.muted),
             ))
             .style(Style::default().bg(bg)),
-            Rect::new(cx, row, cw, 1),
+            Rect::new(cx, row, cw, 1).intersection(inner),
         );
         row += 1;
 
@@ -408,7 +408,7 @@ pub(super) fn render_screensaver(frame: &mut Frame, area: Rect, ctx: Screensaver
                     Span::styled(format!("  {now_live}"), Style::default().fg(palette.accent)),
                 ]))
                 .style(Style::default().bg(bg)),
-                Rect::new(cx, row, cw, 1),
+                Rect::new(cx, row, cw, 1).intersection(inner),
             );
             row += 1;
         }
@@ -422,7 +422,7 @@ pub(super) fn render_screensaver(frame: &mut Frame, area: Rect, ctx: Screensaver
                     Span::styled(display, Style::default().fg(palette.highlight)),
                 ]))
                 .style(Style::default().bg(bg)),
-                Rect::new(cx, row, cw, 1),
+                Rect::new(cx, row, cw, 1).intersection(inner),
             );
             row += 1;
         }
@@ -441,7 +441,7 @@ pub(super) fn render_screensaver(frame: &mut Frame, area: Rect, ctx: Screensaver
         frame.render_widget(
             Paragraph::new(Span::styled(shortcuts, Style::default().fg(palette.dim)))
                 .style(Style::default().bg(bg)),
-            Rect::new(cx, row, cw, 1),
+            Rect::new(cx, row, cw, 1).intersection(inner),
         );
         frame.render_widget(
             Paragraph::new(Line::from(vec![
@@ -455,12 +455,12 @@ pub(super) fn render_screensaver(frame: &mut Frame, area: Rect, ctx: Screensaver
             ]))
             .alignment(Alignment::Right)
             .style(Style::default().bg(bg)),
-            Rect::new(cx, row, cw, 1),
+            Rect::new(cx, row, cw, 1).intersection(inner),
         );
     }
 }
 
-pub(super) const LOGO_W: u16 = 39;
+pub(crate) const LOGO_W: u16 = 39;
 
 fn eq_bar_level(tick: u32, period: u32, phase: u32, min_l: usize, max_l: usize) -> usize {
     let t = tick.wrapping_add(phase) % period;
@@ -538,7 +538,7 @@ fn logo_lines(bg: ratatui::style::Color, tick: u32, palette: &Palette) -> [Line<
     [top, Line::from(spans)]
 }
 
-pub(super) fn render_logo_above(
+pub(crate) fn render_logo_above(
     frame: &mut Frame,
     area_x: u16,
     area_width: u16,
@@ -609,7 +609,7 @@ fn build_clock_row(
     Line::from(Span::styled(s, Style::default().fg(color).bg(bg)))
 }
 
-fn visualizer_line(
+pub(crate) fn visualizer_line(
     level_db: f32,
     width: usize,
     bg: ratatui::style::Color,
@@ -661,7 +661,7 @@ pub(super) fn render_spotify_screensaver(
     profile_name: Option<&str>,
     country: Option<&str>,
     followers: Option<u32>,
-    is_premium: bool,
+    is_premium: Option<bool>,
     show_clock: bool,
     border_tick: u32,
     palette: &Palette,
@@ -678,7 +678,7 @@ pub(super) fn render_spotify_screensaver(
     }
 
     let has_name_row = profile_name.is_some() || country.is_some();
-    let has_plan_row = is_premium || followers.is_some();
+    let has_plan_row = is_premium.is_some_and(|is_premium| is_premium) || followers.is_some();
     let profile_rows = u16::from(has_name_row) + u16::from(has_plan_row);
     let has_profile = profile_rows > 0;
 
@@ -749,7 +749,7 @@ pub(super) fn render_spotify_screensaver(
                     bg,
                 ))
                 .style(Style::default().bg(bg)),
-                Rect::new(clock_x, row, clock_w, 1),
+                Rect::new(clock_x, row, clock_w, 1).intersection(inner),
             );
             row += 1;
         }
@@ -763,7 +763,7 @@ pub(super) fn render_spotify_screensaver(
         ))
         .alignment(Alignment::Center)
         .style(Style::default().bg(bg)),
-        Rect::new(cx, row, cw, 1),
+        Rect::new(cx, row, cw, 1).intersection(inner),
     );
     row += 1;
 
@@ -774,7 +774,7 @@ pub(super) fn render_spotify_screensaver(
         ))
         .alignment(Alignment::Center)
         .style(Style::default().bg(bg)),
-        Rect::new(cx, row, cw, 1),
+        Rect::new(cx, row, cw, 1).intersection(inner),
     );
     row += 1;
     row += 1;
@@ -786,7 +786,7 @@ pub(super) fn render_spotify_screensaver(
         ))
         .alignment(Alignment::Center)
         .style(Style::default().bg(bg)),
-        Rect::new(cx, row, cw, 1),
+        Rect::new(cx, row, cw, 1).intersection(inner),
     );
     row += 1;
 
@@ -799,7 +799,7 @@ pub(super) fn render_spotify_screensaver(
         ))
         .alignment(Alignment::Center)
         .style(Style::default().bg(bg)),
-        Rect::new(cx, row, cw, 1),
+        Rect::new(cx, row, cw, 1).intersection(inner),
     );
     row += 1;
 
@@ -810,7 +810,7 @@ pub(super) fn render_spotify_screensaver(
         ))
         .alignment(Alignment::Center)
         .style(Style::default().bg(bg)),
-        Rect::new(cx, row, cw, 1),
+        Rect::new(cx, row, cw, 1).intersection(inner),
     );
     row += 1;
     row += 1;
@@ -837,14 +837,14 @@ pub(super) fn render_spotify_screensaver(
             Span::styled(time_suffix, Style::default().fg(palette.muted)),
         ]))
         .style(Style::default().bg(bg)),
-        Rect::new(cx, row, cw, 1),
+        Rect::new(cx, row, cw, 1).intersection(inner),
     );
     row += 1;
 
     frame.render_widget(
         Paragraph::new(visualizer_line(-60.0, cw as usize, bg, palette))
             .style(Style::default().bg(bg)),
-        Rect::new(cx, row, cw, 1),
+        Rect::new(cx, row, cw, 1).intersection(inner),
     );
     row += 1;
 
@@ -853,7 +853,7 @@ pub(super) fn render_spotify_screensaver(
         frame.render_widget(
             Paragraph::new(Span::styled(sep, Style::default().fg(palette.dim)))
                 .style(Style::default().bg(bg)),
-            Rect::new(cx, row, cw, 1),
+            Rect::new(cx, row, cw, 1).intersection(inner),
         );
         row += 1;
 
@@ -884,14 +884,14 @@ pub(super) fn render_spotify_screensaver(
             if !spans.is_empty() {
                 frame.render_widget(
                     Paragraph::new(Line::from(spans)).style(Style::default().bg(bg)),
-                    Rect::new(cx, row, cw, 1),
+                    Rect::new(cx, row, cw, 1).intersection(inner),
                 );
                 row += 1;
             }
         }
 
         if has_plan_row {
-            let plan_str = if is_premium {
+            let plan_str = if is_premium.is_some_and(|is_premium| is_premium) {
                 t("integrations.spotify.premium")
             } else {
                 String::new()
@@ -918,7 +918,7 @@ pub(super) fn render_spotify_screensaver(
             if !spans.is_empty() {
                 frame.render_widget(
                     Paragraph::new(Line::from(spans)).style(Style::default().bg(bg)),
-                    Rect::new(cx, row, cw, 1),
+                    Rect::new(cx, row, cw, 1).intersection(inner),
                 );
                 row += 1;
             }
@@ -940,7 +940,7 @@ pub(super) fn render_spotify_screensaver(
         frame.render_widget(
             Paragraph::new(Span::styled(shortcuts, Style::default().fg(palette.dim)))
                 .style(Style::default().bg(bg)),
-            Rect::new(cx, row, cw, 1),
+            Rect::new(cx, row, cw, 1).intersection(inner),
         );
         frame.render_widget(
             Paragraph::new(Line::from(vec![
@@ -957,7 +957,7 @@ pub(super) fn render_spotify_screensaver(
             ]))
             .alignment(Alignment::Right)
             .style(Style::default().bg(bg)),
-            Rect::new(cx, row, cw, 1),
+            Rect::new(cx, row, cw, 1).intersection(inner),
         );
     }
 }

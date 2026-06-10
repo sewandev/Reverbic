@@ -29,39 +29,6 @@ fn uses_legacy_windows_console() -> bool {
         && std::env::var_os("ANSICON").is_none()
 }
 
-pub fn spotify_screensaver_progress_rect(
-    area: Rect,
-    profile_rows: u16,
-    show_clock: bool,
-) -> Option<Rect> {
-    let pw = (area.width * 85 / 100).clamp(60, 110).min(area.width);
-
-    let clock_rows: u16 = if show_clock { 6 } else { 0 };
-    let ph_base: u16 = 2 + 1 + clock_rows + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1;
-    let ph = ph_base
-        + if profile_rows > 0 {
-            1 + profile_rows
-        } else {
-            0
-        };
-
-    let px = area.x + area.width.saturating_sub(pw) / 2;
-    let py = area.y + area.height.saturating_sub(ph) / 2;
-
-    let inner_x = px + 1;
-    let inner_y = py + 1;
-    let inner_w = pw.saturating_sub(2);
-    let cx = inner_x + 2;
-    let cw = inner_w.saturating_sub(4);
-
-    let progress_y = inner_y + 7 + clock_rows + 1;
-
-    if progress_y >= area.bottom() {
-        return None;
-    }
-    Some(Rect::new(cx, progress_y, cw, 1))
-}
-
 use crate::app::App;
 use crate::ui::theme;
 use overlays::{
@@ -69,9 +36,9 @@ use overlays::{
     render_modal_spotify_strip, render_rename_overlay, render_theme_picker_overlay,
     render_update_toast,
 };
-use screensaver::{
-    render_logo_above, render_screensaver, render_spotify_screensaver, ScreensaverCtx, LOGO_W,
-};
+use screensaver::{render_screensaver, render_spotify_screensaver, ScreensaverCtx};
+
+pub(crate) use screensaver::{render_logo_above, LOGO_W};
 
 pub fn render(frame: &mut Frame, app: &App) {
     let area = frame.area();
@@ -96,7 +63,29 @@ pub fn render(frame: &mut Frame, app: &App) {
 
     if app.screensaver_active() {
         if app.active_source_is_spotify() {
-            if let Some(ref playback) = app.spotify.playback {
+            let native_playback = if app.spotify.playback.is_none() {
+                app.spotify.now_playing.as_ref().map(|track| {
+                    let is_playing = matches!(
+                        app.spotify.player_status,
+                        crate::app::SpotifyPlayerStatus::Playing
+                            | crate::app::SpotifyPlayerStatus::Loading
+                    );
+                    crate::integrations::spotify::SpotifyPlaybackState {
+                        is_playing,
+                        progress_ms: 0,
+                        duration_ms: track.duration_ms,
+                        track_name: track.name.clone(),
+                        artist: track.artist.clone(),
+                        album: track.album.clone(),
+                        device_name: "Reverbic".to_string(),
+                        volume_pct: (app.config.volume * 100.0).round().clamp(0.0, 100.0) as u8,
+                    }
+                })
+            } else {
+                None
+            };
+
+            if let Some(playback) = app.spotify.playback.as_ref().or(native_playback.as_ref()) {
                 render_spotify_screensaver(
                     frame,
                     area,
@@ -190,7 +179,7 @@ pub fn render(frame: &mut Frame, app: &App) {
     let remaining_h = full_area.bottom().saturating_sub(strip_y);
     if remaining_h >= 3 {
         let strip = Rect::new(modal.x, strip_y, modal.width, remaining_h);
-        if matches!(app.modal_mode, crate::app::SearchMode::Spotify)
+        if app.active_source_is_spotify()
             && (app.spotify.playback.is_some() || app.spotify.now_playing.is_some())
         {
             render_modal_spotify_strip(
@@ -233,10 +222,13 @@ pub fn render(frame: &mut Frame, app: &App) {
     if app.show_help {
         use crate::app::SpotifyAuthStatus;
         let spotify_logged_in = matches!(app.spotify.status, SpotifyAuthStatus::LoggedIn);
+        let spotify_can_cycle_device = spotify_logged_in
+            && app.config.spotify.playback_mode != crate::config::SpotifyPlaybackMode::Native;
         render_help_overlay(
             frame,
             &app.modal_mode,
             spotify_logged_in,
+            spotify_can_cycle_device,
             app.update_available.as_deref(),
             palette,
         );

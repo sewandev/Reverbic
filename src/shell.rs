@@ -1,26 +1,30 @@
 pub fn open_url(url: &str) {
-    #[cfg(target_os = "windows")]
-    {
-        use std::process::{Command, Stdio};
-        let result = Command::new("rundll32.exe")
-            .args(["url.dll,FileProtocolHandler", url])
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn();
-        if let Err(e) = result {
-            tracing::error!("open_url: failed to open browser: {e}");
-        }
+    use std::process::Stdio;
+
+    let mut command = platform_open_command(url);
+    let result = command.stdout(Stdio::null()).stderr(Stdio::null()).spawn();
+    if let Err(e) = result {
+        tracing::error!("open_url: failed to open browser: {e}");
     }
-    #[cfg(not(target_os = "windows"))]
-    {
-        use std::process::{Command, Stdio};
-        let result = Command::new("xdg-open")
-            .arg(url)
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn();
-        if let Err(e) = result {
-            tracing::error!("open_url: failed to open browser: {e}");
-        }
-    }
+}
+
+#[cfg(target_os = "windows")]
+fn platform_open_command(url: &str) -> std::process::Command {
+    let mut command = std::process::Command::new("rundll32.exe");
+    command.args(["url.dll,FileProtocolHandler", url]);
+    command
+}
+
+#[cfg(target_os = "macos")]
+fn platform_open_command(url: &str) -> std::process::Command {
+    let mut command = std::process::Command::new("open");
+    command.arg(url);
+    command
+}
+
+#[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
+fn platform_open_command(url: &str) -> std::process::Command {
+    let mut command = std::process::Command::new("xdg-open");
+    command.arg(url);
+    command
 }

@@ -52,15 +52,9 @@ pub async fn list_devices(token: &str) -> Result<Vec<SpotifyDevice>, SpotifyErro
         .map_err(|e| SpotifyError::Network(e.to_string()))?;
     tracing::info!("spotify devices body: {body}");
 
-    #[derive(Deserialize)]
-    struct Wrapper {
-        devices: Vec<SpotifyDevice>,
-    }
-    let parsed: Wrapper =
-        serde_json::from_str(&body).map_err(|e| SpotifyError::Parse(e.to_string()))?;
-
-    tracing::info!("spotify devices: {} devices found", parsed.devices.len());
-    for d in &parsed.devices {
+    let devices = parse_devices_body(&body)?;
+    tracing::info!("spotify devices: {} devices found", devices.len());
+    for d in &devices {
         tracing::info!(
             "  device: name={:?} id={:?} type={} active={}",
             d.name,
@@ -70,18 +64,37 @@ pub async fn list_devices(token: &str) -> Result<Vec<SpotifyDevice>, SpotifyErro
         );
     }
 
+    Ok(devices)
+}
+
+pub(crate) fn parse_devices_body(body: &str) -> Result<Vec<SpotifyDevice>, SpotifyError> {
+    #[derive(Deserialize)]
+    struct Wrapper {
+        devices: Vec<SpotifyDevice>,
+    }
+
+    let parsed: Wrapper =
+        serde_json::from_str(body).map_err(|e| SpotifyError::Parse(e.to_string()))?;
+
     Ok(parsed.devices)
 }
 
-pub async fn play_on_device(token: &str, device_id: &str, uri: &str) -> Result<(), SpotifyError> {
+pub async fn play_tracks_on_device(
+    token: &str,
+    device_id: &str,
+    uris: Vec<String>,
+) -> Result<(), SpotifyError> {
     let client = spotify_client(10)?;
-    tracing::info!("spotify play_on_device: device_id={device_id} uri={uri}");
+    tracing::info!(
+        "spotify play_tracks_on_device: device_id={device_id} count={}",
+        uris.len()
+    );
     let resp = client
         .put(format!(
             "https://api.spotify.com/v1/me/player/play?device_id={device_id}"
         ))
         .bearer_auth(token)
-        .json(&serde_json::json!({ "uris": [uri] }))
+        .json(&serde_json::json!({ "uris": uris }))
         .send()
         .await
         .map_err(|e| SpotifyError::Network(e.to_string()))?;
@@ -184,34 +197,6 @@ pub async fn transfer_playback(token: &str, device_id: &str) -> Result<(), Spoti
     }
 }
 
-pub async fn seek_playback(
-    token: &str,
-    device_id: &str,
-    position_ms: u32,
-) -> Result<(), SpotifyError> {
-    let client = spotify_client(8)?;
-    let url = if device_id.is_empty() {
-        format!("https://api.spotify.com/v1/me/player/seek?position_ms={position_ms}")
-    } else {
-        format!("https://api.spotify.com/v1/me/player/seek?position_ms={position_ms}&device_id={device_id}")
-    };
-    let resp = client
-        .put(url)
-        .bearer_auth(token)
-        .header("Content-Length", "0")
-        .send()
-        .await
-        .map_err(|e| SpotifyError::Network(e.to_string()))?;
-    let status = resp.status();
-    tracing::info!("spotify seek: position_ms={position_ms} HTTP {status}");
-    if status.is_success() || status.as_u16() == 204 {
-        Ok(())
-    } else {
-        let body = resp.text().await.unwrap_or_default();
-        Err(SpotifyError::from_status(status, &body))
-    }
-}
-
 pub async fn get_playback(token: &str) -> Result<Option<SpotifyPlaybackState>, SpotifyError> {
     let client = spotify_client(8)?;
     let resp = client
@@ -230,14 +215,45 @@ pub async fn get_playback(token: &str) -> Result<Option<SpotifyPlaybackState>, S
         return Err(SpotifyError::from_status(status, &body));
     }
 
-    let json: serde_json::Value = resp
-        .json()
+    let body = resp
+        .text()
         .await
-        .map_err(|e| SpotifyError::Parse(e.to_string()))?;
+        .map_err(|e| SpotifyError::Network(e.to_string()))?;
+
+    parse_playback_state_body(&body)
+}
+
+pub(crate) fn parse_playback_state_body(
+    body: &str,
+) -> Result<Option<SpotifyPlaybackState>, SpotifyError> {
+    let json: serde_json::Value =
+        serde_json::from_str(body).map_err(|e| SpotifyError::Parse(e.to_string()))?;
+
+    Ok(parse_playback_state_json(&json))
+}
+
+pub(crate) fn parse_playback_state_json(json: &serde_json::Value) -> Option<SpotifyPlaybackState> {
+    let item = &json["item"];
+    if item.is_null() {
+        return None;
+    }
+
+    if json["currently_playing_type"]
+        .as_str()
+        .is_some_and(|item_type| item_type != "track")
+    {
+        return None;
+    }
+
+    if item["type"]
+        .as_str()
+        .is_some_and(|item_type| item_type != "track")
+    {
+        return None;
+    }
 
     let is_playing = json["is_playing"].as_bool().unwrap_or(false);
     let progress_ms = json["progress_ms"].as_u64().unwrap_or(0) as u32;
-    let item = &json["item"];
     let duration_ms = item["duration_ms"].as_u64().unwrap_or(0) as u32;
     let track_name = item["name"].as_str().unwrap_or("").to_string();
     let artist = item["artists"][0]["name"]
@@ -248,7 +264,7 @@ pub async fn get_playback(token: &str) -> Result<Option<SpotifyPlaybackState>, S
     let device_name = json["device"]["name"].as_str().unwrap_or("").to_string();
     let volume_pct = json["device"]["volume_percent"].as_u64().unwrap_or(0) as u8;
 
-    Ok(Some(SpotifyPlaybackState {
+    Some(SpotifyPlaybackState {
         is_playing,
         progress_ms,
         duration_ms,
@@ -257,5 +273,65 @@ pub async fn get_playback(token: &str) -> Result<Option<SpotifyPlaybackState>, S
         album,
         device_name,
         volume_pct,
-    }))
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::integrations::spotify::test_fixtures;
+
+    #[test]
+    fn parse_devices_body_reads_current_devices() {
+        let devices =
+            parse_devices_body(test_fixtures::DEVICES_CURRENT).expect("valid devices body");
+
+        assert_eq!(devices.len(), 2);
+        assert_eq!(devices[0].id.as_deref(), Some("device-1"));
+        assert_eq!(devices[0].name, "MacBook Pro");
+        assert_eq!(devices[0].device_type, "Computer");
+        assert!(devices[0].is_active);
+        assert_eq!(devices[1].id, None);
+        assert_eq!(devices[1].name, "Web Player");
+        assert!(!devices[1].is_active);
+    }
+
+    #[test]
+    fn parse_playback_state_body_reads_track_state() {
+        let state = parse_playback_state_body(test_fixtures::PLAYBACK_STATE_TRACK_CURRENT)
+            .expect("valid playback body")
+            .expect("track playback state");
+
+        assert!(state.is_playing);
+        assert_eq!(state.progress_ms, 64000);
+        assert_eq!(state.duration_ms, 203000);
+        assert_eq!(state.track_name, "Levitating");
+        assert_eq!(state.artist, "Dua Lipa");
+        assert_eq!(state.album, "Future Nostalgia");
+        assert_eq!(state.device_name, "MacBook Pro");
+        assert_eq!(state.volume_pct, 74);
+    }
+
+    #[test]
+    fn parse_playback_state_body_skips_missing_or_non_track_item() {
+        let missing_item =
+            parse_playback_state_body(test_fixtures::PLAYBACK_STATE_EPISODE_OR_MISSING_ITEM)
+                .expect("valid playback body");
+        let episode = parse_playback_state_body(test_fixtures::PLAYBACK_STATE_EPISODE_CURRENT)
+            .expect("valid playback body");
+
+        assert!(missing_item.is_none());
+        assert!(episode.is_none());
+    }
+
+    #[test]
+    fn parse_playback_state_body_defaults_missing_device_fields() {
+        let state = parse_playback_state_body(test_fixtures::PLAYBACK_STATE_MISSING_DEVICE)
+            .expect("valid playback body")
+            .expect("track playback state");
+
+        assert_eq!(state.track_name, "Device Missing Track");
+        assert_eq!(state.device_name, "");
+        assert_eq!(state.volume_pct, 0);
+    }
 }

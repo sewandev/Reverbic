@@ -44,6 +44,10 @@
 - Sub-pestañas: Búsqueda y Dispositivos
 - Manejo de rate-limit con cuenta regresiva
 
+**YouTube**
+- Búsqueda y streaming de audio desde YouTube
+- Nota: La reproducción no utiliza cookies ni credenciales de usuario. Los videos con restricción de edad, privados o que requieran inicio de sesión podrían fallar.
+
 **Windows / Escritorio**
 - Overlay flotante — siempre encima, posición configurable (4 esquinas) y transparencia ajustable
 - Icono en la bandeja del sistema con notificaciones balloon
@@ -164,12 +168,30 @@ cargo build --release
 .\target\release\reverbic.exe
 ```
 
+### Cobertura de tests de Spotify
+
+`cargo test` incluye fixtures locales de Spotify Web API en `src/integrations/spotify/fixtures/`.
+Estos tests son offline y no requieren credenciales de Spotify, una cuenta allowlisted, Premium
+ni acceso a red.
+
+| Area | Validan las fixtures | Requisito live no cubierto por tests locales |
+|------|----------------------|----------------------------------------------|
+| Busqueda | Parsing de resultados de canciones, paginacion, campos opcionales ausentes | Client ID valido, scopes, disponibilidad del API |
+| Biblioteca | Saved tracks, top tracks y wrappers de recently played | Contenido real de la biblioteca e historial de la cuenta |
+| Albumes | Saved albums y paginacion de tracks de album | Contenido real de la biblioteca |
+| Playlists | Totals actuales y legacy, wrappers de items, filtrado de no-tracks | Acceso a playlists privadas y scopes |
+| Playback / Dispositivos | Estado de reproduccion de track, playback vacio o no-track, lista de dispositivos | Premium, dispositivos activos, transferencia de playback |
+| Perfil | Perfiles completos y minimos, campos opcionales ausentes | Cuenta allowlisted y disponibilidad de `/v1/me` |
+
+Cualquier check live de Spotify que se agregue en el futuro debe ser opt-in mediante variables
+de entorno explicitas. No debe correr como parte de `cargo test` normal.
+
 ### Configuración de Spotify
 
 La integración con Spotify requiere un client ID del [Spotify Developer Dashboard](https://developer.spotify.com/dashboard).
 
 1. Crea una app en el dashboard
-2. Agrega `http://localhost:8888/callback` como Redirect URI
+2. Agrega `http://127.0.0.1:8888/callback` como Redirect URI
 3. Abre Reverbic, presiona `Alt+O` para abrir Ajustes, navega hasta **Spotify Client ID** y presiona `Espacio`
 4. Pega tu Client ID y presiona `Enter` — no necesitas recompilar
 

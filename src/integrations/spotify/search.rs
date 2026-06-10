@@ -1,5 +1,7 @@
 use super::{SpotifyError, SpotifyTrack};
 
+pub(crate) const SPOTIFY_SEARCH_LIMIT: usize = 10;
+
 pub async fn search_tracks(
     query: &str,
     access_token: &str,
@@ -12,18 +14,7 @@ pub async fn search_tracks(
     let client = crate::http::http_client_timeout(10)
         .ok_or_else(|| SpotifyError::Network("Failed to create HTTP client".to_string()))?;
 
-    let encoded = query.bytes().fold(String::new(), |mut s, b| {
-        match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
-                s.push(b as char)
-            }
-            _ => s.push_str(&format!("%{b:02X}")),
-        }
-        s
-    });
-    let url = format!(
-        "https://api.spotify.com/v1/search?type=track&limit=10&offset={offset}&q={encoded}"
-    );
+    let url = search_tracks_url(query, offset);
 
     let response = client
         .get(&url)
@@ -58,10 +49,31 @@ pub async fn search_tracks(
         return Err(SpotifyError::from_status(status, &body));
     }
 
-    parse_body(&body)
+    parse_search_tracks_body(&body)
 }
 
-fn parse_body(body: &str) -> Result<(Vec<SpotifyTrack>, bool), SpotifyError> {
+pub(crate) fn search_tracks_url(query: &str, offset: usize) -> String {
+    let encoded = encode_query_component(query);
+    format!(
+        "https://api.spotify.com/v1/search?type=track&limit={SPOTIFY_SEARCH_LIMIT}&offset={offset}&q={encoded}"
+    )
+}
+
+pub(crate) fn encode_query_component(query: &str) -> String {
+    query.bytes().fold(String::new(), |mut s, b| {
+        match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                s.push(b as char)
+            }
+            _ => s.push_str(&format!("%{b:02X}")),
+        }
+        s
+    })
+}
+
+pub(crate) fn parse_search_tracks_body(
+    body: &str,
+) -> Result<(Vec<SpotifyTrack>, bool), SpotifyError> {
     let json: serde_json::Value =
         serde_json::from_str(body).map_err(|e| SpotifyError::Parse(e.to_string()))?;
 
@@ -76,11 +88,10 @@ fn parse_body(body: &str) -> Result<(Vec<SpotifyTrack>, bool), SpotifyError> {
     Ok((tracks, has_more))
 }
 
-fn parse_track(item: &serde_json::Value) -> Option<SpotifyTrack> {
+pub(crate) fn parse_track(item: &serde_json::Value) -> Option<SpotifyTrack> {
     let name = item["name"].as_str()?.to_string();
-    let artist = item["artists"]
-        .as_array()
-        .and_then(|arr| arr.first())
+    let first_artist = item["artists"].as_array().and_then(|arr| arr.first());
+    let artist = first_artist
         .and_then(|a| a["name"].as_str())
         .unwrap_or("Unknown")
         .to_string();
@@ -95,4 +106,49 @@ fn parse_track(item: &serde_json::Value) -> Option<SpotifyTrack> {
         duration_ms,
         uri,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::integrations::spotify::test_fixtures;
+
+    #[test]
+    fn search_tracks_url_encodes_query_and_offset() {
+        let url = search_tracks_url("Bomba Estereo + Cafe", 20);
+
+        assert_eq!(
+            url,
+            "https://api.spotify.com/v1/search?type=track&limit=10&offset=20&q=Bomba%20Estereo%20%2B%20Cafe"
+        );
+    }
+
+    #[test]
+    fn parse_search_tracks_body_reads_items_and_next() {
+        let (tracks, has_more) = parse_search_tracks_body(test_fixtures::SEARCH_TRACKS_CURRENT)
+            .expect("valid search body");
+
+        assert!(has_more);
+        assert_eq!(tracks.len(), 1);
+        assert_eq!(tracks[0].name, "Ojitos Lindos");
+        assert_eq!(tracks[0].artist, "Bad Bunny");
+        assert_eq!(tracks[0].album, "Un Verano Sin Ti");
+        assert_eq!(tracks[0].duration_ms, 258298);
+        assert_eq!(tracks[0].uri, "spotify:track:6Xom58OOXk2SoU711L2IXO");
+    }
+
+    #[test]
+    fn parse_search_tracks_body_handles_missing_optional_fields() {
+        let (tracks, has_more) =
+            parse_search_tracks_body(test_fixtures::SEARCH_TRACKS_MISSING_OPTIONAL_FIELDS)
+                .expect("valid minimal search body");
+
+        assert!(!has_more);
+        assert_eq!(tracks.len(), 1);
+        assert_eq!(tracks[0].name, "Minimal Track");
+        assert_eq!(tracks[0].artist, "Unknown");
+        assert_eq!(tracks[0].album, "");
+        assert_eq!(tracks[0].duration_ms, 0);
+        assert_eq!(tracks[0].uri, "spotify:track:minimal-track");
+    }
 }

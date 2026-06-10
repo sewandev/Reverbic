@@ -1,6 +1,6 @@
 use ratatui::{
     buffer::Buffer,
-    layout::{Constraint, Layout, Rect},
+    layout::Rect,
     style::{Modifier, Style},
     text::{Line, Span},
     widgets::{List, ListItem, Paragraph, Widget},
@@ -9,6 +9,7 @@ use ratatui::{
 use crate::i18n::t;
 use crate::station::filter_items;
 use crate::ui::theme as ui_palette;
+use crate::ui::widgets::scroll_offset_for_selection;
 use ui_palette::Palette;
 
 pub(super) const EXAMPLES: &[&str] = &[
@@ -41,14 +42,6 @@ pub(super) fn spin_frame() -> &'static str {
     SPIN[(ms / 120) as usize % SPIN.len()]
 }
 
-pub(super) fn screensaver_display(secs: u16) -> String {
-    match secs {
-        0 => "OFF".to_string(),
-        s if s < 60 => format!("{}s", s),
-        s => format!("{}m", s / 60),
-    }
-}
-
 pub(super) fn key(palette: &Palette, s: &'static str) -> Span<'static> {
     Span::styled(
         s,
@@ -67,6 +60,7 @@ pub(super) struct FilterListParams<'a> {
     pub placeholder: &'a str,
     pub items: &'a [(&'static str, &'static str)],
     pub selected: usize,
+    pub scroll_offset: usize,
     pub loading: bool,
     pub loading_text: &'a str,
 }
@@ -84,29 +78,24 @@ pub(super) fn render_filter_list_body(
         placeholder,
         items,
         selected,
+        scroll_offset,
         loading,
         loading_text,
     } = p;
-    let [_gap, input_row, cap_row, list_body] = Layout::vertical([
-        Constraint::Length(1),
-        Constraint::Length(1),
-        Constraint::Length(1),
-        Constraint::Fill(1),
-    ])
-    .areas(area);
+    let layout = super::filter_list_layout(area);
 
-    buf[(content_x, input_row.y)]
+    buf[(content_x, layout.input.y)]
         .set_symbol("┃")
         .set_fg(palette.accent)
         .set_bg(palette.panel_bg);
 
     let text_x = content_x + 2;
     let text_w = content_w.saturating_sub(2);
-    let text_area = Rect::new(text_x, input_row.y, text_w, 1);
+    let text_area = Rect::new(text_x, layout.input.y, text_w, 1);
 
-    render_filter_input(filter, placeholder, text_area, palette, buf);
+    render_filter_input(filter, placeholder, text_area, palette, buf, palette.accent);
 
-    buf[(content_x, cap_row.y)]
+    buf[(content_x, layout.cap.y)]
         .set_symbol("╹")
         .set_fg(palette.accent)
         .set_bg(palette.panel_bg);
@@ -116,11 +105,11 @@ pub(super) fn render_filter_list_body(
             format!("{}  {}", spin_frame(), loading_text),
             Style::default().fg(palette.muted),
         ))
-        .render(Rect::new(text_x, list_body.y, text_w, 1), buf);
+        .render(Rect::new(text_x, layout.list.y, text_w, 1), buf);
         return (false, Rect::default(), 0);
     }
 
-    let list_area = Rect::new(text_x, list_body.y, text_w, list_body.height);
+    let list_area = Rect::new(text_x, layout.list.y, text_w, layout.list.height);
     let visible_n = list_area.height.saturating_sub(1) as usize;
     let filtered = filter_items(items, filter);
 
@@ -133,7 +122,8 @@ pub(super) fn render_filter_list_body(
         return (false, list_area, 0);
     }
 
-    let offset = crate::ui::widgets::scroll_offset(selected, visible_n);
+    let selected = selected.min(filtered.len().saturating_sub(1));
+    let offset = scroll_offset_for_selection(selected, visible_n, scroll_offset);
 
     let list_items: Vec<ListItem> = filtered
         .iter()
@@ -170,6 +160,7 @@ pub(super) fn render_filter_input(
     text_area: Rect,
     palette: &Palette,
     buf: &mut Buffer,
+    cursor_color: ratatui::style::Color,
 ) {
     if filter.is_empty() {
         Paragraph::new(Span::styled(
@@ -183,7 +174,7 @@ pub(super) fn render_filter_input(
             Span::styled(
                 "_",
                 Style::default()
-                    .fg(palette.accent)
+                    .fg(cursor_color)
                     .add_modifier(Modifier::BOLD),
             ),
         ]))

@@ -1,9 +1,10 @@
 use std::sync::mpsc::SyncSender;
 use std::sync::Arc;
 
-use librespot_connect::{ConnectConfig, LoadRequest, LoadRequestOptions, Spirc};
-use librespot_core::config::DeviceType;
-use librespot_core::{authentication::Credentials, cache::Cache, Session, SessionConfig};
+use librespot_core::{
+    authentication::Credentials, cache::Cache, Session, SessionConfig, SpotifyUri,
+};
+use librespot_metadata::audio::{AudioItem, UniqueFields};
 use librespot_playback::{
     audio_backend,
     config::{AudioFormat, PlayerConfig},
@@ -19,8 +20,8 @@ pub struct SpotifyPlayerHandle {
 }
 
 impl SpotifyPlayerHandle {
-    pub fn play(&self, track: SpotifyTrack) {
-        let _ = self.cmd_tx.send(SpotifyPlayerCmd::Play(track));
+    pub fn play(&self, uris: Vec<String>) {
+        let _ = self.cmd_tx.send(SpotifyPlayerCmd::Play { uris });
     }
 
     pub fn pause(&self) {
@@ -32,6 +33,20 @@ impl SpotifyPlayerHandle {
     }
 }
 
+fn track_from_audio_item(item: &AudioItem) -> Option<SpotifyTrack> {
+    let UniqueFields::Track { artists, album, .. } = &item.unique_fields else {
+        return None;
+    };
+    let first_artist = artists.first();
+    Some(SpotifyTrack {
+        name: item.name.clone(),
+        artist: first_artist.map(|a| a.name.clone()).unwrap_or_default(),
+        album: album.clone(),
+        duration_ms: item.duration_ms,
+        uri: item.uri.clone(),
+    })
+}
+
 pub fn spawn_player(
     audio_token: String,
     event_tx: SyncSender<SpotifyPlayerEvent>,
@@ -39,6 +54,40 @@ pub fn spawn_player(
     let (cmd_tx, cmd_rx) = unbounded_channel::<SpotifyPlayerCmd>();
     tokio::spawn(run_player(audio_token, cmd_rx, event_tx));
     SpotifyPlayerHandle { cmd_tx }
+}
+
+pub fn has_cached_credentials() -> bool {
+    open_cache()
+        .as_ref()
+        .and_then(|cache| cache.credentials())
+        .is_some()
+}
+
+fn open_cache() -> Option<Cache> {
+    Cache::new(
+        Some(&cache_dir()),
+        None::<&std::path::PathBuf>,
+        None::<&std::path::PathBuf>,
+        None,
+    )
+    .ok()
+}
+
+fn cache_dir() -> std::path::PathBuf {
+    #[cfg(target_os = "windows")]
+    {
+        std::env::var("APPDATA")
+            .map(|p| {
+                std::path::PathBuf::from(p)
+                    .join(".reverbic")
+                    .join("librespot")
+            })
+            .unwrap_or_else(|_| crate::config::reverbic_dir().join("librespot"))
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        crate::config::reverbic_dir().join("librespot")
+    }
 }
 
 async fn run_player(
@@ -50,36 +99,36 @@ async fn run_player(
         client_id: "65b708073fc0480ea92a077233ca87bd".to_string(),
         ..Default::default()
     };
-    let cache_dir = std::env::var("APPDATA")
-        .map(|p| {
-            std::path::PathBuf::from(p)
-                .join(".reverbic")
-                .join("librespot")
-        })
-        .unwrap_or_else(|_| std::path::PathBuf::from(".reverbic").join("librespot"));
-    let cache = Cache::new(
-        Some(&cache_dir),
-        None::<&std::path::PathBuf>,
-        None::<&std::path::PathBuf>,
-        None,
-    )
-    .ok();
+    let cache = open_cache();
     let credentials = match cache.as_ref().and_then(|c| c.credentials()) {
         Some(cached) => {
             tracing::info!("librespot: using cached credentials");
             cached
         }
         None => {
+            if audio_token.trim().is_empty() {
+                let _ = event_tx.try_send(SpotifyPlayerEvent::Error(
+                    "native_missing_credentials".into(),
+                ));
+                return;
+            }
             tracing::info!("librespot: using OAuth token for first login");
             Credentials::with_access_token(&audio_token)
         }
     };
 
     let session = Session::new(session_config, cache);
+    if let Err(e) = session.connect(credentials, true).await {
+        let _ = event_tx.try_send(SpotifyPlayerEvent::Error(format!(
+            "native_session_connect: {e}"
+        )));
+        return;
+    }
+
     let mixer: Arc<dyn Mixer> = Arc::new(match SoftMixer::open(MixerConfig::default()) {
         Ok(m) => m,
         Err(e) => {
-            let _ = event_tx.try_send(SpotifyPlayerEvent::Error(format!("Mixer: {e}")));
+            let _ = event_tx.try_send(SpotifyPlayerEvent::Error(format!("native_mixer: {e}")));
             return;
         }
     });
@@ -88,7 +137,7 @@ async fn run_player(
         Some(b) => b,
         None => {
             let _ = event_tx.try_send(SpotifyPlayerEvent::Error(
-                "No compatible audio backend was found".to_string(),
+                "native_audio_backend_missing".to_string(),
             ));
             return;
         }
@@ -96,54 +145,35 @@ async fn run_player(
     let format = AudioFormat::default();
     let volume_fn = mixer.get_soft_volume();
 
-    let player = Player::new(
-        PlayerConfig::default(),
-        session.clone(),
-        volume_fn,
-        move || (backend)(None, format),
-    );
+    let player = Player::new(PlayerConfig::default(), session, volume_fn, move || {
+        (backend)(None, format)
+    });
 
     let mut librespot_events = player.get_player_event_channel();
-
-    let connect_config = ConnectConfig {
-        name: "Reverbic".to_string(),
-        device_type: DeviceType::Computer,
-        initial_volume: 65535 / 2,
-        is_group: false,
-        disable_volume: false,
-        volume_steps: 64,
-    };
-
-    let (spirc, spirc_task) = match Spirc::new(
-        connect_config,
-        session.clone(),
-        credentials,
-        player.clone(),
-        mixer.clone(),
-    )
-    .await
-    {
-        Ok(r) => r,
-        Err(e) => {
-            let _ = event_tx.try_send(SpotifyPlayerEvent::Error(format!("Spirc init: {e}")));
-            return;
-        }
-    };
-
-    tokio::spawn(spirc_task);
-    let _ = spirc.activate();
 
     loop {
         tokio::select! {
             Some(evt) = librespot_events.recv() => {
                 use librespot_playback::player::PlayerEvent;
                 let mapped = match evt {
-                    PlayerEvent::Playing { .. }    => Some(SpotifyPlayerEvent::Playing),
+                    PlayerEvent::Playing { .. }    => {
+                        tracing::debug!("librespot: Playing fired");
+                        Some(SpotifyPlayerEvent::Playing)
+                    }
                     PlayerEvent::Paused { .. }     => Some(SpotifyPlayerEvent::Paused),
-                    PlayerEvent::Stopped { .. }    => Some(SpotifyPlayerEvent::Stopped),
-                    PlayerEvent::EndOfTrack { .. } => Some(SpotifyPlayerEvent::EndOfTrack),
+                    PlayerEvent::Stopped { .. }    => {
+                        tracing::debug!("librespot: Stopped fired");
+                        Some(SpotifyPlayerEvent::Stopped)
+                    }
+                    PlayerEvent::EndOfTrack { .. } => {
+                        tracing::debug!("librespot: EndOfTrack fired");
+                        Some(SpotifyPlayerEvent::EndOfTrack)
+                    }
+                    PlayerEvent::TrackChanged { audio_item } => {
+                        track_from_audio_item(&audio_item).map(SpotifyPlayerEvent::TrackChanged)
+                    }
                     PlayerEvent::Unavailable { track_id, .. } => Some(SpotifyPlayerEvent::Error(
-                        format!("Pista no disponible: {track_id}"),
+                        format!("native_track_unavailable: {track_id}"),
                     )),
                     _ => None,
                 };
@@ -153,19 +183,22 @@ async fn run_player(
             }
             cmd = cmd_rx.recv() => {
                 match cmd {
-                    Some(SpotifyPlayerCmd::Play(track)) => {
-                        let request = LoadRequest::from_tracks(
-                            vec![track.uri.clone()],
-                            LoadRequestOptions { start_playing: true, ..Default::default() },
-                        );
-                        if let Err(e) = spirc.load(request) {
-                            let _ = event_tx.try_send(SpotifyPlayerEvent::Error(
-                                format!("Spirc load: {e}"),
-                            ));
+                    Some(SpotifyPlayerCmd::Play { uris }) => {
+                        if let Some(uri) = uris.into_iter().next() {
+                            match SpotifyUri::from_uri(&uri) {
+                                Ok(spotify_uri) => {
+                                    player.load(spotify_uri, true, 0);
+                                }
+                                Err(e) => {
+                                    let _ = event_tx.try_send(SpotifyPlayerEvent::Error(
+                                        format!("native_uri_parse: {e}"),
+                                    ));
+                                }
+                            }
                         }
                     }
-                    Some(SpotifyPlayerCmd::Pause)  => { let _ = spirc.pause(); }
-                    Some(SpotifyPlayerCmd::Resume) => { let _ = spirc.play(); }
+                    Some(SpotifyPlayerCmd::Pause)  => { player.pause(); }
+                    Some(SpotifyPlayerCmd::Resume) => { player.play(); }
                     None => break,
                 }
             }

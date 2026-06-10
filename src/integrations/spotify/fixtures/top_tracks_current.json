@@ -1,0 +1,25 @@
+{
+  "href": "https://api.spotify.com/v1/me/top/tracks?limit=50&time_range=medium_term",
+  "limit": 50,
+  "next": null,
+  "offset": 0,
+  "previous": null,
+  "total": 1,
+  "items": [
+    {
+      "id": "top-track-1",
+      "name": "Electric Feel",
+      "type": "track",
+      "uri": "spotify:track:top-track-1",
+      "duration_ms": 229000,
+      "artists": [
+        {
+          "name": "MGMT"
+        }
+      ],
+      "album": {
+        "name": "Oracular Spectacular"
+      }
+    }
+  ]
+}

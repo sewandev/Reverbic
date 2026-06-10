@@ -1,6 +1,6 @@
 use ratatui::{
     buffer::Buffer,
-    layout::{Alignment, Constraint, Layout, Rect},
+    layout::{Alignment, Rect},
     style::Style,
     text::{Line, Span},
     widgets::{Block, BorderType, Borders, Clear, Widget},
@@ -12,29 +12,24 @@ use crate::station::DynamicStation;
 use crate::ui::theme::{self, Palette};
 
 use helpers::{key, sep_s};
+pub(crate) use layout::{
+    filter_list_layout, header_list_layout, modal_content_area, modal_layout, modal_rect,
+    modal_tab_at, one_line_list_index_at, radio_favorites_list_area, radio_favorites_list_layout,
+    radio_filter_list_area, radio_filtered_results_list_area, radio_name_layout,
+    radio_search_results_list_area, radio_subtab_at, settings_items_area, settings_layout,
+    settings_visible_rows, spotify_body_area, spotify_layout, spotify_search_layout,
+    spotify_search_list_area, spotify_subtab_at, spotify_titled_track_list_area,
+    spotify_titled_track_list_layout, two_line_list_index_at, visible_items,
+    visible_rows_excluding_scrollbar, youtube_list_area, ListItemHeight,
+};
+pub(in crate::ui) use layout::{MODAL_MIN_HEIGHT, MODAL_MIN_WIDTH};
 
 mod helpers;
+mod layout;
 mod settings;
 mod spotify;
 mod tabs;
 mod youtube;
-
-pub(in crate::ui) const MODAL_MIN_WIDTH: u16 = 52;
-pub(in crate::ui) const MODAL_MIN_HEIGHT: u16 = 14;
-const MODAL_MAX_WIDTH: u16 = 120;
-const MODAL_MAX_HEIGHT: u16 = 30;
-
-pub(in crate::ui) fn modal_rect(area: Rect) -> Rect {
-    let w = (area.width * 78 / 100)
-        .clamp(MODAL_MIN_WIDTH, MODAL_MAX_WIDTH)
-        .min(area.width);
-    let h = (area.height * 75 / 100)
-        .clamp(MODAL_MIN_HEIGHT, MODAL_MAX_HEIGHT)
-        .min(area.height);
-    let x = area.x + area.width.saturating_sub(w) / 2;
-    let y = area.y + area.height.saturating_sub(h) / 2;
-    Rect::new(x, y, w, h)
-}
 
 pub struct SearchModalWidget<'a> {
     pub palette: &'a Palette,
@@ -44,11 +39,14 @@ pub struct SearchModalWidget<'a> {
     pub selected: usize,
     pub mode: &'a SearchMode,
     pub genre_selected: usize,
+    pub genre_filter_scroll_offset: usize,
     pub genre_filter: &'a str,
     pub genre_query: &'a str,
     pub country_selected: usize,
+    pub country_filter_scroll_offset: usize,
     pub country_filter: &'a str,
     pub settings_selected: usize,
+    pub settings_scroll_offset: usize,
     pub autoplay_last: bool,
     pub overlay_mode: String,
     pub overlay_style: String,
@@ -71,25 +69,63 @@ pub struct SearchModalWidget<'a> {
     pub spotify_results: &'a [crate::integrations::spotify::SpotifyTrack],
     pub spotify_loading: bool,
     pub spotify_selected: usize,
-    pub spotify_is_premium: bool,
+    pub spotify_scroll_offset: usize,
+    pub spotify_is_premium: Option<bool>,
     pub spotify_devices: &'a [crate::integrations::spotify::devices::SpotifyDevice],
-    pub spotify_devices_selected: usize,
-    pub spotify_devices_loading: bool,
+    pub spotify_active_device_id: Option<&'a str>,
     pub spotify_stop_on_quit: bool,
     pub spotify_start_on_spotify: bool,
+    pub spotify_playback_mode: String,
+    pub spotify_playback_mode_kind: crate::config::SpotifyPlaybackMode,
+    pub spotify_radio_mode: bool,
     pub spotify_search_rate_limited: bool,
     pub spotify_rate_limited_secs: u64,
     pub spotify_sub_tab: crate::app::SpotifySubTab,
     pub spotify_loading_more: bool,
     pub spotify_client_id: &'a str,
+    pub spotify_liked_tracks: &'a [crate::integrations::spotify::SpotifyTrack],
+    pub spotify_liked_selected: usize,
+    pub spotify_liked_scroll_offset: usize,
+    pub spotify_liked_loading: bool,
+    pub spotify_playlists: &'a [crate::integrations::spotify::playlists::SpotifyPlaylist],
+    pub spotify_playlists_selected: usize,
+    pub spotify_playlists_scroll_offset: usize,
+    pub spotify_playlists_loading: bool,
+    pub spotify_open_playlist: Option<&'a crate::integrations::spotify::playlists::SpotifyPlaylist>,
+    pub spotify_playlist_tracks: &'a [crate::integrations::spotify::SpotifyTrack],
+    pub spotify_playlist_tracks_selected: usize,
+    pub spotify_playlist_tracks_scroll_offset: usize,
+    pub spotify_playlist_tracks_loading: bool,
+    pub spotify_top_tracks: &'a [crate::integrations::spotify::SpotifyTrack],
+    pub spotify_top_tracks_selected: usize,
+    pub spotify_top_tracks_scroll_offset: usize,
+    pub spotify_top_tracks_loading: bool,
+    pub spotify_recent_tracks: &'a [crate::integrations::spotify::SpotifyTrack],
+    pub spotify_recent_tracks_selected: usize,
+    pub spotify_recent_tracks_scroll_offset: usize,
+    pub spotify_recent_tracks_loading: bool,
+    pub spotify_albums: &'a [crate::integrations::spotify::SpotifyAlbum],
+    pub spotify_albums_selected: usize,
+    pub spotify_albums_scroll_offset: usize,
+    pub spotify_albums_loading: bool,
+    pub spotify_open_album: Option<&'a crate::integrations::spotify::SpotifyAlbum>,
+    pub spotify_album_tracks: &'a [crate::integrations::spotify::SpotifyTrack],
+    pub spotify_album_tracks_selected: usize,
+    pub spotify_album_tracks_scroll_offset: usize,
+    pub spotify_album_tracks_loading: bool,
     pub youtube_status: &'a crate::app::YoutubeStatus,
     pub youtube_query: &'a str,
     pub youtube_results: &'a [crate::integrations::youtube::YoutubeVideo],
     pub youtube_loading: bool,
     pub youtube_selected: usize,
+    pub youtube_scroll_offset: usize,
     pub radio_sub_tab: crate::app::RadioSubTab,
     pub favorites: &'a [crate::favorites::FavoriteStation],
     pub radio_fav_selected: usize,
+    pub radio_fav_scroll_offset: usize,
+    pub radio_search_scroll_offset: usize,
+    pub radio_genre_results_scroll_offset: usize,
+    pub radio_country_results_scroll_offset: usize,
     pub playing_favorite_index: Option<usize>,
     pub auto_update: bool,
     pub discord_rpc: bool,
@@ -106,11 +142,10 @@ impl Widget for SearchModalWidget<'_> {
             }
         }
 
-        if area.width < MODAL_MIN_WIDTH || area.height < MODAL_MIN_HEIGHT {
+        let Some(layout) = modal_layout(area) else {
             return;
-        }
-
-        let panel = modal_rect(area);
+        };
+        let panel = layout.panel;
 
         Clear.render(panel, buf);
 
@@ -124,25 +159,25 @@ impl Widget for SearchModalWidget<'_> {
             )
             .style(Style::default().bg(self.palette.panel_bg));
 
-        let inner = block.inner(panel);
         block.render(panel, buf);
 
-        let h_pad: u16 = 2;
-        let content_x = inner.x + h_pad;
-        let content_w = inner.width.saturating_sub(h_pad * 2);
+        let Some(content) = modal_content_area(area) else {
+            return;
+        };
+        let content_x = content.x;
+        let content_w = content.width;
 
-        let [tabs_row, body_area] =
-            Layout::vertical([Constraint::Length(1), Constraint::Fill(1)]).areas(inner);
-
-        self.render_tabs(tabs_row, content_x, content_w, buf);
+        self.render_tabs(layout.tabs, content_x, content_w, buf);
 
         match self.mode {
             SearchMode::Name | SearchMode::Genre | SearchMode::Country => {
-                self.render_radio_body(body_area, content_x, content_w, buf)
+                self.render_radio_body(layout.body, content_x, content_w, buf)
             }
-            SearchMode::Settings => self.render_settings_body(body_area, content_x, content_w, buf),
-            SearchMode::Spotify => self.render_spotify_body(body_area, content_x, content_w, buf),
-            SearchMode::Youtube => self.render_youtube_body(body_area, content_x, content_w, buf),
+            SearchMode::Settings => {
+                self.render_settings_body(layout.body, content_x, content_w, buf)
+            }
+            SearchMode::Spotify => self.render_spotify_body(layout.body, content_x, content_w, buf),
+            SearchMode::Youtube => self.render_youtube_body(layout.body, content_x, content_w, buf),
         }
     }
 }
@@ -159,11 +194,14 @@ impl<'a> SearchModalWidget<'a> {
             selected: app.modal_selected,
             mode: &app.modal_mode,
             genre_selected: app.genre_selected,
+            genre_filter_scroll_offset: app.genre_filter_scroll_offset,
             genre_filter: &app.genre_filter,
             genre_query: &app.genre_query,
             country_selected: app.country_selected,
+            country_filter_scroll_offset: app.country_filter_scroll_offset,
             country_filter: &app.country_filter,
             settings_selected: app.settings_selected,
+            settings_scroll_offset: app.settings_scroll_offset,
             autoplay_last: app.config.autoplay_last,
             overlay_mode: app.config.overlay_mode.display(),
             overlay_style: app.config.overlay_style.display(),
@@ -186,12 +224,15 @@ impl<'a> SearchModalWidget<'a> {
             spotify_results: &sp.search_results,
             spotify_loading: sp.search_loading,
             spotify_selected: sp.search_selected,
+            spotify_scroll_offset: sp.search_scroll_offset,
             spotify_is_premium: sp.is_premium,
             spotify_devices: &sp.devices,
-            spotify_devices_selected: sp.devices_selected,
-            spotify_devices_loading: sp.devices_loading,
+            spotify_active_device_id: sp.active_device_id.as_deref(),
             spotify_stop_on_quit: app.config.spotify.stop_on_quit,
             spotify_start_on_spotify: app.config.spotify.start_on_spotify,
+            spotify_playback_mode: app.config.spotify.playback_mode.display(),
+            spotify_playback_mode_kind: app.config.spotify.playback_mode,
+            spotify_radio_mode: app.config.spotify.radio_enabled,
             spotify_search_rate_limited: sp.search_rate_limited,
             spotify_rate_limited_secs: sp
                 .rate_limited_until
@@ -203,14 +244,49 @@ impl<'a> SearchModalWidget<'a> {
             spotify_sub_tab: sp.sub_tab,
             spotify_loading_more: sp.search_loading_more,
             spotify_client_id: &app.config.spotify.client_id,
+            spotify_liked_tracks: &sp.liked_tracks,
+            spotify_liked_selected: sp.liked_selected,
+            spotify_liked_scroll_offset: sp.liked_scroll_offset,
+            spotify_liked_loading: sp.liked_loading,
+            spotify_playlists: &sp.playlists,
+            spotify_playlists_selected: sp.playlists_selected,
+            spotify_playlists_scroll_offset: sp.playlists_scroll_offset,
+            spotify_playlists_loading: sp.playlists_loading,
+            spotify_open_playlist: sp.open_playlist.as_ref(),
+            spotify_playlist_tracks: &sp.playlist_tracks,
+            spotify_playlist_tracks_selected: sp.playlist_tracks_selected,
+            spotify_playlist_tracks_scroll_offset: sp.playlist_tracks_scroll_offset,
+            spotify_playlist_tracks_loading: sp.playlist_tracks_loading,
+            spotify_top_tracks: &sp.top_tracks,
+            spotify_top_tracks_selected: sp.top_tracks_selected,
+            spotify_top_tracks_scroll_offset: sp.top_tracks_scroll_offset,
+            spotify_top_tracks_loading: sp.top_tracks_loading,
+            spotify_recent_tracks: &sp.recent_tracks,
+            spotify_recent_tracks_selected: sp.recent_tracks_selected,
+            spotify_recent_tracks_scroll_offset: sp.recent_tracks_scroll_offset,
+            spotify_recent_tracks_loading: sp.recent_tracks_loading,
+            spotify_albums: &sp.albums,
+            spotify_albums_selected: sp.albums_selected,
+            spotify_albums_scroll_offset: sp.albums_scroll_offset,
+            spotify_albums_loading: sp.albums_loading,
+            spotify_open_album: sp.open_album.as_ref(),
+            spotify_album_tracks: &sp.album_tracks,
+            spotify_album_tracks_selected: sp.album_tracks_selected,
+            spotify_album_tracks_scroll_offset: sp.album_tracks_scroll_offset,
+            spotify_album_tracks_loading: sp.album_tracks_loading,
             youtube_status: &yt.status,
             youtube_query: &yt.query,
             youtube_results: &yt.results,
             youtube_loading: yt.loading,
             youtube_selected: yt.selected,
+            youtube_scroll_offset: yt.scroll_offset,
             radio_sub_tab: app.radio_sub_tab,
             favorites: &app.favorites,
             radio_fav_selected: app.radio_fav_selected,
+            radio_fav_scroll_offset: app.radio_fav_scroll_offset,
+            radio_search_scroll_offset: app.radio_search_scroll_offset,
+            radio_genre_results_scroll_offset: app.radio_genre_results_scroll_offset,
+            radio_country_results_scroll_offset: app.radio_country_results_scroll_offset,
             playing_favorite_index: {
                 let state = app.player.state();
                 state
@@ -234,7 +310,11 @@ impl SearchModalWidget<'_> {
                 Span::styled(
                     notice.clone(),
                     ratatui::style::Style::default()
-                        .fg(self.palette.playing)
+                        .fg(match self.mode {
+                            crate::app::SearchMode::Spotify => self.palette.spotify,
+                            crate::app::SearchMode::Youtube => self.palette.danger,
+                            _ => self.palette.playing,
+                        })
                         .add_modifier(ratatui::style::Modifier::BOLD),
                 ),
                 Span::raw("  "),
@@ -243,18 +323,34 @@ impl SearchModalWidget<'_> {
         let key = |s| key(self.palette, s);
         let sep_s = |s| sep_s(self.palette, s);
         let showing = !self.results.is_empty();
+        let spotify_can_cycle_device = matches!(self.mode, SearchMode::Spotify)
+            && self.spotify_playback_mode_kind != crate::config::SpotifyPlaybackMode::Native;
         if showing {
-            return vec![
+            let mut spans = vec![
                 Span::raw(" "),
                 key("[↵]"),
                 sep_s(format!(" {}  ", t("hint.play"))),
-                key("[Alt+F]"),
-                sep_s(format!(" {}  ", t("hint.fav"))),
+                key("[Space]"),
+                sep_s(format!(" {}  ", t("hint.pause"))),
+            ];
+            if matches!(self.mode, crate::app::SearchMode::Spotify) {
+                spans.push(key("[Alt+L]"));
+                spans.push(sep_s(format!(" {}  ", t("hint.like"))));
+                if spotify_can_cycle_device {
+                    spans.push(key("[Ctrl+D]"));
+                    spans.push(sep_s(format!(" {}  ", t("help.shortcut.switch_device"))));
+                }
+            } else {
+                spans.push(key("[Alt+F]"));
+                spans.push(sep_s(format!(" {}  ", t("hint.fav"))));
+            }
+            spans.extend(vec![
                 key("[↑↓]"),
                 sep_s(format!(" {}  ", t("hint.nav"))),
                 key("[?]"),
                 sep_s(format!(" {} ", t("hint.help"))),
-            ];
+            ]);
+            return spans;
         }
         match self.mode {
             SearchMode::Name => {
@@ -347,7 +443,7 @@ impl SearchModalWidget<'_> {
                 sep_s(format!(" {} ", t("hint.help"))),
             ],
             SearchMode::Spotify => {
-                use crate::app::{SpotifyAuthStatus, SpotifySubTab};
+                use crate::app::SpotifyAuthStatus;
                 match self.spotify_status {
                     SpotifyAuthStatus::Connecting => vec![
                         Span::raw(" "),
@@ -355,46 +451,48 @@ impl SearchModalWidget<'_> {
                         sep_s(format!(" {} ", t("hint.back"))),
                     ],
                     SpotifyAuthStatus::LoggedIn => {
-                        if matches!(self.spotify_sub_tab, SpotifySubTab::Devices) {
-                            vec![
-                                Span::raw(" "),
-                                key("[↵]"),
-                                sep_s(format!(" {}  ", t("hint.transfer"))),
-                                key("[↑↓]"),
-                                sep_s(format!(" {}  ", t("hint.nav"))),
-                                key("[←→]"),
-                                sep_s(format!(" {}  ", t("hint.search"))),
-                                key("[Alt+R]"),
-                                sep_s(format!(" {}  ", t("hint.reload"))),
-                                key("[?]"),
-                                sep_s(format!(" {} ", t("hint.help"))),
-                            ]
-                        } else if !self.spotify_results.is_empty() {
-                            vec![
+                        if !self.spotify_results.is_empty() {
+                            let mut hints = vec![
                                 Span::raw(" "),
                                 key("[↵]"),
                                 sep_s(format!(" {}  ", t("hint.play"))),
                                 key("[Space]"),
                                 sep_s(format!(" {}  ", t("hint.pause"))),
+                                key("[Alt+L]"),
+                                sep_s(format!(" {}  ", t("hint.like"))),
                                 key("[↑↓]"),
                                 sep_s(format!(" {}  ", t("hint.nav"))),
                                 key("[←→]"),
                                 sep_s(format!(" {}  ", t("hint.tabs"))),
-                                key("[?]"),
-                                sep_s(format!(" {} ", t("hint.help"))),
-                            ]
+                            ];
+                            if spotify_can_cycle_device {
+                                hints.extend([
+                                    key("[Ctrl+D]"),
+                                    sep_s(format!(" {}  ", t("help.shortcut.switch_device"))),
+                                ]);
+                            }
+                            hints.extend([key("[?]"), sep_s(format!(" {} ", t("hint.help")))]);
+                            hints
                         } else {
-                            vec![
+                            let mut hints = vec![
                                 Span::raw(" "),
+                                key("[Space]"),
+                                sep_s(format!(" {}  ", t("hint.pause"))),
+                                key("[Alt+L]"),
+                                sep_s(format!(" {}  ", t("hint.like"))),
                                 key("[←→]"),
                                 sep_s(format!(" {}  ", t("hint.tabs"))),
-                                key("[Tab]"),
-                                sep_s(format!(" {}  ", t("hint.radio"))),
                                 key("[Alt+D]"),
                                 sep_s(format!(" {}  ", t("hint.disconnect"))),
-                                key("[?]"),
-                                sep_s(format!(" {} ", t("hint.help"))),
-                            ]
+                            ];
+                            if spotify_can_cycle_device {
+                                hints.extend([
+                                    key("[Ctrl+D]"),
+                                    sep_s(format!(" {}  ", t("help.shortcut.switch_device"))),
+                                ]);
+                            }
+                            hints.extend([key("[?]"), sep_s(format!(" {} ", t("hint.help")))]);
+                            hints
                         }
                     }
                     _ => vec![

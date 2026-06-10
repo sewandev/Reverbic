@@ -6,11 +6,13 @@ use tokio::{
     net::TcpListener,
 };
 
-use super::AuthResult;
+use super::{AuthResult, SpotifyError};
 
 const LIBRE_CLIENT_ID: &str = "65b708073fc0480ea92a077233ca87bd";
 const SCOPES: &str =
-    "user-read-private user-read-playback-state user-modify-playback-state streaming";
+    "user-read-private user-read-playback-state user-modify-playback-state streaming \
+     user-library-read playlist-read-private playlist-read-collaborative \
+     user-top-read user-read-recently-played user-library-modify";
 
 pub async fn start_flow(client_id: &str) -> AuthResult {
     let (search_token, refresh_token, userid) = match pkce_flow(client_id, 8888, "/callback").await
@@ -18,20 +20,36 @@ pub async fn start_flow(client_id: &str) -> AuthResult {
         Ok(t) => t,
         Err(e) => return AuthResult::Failure(e),
     };
-    let (username, is_premium, country, followers) = fetch_user_profile(&search_token)
-        .await
-        .unwrap_or((userid, false, None, None));
+    let profile =
+        match auth_profile_from_profile_result(fetch_user_profile(&search_token).await, &userid) {
+            Ok(profile) => profile,
+            Err(error) => return AuthResult::Failure(error),
+        };
+    let (username, is_premium, country, followers) = profile
+        .map(|profile| {
+            (
+                Some(profile.display_name),
+                profile.is_premium,
+                profile.country,
+                profile.followers,
+            )
+        })
+        .unwrap_or((None, None, None, None));
 
-    let audio_token = pkce_flow(LIBRE_CLIENT_ID, 8898, "/login")
-        .await
-        .map(|(t, _, _)| t)
-        .unwrap_or_default();
+    let (audio_token, native_error) = match pkce_flow(LIBRE_CLIENT_ID, 8898, "/login").await {
+        Ok((token, _, _)) => (token, None),
+        Err(error) => {
+            tracing::warn!("spotify native auth failed: {error}");
+            (String::new(), Some(format!("native_auth_failed: {error}")))
+        }
+    };
 
     AuthResult::Success {
         username,
         search_token,
         refresh_token,
         audio_token,
+        native_error,
         is_premium,
         country,
         followers,
@@ -69,6 +87,15 @@ pub async fn refresh_search_token(
         .as_str()
         .unwrap_or(refresh_token)
         .to_string();
+
+    let granted_scopes = json["scope"].as_str().unwrap_or("");
+    for required in SCOPES.split_whitespace() {
+        if !granted_scopes.contains(required) {
+            return Err(format!(
+                "Missing required scope: {required}. Please reconnect your Spotify account."
+            ));
+        }
+    }
 
     Ok((access, refresh))
 }
@@ -216,6 +243,90 @@ async fn exchange_code(
     ))
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct SpotifyUserProfile {
+    pub(crate) display_name: String,
+    pub(crate) is_premium: Option<bool>,
+    pub(crate) country: Option<String>,
+    pub(crate) followers: Option<u32>,
+}
+
+fn parse_user_profile_body(body: &str) -> Result<SpotifyUserProfile, String> {
+    let json: serde_json::Value =
+        serde_json::from_str(body).map_err(|e| format!("Invalid JSON: {e}"))?;
+    parse_user_profile_json(&json)
+}
+
+fn parse_user_profile_json(json: &serde_json::Value) -> Result<SpotifyUserProfile, String> {
+    let display_name = json["display_name"]
+        .as_str()
+        .filter(|s| !s.trim().is_empty())
+        .or_else(|| json["id"].as_str().filter(|s| !s.trim().is_empty()))
+        .map(str::to_string)
+        .ok_or_else(|| "missing display_name".to_string())?;
+
+    let is_premium = json
+        .get("product")
+        .and_then(|product| product.as_str())
+        .filter(|product| !product.trim().is_empty())
+        .map(|product| product.eq_ignore_ascii_case("premium"));
+
+    let country = json["country"]
+        .as_str()
+        .map(str::trim)
+        .filter(|country| !country.is_empty())
+        .map(str::to_string);
+    let followers = json["followers"]["total"]
+        .as_u64()
+        .and_then(|n| u32::try_from(n).ok());
+
+    Ok(SpotifyUserProfile {
+        display_name,
+        is_premium,
+        country,
+        followers,
+    })
+}
+
+fn auth_profile_from_profile_result(
+    result: Result<SpotifyUserProfile, String>,
+    token_userid: &str,
+) -> Result<Option<SpotifyUserProfile>, String> {
+    match result {
+        Ok(profile) => Ok(Some(profile)),
+        Err(error) if profile_error_blocks_auth(&error) => Err(error),
+        Err(error) => {
+            tracing::debug!("spotify profile unavailable during auth, continuing: {error}");
+            Ok(token_userid_profile(token_userid))
+        }
+    }
+}
+
+fn token_userid_profile(token_userid: &str) -> Option<SpotifyUserProfile> {
+    let display_name = token_userid.trim();
+    if display_name.is_empty() {
+        return None;
+    }
+    Some(SpotifyUserProfile {
+        display_name: display_name.to_string(),
+        is_premium: None,
+        country: None,
+        followers: None,
+    })
+}
+
+fn profile_error_blocks_auth(error: &str) -> bool {
+    let lower = error.to_ascii_lowercase();
+    lower.contains("premium")
+        || lower.contains("developer dashboard")
+        || lower.contains("development mode")
+        || lower.contains("allowlist")
+        || lower.contains("not registered")
+        || lower.contains("blocked")
+        || lower.contains("restricted")
+        || lower.contains("spotify (403)")
+}
+
 fn client_id_log_prefix(client_id: &str) -> &str {
     client_id
         .char_indices()
@@ -224,10 +335,33 @@ fn client_id_log_prefix(client_id: &str) -> &str {
         .unwrap_or(client_id)
 }
 
+pub async fn fetch_user_profile(token: &str) -> Result<SpotifyUserProfile, String> {
+    let client = crate::http::http_client_timeout(10)
+        .ok_or_else(|| "Failed to create HTTP client".to_string())?;
+    let resp = client
+        .get("https://api.spotify.com/v1/me")
+        .bearer_auth(token)
+        .send()
+        .await
+        .map_err(|e| format!("{e}"))?;
+    let status = resp.status();
+    let body = resp.text().await.map_err(|e| format!("{e}"))?;
+    if !status.is_success() {
+        return Err(SpotifyError::from_status(status, &body).to_string());
+    }
+    parse_user_profile_body(&body)
+}
+
+pub async fn fetch_username_from_token(token: &str) -> Result<String, String> {
+    fetch_user_profile(token)
+        .await
+        .map(|profile| profile.display_name)
+}
+
 #[cfg(test)]
-#[expect(clippy::items_after_test_module)]
 mod tests {
     use super::*;
+    use crate::integrations::spotify::test_fixtures;
 
     #[test]
     fn client_id_log_prefix_accepts_short_client_id() {
@@ -243,35 +377,133 @@ mod tests {
     fn client_id_log_prefix_handles_utf8_boundary() {
         assert_eq!(client_id_log_prefix("åbcdefghij"), "åbcdefgh");
     }
-}
 
-pub async fn fetch_user_profile(
-    token: &str,
-) -> Result<(String, bool, Option<String>, Option<u32>), String> {
-    let client = crate::http::http_client_timeout(10)
-        .ok_or_else(|| "Failed to create HTTP client".to_string())?;
-    let resp = client
-        .get("https://api.spotify.com/v1/me")
-        .bearer_auth(token)
-        .send()
-        .await
-        .map_err(|e| format!("{e}"))?;
-    if !resp.status().is_success() {
-        return Err(format!("status {}", resp.status()));
+    #[test]
+    fn parse_user_profile_accepts_complete_legacy_profile() {
+        let profile =
+            parse_user_profile_body(test_fixtures::PROFILE_LEGACY_FULL).expect("profile parses");
+
+        assert_eq!(profile.display_name, "Sewan");
+        assert_eq!(profile.is_premium, Some(false));
+        assert_eq!(profile.country.as_deref(), Some("CL"));
+        assert_eq!(profile.followers, Some(42));
     }
-    let json: serde_json::Value = resp.json().await.map_err(|e| format!("{e}"))?;
-    let name = json["display_name"]
-        .as_str()
-        .filter(|s| !s.is_empty())
-        .or_else(|| json["id"].as_str())
-        .map(str::to_string)
-        .ok_or_else(|| "missing display_name".to_string())?;
-    let is_premium = json["product"].as_str() == Some("premium");
-    let country = json["country"].as_str().map(str::to_string);
-    let followers = json["followers"]["total"].as_u64().map(|n| n as u32);
-    Ok((name, is_premium, country, followers))
-}
 
-pub async fn fetch_username_from_token(token: &str) -> Result<String, String> {
-    fetch_user_profile(token).await.map(|(name, _, _, _)| name)
+    #[test]
+    fn parse_user_profile_accepts_known_non_premium_product() {
+        let profile = parse_user_profile_body(
+            r#"{
+                "display_name": "Listener",
+                "id": "listener-id",
+                "product": "free"
+            }"#,
+        )
+        .expect("profile parses");
+
+        assert_eq!(profile.is_premium, Some(false));
+        assert_eq!(profile.country, None);
+        assert_eq!(profile.followers, None);
+    }
+
+    #[test]
+    fn parse_user_profile_keeps_premium_unknown_when_product_is_absent() {
+        let profile = parse_user_profile_body(test_fixtures::PROFILE_CURRENT_MINIMAL)
+            .expect("profile parses");
+
+        assert_eq!(profile.display_name, "Listener");
+        assert_eq!(profile.is_premium, None);
+        assert_eq!(profile.country, None);
+        assert_eq!(profile.followers, None);
+    }
+
+    #[test]
+    fn parse_user_profile_falls_back_to_user_id_for_blank_name() {
+        let profile = parse_user_profile_body(
+            r#"{
+                "display_name": "",
+                "id": "listener-id",
+                "product": null,
+                "country": "",
+                "followers": { "total": 4294967296 }
+            }"#,
+        )
+        .expect("profile parses");
+
+        assert_eq!(profile.display_name, "listener-id");
+        assert_eq!(profile.is_premium, None);
+        assert_eq!(profile.country, None);
+        assert_eq!(profile.followers, None);
+    }
+
+    #[test]
+    fn parse_user_profile_rejects_profile_without_name_or_id() {
+        let error = parse_user_profile_body(r#"{"product":"premium"}"#)
+            .expect_err("profile should be rejected");
+
+        assert_eq!(error, "missing display_name");
+    }
+
+    #[test]
+    fn profile_error_blocks_restricted_auth_failures() {
+        assert!(profile_error_blocks_auth(
+            "Spotify access is restricted by Development Mode or allowlist."
+        ));
+        assert!(profile_error_blocks_auth(
+            "Spotify Premium is required for this feature."
+        ));
+        assert!(!profile_error_blocks_auth("Network error: timeout"));
+    }
+
+    #[test]
+    fn auth_profile_keeps_successful_profile() {
+        let profile = SpotifyUserProfile {
+            display_name: "Listener".to_string(),
+            is_premium: Some(true),
+            country: Some("CL".to_string()),
+            followers: Some(42),
+        };
+
+        let resolved = auth_profile_from_profile_result(Ok(profile.clone()), "")
+            .expect("profile should resolve");
+
+        assert_eq!(resolved, Some(profile));
+    }
+
+    #[test]
+    fn auth_profile_allows_non_restrictive_profile_error_without_token_userid() {
+        let resolved =
+            auth_profile_from_profile_result(Err("Network error: timeout".to_string()), "")
+                .expect("non-restrictive profile errors should not fail auth");
+
+        assert_eq!(resolved, None);
+    }
+
+    #[test]
+    fn auth_profile_falls_back_to_token_userid_for_non_restrictive_profile_error() {
+        let resolved = auth_profile_from_profile_result(
+            Err("Network error: timeout".to_string()),
+            " listener ",
+        )
+        .expect("non-restrictive profile errors should not fail auth")
+        .expect("token userid should become a partial profile");
+
+        assert_eq!(resolved.display_name, "listener");
+        assert_eq!(resolved.is_premium, None);
+        assert_eq!(resolved.country, None);
+        assert_eq!(resolved.followers, None);
+    }
+
+    #[test]
+    fn auth_profile_rejects_restrictive_profile_error() {
+        let error = auth_profile_from_profile_result(
+            Err("Spotify access is restricted by Development Mode or allowlist.".to_string()),
+            "listener",
+        )
+        .expect_err("restrictive profile errors should fail auth");
+
+        assert_eq!(
+            error,
+            "Spotify access is restricted by Development Mode or allowlist."
+        );
+    }
 }

@@ -14,6 +14,24 @@ pub fn truncate(s: &str, max_chars: usize) -> String {
     }
 }
 
+pub fn screensaver_display(secs: u16) -> String {
+    match secs {
+        0 => "OFF".to_string(),
+        s if s < 60 => format!("{}s", s),
+        s => format!("{}m", s / 60),
+    }
+}
+
+pub fn crossfade_display(secs: u8) -> String {
+    use crate::i18n::t;
+    match secs {
+        0 => t("crossfade.off"),
+        1 => t("crossfade.1s"),
+        2 => t("crossfade.2s"),
+        _ => t("crossfade.3s"),
+    }
+}
+
 pub fn title_case(s: &str) -> String {
     s.split_whitespace()
         .map(|word| {

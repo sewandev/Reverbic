@@ -1,6 +1,6 @@
 use ratatui::{
     buffer::Buffer,
-    layout::{Constraint, Layout, Rect},
+    layout::Rect,
     style::{Modifier, Style},
     text::{Line, Span},
     widgets::{List, ListItem, Paragraph, Widget},
@@ -10,9 +10,13 @@ use crate::app::SearchMode;
 use crate::i18n::t;
 use crate::station::{COUNTRIES, GENRES};
 use crate::ui::strings;
+use crate::ui::widgets::scroll_offset_for_selection;
 
 use super::helpers::{placeholder_example, render_filter_list_body, spin_frame, FilterListParams};
 use super::SearchModalWidget;
+use super::{
+    filter_list_layout, header_list_layout, radio_favorites_list_layout, radio_name_layout,
+};
 
 impl<'a> SearchModalWidget<'a> {
     pub(super) fn render_tabs(&self, area: Rect, content_x: u16, content_w: u16, buf: &mut Buffer) {
@@ -60,38 +64,29 @@ impl<'a> SearchModalWidget<'a> {
     ) {
         use crate::app::RadioSubTab;
 
-        let [_gap, subtab_row, body] = Layout::vertical([
-            Constraint::Length(1),
-            Constraint::Length(1),
-            Constraint::Fill(1),
-        ])
-        .areas(area);
+        let layout = radio_name_layout(area);
 
-        self.render_radio_subtabs(subtab_row, content_x, content_w, buf);
+        self.render_radio_subtabs(layout.subtab, content_x, content_w, buf);
 
         match self.radio_sub_tab {
-            RadioSubTab::Search => self.render_name_search(body, content_x, content_w, buf),
-            RadioSubTab::Favorites => self.render_favorites_body(body, content_x, content_w, buf),
+            RadioSubTab::Search => self.render_name_search(layout.body, content_x, content_w, buf),
+            RadioSubTab::Favorites => {
+                self.render_favorites_body(layout.body, content_x, content_w, buf)
+            }
         }
     }
 
     fn render_name_search(&self, area: Rect, content_x: u16, content_w: u16, buf: &mut Buffer) {
-        let [_gap, input_row, cap_row, list_area] = Layout::vertical([
-            Constraint::Length(1),
-            Constraint::Length(1),
-            Constraint::Length(1),
-            Constraint::Fill(1),
-        ])
-        .areas(area);
+        let layout = filter_list_layout(area);
 
-        buf[(content_x, input_row.y)]
+        buf[(content_x, layout.input.y)]
             .set_symbol("┃")
             .set_fg(self.palette.accent)
             .set_bg(self.palette.panel_bg);
 
         let text_x = content_x + 2;
         let text_w = content_w.saturating_sub(2);
-        let text_area = Rect::new(text_x, input_row.y, text_w, 1);
+        let text_area = Rect::new(text_x, layout.input.y, text_w, 1);
 
         if self.query.is_empty() {
             Paragraph::new(Span::styled(
@@ -125,12 +120,12 @@ impl<'a> SearchModalWidget<'a> {
             .render(text_area, buf);
         }
 
-        buf[(content_x, cap_row.y)]
+        buf[(content_x, layout.cap.y)]
             .set_symbol("╹")
             .set_fg(self.palette.accent)
             .set_bg(self.palette.panel_bg);
 
-        self.render_results(list_area, content_x, content_w, buf);
+        self.render_results(layout.list, content_x, content_w, buf);
     }
 
     fn render_radio_subtabs(&self, area: Rect, content_x: u16, content_w: u16, buf: &mut Buffer) {
@@ -166,8 +161,7 @@ impl<'a> SearchModalWidget<'a> {
     fn render_favorites_body(&self, area: Rect, content_x: u16, content_w: u16, buf: &mut Buffer) {
         let text_x = content_x + 2;
         let text_w = content_w.saturating_sub(2);
-        let [_gap, list_area] =
-            Layout::vertical([Constraint::Length(1), Constraint::Fill(1)]).areas(area);
+        let list_area = radio_favorites_list_layout(area);
 
         if self.favorites.is_empty() {
             Paragraph::new(Span::styled(
@@ -182,7 +176,11 @@ impl<'a> SearchModalWidget<'a> {
         let needs_scroll = self.favorites.len() > visible_n;
         let items_w = text_w.saturating_sub(if needs_scroll { 1 } else { 0 });
         let items_area = Rect::new(text_x, list_area.y, items_w, list_area.height);
-        let offset = crate::ui::widgets::scroll_offset(self.radio_fav_selected, visible_n);
+        let offset = scroll_offset_for_selection(
+            self.radio_fav_selected,
+            visible_n,
+            self.radio_fav_scroll_offset,
+        );
 
         let items: Vec<ListItem> = self
             .favorites
@@ -277,10 +275,9 @@ impl<'a> SearchModalWidget<'a> {
         buf: &mut Buffer,
     ) {
         if !self.results.is_empty() {
-            let [header_row, list_area] =
-                Layout::vertical([Constraint::Length(1), Constraint::Fill(1)]).areas(area);
+            let layout = header_list_layout(area);
 
-            let header = Rect::new(content_x, header_row.y, content_w, 1);
+            let header = Rect::new(content_x, layout.header.y, content_w, 1);
             Paragraph::new(Line::from(vec![
                 Span::styled("< ", Style::default().fg(self.palette.muted)),
                 Span::styled(
@@ -293,7 +290,7 @@ impl<'a> SearchModalWidget<'a> {
             ]))
             .render(header, buf);
 
-            self.render_results(list_area, content_x, content_w, buf);
+            self.render_results(layout.list, content_x, content_w, buf);
             return;
         }
 
@@ -303,6 +300,7 @@ impl<'a> SearchModalWidget<'a> {
                 placeholder: &t("modal.genre.placeholder"),
                 items: GENRES,
                 selected: self.genre_selected,
+                scroll_offset: self.genre_filter_scroll_offset,
                 loading: self.loading,
                 loading_text: &t("modal.loading.genre"),
             },
@@ -314,7 +312,12 @@ impl<'a> SearchModalWidget<'a> {
         );
 
         if needs_scroll {
-            self.render_scrollbar(list_area, total, self.genre_selected, buf);
+            self.render_scrollbar(
+                list_area,
+                total,
+                self.genre_selected.min(total.saturating_sub(1)),
+                buf,
+            );
         }
     }
 
@@ -326,9 +329,8 @@ impl<'a> SearchModalWidget<'a> {
         buf: &mut Buffer,
     ) {
         if !self.results.is_empty() {
-            let [header_row, list_area] =
-                Layout::vertical([Constraint::Length(1), Constraint::Fill(1)]).areas(area);
-            let header = Rect::new(content_x, header_row.y, content_w, 1);
+            let layout = header_list_layout(area);
+            let header = Rect::new(content_x, layout.header.y, content_w, 1);
             Paragraph::new(Line::from(vec![
                 Span::styled("< ", Style::default().fg(self.palette.muted)),
                 Span::styled(
@@ -340,7 +342,7 @@ impl<'a> SearchModalWidget<'a> {
                 Span::styled("  >", Style::default().fg(self.palette.muted)),
             ]))
             .render(header, buf);
-            self.render_results(list_area, content_x, content_w, buf);
+            self.render_results(layout.list, content_x, content_w, buf);
             return;
         }
 
@@ -350,6 +352,7 @@ impl<'a> SearchModalWidget<'a> {
                 placeholder: &t("modal.country.placeholder"),
                 items: COUNTRIES,
                 selected: self.country_selected,
+                scroll_offset: self.country_filter_scroll_offset,
                 loading: self.loading,
                 loading_text: &t("modal.loading.country"),
             },
@@ -361,7 +364,12 @@ impl<'a> SearchModalWidget<'a> {
         );
 
         if needs_scroll {
-            self.render_scrollbar(list_area, total, self.country_selected, buf);
+            self.render_scrollbar(
+                list_area,
+                total,
+                self.country_selected.min(total.saturating_sub(1)),
+                buf,
+            );
         }
     }
 
@@ -399,7 +407,12 @@ impl<'a> SearchModalWidget<'a> {
             return;
         }
 
-        let offset = super::super::scroll_offset(self.selected, visible_n);
+        let scroll_offset = match self.mode {
+            SearchMode::Genre => self.radio_genre_results_scroll_offset,
+            SearchMode::Country => self.radio_country_results_scroll_offset,
+            _ => self.radio_search_scroll_offset,
+        };
+        let offset = scroll_offset_for_selection(self.selected, visible_n, scroll_offset);
 
         let items: Vec<ListItem> = self
             .results
@@ -487,7 +500,12 @@ impl<'a> SearchModalWidget<'a> {
             } else if row == track_h - 1 && offset + track_h < total {
                 ("▼", self.palette.dim)
             } else if row == thumb {
-                ("┃", self.palette.accent)
+                let color = match self.mode {
+                    crate::app::SearchMode::Spotify => self.palette.spotify,
+                    crate::app::SearchMode::Youtube => self.palette.danger,
+                    _ => self.palette.accent,
+                };
+                ("┃", color)
             } else {
                 ("│", self.palette.muted)
             };

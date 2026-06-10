@@ -49,8 +49,6 @@ async fn run(
             current_station_name = None;
             continue;
         }
-
-        // Update station start timestamp when the station changes
         let new_station_name = state.station.as_ref().map(|s| s.name.clone());
         if new_station_name != current_station_name {
             current_station_name = new_station_name;
@@ -58,13 +56,9 @@ async fn run(
         }
 
         let new_json = activity::build(&state).map(|a| a.to_json(station_start_ts));
-
-        // Skip update if nothing changed and we're already connected
         if new_json == last_activity_json && conn.is_some() {
             continue;
         }
-
-        // Connect if needed
         if conn.is_none() {
             match ipc::DiscordIpc::connect() {
                 Some(mut c) => {

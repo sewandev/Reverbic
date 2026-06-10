@@ -78,6 +78,34 @@ impl OverlayStyle {
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
+pub enum SpotifyPlaybackMode {
+    #[default]
+    Auto,
+    Remote,
+    Native,
+}
+
+impl SpotifyPlaybackMode {
+    pub fn display(self) -> String {
+        use crate::i18n::t;
+        match self {
+            Self::Auto => t("spotify.playback_mode.auto"),
+            Self::Remote => t("spotify.playback_mode.remote"),
+            Self::Native => t("spotify.playback_mode.native"),
+        }
+    }
+
+    pub fn next(self) -> Self {
+        match self {
+            Self::Auto => Self::Remote,
+            Self::Remote => Self::Native,
+            Self::Native => Self::Auto,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
 pub enum OverlayPosition {
     #[default]
     TopLeft,
@@ -112,6 +140,8 @@ pub struct SpotifyConfig {
     #[serde(default)]
     pub client_id: String,
     #[serde(default)]
+    pub playback_mode: SpotifyPlaybackMode,
+    #[serde(default)]
     pub display_name: Option<String>,
     #[serde(default)]
     pub search_token: Option<String>,
@@ -127,6 +157,8 @@ pub struct SpotifyConfig {
     pub stop_on_quit: bool,
     #[serde(default)]
     pub start_on_spotify: bool,
+    #[serde(default = "default_true")]
+    pub radio_enabled: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -181,6 +213,8 @@ pub struct Config {
     pub auto_update: bool,
     #[serde(default)]
     pub discord_rpc: bool,
+    #[serde(default)]
+    pub onboarding_completed: bool,
 }
 
 fn default_true() -> bool {
@@ -245,19 +279,14 @@ impl Default for Config {
             screensaver_clock: true,
             auto_update: true,
             discord_rpc: false,
+            onboarding_completed: false,
         }
     }
 }
 
 impl Config {
     pub fn crossfade_display(&self) -> String {
-        use crate::i18n::t;
-        match self.crossfade_secs {
-            0 => t("crossfade.off"),
-            1 => t("crossfade.1s"),
-            2 => t("crossfade.2s"),
-            _ => t("crossfade.3s"),
-        }
+        crate::ui::strings::crossfade_display(self.crossfade_secs)
     }
 
     pub fn crossfade_next(&mut self) {
@@ -505,13 +534,17 @@ pub(crate) fn reverbic_dir() -> PathBuf {
 mod tests {
     use super::*;
     use serde_json::json;
+    use std::cell::Cell;
     use std::path::PathBuf;
+    use std::rc::Rc;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     struct MockSpotifyTokenStore {
         get_password: Result<String, String>,
         set_password: Result<(), String>,
         delete_credential: Result<(), String>,
+        set_password_calls: Rc<Cell<usize>>,
+        delete_credential_calls: Rc<Cell<usize>>,
     }
 
     impl MockSpotifyTokenStore {
@@ -520,7 +553,23 @@ mod tests {
                 get_password: Ok("refresh-token".to_string()),
                 set_password: Ok(()),
                 delete_credential: Ok(()),
+                set_password_calls: Rc::new(Cell::new(0)),
+                delete_credential_calls: Rc::new(Cell::new(0)),
             }
+        }
+
+        fn ok_with_call_counters() -> (Self, Rc<Cell<usize>>, Rc<Cell<usize>>) {
+            let set_password_calls = Rc::new(Cell::new(0));
+            let delete_credential_calls = Rc::new(Cell::new(0));
+            (
+                Self {
+                    set_password_calls: Rc::clone(&set_password_calls),
+                    delete_credential_calls: Rc::clone(&delete_credential_calls),
+                    ..Self::ok()
+                },
+                set_password_calls,
+                delete_credential_calls,
+            )
         }
 
         fn with_get_error(message: &str) -> Self {
@@ -551,10 +600,14 @@ mod tests {
         }
 
         fn set_password(&self, _token: &str) -> Result<(), String> {
+            self.set_password_calls
+                .set(self.set_password_calls.get() + 1);
             self.set_password.clone()
         }
 
         fn delete_credential(&self) -> Result<(), String> {
+            self.delete_credential_calls
+                .set(self.delete_credential_calls.get() + 1);
             self.delete_credential.clone()
         }
     }
@@ -633,6 +686,18 @@ mod tests {
     }
 
     #[test]
+    fn clearing_spotify_refresh_token_deletes_keyring_credential() {
+        let (store, set_password_calls, delete_credential_calls) =
+            MockSpotifyTokenStore::ok_with_call_counters();
+
+        let result = save_spotify_refresh_token(None, Ok(store));
+
+        assert!(result.is_ok());
+        assert_eq!(set_password_calls.get(), 0);
+        assert_eq!(delete_credential_calls.get(), 1);
+    }
+
+    #[test]
     fn theme_defaults_for_old_configs_and_serializes_for_persistence() {
         let old_config = json!({
             "volume": 0.75,
@@ -647,6 +712,42 @@ mod tests {
         let saved = serde_json::to_value(&config).expect("config should serialize");
 
         assert_eq!(saved["theme"], json!("reverbic"));
+    }
+
+    #[test]
+    fn spotify_playback_mode_defaults_for_old_configs_and_serializes_for_persistence() {
+        let old_config = json!({
+            "volume": 0.75,
+            "last_selected": 3,
+            "spotify": {
+                "client_id": "spotify-client"
+            }
+        });
+
+        let config: Config = serde_json::from_value(old_config)
+            .expect("old config without spotify playback_mode should load");
+
+        assert_eq!(config.spotify.playback_mode, SpotifyPlaybackMode::Auto);
+
+        let saved = serde_json::to_value(&config).expect("config should serialize");
+
+        assert_eq!(saved["spotify"]["playback_mode"], json!("auto"));
+    }
+
+    #[test]
+    fn spotify_playback_mode_cycles_through_available_modes() {
+        assert_eq!(
+            SpotifyPlaybackMode::Auto.next(),
+            SpotifyPlaybackMode::Remote
+        );
+        assert_eq!(
+            SpotifyPlaybackMode::Remote.next(),
+            SpotifyPlaybackMode::Native
+        );
+        assert_eq!(
+            SpotifyPlaybackMode::Native.next(),
+            SpotifyPlaybackMode::Auto
+        );
     }
 
     #[test]

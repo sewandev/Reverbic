@@ -1,6 +1,6 @@
 use ratatui::{
     buffer::Buffer,
-    layout::{Constraint, Layout, Rect},
+    layout::Rect,
     style::{Modifier, Style},
     text::{Line, Span},
     widgets::{Paragraph, Widget, Wrap},
@@ -8,8 +8,10 @@ use ratatui::{
 
 use crate::app::{settings_items, SettingItem};
 use crate::i18n::{current_language, t, Language};
+use crate::ui::strings::screensaver_display;
+use crate::ui::widgets::scroll_offset_for_selection;
 
-use super::helpers::screensaver_display;
+use super::settings_layout;
 use super::SearchModalWidget;
 
 impl<'a> SearchModalWidget<'a> {
@@ -102,6 +104,14 @@ impl<'a> SearchModalWidget<'a> {
                     format!("{}...", preview)
                 }
             }
+            SettingItem::SpotifyPlaybackMode => self.spotify_playback_mode.clone(),
+            SettingItem::SpotifyRadioMode => {
+                if self.spotify_radio_mode {
+                    on
+                } else {
+                    off
+                }
+            }
             SettingItem::AutoUpdate => {
                 if self.auto_update {
                     on
@@ -116,6 +126,7 @@ impl<'a> SearchModalWidget<'a> {
                     off
                 }
             }
+            SettingItem::ReplayOnboarding => t("hint.open"),
         }
     }
 
@@ -155,15 +166,13 @@ impl<'a> SearchModalWidget<'a> {
         let list_x = content_x + 2;
         let list_w = content_w.saturating_sub(2);
 
-        let [_gap, items_area, tooltip_area] = Layout::vertical([
-            Constraint::Length(1),
-            Constraint::Fill(1),
-            Constraint::Length(3),
-        ])
-        .areas(area);
+        let layout = settings_layout(area);
+        let items_area = layout.items;
+        let tooltip_area = layout.tooltip;
 
         let visible_n = items_area.height.saturating_sub(1) as usize;
-        let offset = super::super::scroll_offset(selected_row, visible_n);
+        let offset =
+            scroll_offset_for_selection(selected_row, visible_n, self.settings_scroll_offset);
         let val_col_w: u16 = 16;
         let lbl_col_w: u16 = list_w.saturating_sub(3 + val_col_w);
 
