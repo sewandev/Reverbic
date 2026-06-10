@@ -20,6 +20,18 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ---
 
+## [1.5.0] — 2026-06-09
+
+### Added
+- First-launch welcome stepper with logo animation, ambient music and initial setup options (overlay, autoplay, volume restore)
+- "Show welcome again" option in Settings to replay the first-launch experience
+- Spotify continuous playback: after a track ends, the next track in the loaded context plays automatically (batch-load via Spirc for gapless advance)
+- Spotify radio mode: when the queue is exhausted, similar tracks from the same artist play automatically; can be toggled in Settings
+- Spotify "Liked Songs" tab: browse and play saved tracks with pagination
+- Spotify Playlists tab: browse user playlists, open them, and play tracks with sequential continuation
+
+---
+
 ## [1.4.2] — 2026-06-06
 
 ### Added
@@ -147,7 +159,11 @@ Versioning: [Semantic Versioning](https://semver.org/)
 - Issue templates (bug, feature, question)
 - Logo and assets embedded in the executable (no external dependencies)
 
-[Unreleased]: https://github.com/sewandev/Reverbic/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/sewandev/Reverbic/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/sewandev/Reverbic/compare/v1.4.2...v1.5.0
+[1.4.2]: https://github.com/sewandev/Reverbic/compare/v1.4.1...v1.4.2
+[1.4.1]: https://github.com/sewandev/Reverbic/compare/v1.4.0...v1.4.1
+[1.4.0]: https://github.com/sewandev/Reverbic/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/sewandev/Reverbic/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/sewandev/Reverbic/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/sewandev/Reverbic/compare/v1.0.0...v1.1.0

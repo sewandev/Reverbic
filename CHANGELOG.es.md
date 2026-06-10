@@ -77,6 +77,37 @@ Versionado: [Semantic Versioning](https://semver.org/)
 
 ---
 
+## [1.5.0] — 2026-06-09
+
+### Agregado
+- Bienvenida inicial con animación del logo, música ambiental y opciones de configuración inicial (overlay, autoplay, restaurar volumen)
+- Opción "Ver bienvenida de nuevo" en Ajustes para repetir la experiencia de primer inicio
+- Reproducción continua en Spotify: al terminar una canción, la siguiente del contexto cargado avanza automáticamente (carga en lote via Spirc para reproducción sin pausas)
+- Modo radio en Spotify: cuando se agota la cola, se reproducen automáticamente canciones similares del mismo artista; se puede desactivar en Ajustes
+- Pestaña "Me gusta" en Spotify: explorar y reproducir canciones guardadas con paginación
+- Pestaña Listas de reproducción en Spotify: explorar listas propias, abrirlas y reproducir canciones con continuación secuencial
+
+---
+
+## [1.4.2] — 2026-06-06
+
+### Agregado
+- Extracción del tema de UI a un sistema modular de paletas para permitir temas dinámicos
+- Nuevo estilo de overlay compacto (`compact`)
+- CI obligatorio y protección estricta de GitHub Actions en `develop`
+
+### Corregido
+- Corregida una aserción rota del test unitario para el ancho del layout del modal
+
+---
+
+## [1.4.1] — 2026-06-06
+
+### Agregado
+- Fortalecida la validación de payloads del updater contra riesgos de seguridad
+
+---
+
 ## [1.4.0] — 2026-06-05
 
 ### Agregado
@@ -185,7 +216,11 @@ Versionado: [Semantic Versioning](https://semver.org/)
 - Templates de issues (bug, feature, pregunta)
 - Logo y assets embebidos en el ejecutable (sin dependencias externas)
 
-[Sin publicar]: https://github.com/sewandev/Reverbic/compare/v1.3.0...HEAD
+[Sin publicar]: https://github.com/sewandev/Reverbic/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/sewandev/Reverbic/compare/v1.4.2...v1.5.0
+[1.4.2]: https://github.com/sewandev/Reverbic/compare/v1.4.1...v1.4.2
+[1.4.1]: https://github.com/sewandev/Reverbic/compare/v1.4.0...v1.4.1
+[1.4.0]: https://github.com/sewandev/Reverbic/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/sewandev/Reverbic/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/sewandev/Reverbic/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/sewandev/Reverbic/compare/v1.0.0...v1.1.0
