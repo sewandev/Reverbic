@@ -10,6 +10,10 @@ Versionado: [Semantic Versioning](https://semver.org/)
 
 ## [Sin publicar]
 
+---
+
+## [1.5.1] — 2026-06-10
+
 ### Corregido
 - Se corrigió un desajuste de versión donde la aplicación reportaba v1.4.2 en lugar de v1.5.0, lo que provocaba que el actualizador automático sugiriera repetidamente actualizar a la versión ya instalada
 
@@ -154,7 +158,8 @@ Versionado: [Semantic Versioning](https://semver.org/)
 - Templates de issues (bug, feature, pregunta)
 - Logo y assets embebidos en el ejecutable (sin dependencias externas)
 
-[Sin publicar]: https://github.com/sewandev/Reverbic/compare/v1.5.0...HEAD
+[Sin publicar]: https://github.com/sewandev/Reverbic/compare/v1.5.1...HEAD
+[1.5.1]: https://github.com/sewandev/Reverbic/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/sewandev/Reverbic/compare/v1.4.2...v1.5.0
 [1.4.2]: https://github.com/sewandev/Reverbic/compare/v1.4.1...v1.4.2
 [1.4.1]: https://github.com/sewandev/Reverbic/compare/v1.4.0...v1.4.1
