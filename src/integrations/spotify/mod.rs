@@ -66,6 +66,9 @@ pub(crate) mod test_fixtures {
         include_str!("fixtures/search_tracks_missing_optional_fields.json");
     pub(crate) const SAVED_TRACKS_CURRENT: &str =
         include_str!("fixtures/saved_tracks_current.json");
+    pub(crate) const TOP_TRACKS_CURRENT: &str = include_str!("fixtures/top_tracks_current.json");
+    pub(crate) const RECENTLY_PLAYED_CURRENT: &str =
+        include_str!("fixtures/recently_played_current.json");
     pub(crate) const SAVED_ALBUMS_CURRENT: &str =
         include_str!("fixtures/saved_albums_current.json");
     pub(crate) const USER_PLAYLISTS_CURRENT_ITEMS_TOTAL: &str =
@@ -91,6 +94,8 @@ pub(crate) mod test_fixtures {
             SEARCH_TRACKS_MISSING_OPTIONAL_FIELDS,
         ),
         ("saved_tracks_current", SAVED_TRACKS_CURRENT),
+        ("top_tracks_current", TOP_TRACKS_CURRENT),
+        ("recently_played_current", RECENTLY_PLAYED_CURRENT),
         ("saved_albums_current", SAVED_ALBUMS_CURRENT),
         (
             "user_playlists_current_items_total",

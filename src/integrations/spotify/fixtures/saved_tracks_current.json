@@ -4,7 +4,7 @@
   "next": "https://api.spotify.com/v1/me/tracks?offset=50&limit=50",
   "offset": 0,
   "previous": null,
-  "total": 2,
+  "total": 3,
   "items": [
     {
       "added_at": "2026-02-15T12:00:00Z",
@@ -27,6 +27,23 @@
     {
       "added_at": "2026-02-16T12:00:00Z",
       "track": null
+    },
+    {
+      "added_at": "2026-02-17T12:00:00Z",
+      "track": {
+        "id": "saved-track-missing-uri",
+        "name": "Missing URI Saved Track",
+        "type": "track",
+        "duration_ms": 180000,
+        "artists": [
+          {
+            "name": "Filtered Artist"
+          }
+        ],
+        "album": {
+          "name": "Filtered Album"
+        }
+      }
     }
   ]
 }
