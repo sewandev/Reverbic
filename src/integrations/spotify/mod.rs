@@ -57,3 +57,68 @@ pub enum SpotifyPlayerEvent {
     TrackChanged(SpotifyTrack),
     Error(String),
 }
+
+#[cfg(test)]
+pub(crate) mod test_fixtures {
+    pub(crate) const SEARCH_TRACKS_CURRENT: &str =
+        include_str!("fixtures/search_tracks_current.json");
+    pub(crate) const SEARCH_TRACKS_MISSING_OPTIONAL_FIELDS: &str =
+        include_str!("fixtures/search_tracks_missing_optional_fields.json");
+    pub(crate) const SAVED_TRACKS_CURRENT: &str =
+        include_str!("fixtures/saved_tracks_current.json");
+    pub(crate) const SAVED_ALBUMS_CURRENT: &str =
+        include_str!("fixtures/saved_albums_current.json");
+    pub(crate) const USER_PLAYLISTS_CURRENT_ITEMS_TOTAL: &str =
+        include_str!("fixtures/user_playlists_current_items_total.json");
+    pub(crate) const USER_PLAYLISTS_LEGACY_TRACKS_TOTAL: &str =
+        include_str!("fixtures/user_playlists_legacy_tracks_total.json");
+    pub(crate) const PLAYLIST_ITEMS_CURRENT: &str =
+        include_str!("fixtures/playlist_items_current.json");
+    pub(crate) const PLAYLIST_ITEMS_LEGACY_DIRECT_TRACKS: &str =
+        include_str!("fixtures/playlist_items_legacy_direct_tracks.json");
+    pub(crate) const PLAYBACK_STATE_TRACK_CURRENT: &str =
+        include_str!("fixtures/playback_state_track_current.json");
+    pub(crate) const PLAYBACK_STATE_EPISODE_OR_MISSING_ITEM: &str =
+        include_str!("fixtures/playback_state_episode_or_missing_item.json");
+    pub(crate) const PROFILE_CURRENT_MINIMAL: &str =
+        include_str!("fixtures/profile_current_minimal.json");
+    pub(crate) const PROFILE_LEGACY_FULL: &str = include_str!("fixtures/profile_legacy_full.json");
+
+    pub(crate) const ALL: &[(&str, &str)] = &[
+        ("search_tracks_current", SEARCH_TRACKS_CURRENT),
+        (
+            "search_tracks_missing_optional_fields",
+            SEARCH_TRACKS_MISSING_OPTIONAL_FIELDS,
+        ),
+        ("saved_tracks_current", SAVED_TRACKS_CURRENT),
+        ("saved_albums_current", SAVED_ALBUMS_CURRENT),
+        (
+            "user_playlists_current_items_total",
+            USER_PLAYLISTS_CURRENT_ITEMS_TOTAL,
+        ),
+        (
+            "user_playlists_legacy_tracks_total",
+            USER_PLAYLISTS_LEGACY_TRACKS_TOTAL,
+        ),
+        ("playlist_items_current", PLAYLIST_ITEMS_CURRENT),
+        (
+            "playlist_items_legacy_direct_tracks",
+            PLAYLIST_ITEMS_LEGACY_DIRECT_TRACKS,
+        ),
+        ("playback_state_track_current", PLAYBACK_STATE_TRACK_CURRENT),
+        (
+            "playback_state_episode_or_missing_item",
+            PLAYBACK_STATE_EPISODE_OR_MISSING_ITEM,
+        ),
+        ("profile_current_minimal", PROFILE_CURRENT_MINIMAL),
+        ("profile_legacy_full", PROFILE_LEGACY_FULL),
+    ];
+
+    #[test]
+    fn all_spotify_fixtures_are_valid_json() {
+        for (name, body) in ALL {
+            serde_json::from_str::<serde_json::Value>(body)
+                .unwrap_or_else(|error| panic!("{name} should be valid JSON: {error}"));
+        }
+    }
+}

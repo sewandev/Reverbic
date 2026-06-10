@@ -1,0 +1,39 @@
+{
+  "tracks": {
+    "href": "https://api.spotify.com/v1/search?query=ojitos&type=track&offset=0&limit=10",
+    "limit": 10,
+    "next": "https://api.spotify.com/v1/search?query=ojitos&type=track&offset=10&limit=10",
+    "offset": 0,
+    "previous": null,
+    "total": 42,
+    "items": [
+      {
+        "id": "6Xom58OOXk2SoU711L2IXO",
+        "name": "Ojitos Lindos",
+        "type": "track",
+        "uri": "spotify:track:6Xom58OOXk2SoU711L2IXO",
+        "duration_ms": 258298,
+        "artists": [
+          {
+            "id": "4q3ewBCX7sLwd24euuV69X",
+            "name": "Bad Bunny",
+            "type": "artist",
+            "uri": "spotify:artist:4q3ewBCX7sLwd24euuV69X"
+          },
+          {
+            "id": "2LRoIwlKmHjgvigdNGBHNo",
+            "name": "Bomba Estereo",
+            "type": "artist",
+            "uri": "spotify:artist:2LRoIwlKmHjgvigdNGBHNo"
+          }
+        ],
+        "album": {
+          "id": "3RQQmkQEvNCY4prGKE6oc5",
+          "name": "Un Verano Sin Ti",
+          "type": "album",
+          "uri": "spotify:album:3RQQmkQEvNCY4prGKE6oc5"
+        }
+      }
+    ]
+  }
+}

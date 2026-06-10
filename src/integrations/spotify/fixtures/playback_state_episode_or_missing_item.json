@@ -1,0 +1,13 @@
+{
+  "device": {
+    "id": "device-1",
+    "is_active": true,
+    "name": "MacBook Pro",
+    "type": "Computer",
+    "volume_percent": 20
+  },
+  "is_playing": false,
+  "progress_ms": 0,
+  "item": null,
+  "currently_playing_type": "unknown"
+}

@@ -1,0 +1,28 @@
+{
+  "href": "https://api.spotify.com/v1/me/playlists?offset=0&limit=20",
+  "limit": 20,
+  "next": null,
+  "offset": 0,
+  "previous": null,
+  "total": 2,
+  "items": [
+    {
+      "id": "playlist-legacy-tracks",
+      "name": "Legacy Favorites",
+      "owner": {
+        "display_name": "Sewan"
+      },
+      "tracks": {
+        "total": 42
+      }
+    },
+    {
+      "id": "playlist-legacy-total-tracks",
+      "name": "Legacy Total Tracks",
+      "owner": {
+        "display_name": "Sewan"
+      },
+      "total_tracks": 7
+    }
+  ]
+}

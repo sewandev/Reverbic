@@ -1,0 +1,48 @@
+{
+  "tracks": {
+    "href": "https://api.spotify.com/v1/search?query=minimal&type=track&offset=0&limit=10",
+    "limit": 10,
+    "next": null,
+    "offset": 0,
+    "previous": null,
+    "total": 3,
+    "items": [
+      {
+        "id": "minimal-track",
+        "name": "Minimal Track",
+        "type": "track",
+        "uri": "spotify:track:minimal-track",
+        "artists": [],
+        "album": {}
+      },
+      {
+        "id": "missing-uri",
+        "name": "Missing URI",
+        "type": "track",
+        "duration_ms": 180000,
+        "artists": [
+          {
+            "name": "Filtered Artist"
+          }
+        ],
+        "album": {
+          "name": "Filtered Album"
+        }
+      },
+      {
+        "id": "missing-name",
+        "type": "track",
+        "uri": "spotify:track:missing-name",
+        "duration_ms": 181000,
+        "artists": [
+          {
+            "name": "Filtered Artist"
+          }
+        ],
+        "album": {
+          "name": "Filtered Album"
+        }
+      }
+    ]
+  }
+}

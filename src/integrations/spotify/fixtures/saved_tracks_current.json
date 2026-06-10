@@ -1,0 +1,32 @@
+{
+  "href": "https://api.spotify.com/v1/me/tracks?offset=0&limit=50",
+  "limit": 50,
+  "next": "https://api.spotify.com/v1/me/tracks?offset=50&limit=50",
+  "offset": 0,
+  "previous": null,
+  "total": 2,
+  "items": [
+    {
+      "added_at": "2026-02-15T12:00:00Z",
+      "track": {
+        "id": "saved-track-1",
+        "name": "Sweet Disposition",
+        "type": "track",
+        "uri": "spotify:track:saved-track-1",
+        "duration_ms": 232000,
+        "artists": [
+          {
+            "name": "The Temper Trap"
+          }
+        ],
+        "album": {
+          "name": "Conditions"
+        }
+      }
+    },
+    {
+      "added_at": "2026-02-16T12:00:00Z",
+      "track": null
+    }
+  ]
+}

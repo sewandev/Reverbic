@@ -1,0 +1,25 @@
+{
+  "href": "https://api.spotify.com/v1/me/albums?offset=0&limit=50",
+  "limit": 50,
+  "next": null,
+  "offset": 0,
+  "previous": null,
+  "total": 1,
+  "items": [
+    {
+      "added_at": "2026-02-15T12:00:00Z",
+      "album": {
+        "id": "album-1",
+        "name": "Un Verano Sin Ti",
+        "type": "album",
+        "uri": "spotify:album:album-1",
+        "total_tracks": 23,
+        "artists": [
+          {
+            "name": "Bad Bunny"
+          }
+        ]
+      }
+    }
+  ]
+}

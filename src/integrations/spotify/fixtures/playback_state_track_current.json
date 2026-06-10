@@ -1,0 +1,27 @@
+{
+  "device": {
+    "id": "device-1",
+    "is_active": true,
+    "name": "MacBook Pro",
+    "type": "Computer",
+    "volume_percent": 74
+  },
+  "is_playing": true,
+  "progress_ms": 64000,
+  "item": {
+    "id": "playback-track-1",
+    "name": "Levitating",
+    "type": "track",
+    "uri": "spotify:track:playback-track-1",
+    "duration_ms": 203000,
+    "artists": [
+      {
+        "name": "Dua Lipa"
+      }
+    ],
+    "album": {
+      "name": "Future Nostalgia"
+    }
+  },
+  "currently_playing_type": "track"
+}
