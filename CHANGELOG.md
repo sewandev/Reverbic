@@ -10,6 +10,9 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ## [Unreleased]
 
+### Security
+- Updated dependencies (OpenSSL and others) to resolve known security advisories reported by Dependabot
+
 ---
 
 ## [1.5.1] — 2026-06-10

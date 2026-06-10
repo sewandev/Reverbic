@@ -119,7 +119,7 @@ async fn pkce_flow(
 
 fn generate_verifier() -> String {
     let mut b = [0u8; 32];
-    rand::thread_rng().fill_bytes(&mut b);
+    rand::rng().fill_bytes(&mut b);
     URL_SAFE_NO_PAD.encode(b)
 }
 

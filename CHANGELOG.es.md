@@ -10,6 +10,9 @@ Versionado: [Semantic Versioning](https://semver.org/)
 
 ## [Sin publicar]
 
+### Seguridad
+- Se actualizaron dependencias (OpenSSL y otras) para corregir vulnerabilidades conocidas reportadas por Dependabot
+
 ---
 
 ## [1.5.1] — 2026-06-10
