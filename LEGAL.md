@@ -36,6 +36,22 @@ Spotify's 2026 policy updates around Widevine DRM enforcement and stricter API a
 - [Spotify Web Player Help (DRM/Widevine)](https://support.spotify.com/us/article/web-player-help/)
 - [Update on Developer Access and Platform Security (Feb 2026)](https://developer.spotify.com/blog/2026-02-06-update-on-developer-access-and-platform-security)
 
+### YouTube
+
+YouTube integration uses [yt-dlp](https://github.com/yt-dlp/yt-dlp) (Unlicense) to resolve audio streams, with the [Deno](https://deno.com/) runtime (MIT License) to solve YouTube's JavaScript signature challenges. Both binaries are downloaded from their official GitHub releases and verified by SHA256 checksum.  
+Reverbic does not host, rehost, or redistribute any YouTube content. All streams are played directly from YouTube's servers by the user's machine.
+
+#### Regarding YouTube Terms of Service
+
+- Streaming via yt-dlp does not use the official YouTube API and may conflict with the [YouTube Terms of Service](https://www.youtube.com/t/terms). This functionality is provided for personal, non-commercial use only.
+- The optional `cookies.txt` file grants yt-dlp access to that account's YouTube session. **Use a secondary account, never your main Google account** — YouTube may flag or restrict accounts whose session is used by automated tools.
+- Cookies never leave the user's machine: Reverbic only passes the file path to yt-dlp, and session data is never written to Reverbic's caches or logs.
+- The optional SponsorBlock feature (off by default) sends only the video ID to the community [SponsorBlock API](https://sponsor.ajay.app/).
+
+**References:**
+- [YouTube Terms of Service](https://www.youtube.com/t/terms)
+- [yt-dlp project](https://github.com/yt-dlp/yt-dlp)
+
 ## Disclaimer
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND. THE AUTHORS ARE NOT

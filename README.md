@@ -84,7 +84,7 @@ For file permissions: on Linux/macOS, restrict access with `chmod 600 cookies.tx
 > [!NOTE]
 > Cookies help with sign-in-required videos, but they don't guarantee fixing every "Sign in to confirm you're not a bot" error — YouTube's anti-bot checks (PO Tokens) can still block playback in some cases.
 
-Reverbic only reads the path you provide and passes it to yt-dlp; it never transmits or caches the cookie file's contents.
+Reverbic only reads the path you provide and passes it to yt-dlp; it never transmits or caches the cookie file's contents. See [LEGAL.md](LEGAL.md) for the legal notes on the YouTube integration.
 
 ---
 
