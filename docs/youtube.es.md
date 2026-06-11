@@ -17,7 +17,12 @@ Reverbic reproduce audio de YouTube a través de [yt-dlp](https://github.com/yt-
 | SponsorBlock | Ajustes → *SponsorBlock (YouTube)* salta las secciones sin música. Desactivado por defecto; al activarlo, el ID del video se envía a la [API comunitaria de SponsorBlock](https://sponsor.ajay.app/) |
 | Seek preciso | Las pistas se descargan a un archivo temporal a velocidad completa, así que adelantar/retroceder es instantáneo y la reproducción sobrevive cortes de red |
 
-Las URLs de stream resueltas se guardan en caché por 4 horas, así que volver a reproducir un video reciente arranca casi al instante — incluso tras reiniciar Reverbic.
+## Cómo funciona el caché
+
+- **Las URLs resueltas** se guardan por **4 horas** en `~/.reverbic/youtube_url_cache.json`, así que volver a reproducir un video reciente arranca casi al instante — incluso tras reiniciar Reverbic. El límite de 4 horas lo impone YouTube: sus URLs de stream se auto-expiran a las ~6 horas, así que no es posible cachear más tiempo.
+- Solo se persisten las resoluciones **anónimas**. Todo lo resuelto con tus cookies queda en memoria y nunca toca el disco.
+- Las URLs están **atadas a tu IP**: si cambias de red o activas una VPN, una URL cacheada puede dejar de funcionar — Reverbic lo detecta, la descarta y re-resuelve automáticamente en la siguiente reproducción.
+- **El audio descargado** (`~/.reverbic/cache/youtube/*.m4a`) es temporal: se borra cada vez que Reverbic arranca, así que no se acumula media de YouTube en el disco.
 
 ## Configuración de cookies (opcional)
 

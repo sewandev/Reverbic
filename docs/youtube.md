@@ -17,7 +17,12 @@ Reverbic streams YouTube audio through [yt-dlp](https://github.com/yt-dlp/yt-dlp
 | SponsorBlock | Settings → *SponsorBlock (YouTube)* skips non-music sections. Off by default; when enabled, the video ID is sent to the community [SponsorBlock API](https://sponsor.ajay.app/) |
 | Precise seeking | Tracks download to a temporary file at full speed, so seeking is instant and playback survives network drops |
 
-Resolved stream URLs are cached for 4 hours, so replaying a recent video starts almost instantly — even after restarting Reverbic.
+## How caching works
+
+- **Resolved URLs** are cached for **4 hours** in `~/.reverbic/youtube_url_cache.json`, so replaying a recent video starts almost instantly — even after restarting Reverbic. The 4-hour limit comes from YouTube: its stream URLs self-expire after ~6 hours, so caching longer is not possible.
+- Only **anonymous** resolutions are persisted. Anything resolved with your cookies stays in memory and never touches disk.
+- URLs are **tied to your IP**: if you switch networks or enable a VPN, a cached URL may stop working — Reverbic detects this, discards it, and re-resolves automatically on the next play.
+- The **downloaded audio** (`~/.reverbic/cache/youtube/*.m4a`) is temporary: it is wiped every time Reverbic starts, so no YouTube media accumulates on disk.
 
 ## Cookies setup (optional)
 
