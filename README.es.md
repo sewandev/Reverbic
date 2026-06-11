@@ -65,26 +65,14 @@ cargo build --release
 
 ---
 
-## Autenticación de YouTube (opcional)
+## Documentación
 
-Algunos videos de YouTube requieren iniciar sesión (restricción de edad, de región, o contenido solo para miembros). Reverbic puede usar un archivo `cookies.txt` para acceder a ellos.
+- **[Guía de Spotify](docs/spotify.es.md)** — modos de reproducción, configuración del Client ID, atajos y limitaciones conocidas
+- **[Guía de YouTube](docs/youtube.es.md)** — funcionalidades (Mix, capítulos, SponsorBlock), configuración de cookies y limitaciones conocidas
+- **[Notas legales](LEGAL.md)** — servicios de terceros, términos de servicio y declaración de riesgos (en inglés)
 
 > [!WARNING]
-> **Usa una cuenta secundaria ("burner")** para esto — nunca tu cuenta principal de Google. El archivo de cookies le da a Reverbic acceso a la sesión de YouTube de esa cuenta, y yt-dlp puede reescribir el archivo a medida que las cookies rotan.
-
-Para configurarlo:
-
-1. Abre una **ventana privada/de incógnito** e inicia sesión en YouTube con tu cuenta secundaria.
-2. Instala [Get cookies.txt LOCALLY](https://github.com/kairi003/Get-cookies.txt-LOCALLY), una extensión de código abierto que nunca envía tus cookies a ningún lado.
-3. En youtube.com, exporta tus cookies en formato Netscape y guarda el archivo en un lugar privado.
-4. En Reverbic, abre Ajustes y configura **Archivo de cookies de YouTube** con la ruta del archivo guardado.
-
-Sobre los permisos del archivo: en Linux/macOS, restringe el acceso con `chmod 600 cookies.txt`; en Windows, evita guardarlo en una carpeta sincronizada con la nube (OneDrive, Dropbox, etc.).
-
-> [!NOTE]
-> Las cookies ayudan con los videos que requieren inicio de sesión, pero no garantizan resolver todos los errores de "Sign in to confirm you're not a bot" — las verificaciones anti-bot de YouTube (PO Tokens) aún pueden bloquear la reproducción en algunos casos.
-
-Reverbic solo lee la ruta que indiques y se la pasa a yt-dlp; nunca transmite ni guarda en caché el contenido del archivo de cookies. Ver [LEGAL.md](LEGAL.md) para las notas legales de la integración con YouTube (en inglés).
+> Si configuras cookies de YouTube, **usa una cuenta secundaria ("burner")** — nunca tu cuenta principal de Google. Instrucciones completas en la [guía de YouTube](docs/youtube.es.md).
 
 ---
 
