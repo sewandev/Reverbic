@@ -11,11 +11,19 @@ El ajuste *Modo de reproducción* elige entre **Auto** (nativa cuando es posible
 
 ## Configuración
 
-1. Crea una aplicación en el [Spotify Developer Dashboard](https://developer.spotify.com/dashboard) (cada usuario registra la suya — ver [LEGAL.md](../LEGAL.md)).
-2. Agrega `http://127.0.0.1:8888/callback` como Redirect URI de la app.
-3. En Reverbic, abre Ajustes, pega tu **Client ID** y conéctate desde la pestaña de Spotify.
+Cada usuario registra su propia aplicación de Spotify (ver [LEGAL.md](../LEGAL.md)); la cuenta dueña de la app necesita Premium.
 
-La autenticación usa el flujo oficial OAuth PKCE; el refresh token se guarda en el llavero del sistema operativo, nunca en texto plano.
+1. Inicia sesión en el [Spotify Developer Dashboard](https://developer.spotify.com/dashboard) y haz clic en **Create app**.
+2. Completa **App name** y **App description** con lo que quieras (ej. "Reverbic").
+3. En **Redirect URIs**, agrega exactamente:
+   ```
+   http://127.0.0.1:8888/callback
+   ```
+4. En **Which API/SDKs are you planning to use?**, marca **Web API**, acepta los Developer Terms y haz clic en **Save**.
+5. En la página de la app, abre **Settings** → **Basic Information** y copia el **Client ID**.
+6. En Reverbic, abre Ajustes, pégalo en **Spotify Client ID** y conéctate desde la pestaña de Spotify — se abrirá tu navegador para autorizar la app.
+
+La app queda en el *Development Mode* de Spotify, suficiente para uso personal. La autenticación usa el flujo oficial OAuth PKCE; el refresh token se guarda en el llavero del sistema operativo, nunca en texto plano.
 
 ## Atajos útiles
 

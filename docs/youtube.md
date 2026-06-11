@@ -26,11 +26,12 @@ Some videos require signing in (age-restricted, region-locked, or members-only c
 > [!WARNING]
 > **Use a secondary ("burner") account** — never your main Google account. The cookies file grants access to that account's YouTube session, and yt-dlp may rewrite the file as cookies rotate.
 
-1. Open a **private/incognito window** and sign in to YouTube with your secondary account.
-2. Install [Get cookies.txt LOCALLY](https://github.com/kairi003/Get-cookies.txt-LOCALLY), an open-source extension that never sends your cookies anywhere.
-3. On youtube.com, export your cookies in Netscape format and save the file somewhere private.
-4. In Reverbic, open Settings and set **YouTube Cookies File** to the saved file's path.
-5. Use **Validate YouTube session** in Settings at any time to check that the cookies still work.
+1. Install [Get cookies.txt LOCALLY](https://github.com/kairi003/Get-cookies.txt-LOCALLY) (Chrome, Edge, or Firefox), an open-source extension that never sends your cookies anywhere. To use it in a private window you must allow it explicitly: in your browser's extension settings, enable **Allow in Incognito** (Chrome) / **Allow in InPrivate** (Edge) / **Run in Private Windows** (Firefox).
+2. Open a **private/incognito window** and sign in to YouTube with your secondary account.
+3. While on **youtube.com**, click the extension's icon and press **Export** — it downloads a `cookies.txt` in Netscape format for the current site. Save it somewhere private.
+4. Close the private window **without signing out** (signing out invalidates the exported cookies).
+5. In Reverbic, open Settings and set **YouTube Cookies File** to the saved file's path.
+6. Use **Validate YouTube session** in Settings at any time to check that the cookies still work.
 
 File hygiene: on Linux/macOS run `chmod 600 cookies.txt`; on Windows, avoid cloud-synced folders (OneDrive, Dropbox, etc.).
 

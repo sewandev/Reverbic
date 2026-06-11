@@ -26,11 +26,12 @@ Algunos videos requieren iniciar sesión (restricción de edad, de región, o co
 > [!WARNING]
 > **Usa una cuenta secundaria ("burner")** — nunca tu cuenta principal de Google. El archivo de cookies da acceso a la sesión de YouTube de esa cuenta, y yt-dlp puede reescribir el archivo a medida que las cookies rotan.
 
-1. Abre una **ventana privada/de incógnito** e inicia sesión en YouTube con tu cuenta secundaria.
-2. Instala [Get cookies.txt LOCALLY](https://github.com/kairi003/Get-cookies.txt-LOCALLY), una extensión open-source que nunca envía tus cookies a ningún lado.
-3. En youtube.com, exporta tus cookies en formato Netscape y guarda el archivo en un lugar privado.
-4. En Reverbic, abre Ajustes y configura **Archivo de cookies de YouTube** con la ruta del archivo guardado.
-5. Usa **Validar sesión de YouTube** en Ajustes cuando quieras comprobar que las cookies siguen funcionando.
+1. Instala [Get cookies.txt LOCALLY](https://github.com/kairi003/Get-cookies.txt-LOCALLY) (Chrome, Edge o Firefox), una extensión open-source que nunca envía tus cookies a ningún lado. Para usarla en ventana privada debes permitirlo explícitamente: en la configuración de extensiones de tu navegador, activa **Permitir en incógnito** (Chrome) / **Permitir en InPrivate** (Edge) / **Ejecutar en ventanas privadas** (Firefox).
+2. Abre una **ventana privada/de incógnito** e inicia sesión en YouTube con tu cuenta secundaria.
+3. Estando en **youtube.com**, haz clic en el ícono de la extensión y presiona **Export** — descarga un `cookies.txt` en formato Netscape del sitio actual. Guárdalo en un lugar privado.
+4. Cierra la ventana privada **sin cerrar sesión** (cerrar sesión invalida las cookies exportadas).
+5. En Reverbic, abre Ajustes y configura **Archivo de cookies de YouTube** con la ruta del archivo guardado.
+6. Usa **Validar sesión de YouTube** en Ajustes cuando quieras comprobar que las cookies siguen funcionando.
 
 Higiene del archivo: en Linux/macOS ejecuta `chmod 600 cookies.txt`; en Windows, evita carpetas sincronizadas a la nube (OneDrive, Dropbox, etc.).
 

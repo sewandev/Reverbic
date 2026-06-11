@@ -11,11 +11,19 @@ The *Playback mode* setting chooses between **Auto** (native when possible, remo
 
 ## Setup
 
-1. Create an application in the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard) (each user registers their own — see [LEGAL.md](../LEGAL.md)).
-2. Add `http://127.0.0.1:8888/callback` as the app's Redirect URI.
-3. In Reverbic, open Settings and paste your **Client ID**, then connect from the Spotify tab.
+Each user registers their own Spotify application (see [LEGAL.md](../LEGAL.md)); the account that owns it needs Premium.
 
-Authentication uses the official OAuth PKCE flow; the refresh token is stored in the operating system's keyring, never in plain text.
+1. Sign in at the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard) and click **Create app**.
+2. Fill **App name** and **App description** with anything you like (e.g. "Reverbic").
+3. In **Redirect URIs**, add exactly:
+   ```
+   http://127.0.0.1:8888/callback
+   ```
+4. Under **Which API/SDKs are you planning to use?**, check **Web API**, accept the Developer Terms, and click **Save**.
+5. On the app's page, open **Settings** → **Basic Information** and copy the **Client ID**.
+6. In Reverbic, open Settings, paste it into **Spotify Client ID**, then connect from the Spotify tab — your browser opens so you can authorize the app.
+
+The app stays in Spotify's *Development Mode*, which is fine for personal use. Authentication uses the official OAuth PKCE flow; the refresh token is stored in the operating system's keyring, never in plain text.
 
 ## Useful shortcuts
 
