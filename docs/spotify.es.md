@@ -19,8 +19,13 @@ Cada usuario registra su propia aplicación de Spotify (ver [LEGAL.md](../LEGAL.
    ```
    http://127.0.0.1:8888/callback
    ```
-4. En **Which API/SDKs are you planning to use?**, marca **Web API**, acepta los Developer Terms y haz clic en **Save**.
-5. En la página de la app, abre **Settings** → **Basic Information** y copia el **Client ID**.
+4. En **Which API/SDKs are you planning to use?**, marca **Web API**, acepta los Developer Terms y haz clic en **Save**. La configuración de la app debería quedar así:
+
+   <img src="../assets/spotify-developers-config.PNG" alt="Configuración de la app de Spotify" width="720">
+
+5. En la página de la app, abre **Settings** → **Basic Information** y copia el **Client ID**:
+
+   <img src="../assets/spotify-developers-client_id.PNG" alt="Ubicación del Client ID de Spotify" width="720">
 6. En Reverbic, abre Ajustes, pégalo en **Spotify Client ID** y conéctate desde la pestaña de Spotify — se abrirá tu navegador para autorizar la app.
 
 La app queda en el *Development Mode* de Spotify, suficiente para uso personal. La autenticación usa el flujo oficial OAuth PKCE; el refresh token se guarda en el llavero del sistema operativo, nunca en texto plano.

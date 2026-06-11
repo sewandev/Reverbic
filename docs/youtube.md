@@ -29,6 +29,8 @@ Some videos require signing in (age-restricted, region-locked, or members-only c
 1. Install [Get cookies.txt LOCALLY](https://github.com/kairi003/Get-cookies.txt-LOCALLY) (Chrome, Edge, or Firefox), an open-source extension that never sends your cookies anywhere. To use it in a private window you must allow it explicitly: in your browser's extension settings, enable **Allow in Incognito** (Chrome) / **Allow in InPrivate** (Edge) / **Run in Private Windows** (Firefox).
 2. Open a **private/incognito window** and sign in to YouTube with your secondary account.
 3. While on **youtube.com**, click the extension's icon and press **Export** — it downloads a `cookies.txt` in Netscape format for the current site. Save it somewhere private.
+
+   <img src="../assets/youtube-export-cookies.png" alt="Exporting cookies with Get cookies.txt LOCALLY" width="560">
 4. Close the private window **without signing out** (signing out invalidates the exported cookies).
 5. In Reverbic, open Settings and set **YouTube Cookies File** to the saved file's path.
 6. Use **Validate YouTube session** in Settings at any time to check that the cookies still work.
