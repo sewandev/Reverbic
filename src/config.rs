@@ -185,6 +185,8 @@ pub struct Config {
     pub youtube_crossfade_secs: u8,
     #[serde(default)]
     pub youtube_sponsorblock: bool,
+    #[serde(default = "default_true")]
+    pub youtube_radio_mode: bool,
     #[serde(default)]
     pub media_keys: bool,
     #[serde(default)]
@@ -274,6 +276,7 @@ impl Default for Config {
             crossfade_secs: 0,
             youtube_crossfade_secs: 0,
             youtube_sponsorblock: false,
+            youtube_radio_mode: true,
             media_keys: false,
             tray_icon: false,
             notifications: false,

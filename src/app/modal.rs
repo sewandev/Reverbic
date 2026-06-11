@@ -78,6 +78,7 @@ pub enum SettingItem {
     SpotifyClientId,
     SpotifyPlaybackMode,
     SpotifyRadioMode,
+    YoutubeRadioMode,
     YoutubeSponsorblock,
     YoutubeCookiesPath,
     YoutubeCookiesValidate,
@@ -116,6 +117,7 @@ impl SettingItem {
             Self::DiscordRpc => t("config.setting.discord_rpc"),
             Self::ReplayOnboarding => t("config.setting.replay_onboarding"),
             Self::SpotifyRadioMode => t("config.setting.spotify_radio_mode"),
+            Self::YoutubeRadioMode => t("config.setting.youtube_radio_mode"),
             Self::YoutubeSponsorblock => t("config.setting.youtube_sponsorblock"),
             Self::YoutubeCookiesPath => t("config.setting.youtube_cookies_path"),
             Self::YoutubeCookiesValidate => t("config.setting.youtube_cookies_validate"),
@@ -151,6 +153,7 @@ impl SettingItem {
             Self::DiscordRpc => "config.tooltip.discord_rpc",
             Self::ReplayOnboarding => "config.tooltip.replay_onboarding",
             Self::SpotifyRadioMode => "config.tooltip.spotify_radio_mode",
+            Self::YoutubeRadioMode => "config.tooltip.youtube_radio_mode",
             Self::YoutubeSponsorblock => "config.tooltip.youtube_sponsorblock",
             Self::YoutubeCookiesPath => "config.tooltip.youtube_cookies_path",
             Self::YoutubeCookiesValidate => "config.tooltip.youtube_cookies_validate",
@@ -184,6 +187,7 @@ impl SettingItem {
             | Self::SpotifyPlaybackMode
             | Self::SpotifyRadioMode
             | Self::YoutubeCrossfade
+            | Self::YoutubeRadioMode
             | Self::YoutubeSponsorblock
             | Self::YoutubeCookiesPath
             | Self::YoutubeCookiesValidate => "config.group.integrations",
@@ -224,6 +228,7 @@ pub fn settings_items(duck_enabled: bool) -> Vec<SettingItem> {
         SettingItem::SpotifyPlaybackMode,
         SettingItem::SpotifyRadioMode,
         SettingItem::YoutubeCrossfade,
+        SettingItem::YoutubeRadioMode,
         SettingItem::YoutubeSponsorblock,
         SettingItem::YoutubeCookiesPath,
         SettingItem::YoutubeCookiesValidate,

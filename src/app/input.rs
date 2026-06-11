@@ -2291,6 +2291,9 @@ impl App {
             super::modal::SettingItem::SpotifyRadioMode => {
                 self.config.spotify.radio_enabled = !self.config.spotify.radio_enabled;
             }
+            super::modal::SettingItem::YoutubeRadioMode => {
+                self.config.youtube_radio_mode = !self.config.youtube_radio_mode
+            }
             super::modal::SettingItem::YoutubeSponsorblock => {
                 self.config.youtube_sponsorblock = !self.config.youtube_sponsorblock
             }

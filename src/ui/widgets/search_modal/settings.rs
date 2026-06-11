@@ -35,6 +35,13 @@ impl<'a> SearchModalWidget<'a> {
             }
             SettingItem::Crossfade => self.crossfade.clone(),
             SettingItem::YoutubeCrossfade => self.youtube_crossfade.clone(),
+            SettingItem::YoutubeRadioMode => {
+                if self.youtube_radio_mode {
+                    on
+                } else {
+                    off
+                }
+            }
             SettingItem::YoutubeSponsorblock => {
                 if self.youtube_sponsorblock {
                     on

@@ -242,6 +242,7 @@ impl App {
         );
         self.youtube.mix_is_extension = false;
         self.youtube.mix_resume_on_extend = false;
+        self.youtube.mix_seed_to_skip = None;
         self.spawn_mix_fetch(seed.id);
     }
 
@@ -334,9 +335,19 @@ impl App {
             self.show_notice(crate::i18n::t("modal.youtube.mix_failed"), 6);
             return;
         }
-        tracing::info!(count = videos.len(), "youtube: mix queue loaded, playing");
+        // When the mix continues a finished list, skip the seed so the song
+        // that just played is not repeated back to back
+        let start_index = match self.youtube.mix_seed_to_skip.take() {
+            Some(seed_id) if videos.first().is_some_and(|v| v.id == seed_id) => 1,
+            _ => 0,
+        };
+        tracing::info!(
+            count = videos.len(),
+            start_index,
+            "youtube: mix queue loaded, playing"
+        );
         self.youtube.mix_videos = videos;
-        self.play_youtube_from_context(YoutubePlaybackContext::Mix, 0);
+        self.play_youtube_from_context(YoutubePlaybackContext::Mix, start_index);
     }
 
     pub(super) fn start_youtube_resolve_video(
@@ -576,6 +587,27 @@ impl App {
                 tracing::info!("youtube: mix queue exhausted, waiting for extension");
                 self.youtube.mix_resume_on_extend = true;
                 self.maybe_extend_youtube_mix(index);
+            } else if self.config.youtube_radio_mode {
+                let seed = self.youtube_context_list(&ctx).get(index).cloned();
+                self.youtube.playback_context = None;
+                if let Some(seed) = seed {
+                    tracing::info!(
+                        seed = %seed.id,
+                        "youtube: list ended, radio mode continuing with a mix"
+                    );
+                    self.show_notice(
+                        format!(
+                            "{}: {}",
+                            crate::i18n::t("modal.youtube.mix_starting"),
+                            seed.title
+                        ),
+                        5,
+                    );
+                    self.youtube.mix_is_extension = false;
+                    self.youtube.mix_resume_on_extend = false;
+                    self.youtube.mix_seed_to_skip = Some(seed.id.clone());
+                    self.spawn_mix_fetch(seed.id);
+                }
             } else {
                 tracing::info!("youtube: reached end of list, stopping auto-advance");
                 self.youtube.playback_context = None;

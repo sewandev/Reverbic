@@ -257,6 +257,8 @@
   "config.tooltip.spotify_radio_mode": "When a song ends, automatically finds songs from the same artist and keeps playing.",
   "config.setting.youtube_cookies_path": "YouTube Cookies File",
   "config.tooltip.youtube_cookies_path": "Path to a cookies.txt file (Netscape format) to access age-restricted, region-locked, or members-only YouTube videos. Use a secondary account, never your main one. Press Space to edit, leave empty to disable.",
+  "config.setting.youtube_radio_mode": "YouTube Radio",
+  "config.tooltip.youtube_radio_mode": "When the list you are playing (search results, liked videos, or a playlist) ends, continue automatically with a mix of similar songs.",
   "config.setting.youtube_sponsorblock": "SponsorBlock (YouTube)",
   "config.tooltip.youtube_sponsorblock": "Automatically skip non-music sections in YouTube music videos using the community SponsorBlock database. When enabled, the video ID is sent to sponsor.ajay.app.",
   "config.setting.youtube_cookies_validate": "Validate YouTube session",

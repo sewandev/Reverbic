@@ -257,6 +257,8 @@
   "config.tooltip.spotify_radio_mode": "Al terminar una cancion, busca automaticamente canciones del mismo artista y sigue reproduciendo.",
   "config.setting.youtube_cookies_path": "Archivo de cookies de YouTube",
   "config.tooltip.youtube_cookies_path": "Ruta a un archivo cookies.txt (formato Netscape) para acceder a videos de YouTube con restricción de edad, región o solo para miembros. Usa una cuenta secundaria, nunca la principal. Presiona Espacio para editar, déjala vacía para desactivar.",
+  "config.setting.youtube_radio_mode": "Radio (YouTube)",
+  "config.tooltip.youtube_radio_mode": "Cuando la lista que estás reproduciendo (resultados, Me gusta o una playlist) se termina, continúa automáticamente con un mix de canciones similares.",
   "config.setting.youtube_sponsorblock": "SponsorBlock (YouTube)",
   "config.tooltip.youtube_sponsorblock": "Salta automáticamente las secciones sin música en videos musicales de YouTube usando la base de datos comunitaria SponsorBlock. Al activarlo, el ID del video se envía a sponsor.ajay.app.",
   "config.setting.youtube_cookies_validate": "Validar sesión de YouTube",

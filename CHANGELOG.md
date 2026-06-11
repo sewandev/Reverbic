@@ -24,6 +24,7 @@ Versioning: [Semantic Versioning](https://semver.org/)
 - YouTube tracks now download to a temporary file at full speed, enabling precise seeking and playback immune to network drops
 - YouTube chapters: in long videos the current chapter shows next to the title, and the [ and ] keys jump between chapters
 - New optional "SponsorBlock (YouTube)" setting that automatically skips non-music sections using the community database (off by default)
+- New "YouTube Radio" setting, on by default: when the playing list ends, playback continues automatically with a mix of similar songs
 
 ### Security
 - Updated dependencies (OpenSSL, ratatui, crossterm and others) to resolve known security advisories reported by Dependabot

@@ -78,6 +78,7 @@ pub struct YoutubeState {
     pub(super) mix_rx: Option<VideosRx>,
     pub(super) mix_is_extension: bool,
     pub(super) mix_resume_on_extend: bool,
+    pub(super) mix_seed_to_skip: Option<String>,
 
     pub(super) sb_segments: Vec<(f32, f32)>,
     pub(super) sb_station_key: Option<String>,
@@ -166,6 +167,7 @@ impl Default for YoutubeState {
             mix_rx: None,
             mix_is_extension: false,
             mix_resume_on_extend: false,
+            mix_seed_to_skip: None,
             sb_segments: Vec::new(),
             sb_station_key: None,
             sb_task: None,

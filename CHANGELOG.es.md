@@ -24,6 +24,7 @@ Versionado: [Semantic Versioning](https://semver.org/)
 - Las pistas de YouTube ahora se descargan a un archivo temporal a velocidad completa, habilitando adelantar/retroceder con precisión exacta y reproducción inmune a cortes de red
 - Capítulos de YouTube: en videos largos el capítulo actual se muestra junto al título, y las teclas [ y ] saltan entre capítulos
 - Nuevo ajuste opcional "SponsorBlock (YouTube)" que salta automáticamente las secciones sin música usando la base de datos comunitaria (desactivado por defecto)
+- Nuevo ajuste "Radio (YouTube)", activado por defecto: cuando la lista en reproducción se termina, continúa automáticamente con un mix de canciones similares
 
 ### Seguridad
 - Se actualizaron dependencias (OpenSSL, ratatui, crossterm y otras) para corregir vulnerabilidades conocidas reportadas por Dependabot
