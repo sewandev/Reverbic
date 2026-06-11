@@ -9,9 +9,11 @@ pub async fn search_videos(
     binary: &Path,
     query: &str,
     limit: usize,
+    cookies_path: Option<&Path>,
+    quickjs_path: &Path,
 ) -> Result<Vec<YoutubeVideo>, YoutubeError> {
     let output = Command::new(binary)
-        .args(build_search_args(query, limit))
+        .args(build_search_args(query, limit, cookies_path, quickjs_path))
         .output()
         .await
         .map_err(|e| {
@@ -36,21 +38,35 @@ pub async fn search_videos(
         )));
     }
 
-    parse_search_output(&output.stdout)
+    parse_video_entries(&output.stdout)
 }
 
-pub fn build_search_args(query: &str, limit: usize) -> Vec<String> {
-    vec![
+pub fn build_search_args(
+    query: &str,
+    limit: usize,
+    cookies_path: Option<&Path>,
+    quickjs_path: &Path,
+) -> Vec<String> {
+    let mut args = vec![
         "--dump-single-json".to_string(),
         "--flat-playlist".to_string(),
         "--quiet".to_string(),
         "--no-warnings".to_string(),
-        format!("ytsearch{}:{}", limit.max(1), query),
-    ]
+        "--js-runtimes".to_string(),
+        format!("quickjs:{}", quickjs_path.to_string_lossy()),
+    ];
+
+    if let Some(path) = cookies_path {
+        args.push("--cookies".to_string());
+        args.push(path.to_string_lossy().into_owned());
+    }
+
+    args.push(format!("ytsearch{}:{}", limit.max(1), query));
+    args
 }
 
-fn parse_search_output(bytes: &[u8]) -> Result<Vec<YoutubeVideo>, YoutubeError> {
-    let payload: SearchPayload = serde_json::from_slice(bytes).map_err(|e| {
+pub(crate) fn parse_video_entries(bytes: &[u8]) -> Result<Vec<YoutubeVideo>, YoutubeError> {
+    let payload: VideoListPayload = serde_json::from_slice(bytes).map_err(|e| {
         YoutubeError::Search(format!(
             "{}: {e}",
             crate::i18n::t("modal.youtube.search_failed")
@@ -100,12 +116,12 @@ fn normalize_watch_url(id: &str, value: &str) -> String {
 }
 
 #[derive(Deserialize)]
-struct SearchPayload {
-    entries: Option<Vec<SearchEntry>>,
+struct VideoListPayload {
+    entries: Option<Vec<VideoEntry>>,
 }
 
 #[derive(Deserialize)]
-struct SearchEntry {
+struct VideoEntry {
     id: String,
     title: Option<String>,
     channel: Option<String>,
@@ -148,14 +164,44 @@ impl YoutubeDuration {
 
 #[cfg(test)]
 mod tests {
-    use super::{build_search_args, parse_search_output};
+    use super::{build_search_args, parse_video_entries};
+    use std::path::Path;
 
     #[test]
     fn build_search_args_uses_flat_json_search() {
-        let args = build_search_args("lofi hip hop", 7);
+        let quickjs = Path::new("/home/user/.reverbic/bin/qjs");
+        let args = build_search_args("lofi hip hop", 7, None, quickjs);
         assert!(args.contains(&"--dump-single-json".to_string()));
         assert!(args.contains(&"--flat-playlist".to_string()));
         assert_eq!(args.last(), Some(&"ytsearch7:lofi hip hop".to_string()));
+        assert!(!args.contains(&"--cookies".to_string()));
+    }
+
+    #[test]
+    fn build_search_args_includes_cookies_when_configured() {
+        let cookies = Path::new("/home/user/.reverbic/cookies.txt");
+        let quickjs = Path::new("/home/user/.reverbic/bin/qjs");
+        let args = build_search_args("lofi hip hop", 7, Some(cookies), quickjs);
+        let cookies_idx = args
+            .iter()
+            .position(|arg| arg == "--cookies")
+            .expect("--cookies flag should be present");
+        assert_eq!(args[cookies_idx + 1], cookies.to_string_lossy());
+        assert_eq!(args.last(), Some(&"ytsearch7:lofi hip hop".to_string()));
+    }
+
+    #[test]
+    fn build_search_args_includes_quickjs_runtime() {
+        let quickjs = Path::new("/home/user/.reverbic/bin/qjs");
+        let args = build_search_args("lofi hip hop", 7, None, quickjs);
+        let runtime_idx = args
+            .iter()
+            .position(|arg| arg == "--js-runtimes")
+            .expect("--js-runtimes flag should be present");
+        assert_eq!(
+            args[runtime_idx + 1],
+            "quickjs:/home/user/.reverbic/bin/qjs"
+        );
     }
 
     #[test]
@@ -173,7 +219,7 @@ mod tests {
           ]
         }"#;
 
-        let videos = parse_search_output(json).expect("search json should parse");
+        let videos = parse_video_entries(json).expect("search json should parse");
         assert_eq!(videos.len(), 1);
         assert_eq!(videos[0].id, "abc123");
         assert_eq!(videos[0].title, "Lofi Mix");
@@ -194,7 +240,7 @@ mod tests {
           ]
         }"#;
 
-        let videos = parse_search_output(json).expect("float duration should parse");
+        let videos = parse_video_entries(json).expect("float duration should parse");
         assert_eq!(videos.len(), 1);
         assert_eq!(videos[0].duration_secs, 6107);
         assert_eq!(

@@ -65,6 +65,29 @@ cargo build --release
 
 ---
 
+## Autenticación de YouTube (opcional)
+
+Algunos videos de YouTube requieren iniciar sesión (restricción de edad, de región, o contenido solo para miembros). Reverbic puede usar un archivo `cookies.txt` para acceder a ellos.
+
+> [!WARNING]
+> **Usa una cuenta secundaria ("burner")** para esto — nunca tu cuenta principal de Google. El archivo de cookies le da a Reverbic acceso a la sesión de YouTube de esa cuenta, y yt-dlp puede reescribir el archivo a medida que las cookies rotan.
+
+Para configurarlo:
+
+1. Abre una **ventana privada/de incógnito** e inicia sesión en YouTube con tu cuenta secundaria.
+2. Instala [Get cookies.txt LOCALLY](https://github.com/kairi003/Get-cookies.txt-LOCALLY), una extensión de código abierto que nunca envía tus cookies a ningún lado.
+3. En youtube.com, exporta tus cookies en formato Netscape y guarda el archivo en un lugar privado.
+4. En Reverbic, abre Ajustes y configura **Archivo de cookies de YouTube** con la ruta del archivo guardado.
+
+Sobre los permisos del archivo: en Linux/macOS, restringe el acceso con `chmod 600 cookies.txt`; en Windows, evita guardarlo en una carpeta sincronizada con la nube (OneDrive, Dropbox, etc.).
+
+> [!NOTE]
+> Las cookies ayudan con los videos que requieren inicio de sesión, pero no garantizan resolver todos los errores de "Sign in to confirm you're not a bot" — las verificaciones anti-bot de YouTube (PO Tokens) aún pueden bloquear la reproducción en algunos casos.
+
+Reverbic solo lee la ruta que indiques y se la pasa a yt-dlp; nunca transmite ni guarda en caché el contenido del archivo de cookies.
+
+---
+
 ## Capturas de pantalla
 
 <table align="center">

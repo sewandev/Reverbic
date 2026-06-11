@@ -197,6 +197,9 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
         app.poll_youtube_search_debounce();
         app.poll_youtube_search();
         app.poll_youtube_resolve().await;
+        app.poll_youtube_liked();
+        app.poll_youtube_playlists();
+        app.poll_youtube_playlist_videos();
         if app
             .notice_until
             .map(|t| std::time::Instant::now() >= t)

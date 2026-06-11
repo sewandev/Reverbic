@@ -10,6 +10,11 @@ Versionado: [Semantic Versioning](https://semver.org/)
 
 ## [Sin publicar]
 
+### Agregado
+- Se agregó un ajuste para configurar un archivo cookies.txt de YouTube, que permite acceder a videos con restricción de edad, de región o solo para miembros
+- Se agregaron las sub-pestañas [Me gusta] y [Playlists] a la pestaña de YouTube, igual que en Spotify, para explorar y reproducir tus videos con Me gusta y tus playlists personales (requiere un cookies.txt configurado)
+- Reverbic ahora descarga y verifica automáticamente un runtime liviano QuickJS-NG, requerido por yt-dlp para resolver los desafíos de firma de YouTube
+
 ### Seguridad
 - Se actualizaron dependencias (OpenSSL, ratatui, crossterm y otras) para corregir vulnerabilidades conocidas reportadas por Dependabot
 - El instalador de Windows ahora verifica el hash SHA256 del binario descargado antes de ejecutarlo, y solo retira la marca de "descargado de internet" tras una verificación exitosa
@@ -21,6 +26,7 @@ Versionado: [Semantic Versioning](https://semver.org/)
 
 ### Corregido
 - El instalador de Windows ahora maneja fallos de red y límites de la API de GitHub con mensajes claros en vez de errores crudos, elimina el archivo temporal al finalizar, y soporta ARM64 (vía emulación x86_64) y versiones pre-release (mediante la variable de entorno `REVERBIC_PRERELEASE`)
+- Se corrigió el error "Requested format is not available" al buscar, resolver o explorar videos y playlists de YouTube, causado porque yt-dlp ahora requiere un runtime de JavaScript para resolver los desafíos de firma de YouTube
 
 ---
 

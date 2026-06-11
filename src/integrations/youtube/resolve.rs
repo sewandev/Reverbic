@@ -4,9 +4,14 @@ use tokio::process::Command;
 
 use super::YoutubeError;
 
-pub async fn resolve_audio_url(binary: &Path, watch_url: &str) -> Result<String, YoutubeError> {
+pub async fn resolve_audio_url(
+    binary: &Path,
+    watch_url: &str,
+    cookies_path: Option<&Path>,
+    quickjs_path: &Path,
+) -> Result<String, YoutubeError> {
     let output = Command::new(binary)
-        .args(build_resolve_args(watch_url))
+        .args(build_resolve_args(watch_url, cookies_path, quickjs_path))
         .output()
         .await
         .map_err(|e| {
@@ -26,9 +31,12 @@ pub async fn resolve_audio_url(binary: &Path, watch_url: &str) -> Result<String,
         };
 
         if requires_youtube_sign_in(&msg) {
-            return Err(YoutubeError::Resolve(crate::i18n::t(
-                "modal.youtube.auth_required",
-            )));
+            let key = if cookies_path.is_some() {
+                "modal.youtube.cookies_expired"
+            } else {
+                "modal.youtube.auth_required"
+            };
+            return Err(YoutubeError::Resolve(crate::i18n::t(key)));
         }
 
         return Err(YoutubeError::Resolve(format!(
@@ -41,20 +49,37 @@ pub async fn resolve_audio_url(binary: &Path, watch_url: &str) -> Result<String,
     parse_resolve_output(&output.stdout)
 }
 
-fn requires_youtube_sign_in(message: &str) -> bool {
-    message.to_lowercase().contains("sign in to confirm")
+pub(crate) fn requires_youtube_sign_in(message: &str) -> bool {
+    let message = message.to_lowercase();
+    message.contains("sign in to confirm")
+        || message.contains("not a bot")
+        || message.contains("confirm your age")
 }
 
-pub fn build_resolve_args(watch_url: &str) -> Vec<String> {
-    vec![
+pub fn build_resolve_args(
+    watch_url: &str,
+    cookies_path: Option<&Path>,
+    quickjs_path: &Path,
+) -> Vec<String> {
+    let mut args = vec![
         "--quiet".to_string(),
         "--no-warnings".to_string(),
         "--no-playlist".to_string(),
-        "-f".to_string(),
-        "bestaudio[ext=m4a][protocol!=m3u8_native]/bestaudio[acodec^=mp4a][protocol!=m3u8_native]/best[ext=m4a][protocol!=m3u8_native]/best[ext=mp4][protocol!=m3u8_native]".to_string(),
-        "-g".to_string(),
-        watch_url.to_string(),
-    ]
+        "--js-runtimes".to_string(),
+        format!("quickjs:{}", quickjs_path.to_string_lossy()),
+    ];
+
+    if let Some(path) = cookies_path {
+        args.push("--cookies".to_string());
+        args.push(path.to_string_lossy().into_owned());
+    }
+
+    args.push("-f".to_string());
+    args.push("bestaudio[ext=m4a][protocol!=m3u8_native]/bestaudio[acodec^=mp4a][protocol!=m3u8_native]/best[ext=m4a][protocol!=m3u8_native]/best[ext=mp4][protocol!=m3u8_native]".to_string());
+    args.push("-g".to_string());
+    args.push(watch_url.to_string());
+
+    args
 }
 
 fn parse_resolve_output(bytes: &[u8]) -> Result<String, YoutubeError> {
@@ -75,15 +100,48 @@ fn parse_resolve_output(bytes: &[u8]) -> Result<String, YoutubeError> {
 #[cfg(test)]
 mod tests {
     use super::{build_resolve_args, parse_resolve_output};
+    use std::path::Path;
 
     #[test]
     fn build_resolve_args_requests_audio_url() {
-        let args = build_resolve_args("https://www.youtube.com/watch?v=abc123");
+        let quickjs = Path::new("/home/user/.reverbic/bin/qjs");
+        let args = build_resolve_args("https://www.youtube.com/watch?v=abc123", None, quickjs);
         assert!(args.contains(&"-g".to_string()));
         assert!(args.contains(&"--no-playlist".to_string()));
         assert!(args.contains(
             &"bestaudio[ext=m4a][protocol!=m3u8_native]/bestaudio[acodec^=mp4a][protocol!=m3u8_native]/best[ext=m4a][protocol!=m3u8_native]/best[ext=mp4][protocol!=m3u8_native]".to_string()
         ));
+        assert!(!args.contains(&"--cookies".to_string()));
+    }
+
+    #[test]
+    fn build_resolve_args_includes_cookies_when_configured() {
+        let cookies = Path::new("/home/user/.reverbic/cookies.txt");
+        let quickjs = Path::new("/home/user/.reverbic/bin/qjs");
+        let args = build_resolve_args(
+            "https://www.youtube.com/watch?v=abc123",
+            Some(cookies),
+            quickjs,
+        );
+        let cookies_idx = args
+            .iter()
+            .position(|arg| arg == "--cookies")
+            .expect("--cookies flag should be present");
+        assert_eq!(args[cookies_idx + 1], cookies.to_string_lossy());
+    }
+
+    #[test]
+    fn build_resolve_args_includes_quickjs_runtime() {
+        let quickjs = Path::new("/home/user/.reverbic/bin/qjs");
+        let args = build_resolve_args("https://www.youtube.com/watch?v=abc123", None, quickjs);
+        let runtime_idx = args
+            .iter()
+            .position(|arg| arg == "--js-runtimes")
+            .expect("--js-runtimes flag should be present");
+        assert_eq!(
+            args[runtime_idx + 1],
+            "quickjs:/home/user/.reverbic/bin/qjs"
+        );
     }
 
     #[test]

@@ -112,6 +112,67 @@ pub(super) fn render_client_id_overlay(frame: &mut Frame, input: &str, palette: 
     );
 }
 
+pub(super) fn render_cookies_path_overlay(
+    frame: &mut Frame,
+    input: &str,
+    error: Option<&str>,
+    palette: &Palette,
+) {
+    let area = frame.area();
+    let w = area.width.clamp(50, 80);
+    let h: u16 = 5;
+    let x = area.width.saturating_sub(w) / 2;
+    let y = area.height.saturating_sub(h) / 2;
+    let panel = ratatui::layout::Rect::new(x, y, w, h);
+
+    frame.render_widget(Clear, panel);
+
+    let (hint, hint_style) = match error {
+        Some(message) => (message.to_string(), Style::default().fg(palette.danger)),
+        None => (
+            t("modal.cookies_path.hint"),
+            Style::default().fg(palette.muted),
+        ),
+    };
+
+    let block = Block::default()
+        .title_top(
+            Line::from(Span::styled(
+                t("modal.cookies_path.title"),
+                Style::default()
+                    .fg(palette.highlight)
+                    .add_modifier(Modifier::BOLD),
+            ))
+            .alignment(ratatui::layout::Alignment::Center),
+        )
+        .title_bottom(
+            Line::from(Span::styled(hint, hint_style))
+                .alignment(ratatui::layout::Alignment::Center),
+        )
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(palette.accent))
+        .style(Style::default().bg(palette.panel_bg));
+
+    let inner = block.inner(panel);
+    frame.render_widget(block, panel);
+
+    let text_area =
+        ratatui::layout::Rect::new(inner.x + 1, inner.y + 1, inner.width.saturating_sub(2), 1);
+    frame.render_widget(
+        Paragraph::new(Line::from(vec![
+            Span::styled(input.to_owned(), Style::default().fg(palette.highlight)),
+            Span::styled(
+                "_",
+                Style::default()
+                    .fg(palette.accent)
+                    .add_modifier(Modifier::BOLD),
+            ),
+        ])),
+        text_area,
+    );
+}
+
 pub(super) fn render_theme_picker_overlay(
     frame: &mut Frame,
     current: ThemeId,

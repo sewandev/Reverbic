@@ -10,6 +10,11 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ## [Unreleased]
 
+### Added
+- Added a setting to configure a YouTube cookies.txt file, allowing access to age-restricted, region-locked, or members-only videos
+- Added [Liked] and [Playlists] sub-tabs to the YouTube tab, mirroring Spotify, to browse and play your liked videos and personal playlists (requires a configured cookies.txt)
+- Reverbic now automatically downloads and verifies a lightweight QuickJS-NG runtime, required by yt-dlp to solve YouTube's signature challenges
+
 ### Security
 - Updated dependencies (OpenSSL, ratatui, crossterm and others) to resolve known security advisories reported by Dependabot
 - The Windows install script now verifies the SHA256 checksum of the downloaded binary before running it, and removes the "downloaded from the internet" mark only after verification succeeds
@@ -21,6 +26,7 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ### Fixed
 - The Windows install script now handles network failures and GitHub API rate limits with friendly messages instead of raw errors, removes the temporary installer file afterwards, and supports ARM64 (via x86_64 emulation) and pre-release builds (via the `REVERBIC_PRERELEASE` environment variable)
+- Fixed "Requested format is not available" errors when searching, resolving, or browsing YouTube videos and playlists, caused by yt-dlp now requiring a JavaScript runtime to solve YouTube's signature challenges
 
 ---
 

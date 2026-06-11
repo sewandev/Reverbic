@@ -127,6 +127,13 @@ impl<'a> SearchModalWidget<'a> {
                 }
             }
             SettingItem::ReplayOnboarding => t("hint.open"),
+            SettingItem::YoutubeCookiesPath => {
+                if self.youtube_cookies_configured {
+                    t("config.value.configured")
+                } else {
+                    t("config.value.not_configured")
+                }
+            }
         }
     }
 

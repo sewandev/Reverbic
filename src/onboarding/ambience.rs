@@ -1,5 +1,5 @@
 use crate::audio::{AudioPlayer, PlayerCommand};
-use crate::integrations::youtube::{install, resolve};
+use crate::integrations::youtube::{install, quickjs, resolve, runtime_installed};
 
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
@@ -39,12 +39,13 @@ pub fn start_resolution(
 }
 
 async fn resolve_stream_url() -> AmbienceResolution {
-    if !install::is_installed() {
+    if !runtime_installed() {
         return AmbienceResolution::Failed;
     }
 
     let binary = install::managed_binary_path();
-    match resolve::resolve_audio_url(&binary, WATCH_URL).await {
+    let quickjs_path = quickjs::managed_binary_path();
+    match resolve::resolve_audio_url(&binary, WATCH_URL, None, &quickjs_path).await {
         Ok(url) => AmbienceResolution::Ready(url),
         Err(e) => {
             tracing::debug!("onboarding ambience: failed to resolve stream ({e}), skipping");

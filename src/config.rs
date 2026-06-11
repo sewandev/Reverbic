@@ -161,6 +161,12 @@ pub struct SpotifyConfig {
     pub radio_enabled: bool,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct YoutubeConfig {
+    #[serde(default)]
+    pub cookies_path: Option<PathBuf>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     pub volume: f32,
@@ -203,6 +209,8 @@ pub struct Config {
     pub game_integrations: GameIntegrationsConfig,
     #[serde(default)]
     pub spotify: SpotifyConfig,
+    #[serde(default)]
+    pub youtube: YoutubeConfig,
     #[serde(default = "default_volume_step")]
     pub volume_step: u8,
     #[serde(default = "default_prebuffer_secs")]
@@ -274,6 +282,7 @@ impl Default for Config {
             screensaver_secs: 10,
             game_integrations: GameIntegrationsConfig::default(),
             spotify: SpotifyConfig::default(),
+            youtube: YoutubeConfig::default(),
             volume_step: 5,
             prebuffer_secs: 30,
             screensaver_clock: true,

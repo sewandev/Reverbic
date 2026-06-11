@@ -44,6 +44,14 @@ pub enum RadioSubTab {
     Favorites,
 }
 
+#[derive(Clone, Copy, PartialEq, Default)]
+pub enum YoutubeSubTab {
+    #[default]
+    Search,
+    Liked,
+    Playlists,
+}
+
 #[derive(Clone, Copy, PartialEq)]
 pub enum SettingItem {
     Autoplay,
@@ -69,6 +77,7 @@ pub enum SettingItem {
     SpotifyClientId,
     SpotifyPlaybackMode,
     SpotifyRadioMode,
+    YoutubeCookiesPath,
     AutoUpdate,
     DiscordRpc,
     ReplayOnboarding,
@@ -103,6 +112,7 @@ impl SettingItem {
             Self::DiscordRpc => t("config.setting.discord_rpc"),
             Self::ReplayOnboarding => t("config.setting.replay_onboarding"),
             Self::SpotifyRadioMode => t("config.setting.spotify_radio_mode"),
+            Self::YoutubeCookiesPath => t("config.setting.youtube_cookies_path"),
         }
     }
 
@@ -134,6 +144,7 @@ impl SettingItem {
             Self::DiscordRpc => "config.tooltip.discord_rpc",
             Self::ReplayOnboarding => "config.tooltip.replay_onboarding",
             Self::SpotifyRadioMode => "config.tooltip.spotify_radio_mode",
+            Self::YoutubeCookiesPath => "config.tooltip.youtube_cookies_path",
         }
     }
 
@@ -162,7 +173,8 @@ impl SettingItem {
             | Self::SpotifyStartOnSpotify
             | Self::SpotifyClientId
             | Self::SpotifyPlaybackMode
-            | Self::SpotifyRadioMode => "config.group.integrations",
+            | Self::SpotifyRadioMode
+            | Self::YoutubeCookiesPath => "config.group.integrations",
         }
     }
 }
@@ -199,6 +211,7 @@ pub fn settings_items(duck_enabled: bool) -> Vec<SettingItem> {
         SettingItem::SpotifyClientId,
         SettingItem::SpotifyPlaybackMode,
         SettingItem::SpotifyRadioMode,
+        SettingItem::YoutubeCookiesPath,
     ]);
     items
 }
