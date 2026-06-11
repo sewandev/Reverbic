@@ -568,6 +568,15 @@ fn check_on_demand_finished(st: &mut AudioLoopState, state_tx: &watch::Sender<Pl
     if let Some(p) = st.player.take() {
         p.stop();
     }
+    let pos = st.od.current_pos();
+    if let Some(duration) = state_tx.borrow().playback_duration_secs {
+        if duration > 0.0 && pos < duration * 0.9 {
+            warn!(
+                "On-demand: track ended early at {pos:.0}s of {duration:.0}s (possible decode failure): {}",
+                station.name
+            );
+        }
+    }
     st.title_rx = None;
     st.download_complete = false;
     st.od.reset();

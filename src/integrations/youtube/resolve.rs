@@ -118,6 +118,53 @@ pub async fn resolve_audio_url(
         }
     }
 
+    // Anonymous resolve first: when cookies are passed, yt-dlp skips android_vr
+    // (it does not support cookies) and falls back to the web client's combined
+    // itag 18, whose HE-AAC variant the decoder cannot play. Cookies are only
+    // worth it for restricted videos, so they are a retry, not the default.
+    let (resolved, used_cookies) = match run_yt_dlp_resolve(binary, watch_url, None, deno_path)
+        .await
+    {
+        Ok(resolved) => (resolved, false),
+        Err(anonymous_err) => {
+            if cookies_path.is_none() {
+                return Err(anonymous_err);
+            }
+            tracing::info!(watch_url, "anonymous resolve failed, retrying with cookies");
+            let resolved = run_yt_dlp_resolve(binary, watch_url, cookies_path, deno_path).await?;
+            (resolved, true)
+        }
+    };
+    let (resolved_url, headers, chapters) = resolved;
+
+    // Cached for 4 hours: YouTube stream URLs expire after ~6 hours.
+    // Cookie-authenticated resolves stay memory-only so session data never touches disk.
+    let persist = !used_cookies && !contains_sensitive_header(&headers);
+    if let Ok(mut cache) = get_url_cache().lock() {
+        cache.insert(
+            watch_url.to_string(),
+            CacheEntry {
+                url: resolved_url.clone(),
+                headers: headers.clone(),
+                expires_at_unix: unix_now() + CACHE_TTL_SECS,
+                persist,
+                chapters: chapters.clone(),
+            },
+        );
+        if persist {
+            save_cache_to_disk(&cache);
+        }
+    }
+
+    Ok((resolved_url, headers, chapters))
+}
+
+async fn run_yt_dlp_resolve(
+    binary: &Path,
+    watch_url: &str,
+    cookies_path: Option<&Path>,
+    deno_path: &Path,
+) -> Result<ResolvedStream, YoutubeError> {
     let output = Command::new(binary)
         .args(build_resolve_args(watch_url, cookies_path, deno_path))
         .output()
@@ -137,7 +184,11 @@ pub async fn resolve_audio_url(
         } else {
             stdout.trim().to_string()
         };
-        tracing::error!(watch_url, "yt-dlp resolve failed: {raw}");
+        tracing::error!(
+            watch_url,
+            with_cookies = cookies_path.is_some(),
+            "yt-dlp resolve failed: {raw}"
+        );
 
         if requires_youtube_sign_in(&raw) {
             let key = if cookies_path.is_some() {
@@ -161,28 +212,7 @@ pub async fn resolve_audio_url(
         )));
     }
 
-    let (resolved_url, headers, chapters) = parse_resolve_output(&output.stdout)?;
-
-    // Cached for 4 hours: YouTube stream URLs expire after ~6 hours.
-    // Cookie-authenticated resolves stay memory-only so session data never touches disk.
-    let persist = cookies_path.is_none() && !contains_sensitive_header(&headers);
-    if let Ok(mut cache) = get_url_cache().lock() {
-        cache.insert(
-            watch_url.to_string(),
-            CacheEntry {
-                url: resolved_url.clone(),
-                headers: headers.clone(),
-                expires_at_unix: unix_now() + CACHE_TTL_SECS,
-                persist,
-                chapters: chapters.clone(),
-            },
-        );
-        if persist {
-            save_cache_to_disk(&cache);
-        }
-    }
-
-    Ok((resolved_url, headers, chapters))
+    parse_resolve_output(&output.stdout)
 }
 
 pub fn invalidate_cached_url(watch_url: &str) {
