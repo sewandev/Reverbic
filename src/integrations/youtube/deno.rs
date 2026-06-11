@@ -1,13 +1,12 @@
+use std::io::{Cursor, Read};
 use std::path::PathBuf;
 
-use serde::Deserialize;
-use sha2::{Digest, Sha256};
 use tokio::io::AsyncWriteExt;
+use zip::ZipArchive;
 
 use super::YoutubeError;
 
-const QUICKJS_NG_RELEASES_URL: &str =
-    "https://api.github.com/repos/quickjs-ng/quickjs/releases/latest";
+const DENO_RELEASES_URL: &str = "https://api.github.com/repos/denoland/deno/releases/latest";
 
 pub fn managed_binary_path() -> PathBuf {
     crate::config::reverbic_dir()
@@ -36,14 +35,7 @@ pub async fn ensure_installed() -> Result<PathBuf, YoutubeError> {
     let client = crate::http::http_client_timeout(120)
         .ok_or_else(|| install_error("could not build HTTP client"))?;
 
-    let release: Release = client
-        .get(QUICKJS_NG_RELEASES_URL)
-        .send()
-        .await
-        .map_err(install_error)?
-        .error_for_status()
-        .map_err(install_error)?
-        .json()
+    let release = super::fetch_latest_release(DENO_RELEASES_URL)
         .await
         .map_err(install_error)?;
 
@@ -51,7 +43,7 @@ pub async fn ensure_installed() -> Result<PathBuf, YoutubeError> {
         .assets
         .into_iter()
         .find(|asset| asset.name == asset_name())
-        .ok_or_else(|| install_error("no matching QuickJS-NG asset for this platform"))?;
+        .ok_or_else(|| install_error("no matching Deno asset for this platform"))?;
 
     let expected_sha256 = asset
         .digest
@@ -59,44 +51,38 @@ pub async fn ensure_installed() -> Result<PathBuf, YoutubeError> {
         .ok_or_else(|| install_error("release asset has no SHA256 digest"))?
         .to_lowercase();
 
-    let response = client
+    let bytes = client
         .get(&asset.browser_download_url)
         .send()
         .await
         .map_err(install_error)?
         .error_for_status()
+        .map_err(install_error)?
+        .bytes()
+        .await
         .map_err(install_error)?;
+
+    if super::sha256_hex(bytes.as_ref()) != expected_sha256 {
+        return Err(YoutubeError::Install(crate::i18n::t(
+            "modal.youtube.install_hash_mismatch",
+        )));
+    }
+
+    let binary = {
+        let mut archive = ZipArchive::new(Cursor::new(bytes.as_ref())).map_err(install_error)?;
+        let mut entry = archive.by_name(binary_name()).map_err(install_error)?;
+        let mut buf = Vec::with_capacity(entry.size() as usize);
+        entry.read_to_end(&mut buf).map_err(install_error)?;
+        buf
+    };
 
     let tmp_path = path.with_extension("tmp");
     let mut file = tokio::fs::File::create(&tmp_path)
         .await
         .map_err(install_error)?;
-
-    let mut hasher = Sha256::new();
-    let mut stream = response.bytes_stream();
-    use futures_util::StreamExt;
-    while let Some(chunk) = stream.next().await {
-        let bytes = chunk.map_err(install_error)?;
-        hasher.update(&bytes);
-        file.write_all(&bytes).await.map_err(install_error)?;
-    }
+    file.write_all(&binary).await.map_err(install_error)?;
     file.flush().await.map_err(install_error)?;
     drop(file);
-
-    use std::fmt::Write;
-    let actual_sha256 = hasher
-        .finalize()
-        .iter()
-        .fold(String::new(), |mut hex, byte| {
-            let _ = write!(hex, "{byte:02x}");
-            hex
-        });
-    if actual_sha256 != expected_sha256 {
-        let _ = tokio::fs::remove_file(&tmp_path).await;
-        return Err(YoutubeError::Install(crate::i18n::t(
-            "modal.youtube.install_hash_mismatch",
-        )));
-    }
 
     #[cfg(not(target_os = "windows"))]
     {
@@ -129,47 +115,40 @@ fn install_error(e: impl std::fmt::Display) -> YoutubeError {
 fn binary_name() -> &'static str {
     #[cfg(target_os = "windows")]
     {
-        "qjs.exe"
+        "deno.exe"
     }
 
     #[cfg(not(target_os = "windows"))]
     {
-        "qjs"
+        "deno"
     }
 }
 
 fn asset_name() -> &'static str {
     #[cfg(target_os = "windows")]
     {
-        "qjs-windows-x86_64.exe"
+        "deno-x86_64-pc-windows-msvc.zip"
     }
 
-    #[cfg(target_os = "macos")]
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
     {
-        "qjs-darwin"
+        "deno-aarch64-apple-darwin.zip"
+    }
+
+    #[cfg(all(target_os = "macos", not(target_arch = "aarch64")))]
+    {
+        "deno-x86_64-apple-darwin.zip"
     }
 
     #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
     {
-        "qjs-linux-aarch64"
+        "deno-aarch64-unknown-linux-gnu.zip"
     }
 
     #[cfg(all(target_os = "linux", not(target_arch = "aarch64")))]
     {
-        "qjs-linux-x86_64"
+        "deno-x86_64-unknown-linux-gnu.zip"
     }
-}
-
-#[derive(Deserialize)]
-struct Release {
-    assets: Vec<Asset>,
-}
-
-#[derive(Deserialize)]
-struct Asset {
-    name: String,
-    browser_download_url: String,
-    digest: String,
 }
 
 #[cfg(test)]
@@ -186,7 +165,8 @@ mod tests {
     }
 
     #[test]
-    fn asset_name_targets_a_quickjs_ng_release_binary() {
-        assert!(asset_name().starts_with("qjs-"));
+    fn asset_name_targets_a_deno_release_zip() {
+        assert!(asset_name().starts_with("deno-"));
+        assert!(asset_name().ends_with(".zip"));
     }
 }

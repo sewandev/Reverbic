@@ -30,6 +30,7 @@ sha2               = "0.11"
 rand               = { version = "0.9", default-features = false, features = ["std", "std_rng"] }
 base64             = "0.21"
 dunce              = "1"
+zip                = { version = "2", default-features = false, features = ["deflate"] }
 librespot-core     = { version = "0.8", default-features = false, features = ["rustls-tls-native-roots"] }
 librespot-playback = { version = "0.8", default-features = false, features = ["rodio-backend", "rustls-tls-native-roots"] }
 librespot-audio    = { version = "0.8", default-features = false, features = ["rustls-tls-native-roots"] }

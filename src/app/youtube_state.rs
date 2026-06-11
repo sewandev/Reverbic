@@ -1,12 +1,13 @@
 use super::modal::YoutubeSubTab;
 use crate::integrations::youtube::{
-    ResolvedYoutubePlayback, YoutubeError, YoutubePlaylist, YoutubeVideo,
+    ResolvedYoutubePlayback, YoutubeChapter, YoutubeError, YoutubePlaylist, YoutubeVideo,
 };
 
 type InstallRx = std::sync::mpsc::Receiver<Result<std::path::PathBuf, YoutubeError>>;
 type VideosRx = std::sync::mpsc::Receiver<Result<Vec<YoutubeVideo>, YoutubeError>>;
 type PlaylistsRx = std::sync::mpsc::Receiver<Result<Vec<YoutubePlaylist>, YoutubeError>>;
 type ResolveRx = std::sync::mpsc::Receiver<Result<ResolvedYoutubePlayback, YoutubeError>>;
+type SegmentsRx = std::sync::mpsc::Receiver<Result<Vec<(f32, f32)>, String>>;
 
 pub enum YoutubeStatus {
     Idle,
@@ -14,6 +15,14 @@ pub enum YoutubeStatus {
     Ready,
     Resolving,
     Error(String),
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum YoutubePlaybackContext {
+    SearchResults,
+    LikedVideos,
+    PlaylistVideos,
+    Mix,
 }
 
 pub struct YoutubeState {
@@ -54,6 +63,37 @@ pub struct YoutubeState {
     pub playlist_videos_loading: bool,
     pub(super) playlist_videos_task: Option<tokio::task::JoinHandle<()>>,
     pub(super) playlist_videos_rx: Option<VideosRx>,
+
+    pub(super) validate_task: Option<tokio::task::JoinHandle<()>>,
+    pub(super) validate_rx: Option<VideosRx>,
+
+    pub(super) preresolve_last_id: Option<String>,
+    pub(super) preresolve_deadline: Option<std::time::Instant>,
+    pub(super) preresolve_video: Option<YoutubeVideo>,
+    pub(super) preresolve_task: Option<tokio::task::JoinHandle<()>>,
+
+    pub mix_videos: Vec<YoutubeVideo>,
+    pub mix_loading: bool,
+    pub(super) mix_task: Option<tokio::task::JoinHandle<()>>,
+    pub(super) mix_rx: Option<VideosRx>,
+    pub(super) mix_is_extension: bool,
+    pub(super) mix_resume_on_extend: bool,
+
+    pub(super) sb_segments: Vec<(f32, f32)>,
+    pub(super) sb_station_key: Option<String>,
+    pub(super) sb_task: Option<tokio::task::JoinHandle<()>>,
+    pub(super) sb_rx: Option<SegmentsRx>,
+    pub(super) sb_cooldown_until: Option<std::time::Instant>,
+
+    pub(super) playing_chapters: Vec<YoutubeChapter>,
+    pub(super) chapter_station_key: Option<String>,
+    pub(super) chapter_video_title: String,
+    pub(super) chapter_video_channel: String,
+    pub(super) current_chapter: Option<usize>,
+
+    pub playback_context: Option<(YoutubePlaybackContext, usize)>,
+    pub was_playing: bool,
+    pub crossfade_from: Option<String>,
 }
 
 impl YoutubeState {
@@ -70,6 +110,10 @@ impl YoutubeState {
         abort(&mut self.liked_task);
         abort(&mut self.playlists_task);
         abort(&mut self.playlist_videos_task);
+        abort(&mut self.validate_task);
+        abort(&mut self.preresolve_task);
+        abort(&mut self.mix_task);
+        abort(&mut self.sb_task);
         self.search_pending_until = None;
     }
 }
@@ -110,6 +154,31 @@ impl Default for YoutubeState {
             playlist_videos_loading: false,
             playlist_videos_task: None,
             playlist_videos_rx: None,
+            validate_task: None,
+            validate_rx: None,
+            preresolve_last_id: None,
+            preresolve_deadline: None,
+            preresolve_video: None,
+            preresolve_task: None,
+            mix_videos: Vec::new(),
+            mix_loading: false,
+            mix_task: None,
+            mix_rx: None,
+            mix_is_extension: false,
+            mix_resume_on_extend: false,
+            sb_segments: Vec::new(),
+            sb_station_key: None,
+            sb_task: None,
+            sb_rx: None,
+            sb_cooldown_until: None,
+            playing_chapters: Vec::new(),
+            chapter_station_key: None,
+            chapter_video_title: String::new(),
+            chapter_video_channel: String::new(),
+            current_chapter: None,
+            playback_context: None,
+            was_playing: false,
+            crossfade_from: None,
         }
     }
 }

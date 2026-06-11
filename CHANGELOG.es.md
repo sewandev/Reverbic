@@ -13,7 +13,17 @@ Versionado: [Semantic Versioning](https://semver.org/)
 ### Agregado
 - Se agregó un ajuste para configurar un archivo cookies.txt de YouTube, que permite acceder a videos con restricción de edad, de región o solo para miembros
 - Se agregaron las sub-pestañas [Me gusta] y [Playlists] a la pestaña de YouTube, igual que en Spotify, para explorar y reproducir tus videos con Me gusta y tus playlists personales (requiere un cookies.txt configurado)
-- Reverbic ahora descarga y verifica automáticamente un runtime liviano QuickJS-NG, requerido por yt-dlp para resolver los desafíos de firma de YouTube
+- Reverbic ahora descarga y verifica automáticamente el runtime Deno, utilizado por yt-dlp para resolver los desafíos de firma de YouTube con tiempos de resolución casi instantáneos (el binario queda en disco y no se carga en memoria al iniciar)
+- Reproducción continua en YouTube: al terminar un video, se reproduce automáticamente el siguiente de la lista activa (resultados de búsqueda, Me gusta o playlist), precargando el siguiente video por anticipado
+- Se agregó el ajuste "Crossfade (YouTube)" para fundir el final de cada video con el inicio del siguiente al reproducir listas de YouTube
+- Se agregó la acción "Validar sesión de YouTube" en Ajustes para comprobar al instante si el cookies.txt configurado sigue vigente
+- Las URLs de audio de YouTube ya resueltas se reutilizan durante 4 horas, haciendo casi instantáneo volver a reproducir un video reciente; el cache ahora sobrevive reinicios (las resoluciones hechas con cookies nunca se guardan en disco)
+- YouTube Mix: con Ctrl+R sobre cualquier video se inicia una "radio infinita" de canciones similares que se extiende sola al acercarse al final de la cola
+- yt-dlp ahora se actualiza automáticamente (chequeo diario contra GitHub con verificación SHA256), evitando que los cambios de YouTube rompan la integración con el tiempo
+- El video resaltado se pre-resuelve en segundo plano, haciendo que reproducirlo con Enter sea casi instantáneo
+- Las pistas de YouTube ahora se descargan a un archivo temporal a velocidad completa, habilitando adelantar/retroceder con precisión exacta y reproducción inmune a cortes de red
+- Capítulos de YouTube: en videos largos el capítulo actual se muestra junto al título, y las teclas [ y ] saltan entre capítulos
+- Nuevo ajuste opcional "SponsorBlock (YouTube)" que salta automáticamente las secciones sin música usando la base de datos comunitaria (desactivado por defecto)
 
 ### Seguridad
 - Se actualizaron dependencias (OpenSSL, ratatui, crossterm y otras) para corregir vulnerabilidades conocidas reportadas por Dependabot
@@ -21,12 +31,15 @@ Versionado: [Semantic Versioning](https://semver.org/)
 - El instalador de Windows ahora aborta si el asset del release no incluye un hash SHA256 contra el cual verificar, en vez de ejecutar un binario sin verificar; esto se puede omitir bajo el propio riesgo del usuario mediante la variable de entorno `REVERBIC_SKIP_VERIFY`
 
 ### Cambiado
+- El ajuste de Crossfade ahora ofrece pasos de 1, 3, 5 y 7 segundos (antes 1, 2 y 3)
 - El instalador de Windows ya no sobrescribe el PATH de la sesión actual; solo agrega la carpeta de instalación de Reverbic si falta
 - El instalador de Windows ahora muestra un mensaje más claro antes de abrir Reverbic, ya que la terminal queda ocupada hasta cerrar la aplicación con `q`
 
 ### Corregido
 - El instalador de Windows ahora maneja fallos de red y límites de la API de GitHub con mensajes claros en vez de errores crudos, elimina el archivo temporal al finalizar, y soporta ARM64 (vía emulación x86_64) y versiones pre-release (mediante la variable de entorno `REVERBIC_PRERELEASE`)
 - Se corrigió el error "Requested format is not available" al buscar, resolver o explorar videos y playlists de YouTube, causado porque yt-dlp ahora requiere un runtime de JavaScript para resolver los desafíos de firma de YouTube
+- Las reproducciones on-demand (YouTube y replays) ahora se reconectan y reanudan automáticamente desde el byte exacto si la conexión se corta a mitad de una canción
+- Se corrigió que las canciones de YouTube se cortaran a la mitad o quedaran en silencio: YouTube solo entregaba un formato combinado de video cuyo audio HE-AAC el decodificador no soporta; ahora se usa el cliente android_vr de yt-dlp, que entrega audio puro AAC-LC de mayor calidad
 
 ---
 

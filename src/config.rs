@@ -182,6 +182,10 @@ pub struct Config {
     #[serde(default)]
     pub crossfade_secs: u8,
     #[serde(default)]
+    pub youtube_crossfade_secs: u8,
+    #[serde(default)]
+    pub youtube_sponsorblock: bool,
+    #[serde(default)]
     pub media_keys: bool,
     #[serde(default)]
     pub tray_icon: bool,
@@ -268,6 +272,8 @@ impl Default for Config {
             overlay_mode: OverlayMode::WhenPlaying,
             last_station: None,
             crossfade_secs: 0,
+            youtube_crossfade_secs: 0,
+            youtube_sponsorblock: false,
             media_keys: false,
             tray_icon: false,
             notifications: false,
@@ -299,12 +305,33 @@ impl Config {
     }
 
     pub fn crossfade_next(&mut self) {
-        self.crossfade_secs = match self.crossfade_secs {
-            0 => 1,
-            1 => 2,
-            2 => 3,
-            _ => 0,
-        };
+        self.crossfade_secs = next_crossfade_step(self.crossfade_secs);
+    }
+
+    pub fn youtube_crossfade_display(&self) -> String {
+        crate::ui::strings::crossfade_display(self.youtube_crossfade_secs)
+    }
+
+    pub fn youtube_crossfade_next(&mut self) {
+        self.youtube_crossfade_secs = next_crossfade_step(self.youtube_crossfade_secs);
+    }
+}
+
+pub(crate) fn next_crossfade_step(secs: u8) -> u8 {
+    match secs {
+        0 => 1,
+        1 => 3,
+        3 => 5,
+        5 => 7,
+        _ => 0,
+    }
+}
+
+fn normalize_crossfade_secs(secs: u8) -> u8 {
+    match secs {
+        0 | 1 | 3 | 5 | 7 => secs,
+        2 => 3,
+        _ => 7,
     }
 }
 
@@ -385,6 +412,8 @@ impl Config {
                 error.message()
             );
         }
+        config.crossfade_secs = normalize_crossfade_secs(config.crossfade_secs);
+        config.youtube_crossfade_secs = normalize_crossfade_secs(config.youtube_crossfade_secs);
         config
     }
 

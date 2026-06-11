@@ -34,6 +34,14 @@ impl<'a> SearchModalWidget<'a> {
                 }
             }
             SettingItem::Crossfade => self.crossfade.clone(),
+            SettingItem::YoutubeCrossfade => self.youtube_crossfade.clone(),
+            SettingItem::YoutubeSponsorblock => {
+                if self.youtube_sponsorblock {
+                    on
+                } else {
+                    off
+                }
+            }
             SettingItem::VolumeStep => format!("{}%", self.volume_step),
             SettingItem::Prebuffer => format!("{}s", self.prebuffer_secs),
             SettingItem::OverlayMode => self.overlay_mode.clone(),
@@ -134,6 +142,7 @@ impl<'a> SearchModalWidget<'a> {
                     t("config.value.not_configured")
                 }
             }
+            SettingItem::YoutubeCookiesValidate => t("config.value.validate"),
         }
     }
 

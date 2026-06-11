@@ -134,6 +134,8 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
 
     app.init_integrations();
     app.start_update_check();
+    tokio::spawn(crate::integrations::youtube::install::update_if_outdated());
+    tokio::task::spawn_blocking(crate::audio::stream::clear_youtube_cache);
 
     #[cfg(target_os = "windows")]
     {
@@ -155,6 +157,7 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
                 schedule_url: None,
                 show_countdown: false,
                 bitrate_kbps: saved.bitrate_kbps,
+                custom_headers: None,
             };
             if let Some(enrichment) = find_enrichment(&saved.name) {
                 enrich(&mut station, enrichment);
@@ -200,6 +203,12 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
         app.poll_youtube_liked();
         app.poll_youtube_playlists();
         app.poll_youtube_playlist_videos();
+        app.poll_youtube_playback();
+        app.poll_youtube_validate();
+        app.poll_youtube_preresolve();
+        app.poll_youtube_mix();
+        app.poll_youtube_sponsorblock();
+        app.poll_youtube_chapters();
         if app
             .notice_until
             .map(|t| std::time::Instant::now() >= t)

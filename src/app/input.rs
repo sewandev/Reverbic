@@ -460,6 +460,25 @@ impl App {
                     return;
                 }
             }
+            if let KeyCode::Char('r') | KeyCode::Char('R') = event.code {
+                if self.show_search_modal && matches!(self.modal_mode, SearchMode::Youtube) {
+                    self.start_youtube_mix();
+                    return;
+                }
+            }
+        }
+
+        if !self.show_search_modal {
+            let chapter_direction = match event.code {
+                KeyCode::Char('[') => Some(-1),
+                KeyCode::Char(']') => Some(1),
+                _ => None,
+            };
+            if let Some(direction) = chapter_direction {
+                if self.youtube_chapter_jump(direction).await {
+                    return;
+                }
+            }
         }
 
         self.on_key(event.code).await;
@@ -1139,6 +1158,9 @@ impl App {
                 self.show_search_modal = true;
                 self.modal_mode = SearchMode::Name;
                 self.settings_scroll_offset = 0;
+            }
+            SettingItem::YoutubeCookiesValidate => {
+                self.validate_youtube_cookies();
             }
             _ => self.apply_settings_toggle(self.settings_selected),
         }
@@ -2140,6 +2162,7 @@ impl App {
                         schedule_url: None,
                         show_countdown: false,
                         bitrate_kbps: None,
+                        custom_headers: None,
                     };
                     self.play_station(station).await;
                 }
@@ -2192,6 +2215,7 @@ impl App {
                 self.config.restore_volume = !self.config.restore_volume
             }
             super::modal::SettingItem::Crossfade => self.config.crossfade_next(),
+            super::modal::SettingItem::YoutubeCrossfade => self.config.youtube_crossfade_next(),
             super::modal::SettingItem::VolumeStep => self.config.volume_step_next(),
             super::modal::SettingItem::Prebuffer => {
                 self.config.prebuffer_next();
@@ -2267,7 +2291,11 @@ impl App {
             super::modal::SettingItem::SpotifyRadioMode => {
                 self.config.spotify.radio_enabled = !self.config.spotify.radio_enabled;
             }
+            super::modal::SettingItem::YoutubeSponsorblock => {
+                self.config.youtube_sponsorblock = !self.config.youtube_sponsorblock
+            }
             super::modal::SettingItem::YoutubeCookiesPath => {}
+            super::modal::SettingItem::YoutubeCookiesValidate => {}
             super::modal::SettingItem::ReplayOnboarding => {}
             super::modal::SettingItem::AutoUpdate => {
                 self.config.auto_update = !self.config.auto_update
@@ -2921,7 +2949,10 @@ impl App {
 
     async fn activate_youtube_selected(&mut self) {
         if !self.youtube.results.is_empty() {
-            self.start_youtube_resolve();
+            self.play_youtube_from_context(
+                crate::app::youtube_state::YoutubePlaybackContext::SearchResults,
+                self.youtube.selected,
+            );
         } else if !self.youtube.query.trim().is_empty() {
             self.start_youtube_search_now();
         } else {
@@ -2930,10 +2961,10 @@ impl App {
     }
 
     async fn activate_youtube_liked_selected(&mut self) {
-        let sel = self.youtube.liked_selected;
-        if let Some(video) = self.youtube.liked_videos.get(sel).cloned() {
-            self.start_youtube_resolve_video(video);
-        }
+        self.play_youtube_from_context(
+            crate::app::youtube_state::YoutubePlaybackContext::LikedVideos,
+            self.youtube.liked_selected,
+        );
     }
 
     async fn activate_youtube_playlist_selected(&mut self) {
@@ -2944,10 +2975,10 @@ impl App {
     }
 
     async fn activate_youtube_playlist_video_selected(&mut self) {
-        let sel = self.youtube.playlist_videos_selected;
-        if let Some(video) = self.youtube.playlist_videos.get(sel).cloned() {
-            self.start_youtube_resolve_video(video);
-        }
+        self.play_youtube_from_context(
+            crate::app::youtube_state::YoutubePlaybackContext::PlaylistVideos,
+            self.youtube.playlist_videos_selected,
+        );
     }
 
     async fn on_key_recent(&mut self, key: KeyCode) {

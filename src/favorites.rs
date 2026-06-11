@@ -30,6 +30,7 @@ impl FavoriteStation {
             schedule_url: None,
             show_countdown: false,
             bitrate_kbps: self.bitrate_kbps,
+            custom_headers: None,
         };
         if let Some(enrichment) = find_enrichment(&self.name) {
             enrich(&mut s, enrichment);

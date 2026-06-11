@@ -13,33 +13,57 @@ const PLAYLISTS_URL: &str = "https://www.youtube.com/feed/playlists";
 pub async fn fetch_liked_videos(
     binary: &Path,
     cookies_path: Option<&Path>,
-    quickjs_path: &Path,
+    deno_path: &Path,
     limit: usize,
 ) -> Result<Vec<YoutubeVideo>, YoutubeError> {
-    let bytes =
-        run_flat_playlist(binary, LIKED_VIDEOS_URL, limit, cookies_path, quickjs_path).await?;
+    let bytes = run_flat_playlist(binary, LIKED_VIDEOS_URL, limit, cookies_path, deno_path).await?;
     parse_video_entries(&bytes)
 }
 
 pub async fn fetch_playlists(
     binary: &Path,
     cookies_path: Option<&Path>,
-    quickjs_path: &Path,
+    deno_path: &Path,
     limit: usize,
 ) -> Result<Vec<YoutubePlaylist>, YoutubeError> {
-    let bytes = run_flat_playlist(binary, PLAYLISTS_URL, limit, cookies_path, quickjs_path).await?;
+    let bytes = run_flat_playlist(binary, PLAYLISTS_URL, limit, cookies_path, deno_path).await?;
     parse_playlists_output(&bytes)
+}
+
+pub async fn fetch_mix_videos(
+    binary: &Path,
+    seed_video_id: &str,
+    deno_path: &Path,
+    limit: usize,
+) -> Result<Vec<YoutubeVideo>, YoutubeError> {
+    if !is_valid_video_id(seed_video_id) {
+        return Err(YoutubeError::Library(crate::i18n::t(
+            "modal.youtube.library_failed",
+        )));
+    }
+    // RD<id> is YouTube's auto-generated Mix playlist seeded by that video
+    let url = format!("https://www.youtube.com/watch?v={seed_video_id}&list=RD{seed_video_id}");
+    let bytes = run_flat_playlist(binary, &url, limit, None, deno_path).await?;
+    parse_video_entries(&bytes)
+}
+
+fn is_valid_video_id(id: &str) -> bool {
+    !id.is_empty()
+        && id.len() <= 16
+        && id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
 }
 
 pub async fn fetch_playlist_videos(
     binary: &Path,
     cookies_path: Option<&Path>,
-    quickjs_path: &Path,
+    deno_path: &Path,
     playlist_id: &str,
     limit: usize,
 ) -> Result<Vec<YoutubeVideo>, YoutubeError> {
     let url = format!("https://www.youtube.com/playlist?list={playlist_id}");
-    let bytes = run_flat_playlist(binary, &url, limit, cookies_path, quickjs_path).await?;
+    let bytes = run_flat_playlist(binary, &url, limit, cookies_path, deno_path).await?;
     parse_video_entries(&bytes)
 }
 
@@ -48,14 +72,14 @@ async fn run_flat_playlist(
     url: &str,
     limit: usize,
     cookies_path: Option<&Path>,
-    quickjs_path: &Path,
+    deno_path: &Path,
 ) -> Result<Vec<u8>, YoutubeError> {
     let output = Command::new(binary)
         .args(build_flat_playlist_args(
             url,
             limit,
             cookies_path,
-            quickjs_path,
+            deno_path,
         ))
         .output()
         .await
@@ -69,13 +93,14 @@ async fn run_flat_playlist(
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         let stdout = String::from_utf8_lossy(&output.stdout);
-        let msg = if !stderr.trim().is_empty() {
+        let raw = if !stderr.trim().is_empty() {
             stderr.trim().to_string()
         } else {
             stdout.trim().to_string()
         };
+        tracing::error!(url, "yt-dlp playlist fetch failed: {raw}");
 
-        if requires_youtube_sign_in(&msg) {
+        if requires_youtube_sign_in(&raw) {
             let key = if cookies_path.is_some() {
                 "modal.youtube.cookies_expired"
             } else {
@@ -87,7 +112,7 @@ async fn run_flat_playlist(
         return Err(YoutubeError::Library(format!(
             "{}: {}",
             crate::i18n::t("modal.youtube.library_failed"),
-            msg
+            super::summarize_ytdlp_error(&raw)
         )));
     }
 
@@ -98,24 +123,13 @@ pub(crate) fn build_flat_playlist_args(
     url: &str,
     limit: usize,
     cookies_path: Option<&Path>,
-    quickjs_path: &Path,
+    deno_path: &Path,
 ) -> Vec<String> {
-    let mut args = vec![
-        "--dump-single-json".to_string(),
-        "--flat-playlist".to_string(),
-        "--quiet".to_string(),
-        "--no-warnings".to_string(),
-        "--playlist-end".to_string(),
-        limit.max(1).to_string(),
-        "--js-runtimes".to_string(),
-        format!("quickjs:{}", quickjs_path.to_string_lossy()),
-    ];
-
-    if let Some(path) = cookies_path {
-        args.push("--cookies".to_string());
-        args.push(path.to_string_lossy().into_owned());
-    }
-
+    let mut args = super::base_ytdlp_args(super::EXTRACTOR_ARGS_FLAT, deno_path, cookies_path);
+    args.push("--dump-single-json".to_string());
+    args.push("--flat-playlist".to_string());
+    args.push("--playlist-end".to_string());
+    args.push(limit.max(1).to_string());
     args.push(url.to_string());
     args
 }

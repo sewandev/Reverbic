@@ -13,7 +13,17 @@ Versioning: [Semantic Versioning](https://semver.org/)
 ### Added
 - Added a setting to configure a YouTube cookies.txt file, allowing access to age-restricted, region-locked, or members-only videos
 - Added [Liked] and [Playlists] sub-tabs to the YouTube tab, mirroring Spotify, to browse and play your liked videos and personal playlists (requires a configured cookies.txt)
-- Reverbic now automatically downloads and verifies a lightweight QuickJS-NG runtime, required by yt-dlp to solve YouTube's signature challenges
+- Reverbic now automatically downloads and verifies the Deno runtime, used by yt-dlp to solve YouTube's signature challenges with near-instant resolution times (the binary stays on disk and is not loaded into memory at startup)
+- Continuous YouTube playback: when a video ends, the next one in the active list (search results, Liked, or playlist) plays automatically, pre-resolving the upcoming video ahead of time
+- Added a "YouTube Crossfade" setting to blend the end of each video into the start of the next when playing YouTube lists
+- Added a "Validate YouTube session" action in Settings to instantly check whether the configured cookies.txt is still valid
+- Resolved YouTube audio URLs are now reused for 4 hours, making replays of recent videos near-instant; the cache now survives restarts (cookie-authenticated resolves are never written to disk)
+- YouTube Mix: press Ctrl+R on any video to start an "infinite radio" of similar songs that extends itself as the queue nears its end
+- yt-dlp now updates itself automatically (daily check against GitHub with SHA256 verification), preventing YouTube changes from breaking the integration over time
+- The highlighted video is pre-resolved in the background, making Enter playback near-instant
+- YouTube tracks now download to a temporary file at full speed, enabling precise seeking and playback immune to network drops
+- YouTube chapters: in long videos the current chapter shows next to the title, and the [ and ] keys jump between chapters
+- New optional "SponsorBlock (YouTube)" setting that automatically skips non-music sections using the community database (off by default)
 
 ### Security
 - Updated dependencies (OpenSSL, ratatui, crossterm and others) to resolve known security advisories reported by Dependabot
@@ -21,12 +31,15 @@ Versioning: [Semantic Versioning](https://semver.org/)
 - The Windows install script now aborts if the release asset has no SHA256 digest to verify against, instead of running an unverified binary; this can be overridden at the user's own risk via the `REVERBIC_SKIP_VERIFY` environment variable
 
 ### Changed
+- The Crossfade setting now offers 1, 3, 5 and 7 second steps (previously 1, 2 and 3)
 - The Windows install script no longer overwrites the current session's PATH; it only appends Reverbic's install folder if missing
 - The Windows install script now shows a clearer message before launching Reverbic, since the terminal stays occupied until the app is closed with `q`
 
 ### Fixed
 - The Windows install script now handles network failures and GitHub API rate limits with friendly messages instead of raw errors, removes the temporary installer file afterwards, and supports ARM64 (via x86_64 emulation) and pre-release builds (via the `REVERBIC_PRERELEASE` environment variable)
 - Fixed "Requested format is not available" errors when searching, resolving, or browsing YouTube videos and playlists, caused by yt-dlp now requiring a JavaScript runtime to solve YouTube's signature challenges
+- On-demand playback (YouTube and replays) now reconnects and resumes from the exact byte if the connection drops mid-song
+- Fixed YouTube songs cutting off mid-track or going silent: YouTube only served a combined video format whose HE-AAC audio the decoder cannot handle; playback now uses yt-dlp's android_vr client, which serves higher-quality audio-only AAC-LC
 
 ---
 
