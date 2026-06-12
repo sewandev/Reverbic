@@ -26,12 +26,16 @@ Versionado: [Semantic Versioning](https://semver.org/)
 - Nuevo ajuste opcional "SponsorBlock (YouTube)" que salta automáticamente las secciones sin música usando la base de datos comunitaria (desactivado por defecto)
 - Nuevo ajuste "Radio (YouTube)", activado por defecto: cuando la lista en reproducción se termina, continúa automáticamente con un mix de canciones similares
 - El overlay de juego ahora muestra una cuenta regresiva con el tiempo restante de la pista actual (Spotify y YouTube), tanto en estilo Completo como Compacto; la Radio no tiene duración, así que ahí no cambia nada
+- En modo Remoto de Spotify, cuando no se detecta ningún dispositivo Connect la pestaña de Spotify se bloquea con un aviso claro que explica abrir Spotify en un dispositivo (teléfono, computador o reproductor web); reescanea automáticamente cada pocos segundos y se desbloquea sola en cuanto aparece un dispositivo (Ctrl+D fuerza un escaneo inmediato)
 
 ### Cambiado
 - La pestaña de YouTube ahora usa el rojo de YouTube de forma consistente en todos sus elementos (video seleccionado, campo de búsqueda, cursor de escritura, barra de scroll), replicando el patrón verde de la pestaña de Spotify para que siempre quede claro en qué pestaña estás
 
 ### Corregido
 - Los videos de transmisiones en vivo recién finalizadas ya no se quedan en un ciclo infinito de reintentos; Reverbic ahora explica que YouTube todavía está procesando la grabación y que se intente más tarde
+- El pie de la pestaña de Spotify ya no afirma "Modo: Remoto Escuchando en Desconocido [activo]" al usar el modo Auto sin dispositivos; ahora muestra el modo real (Auto o Remoto) y "ningún dispositivo de Spotify detectado" cuando no hay ninguno
+- El pie de la pestaña de Spotify ahora distingue entre un dispositivo realmente reproduciendo ([activo]) y uno que Spotify solo lista como disponible ([disponible])
+- Cuando un dispositivo de Spotify no responde al reproducir (ej. un teléfono cuya app se cerró pero Spotify aún lo lista), Reverbic ahora lo descarta, explica lo que pasó y reescanea en vez de mantenerlo como destino
 
 ### Seguridad
 - Se actualizaron dependencias (OpenSSL, ratatui, crossterm y otras) para corregir vulnerabilidades conocidas reportadas por Dependabot

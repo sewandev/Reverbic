@@ -78,6 +78,8 @@ pub struct SearchModalWidget<'a> {
     pub spotify_is_premium: Option<bool>,
     pub spotify_devices: &'a [crate::integrations::spotify::devices::SpotifyDevice],
     pub spotify_active_device_id: Option<&'a str>,
+    pub spotify_remote_blocked: bool,
+    pub spotify_devices_loading: bool,
     pub spotify_stop_on_quit: bool,
     pub spotify_start_on_spotify: bool,
     pub spotify_playback_mode: String,
@@ -251,6 +253,10 @@ impl<'a> SearchModalWidget<'a> {
             spotify_is_premium: sp.is_premium,
             spotify_devices: &sp.devices,
             spotify_active_device_id: sp.active_device_id.as_deref(),
+            spotify_remote_blocked: app.config.spotify.playback_mode
+                == crate::config::SpotifyPlaybackMode::Remote
+                && sp.active_device_id.is_none(),
+            spotify_devices_loading: sp.devices_loading,
             spotify_stop_on_quit: app.config.spotify.stop_on_quit,
             spotify_start_on_spotify: app.config.spotify.start_on_spotify,
             spotify_playback_mode: app.config.spotify.playback_mode.display(),

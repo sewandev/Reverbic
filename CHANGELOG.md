@@ -26,12 +26,16 @@ Versioning: [Semantic Versioning](https://semver.org/)
 - New optional "SponsorBlock (YouTube)" setting that automatically skips non-music sections using the community database (off by default)
 - New "YouTube Radio" setting, on by default: when the playing list ends, playback continues automatically with a mix of similar songs
 - The game overlay now shows a countdown with the time remaining in the current track (Spotify and YouTube), in both Full and Compact styles; Radio has no duration so nothing changes there
+- In Spotify Remote mode, when no Connect device is detected the Spotify tab now locks with a clear notice explaining to open Spotify on a device (phone, computer or web player); it rescans automatically every few seconds and unlocks itself as soon as a device appears (Ctrl+D forces an immediate scan)
 
 ### Changed
 - The YouTube tab now uses YouTube's red consistently across all its elements (selected video, search input, typing cursor, scrollbar), mirroring the green pattern of the Spotify tab so it is always clear which tab is active
 
 ### Fixed
 - Videos from recently ended live streams no longer hang in an endless retry loop; Reverbic now explains that YouTube is still processing the recording and to try again later
+- The Spotify footer no longer claims "Mode: Remote Listening on Unknown [active]" when using Auto mode with no device; it now shows the real mode (Auto or Remote) and "no Spotify device detected" when there is none
+- The Spotify footer now distinguishes between a device that is really playing ([active]) and one that is merely listed by Spotify ([available])
+- When a Spotify device does not respond on playback (e.g. a phone whose app was closed but Spotify still lists it), Reverbic now discards it, explains what happened, and rescans instead of keeping it as the target
 
 ### Security
 - Updated dependencies (OpenSSL, ratatui, crossterm and others) to resolve known security advisories reported by Dependabot
