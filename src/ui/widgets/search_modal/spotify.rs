@@ -258,7 +258,7 @@ impl<'a> SearchModalWidget<'a> {
         use ratatui::widgets::{Block, BorderType, Borders, Clear};
 
         let box_w = area.width.saturating_sub(4).min(58);
-        let box_h = 9.min(area.height);
+        let box_h = 11.min(area.height);
         if box_w < 20 || box_h < 5 {
             return;
         }
@@ -286,6 +286,16 @@ impl<'a> SearchModalWidget<'a> {
         ))
         .alignment(ratatui::layout::Alignment::Center)
         .render(Rect::new(inner_x, y, inner_w, 1), buf);
+        y += 2;
+
+        Paragraph::new(Span::styled(
+            t("modal.spotify.no_device.mode"),
+            Style::default()
+                .fg(self.palette.spotify)
+                .add_modifier(Modifier::BOLD),
+        ))
+        .wrap(Wrap { trim: true })
+        .render(Rect::new(inner_x, y, inner_w, 2), buf);
         y += 2;
 
         Paragraph::new(Span::styled(

@@ -68,6 +68,7 @@
   "modal.spotify.start_on_spotify": "Ir a Spotify al conectar",
   "modal.spotify.devices_native_hint": "Modo nativo activo: los dispositivos remotos se pueden ver, pero no se usan como destino.",
   "modal.spotify.no_device.title": "Ningún dispositivo de Spotify detectado",
+  "modal.spotify.no_device.mode": "Estás en modo Remoto: la música se reproduce en un dispositivo externo con Spotify.",
   "modal.spotify.no_device.body": "Abre Spotify en un dispositivo (teléfono, computador o reproductor web en tu navegador) y mantenlo abierto. Esta pestaña se desbloqueará automáticamente al detectar un dispositivo.",
   "modal.spotify.no_device.scan": "buscar dispositivos ahora",
   "modal.spotify.no_device.scanning": "Buscando dispositivos...",

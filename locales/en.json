@@ -68,6 +68,7 @@
   "modal.spotify.start_on_spotify": "Go to Spotify tab on connect",
   "modal.spotify.devices_native_hint": "Native mode is active: remote devices can be viewed, but are not used as the target.",
   "modal.spotify.no_device.title": "No Spotify device detected",
+  "modal.spotify.no_device.mode": "You are in Remote mode: music plays on an external Spotify device.",
   "modal.spotify.no_device.body": "Open Spotify on a device (phone, computer or web player in your browser) and keep it open. This tab will unlock automatically as soon as a device is detected.",
   "modal.spotify.no_device.scan": "scan for devices now",
   "modal.spotify.no_device.scanning": "Scanning for devices...",
