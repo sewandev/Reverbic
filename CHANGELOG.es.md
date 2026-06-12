@@ -10,6 +10,9 @@ Versionado: [Semantic Versioning](https://semver.org/)
 
 ## [Sin publicar]
 
+### Agregado
+- Se agregó el ajuste "Crossfade (Spotify)" (hasta 12 segundos) que funde el final de cada canción con el inicio de la siguiente al usar el modo de reproducción Nativo; el ajuste aparece deshabilitado hasta seleccionar el modo Nativo
+
 ## [1.5.2] - 2026-06-12
 
 ### Agregado

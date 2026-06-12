@@ -184,6 +184,8 @@ pub struct Config {
     #[serde(default)]
     pub youtube_crossfade_secs: u8,
     #[serde(default)]
+    pub spotify_crossfade_secs: u8,
+    #[serde(default)]
     pub youtube_sponsorblock: bool,
     #[serde(default = "default_true")]
     pub youtube_radio_mode: bool,
@@ -275,6 +277,7 @@ impl Default for Config {
             last_station: None,
             crossfade_secs: 0,
             youtube_crossfade_secs: 0,
+            spotify_crossfade_secs: 0,
             youtube_sponsorblock: false,
             youtube_radio_mode: true,
             media_keys: false,
@@ -318,6 +321,14 @@ impl Config {
     pub fn youtube_crossfade_next(&mut self) {
         self.youtube_crossfade_secs = next_crossfade_step(self.youtube_crossfade_secs);
     }
+
+    pub fn spotify_crossfade_display(&self) -> String {
+        crate::ui::strings::spotify_crossfade_display(self.spotify_crossfade_secs)
+    }
+
+    pub fn spotify_crossfade_next(&mut self) {
+        self.spotify_crossfade_secs = next_spotify_crossfade_step(self.spotify_crossfade_secs);
+    }
 }
 
 pub(crate) fn next_crossfade_step(secs: u8) -> u8 {
@@ -335,6 +346,30 @@ fn normalize_crossfade_secs(secs: u8) -> u8 {
         0 | 1 | 3 | 5 | 7 => secs,
         2 => 3,
         _ => 7,
+    }
+}
+
+pub(crate) fn next_spotify_crossfade_step(secs: u8) -> u8 {
+    match secs {
+        0 => 1,
+        1 => 3,
+        3 => 5,
+        5 => 7,
+        7 => 10,
+        10 => 12,
+        _ => 0,
+    }
+}
+
+fn normalize_spotify_crossfade_secs(secs: u8) -> u8 {
+    match secs {
+        0 | 1 | 3 | 5 | 7 | 10 | 12 => secs,
+        2 => 3,
+        4 => 5,
+        6 => 7,
+        8 | 9 => 10,
+        11 => 12,
+        _ => 12,
     }
 }
 
@@ -417,6 +452,8 @@ impl Config {
         }
         config.crossfade_secs = normalize_crossfade_secs(config.crossfade_secs);
         config.youtube_crossfade_secs = normalize_crossfade_secs(config.youtube_crossfade_secs);
+        config.spotify_crossfade_secs =
+            normalize_spotify_crossfade_secs(config.spotify_crossfade_secs);
         config
     }
 

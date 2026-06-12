@@ -10,6 +10,9 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ## [Unreleased]
 
+### Added
+- Added a "Spotify Crossfade" setting (up to 12 seconds) that blends the end of each track into the start of the next when using the Native playback mode; the setting appears disabled until Native mode is selected
+
 ## [1.5.2] - 2026-06-12
 
 ### Added

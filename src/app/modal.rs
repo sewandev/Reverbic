@@ -79,6 +79,7 @@ pub enum SettingItem {
     SpotifyStartOnSpotify,
     SpotifyClientId,
     SpotifyPlaybackMode,
+    SpotifyCrossfade,
     SpotifyRadioMode,
     YoutubeRadioMode,
     YoutubeSponsorblock,
@@ -116,6 +117,7 @@ impl SettingItem {
             Self::SpotifyStartOnSpotify => t("config.setting.spotify_start_on_spotify"),
             Self::SpotifyClientId => t("config.setting.spotify_client_id"),
             Self::SpotifyPlaybackMode => t("config.setting.spotify_playback_mode"),
+            Self::SpotifyCrossfade => t("config.setting.spotify_crossfade"),
             Self::AutoUpdate => t("config.setting.auto_update"),
             Self::DiscordRpc => t("config.setting.discord_rpc"),
             Self::ReplayOnboarding => t("config.setting.replay_onboarding"),
@@ -153,6 +155,7 @@ impl SettingItem {
             Self::SpotifyStartOnSpotify => "config.tooltip.spotify_start_on_spotify",
             Self::SpotifyClientId => "config.tooltip.spotify_client_id",
             Self::SpotifyPlaybackMode => "config.tooltip.spotify_playback_mode",
+            Self::SpotifyCrossfade => "config.tooltip.spotify_crossfade",
             Self::AutoUpdate => "config.tooltip.auto_update",
             Self::DiscordRpc => "config.tooltip.discord_rpc",
             Self::ReplayOnboarding => "config.tooltip.replay_onboarding",
@@ -191,6 +194,7 @@ impl SettingItem {
             | Self::SpotifyStartOnSpotify
             | Self::SpotifyClientId
             | Self::SpotifyPlaybackMode
+            | Self::SpotifyCrossfade
             | Self::SpotifyRadioMode
             | Self::YoutubeCrossfade
             | Self::YoutubeRadioMode
@@ -233,6 +237,7 @@ pub fn settings_items(duck_enabled: bool) -> Vec<SettingItem> {
         SettingItem::SpotifyStartOnSpotify,
         SettingItem::SpotifyClientId,
         SettingItem::SpotifyPlaybackMode,
+        SettingItem::SpotifyCrossfade,
         SettingItem::SpotifyRadioMode,
         SettingItem::YoutubeCrossfade,
         SettingItem::YoutubeRadioMode,

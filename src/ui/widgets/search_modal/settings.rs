@@ -35,6 +35,7 @@ impl<'a> SearchModalWidget<'a> {
             }
             SettingItem::Crossfade => self.crossfade.clone(),
             SettingItem::YoutubeCrossfade => self.youtube_crossfade.clone(),
+            SettingItem::SpotifyCrossfade => self.spotify_crossfade.clone(),
             SettingItem::YoutubeRadioMode => {
                 if self.youtube_radio_mode {
                     on
@@ -172,6 +173,11 @@ impl<'a> SearchModalWidget<'a> {
         value == t("config.value.on").as_str()
     }
 
+    pub(super) fn item_disabled(&self, item: SettingItem) -> bool {
+        item == SettingItem::SpotifyCrossfade
+            && self.spotify_playback_mode_kind != crate::config::SpotifyPlaybackMode::Native
+    }
+
     pub(super) fn render_settings_body(
         &self,
         area: Rect,
@@ -179,7 +185,7 @@ impl<'a> SearchModalWidget<'a> {
         content_w: u16,
         buf: &mut Buffer,
     ) {
-        let mut rows: Vec<(String, Option<String>)> = Vec::new();
+        let mut rows: Vec<(String, Option<(String, bool)>)> = Vec::new();
         let mut last_group = "";
         for item in settings_items(self.duck_enabled) {
             let gk = item.group_key();
@@ -187,7 +193,10 @@ impl<'a> SearchModalWidget<'a> {
                 rows.push((t(gk), None));
                 last_group = gk;
             }
-            rows.push((item.label(), Some(self.item_value(item))));
+            rows.push((
+                item.label(),
+                Some((self.item_value(item), self.item_disabled(item))),
+            ));
         }
 
         let mut item_idx = 0usize;
@@ -225,15 +234,18 @@ impl<'a> SearchModalWidget<'a> {
             }
             let y = items_area.y + display_y as u16;
 
-            if let Some(value) = val_opt {
+            if let Some((value, disabled)) = val_opt {
                 let active = item_idx == self.settings_selected;
+                let disabled = *disabled;
 
                 let prefix = if active { "▶  " } else { "   " };
 
                 let label_str = crate::ui::strings::truncate(label, lbl_col_w as usize);
                 let label_chars = label_str.chars().count() as u16;
                 let padding = lbl_col_w.saturating_sub(label_chars) as usize;
-                let label_st = if active {
+                let label_st = if disabled {
+                    Style::default().fg(self.palette.dim)
+                } else if active {
                     Style::default()
                         .fg(self.palette.radio_accent)
                         .add_modifier(Modifier::BOLD)
@@ -244,7 +256,9 @@ impl<'a> SearchModalWidget<'a> {
                 let is_off = value == t("config.value.off").as_str();
                 let is_session_expired = value == t("config.value.session_expired").as_str();
                 let is_session_ok = value == t("config.value.session_ok").as_str();
-                let val_st = if is_session_expired {
+                let val_st = if disabled {
+                    Style::default().fg(self.palette.dim)
+                } else if is_session_expired {
                     let style = Style::default().fg(self.palette.danger);
                     if active {
                         style.add_modifier(Modifier::BOLD)

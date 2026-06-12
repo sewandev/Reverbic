@@ -47,6 +47,8 @@ pub enum SpotifyPlayerCmd {
     Play { uris: Vec<String> },
     Pause,
     Resume,
+    SetCrossfade { secs: u8 },
+    CrossfadeTo { uri: String },
 }
 
 pub enum SpotifyPlayerEvent {
@@ -54,6 +56,7 @@ pub enum SpotifyPlayerEvent {
     Paused,
     Stopped,
     EndOfTrack,
+    TrackNearEnd,
     TrackChanged(SpotifyTrack),
     Error(String),
 }

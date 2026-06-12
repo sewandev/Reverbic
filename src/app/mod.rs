@@ -491,6 +491,21 @@ impl App {
         }
 
         self.config.spotify.playback_mode = mode;
+        self.sync_native_crossfade();
+    }
+
+    pub(super) fn effective_spotify_crossfade(&self) -> u8 {
+        if self.config.spotify.playback_mode == SpotifyPlaybackMode::Native {
+            self.config.spotify_crossfade_secs
+        } else {
+            0
+        }
+    }
+
+    pub(super) fn sync_native_crossfade(&self) {
+        if let Some(handle) = &self.spotify.player_tx {
+            handle.set_crossfade(self.effective_spotify_crossfade());
+        }
     }
 
     pub(super) async fn pause_spotify_for_radio(&mut self) {
