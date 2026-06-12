@@ -786,6 +786,8 @@ impl App {
                     self.spotify.player_status = SpotifyPlayerStatus::Error(message.clone());
                     self.save_notice = Some(format!("Spotify: {message}"));
                     self.save_notice_is_dup = false;
+                    self.notice_until =
+                        Some(std::time::Instant::now() + std::time::Duration::from_secs(8));
                     self.fetch_spotify_devices();
                 }
                 Ok(Err(e)) => {
@@ -1032,6 +1034,8 @@ impl App {
                 self.spotify.player_status = SpotifyPlayerStatus::Error(message.clone());
                 self.save_notice = Some(format!("Spotify: {message}"));
                 self.save_notice_is_dup = false;
+                self.notice_until =
+                    Some(std::time::Instant::now() + std::time::Duration::from_secs(8));
             }
         }
     }
