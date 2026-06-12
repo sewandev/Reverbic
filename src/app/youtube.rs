@@ -335,8 +335,6 @@ impl App {
             self.show_notice(crate::i18n::t("modal.youtube.mix_failed"), 6);
             return;
         }
-        // When the mix continues a finished list, skip the seed so the song
-        // that just played is not repeated back to back
         let start_index = match self.youtube.mix_seed_to_skip.take() {
             Some(seed_id) if videos.first().is_some_and(|v| v.id == seed_id) => 1,
             _ => 0,
@@ -976,7 +974,6 @@ impl App {
             }
         } else {
             match current {
-                // Mirror music players: restart the current chapter unless near its start
                 Some(idx) if pos - chapters[idx].start_secs > 3.0 => idx,
                 Some(idx) => idx.saturating_sub(1),
                 None => return false,

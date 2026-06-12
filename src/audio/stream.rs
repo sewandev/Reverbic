@@ -226,8 +226,6 @@ impl FileBackedReader {
             .open(&path)?;
         let read_file = std::fs::File::open(&path)?;
 
-        // The title channel carries no data for file-backed playback; dropping the
-        // sender when the download ends drives the player's end-of-stream handling.
         let (title_tx, title_rx) = mpsc::sync_channel::<String>(1);
         let written = Arc::new(AtomicU64::new(0));
         let total_len = Arc::new(AtomicU64::new(0));

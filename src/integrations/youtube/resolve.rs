@@ -119,10 +119,6 @@ pub async fn resolve_audio_url(
         }
     }
 
-    // Anonymous resolve first: when cookies are passed, yt-dlp skips android_vr
-    // (it does not support cookies) and falls back to the web client's combined
-    // itag 18, whose HE-AAC variant the decoder cannot play. Cookies are only
-    // worth it for restricted videos, so they are a retry, not the default.
     let (resolved, used_cookies) = match run_yt_dlp_resolve(binary, watch_url, None, deno_path)
         .await
     {
@@ -138,8 +134,6 @@ pub async fn resolve_audio_url(
     };
     let (resolved_url, headers, chapters) = resolved;
 
-    // Cached for 4 hours: YouTube stream URLs expire after ~6 hours.
-    // Cookie-authenticated resolves stay memory-only so session data never touches disk.
     let persist = !used_cookies && !contains_sensitive_header(&headers);
     if let Ok(mut cache) = get_url_cache().lock() {
         cache.insert(
