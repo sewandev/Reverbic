@@ -20,9 +20,10 @@ pub(crate) use layout::{
     settings_visible_rows, spotify_body_area, spotify_layout, spotify_search_layout,
     spotify_search_list_area, spotify_subtab_at, spotify_titled_track_list_area,
     spotify_titled_track_list_layout, two_line_list_index_at, visible_items,
-    visible_rows_excluding_scrollbar, youtube_layout, youtube_liked_list_area,
-    youtube_playlist_videos_list_area, youtube_playlists_list_area, youtube_search_layout,
-    youtube_search_list_area, youtube_subtab_at, ListItemHeight,
+    visible_rows_excluding_scrollbar, youtube_auth_notice_at, youtube_auth_notice_box,
+    youtube_layout, youtube_liked_list_area, youtube_playlist_videos_list_area,
+    youtube_playlists_list_area, youtube_search_layout, youtube_search_list_area,
+    youtube_subtab_at, ListItemHeight,
 };
 pub(in crate::ui) use layout::{MODAL_MIN_HEIGHT, MODAL_MIN_WIDTH};
 

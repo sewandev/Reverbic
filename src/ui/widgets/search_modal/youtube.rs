@@ -97,11 +97,12 @@ impl<'a> SearchModalWidget<'a> {
         };
         let library_tab_style = |active: bool| {
             if !self.youtube_cookies_configured {
-                let st = Style::default().fg(self.palette.muted);
                 if active {
-                    st.add_modifier(Modifier::BOLD)
+                    Style::default()
+                        .fg(self.palette.warning)
+                        .add_modifier(Modifier::BOLD)
                 } else {
-                    st
+                    Style::default().fg(self.palette.muted)
                 }
             } else {
                 tab_style(active)
@@ -410,14 +411,9 @@ impl<'a> SearchModalWidget<'a> {
     fn render_youtube_auth_notice(&self, area: Rect, buf: &mut Buffer) {
         use ratatui::widgets::{Block, BorderType, Borders, Clear};
 
-        let box_w = area.width.saturating_sub(4).min(70);
-        let box_h = 13.min(area.height);
-        if box_w < 20 || box_h < 6 {
+        let Some(box_area) = super::youtube_auth_notice_box(area) else {
             return;
-        }
-        let box_x = area.x + (area.width - box_w) / 2;
-        let box_y = area.y + (area.height.saturating_sub(box_h)) / 2;
-        let box_area = Rect::new(box_x, box_y, box_w, box_h);
+        };
 
         Clear.render(box_area, buf);
         Block::default()
@@ -427,9 +423,10 @@ impl<'a> SearchModalWidget<'a> {
             .style(Style::default().bg(self.palette.panel_bg))
             .render(box_area, buf);
 
-        let inner_x = box_x + 2;
-        let inner_w = box_w.saturating_sub(4);
-        let mut y = box_y + 1;
+        let inner_x = box_area.x + 2;
+        let inner_w = box_area.width.saturating_sub(4);
+        let bottom = box_area.bottom().saturating_sub(1);
+        let mut y = box_area.y + 1;
 
         Paragraph::new(Span::styled(
             t("modal.youtube.auth_notice.title"),
@@ -440,36 +437,65 @@ impl<'a> SearchModalWidget<'a> {
         .alignment(Alignment::Center)
         .render(Rect::new(inner_x, y, inner_w, 1), buf);
         y += 2;
+        if y >= bottom {
+            return;
+        }
 
         Paragraph::new(Span::styled(
             t("modal.youtube.auth_notice.body"),
             Style::default().fg(self.palette.highlight),
         ))
         .wrap(Wrap { trim: true })
-        .render(Rect::new(inner_x, y, inner_w, 3), buf);
+        .render(Rect::new(inner_x, y, inner_w, 3.min(bottom - y)), buf);
         y += 4;
+        if y >= bottom {
+            return;
+        }
 
         Paragraph::new(Span::styled(
             t("modal.youtube.auth_notice.risk"),
             Style::default().fg(self.palette.caution),
         ))
         .wrap(Wrap { trim: true })
-        .render(Rect::new(inner_x, y, inner_w, 2), buf);
+        .render(Rect::new(inner_x, y, inner_w, 2.min(bottom - y)), buf);
         y += 3;
+        if y >= bottom {
+            return;
+        }
 
-        if y < box_y + box_h - 1 {
-            Paragraph::new(Span::styled(
-                t("modal.youtube.auth_notice.guide"),
+        Paragraph::new(Line::from(vec![
+            Span::styled(
+                format!("{} ", t("modal.youtube.auth_notice.guide_label")),
+                Style::default().fg(self.palette.dim),
+            ),
+            Span::styled(
+                t("modal.youtube.auth_notice.guide_url"),
+                Style::default()
+                    .fg(self.palette.accent)
+                    .add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
+            ),
+        ]))
+        .wrap(Wrap { trim: true })
+        .render(Rect::new(inner_x, y, inner_w, 2.min(bottom - y)), buf);
+        y += 2;
+        if y >= bottom {
+            return;
+        }
+
+        Paragraph::new(Line::from(vec![
+            Span::styled(
+                "[\u{2190} \u{2192}]  ",
                 Style::default()
                     .fg(self.palette.accent)
                     .add_modifier(Modifier::BOLD),
-            ))
-            .wrap(Wrap { trim: true })
-            .render(
-                Rect::new(inner_x, y, inner_w, (box_y + box_h - 1).saturating_sub(y)),
-                buf,
-            );
-        }
+            ),
+            Span::styled(
+                t("modal.youtube.auth_notice.back_hint"),
+                Style::default().fg(self.palette.muted),
+            ),
+        ]))
+        .alignment(Alignment::Center)
+        .render(Rect::new(inner_x, y, inner_w, 1), buf);
     }
 
     fn render_youtube_message(
