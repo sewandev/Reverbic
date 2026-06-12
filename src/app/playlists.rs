@@ -305,8 +305,6 @@ impl App {
     }
 
     fn playlist_notice(&mut self, text: String) {
-        self.save_notice_is_dup = false;
-        self.save_notice = Some(text);
-        self.notice_until = Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
+        self.notify_info(text);
     }
 }
