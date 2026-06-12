@@ -32,46 +32,78 @@ impl<'a> SearchModalWidget<'a> {
             .add_modifier(Modifier::BOLD);
         let inactive = Style::default().fg(self.palette.muted);
 
-        let radio_st = match self.mode {
-            SearchMode::Name | SearchMode::Genre | SearchMode::Country => radio_active,
-            _ => inactive,
-        };
-        let spotify_st = match self.mode {
-            SearchMode::Spotify => spotify_active,
-            _ => inactive,
-        };
-        let youtube_st = match self.mode {
-            SearchMode::Youtube => youtube_active,
-            _ => inactive,
-        };
+        let radio_is_active = matches!(
+            self.mode,
+            SearchMode::Name | SearchMode::Genre | SearchMode::Country
+        );
+        let spotify_is_active = matches!(self.mode, SearchMode::Spotify);
+        let youtube_is_active = matches!(self.mode, SearchMode::Youtube);
 
-        let radio_dot = self.palette.playing;
-        let spotify_dot = match self.spotify_status {
-            crate::app::SpotifyAuthStatus::LoggedIn if self.spotify_remote_blocked => {
-                self.palette.warning
-            }
-            crate::app::SpotifyAuthStatus::LoggedIn => self.palette.playing,
-            _ => self.palette.dim,
-        };
-        let youtube_dot = if !self.youtube_cookies_configured {
-            self.palette.dim
-        } else if self.youtube_session_health == Some(false) {
-            self.palette.danger
+        let radio_st = if radio_is_active {
+            radio_active
         } else {
-            self.palette.playing
+            inactive
+        };
+        let spotify_st = if spotify_is_active {
+            spotify_active
+        } else {
+            inactive
+        };
+        let youtube_st = if youtube_is_active {
+            youtube_active
+        } else {
+            inactive
         };
 
-        Paragraph::new(Line::from(vec![
-            Span::styled("\u{25CF} ", Style::default().fg(radio_dot)),
-            Span::styled(t("modal.tab.radio"), radio_st),
-            Span::styled("  ", Style::default()),
-            Span::styled("\u{25CF} ", Style::default().fg(spotify_dot)),
-            Span::styled(t("modal.tab.spotify"), spotify_st),
-            Span::styled("  ", Style::default()),
-            Span::styled("\u{25CF} ", Style::default().fg(youtube_dot)),
-            Span::styled(t("modal.tab.youtube"), youtube_st),
-        ]))
-        .render(tab_area, buf);
+        let active_dot = if radio_is_active {
+            Some(self.palette.status_ok)
+        } else if spotify_is_active {
+            Some(match self.spotify_status {
+                crate::app::SpotifyAuthStatus::LoggedIn if self.spotify_remote_blocked => {
+                    self.palette.warning
+                }
+                crate::app::SpotifyAuthStatus::LoggedIn => self.palette.status_ok,
+                _ => self.palette.dim,
+            })
+        } else if youtube_is_active {
+            Some(if !self.youtube_cookies_configured {
+                self.palette.dim
+            } else if self.youtube_session_health == Some(false) {
+                self.palette.danger
+            } else {
+                self.palette.status_ok
+            })
+        } else {
+            None
+        };
+
+        let mut spans: Vec<Span<'static>> = Vec::new();
+        let tabs = [
+            (radio_is_active, t("modal.tab.radio"), radio_st),
+            (spotify_is_active, t("modal.tab.spotify"), spotify_st),
+            (youtube_is_active, t("modal.tab.youtube"), youtube_st),
+        ];
+        for (i, (is_active, label, style)) in tabs.into_iter().enumerate() {
+            if i > 0 {
+                spans.push(Span::styled("  ", Style::default()));
+            }
+            if is_active {
+                if let Some(color) = active_dot {
+                    let dot_color = if color == self.palette.dim {
+                        color
+                    } else {
+                        crate::ui::theme::status_pulse(color, self.border_tick)
+                    };
+                    spans.push(Span::styled(
+                        "\u{25CF} ",
+                        Style::default().fg(dot_color).add_modifier(Modifier::BOLD),
+                    ));
+                }
+            }
+            spans.push(Span::styled(label, style));
+        }
+
+        Paragraph::new(Line::from(spans)).render(tab_area, buf);
     }
 
     pub(super) fn render_name_body(

@@ -243,25 +243,47 @@ fn list_index_at(hit: ListHitTest) -> Option<usize> {
     (index < hit.item_count).then_some(index)
 }
 
-pub(crate) fn modal_tab_at(area: Rect, col: u16, row: u16) -> Option<SearchMode> {
+pub(crate) fn modal_tab_at(
+    area: Rect,
+    col: u16,
+    row: u16,
+    active: &SearchMode,
+) -> Option<SearchMode> {
     let layout = modal_layout(area)?;
     let content = modal_content_area(area)?;
     let tab_area = Rect::new(content.x, layout.tabs.y, content.width, layout.tabs.height);
+    let label = |is_active: bool, text: String| {
+        if is_active {
+            format!("\u{25CF} {text}")
+        } else {
+            text
+        }
+    };
+    let radio_is_active = matches!(
+        active,
+        SearchMode::Name | SearchMode::Genre | SearchMode::Country
+    );
     tab_value_at(
         tab_area,
         col,
         row,
         &[
             (
-                format!("\u{25CF} {}", t("modal.tab.radio")),
+                label(radio_is_active, t("modal.tab.radio")),
                 SearchMode::Name,
             ),
             (
-                format!("\u{25CF} {}", t("modal.tab.spotify")),
+                label(
+                    matches!(active, SearchMode::Spotify),
+                    t("modal.tab.spotify"),
+                ),
                 SearchMode::Spotify,
             ),
             (
-                format!("\u{25CF} {}", t("modal.tab.youtube")),
+                label(
+                    matches!(active, SearchMode::Youtube),
+                    t("modal.tab.youtube"),
+                ),
                 SearchMode::Youtube,
             ),
         ],
@@ -733,18 +755,19 @@ mod tests {
         let area = normal_terminal();
         let layout = modal_layout(area).expect("modal should render");
         let content = modal_content_area(area).expect("content should render");
+        let active = SearchMode::Name;
         let radio_w = text_cell_width(&t("modal.tab.radio")) + 2;
         let spotify_x = content.x + radio_w + TAB_GAP_WIDTH;
 
         assert!(matches!(
-            modal_tab_at(area, content.x, layout.tabs.y),
+            modal_tab_at(area, content.x, layout.tabs.y, &active),
             Some(SearchMode::Name)
         ));
         assert!(matches!(
-            modal_tab_at(area, spotify_x, layout.tabs.y),
+            modal_tab_at(area, spotify_x, layout.tabs.y, &active),
             Some(SearchMode::Spotify)
         ));
-        assert!(modal_tab_at(area, content.x + radio_w, layout.tabs.y).is_none());
+        assert!(modal_tab_at(area, content.x + radio_w, layout.tabs.y, &active).is_none());
     }
 
     #[test]
