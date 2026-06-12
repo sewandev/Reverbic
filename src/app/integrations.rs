@@ -255,6 +255,9 @@ impl App {
                     self.config.spotify.followers = followers;
                     self.config.save();
                     self.spotify.status = SpotifyAuthStatus::LoggedIn;
+                    if is_premium == Some(false) {
+                        self.notify_warning(crate::i18n::t("notice.spotify_not_premium"));
+                    }
                     if self.config.spotify.start_on_spotify {
                         self.modal_mode = SearchMode::Spotify;
                     }

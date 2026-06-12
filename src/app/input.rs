@@ -28,39 +28,6 @@ use super::modal::{
 };
 use super::{abort_task, cycle_next, cycle_prev, scroll_by, App};
 
-fn next_spotify_device_id(
-    devices: &[crate::integrations::spotify::devices::SpotifyDevice],
-    active_device_id: Option<&str>,
-) -> Option<String> {
-    let transferable: Vec<(usize, &str)> = devices
-        .iter()
-        .enumerate()
-        .filter_map(|(idx, device)| device.id.as_deref().map(|id| (idx, id)))
-        .collect();
-    if transferable.len() <= 1 {
-        return None;
-    }
-
-    let current = active_device_id
-        .and_then(|id| {
-            transferable
-                .iter()
-                .position(|(_, device_id)| *device_id == id)
-        })
-        .or_else(|| {
-            transferable
-                .iter()
-                .position(|(idx, _)| devices[*idx].is_active)
-        })
-        .unwrap_or(0);
-
-    Some(
-        transferable[(current + 1) % transferable.len()]
-            .1
-            .to_string(),
-    )
-}
-
 fn setting_index_at_visual_row(items: &[SettingItem], visual_row: usize) -> Option<usize> {
     let mut row = 0usize;
     let mut last_group = "";
@@ -476,6 +443,11 @@ impl App {
             }
         }
 
+        if self.spotify.device_picker_open {
+            self.on_key_device_picker(event.code).await;
+            return;
+        }
+
         if self.playlist_picker.is_some() {
             self.on_key_playlist_picker(event.code);
             return;
@@ -530,7 +502,7 @@ impl App {
         if event.modifiers.contains(KeyModifiers::CONTROL) {
             if let KeyCode::Char('d') | KeyCode::Char('D') = event.code {
                 if self.show_search_modal && matches!(self.modal_mode, SearchMode::Spotify) {
-                    self.cycle_spotify_device().await;
+                    self.open_spotify_device_picker();
                     return;
                 }
             }
@@ -2717,7 +2689,7 @@ impl App {
         self.keep_settings_visible();
     }
 
-    async fn cycle_spotify_device(&mut self) {
+    fn open_spotify_device_picker(&mut self) {
         if self.config.spotify.playback_mode == crate::config::SpotifyPlaybackMode::Native {
             self.notify(
                 crate::app::NoticeSeverity::Info,
@@ -2726,16 +2698,54 @@ impl App {
             );
             return;
         }
-        let len = self.spotify.devices.len();
-        if len > 1 {
-            if let Some(id) = next_spotify_device_id(
-                &self.spotify.devices,
-                self.spotify.active_device_id.as_deref(),
-            ) {
-                self.transfer_to_spotify_device(id).await;
+        if self.spotify.devices.is_empty() {
+            if !self.spotify.devices_loading {
+                self.fetch_spotify_devices();
             }
-        } else if len <= 1 && !self.spotify.devices_loading {
-            self.fetch_spotify_devices();
+            return;
+        }
+        self.spotify.device_picker_selected = self
+            .spotify
+            .devices
+            .iter()
+            .position(|d| d.id.as_deref() == self.spotify.active_device_id.as_deref())
+            .unwrap_or(0);
+        self.spotify.device_picker_open = true;
+    }
+
+    async fn on_key_device_picker(&mut self, key: KeyCode) {
+        let len = self.spotify.devices.len();
+        match key {
+            KeyCode::Esc => {
+                self.spotify.device_picker_open = false;
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                self.spotify.device_picker_selected =
+                    cycle_prev(self.spotify.device_picker_selected, len);
+            }
+            KeyCode::Down | KeyCode::Char('j') => {
+                self.spotify.device_picker_selected =
+                    cycle_next(self.spotify.device_picker_selected, len);
+            }
+            KeyCode::Enter => {
+                let Some(device) = self
+                    .spotify
+                    .devices
+                    .get(self.spotify.device_picker_selected)
+                else {
+                    return;
+                };
+                let Some(id) = device.id.clone() else {
+                    return;
+                };
+                let name = device.name.clone();
+                self.spotify.device_picker_open = false;
+                self.transfer_to_spotify_device(id.clone()).await;
+                if self.spotify.active_device_id.as_deref() == Some(id.as_str()) {
+                    self.notify_info(t("notice.spotify_device_switched").replace("{}", &name));
+                }
+            }
+            _ => {}
         }
     }
 
@@ -3393,17 +3403,7 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::integrations::spotify::devices::SpotifyDevice;
     use crate::integrations::youtube::YoutubeVideo;
-
-    fn spotify_device(id: Option<&str>, is_active: bool) -> SpotifyDevice {
-        SpotifyDevice {
-            id: id.map(str::to_string),
-            name: id.unwrap_or("missing").to_string(),
-            device_type: "Computer".to_string(),
-            is_active,
-        }
-    }
 
     fn youtube_video(id: &str) -> YoutubeVideo {
         YoutubeVideo {
@@ -3415,34 +3415,6 @@ mod tests {
             thumbnail: None,
             is_live: false,
         }
-    }
-
-    #[test]
-    fn next_spotify_device_uses_active_device_id_before_spotify_active_flag() {
-        let devices = vec![
-            spotify_device(Some("preserved"), false),
-            spotify_device(Some("spotify-active"), true),
-            spotify_device(Some("next"), false),
-        ];
-
-        assert_eq!(
-            next_spotify_device_id(&devices, Some("preserved")).as_deref(),
-            Some("spotify-active")
-        );
-    }
-
-    #[test]
-    fn next_spotify_device_skips_devices_without_transfer_id() {
-        let devices = vec![
-            spotify_device(Some("current"), false),
-            spotify_device(None, true),
-            spotify_device(Some("next"), false),
-        ];
-
-        assert_eq!(
-            next_spotify_device_id(&devices, Some("current")).as_deref(),
-            Some("next")
-        );
     }
 
     #[test]

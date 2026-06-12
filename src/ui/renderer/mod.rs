@@ -32,9 +32,10 @@ fn uses_legacy_windows_console() -> bool {
 use crate::app::App;
 use crate::ui::theme;
 use overlays::{
-    render_client_id_overlay, render_cookies_path_overlay, render_game_strip, render_help_overlay,
-    render_modal_np_strip, render_modal_spotify_strip, render_playlist_picker_overlay,
-    render_rename_overlay, render_theme_picker_overlay, render_update_toast,
+    render_client_id_overlay, render_cookies_path_overlay, render_device_picker_overlay,
+    render_game_strip, render_help_overlay, render_modal_np_strip, render_modal_spotify_strip,
+    render_playlist_picker_overlay, render_rename_overlay, render_theme_picker_overlay,
+    render_update_toast,
 };
 use screensaver::{render_screensaver, render_spotify_screensaver, ScreensaverCtx};
 
@@ -216,6 +217,16 @@ pub fn render(frame: &mut Frame, app: &App) {
 
     if let Some(ref picker) = app.playlist_picker {
         render_playlist_picker_overlay(frame, picker, &app.playlists, palette);
+    }
+
+    if app.spotify.device_picker_open {
+        render_device_picker_overlay(
+            frame,
+            &app.spotify.devices,
+            app.spotify.device_picker_selected,
+            app.spotify.active_device_id.as_deref(),
+            palette,
+        );
     }
 
     if app.editing_client_id {
