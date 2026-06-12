@@ -63,6 +63,7 @@ fn load_cache_from_disk() -> HashMap<String, CacheEntry> {
         .filter(|(watch_url, entry)| {
             watch_url.starts_with("https://")
                 && entry.url.starts_with("https://")
+                && !entry.url.contains("/api/manifest/")
                 && entry.expires_at_unix > now
                 && !contains_sensitive_header(&entry.headers)
         })
@@ -289,6 +290,22 @@ fn parse_resolve_output(bytes: &[u8]) -> Result<ResolvedStream, YoutubeError> {
         })?
         .to_string();
 
+    let protocol = json["protocol"].as_str().unwrap_or("");
+    if is_manifest_protocol(protocol) {
+        let live_status = json["live_status"].as_str().unwrap_or("unknown");
+        tracing::warn!(
+            protocol,
+            live_status,
+            "yt-dlp resolved a manifest-based format the decoder cannot play"
+        );
+        let key = if live_status == "post_live" {
+            "modal.youtube.post_live_not_ready"
+        } else {
+            "modal.youtube.no_audio_formats"
+        };
+        return Err(YoutubeError::Resolve(crate::i18n::t(key)));
+    }
+
     let mut headers = HashMap::new();
     if let Some(h) = json["http_headers"].as_object() {
         for (k, v) in h {
@@ -303,6 +320,10 @@ fn parse_resolve_output(bytes: &[u8]) -> Result<ResolvedStream, YoutubeError> {
     log_resolved_format(&json);
 
     Ok((url, headers, chapters))
+}
+
+fn is_manifest_protocol(protocol: &str) -> bool {
+    protocol.contains("dash") || protocol.contains("m3u8")
 }
 
 fn parse_chapters(json: &serde_json::Value) -> Vec<YoutubeChapter> {

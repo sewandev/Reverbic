@@ -26,6 +26,9 @@ Versioning: [Semantic Versioning](https://semver.org/)
 - New optional "SponsorBlock (YouTube)" setting that automatically skips non-music sections using the community database (off by default)
 - New "YouTube Radio" setting, on by default: when the playing list ends, playback continues automatically with a mix of similar songs
 
+### Fixed
+- Videos from recently ended live streams no longer hang in an endless retry loop; Reverbic now explains that YouTube is still processing the recording and to try again later
+
 ### Security
 - Updated dependencies (OpenSSL, ratatui, crossterm and others) to resolve known security advisories reported by Dependabot
 - The Windows install script now verifies the SHA256 checksum of the downloaded binary before running it, and removes the "downloaded from the internet" mark only after verification succeeds

@@ -26,6 +26,9 @@ Versionado: [Semantic Versioning](https://semver.org/)
 - Nuevo ajuste opcional "SponsorBlock (YouTube)" que salta automáticamente las secciones sin música usando la base de datos comunitaria (desactivado por defecto)
 - Nuevo ajuste "Radio (YouTube)", activado por defecto: cuando la lista en reproducción se termina, continúa automáticamente con un mix de canciones similares
 
+### Corregido
+- Los videos de transmisiones en vivo recién finalizadas ya no se quedan en un ciclo infinito de reintentos; Reverbic ahora explica que YouTube todavía está procesando la grabación y que se intente más tarde
+
 ### Seguridad
 - Se actualizaron dependencias (OpenSSL, ratatui, crossterm y otras) para corregir vulnerabilidades conocidas reportadas por Dependabot
 - El instalador de Windows ahora verifica el hash SHA256 del binario descargado antes de ejecutarlo, y solo retira la marca de "descargado de internet" tras una verificación exitosa
