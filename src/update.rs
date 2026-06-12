@@ -325,12 +325,12 @@ fn apply_update_in_place(new_exe: &Path) {
     let old_name = format!("{}.old", file_name.to_string_lossy());
     let old = current.with_file_name(old_name);
 
-    if std::fs::rename(&current, &old).is_ok() {
-        if std::fs::rename(new_exe, &current).is_err() && std::fs::copy(new_exe, &current).is_err()
-        {
-            // Restore backup if both rename and copy failed
-            let _ = std::fs::rename(&old, &current);
-        }
+    if std::fs::rename(&current, &old).is_ok()
+        && std::fs::rename(new_exe, &current).is_err()
+        && std::fs::copy(new_exe, &current).is_err()
+    {
+        // Restore backup if both rename and copy failed
+        let _ = std::fs::rename(&old, &current);
     }
 
     // Always attempt to clean up the temporary file (harmless if rename succeeded and moved it)
