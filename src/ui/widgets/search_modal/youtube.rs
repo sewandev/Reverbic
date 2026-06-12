@@ -95,6 +95,18 @@ impl<'a> SearchModalWidget<'a> {
                 Style::default().fg(self.palette.dim)
             }
         };
+        let library_tab_style = |active: bool| {
+            if !self.youtube_cookies_configured {
+                let st = Style::default().fg(self.palette.muted);
+                if active {
+                    st.add_modifier(Modifier::BOLD)
+                } else {
+                    st
+                }
+            } else {
+                tab_style(active)
+            }
+        };
 
         let line = Line::from(vec![
             Span::styled(
@@ -104,12 +116,12 @@ impl<'a> SearchModalWidget<'a> {
             Span::raw("  "),
             Span::styled(
                 t("modal.youtube.subtab.liked"),
-                tab_style(self.youtube_sub_tab == YoutubeSubTab::Liked),
+                library_tab_style(self.youtube_sub_tab == YoutubeSubTab::Liked),
             ),
             Span::raw("  "),
             Span::styled(
                 t("modal.youtube.subtab.playlists"),
-                tab_style(self.youtube_sub_tab == YoutubeSubTab::Playlists),
+                library_tab_style(self.youtube_sub_tab == YoutubeSubTab::Playlists),
             ),
         ]);
 
@@ -167,14 +179,7 @@ impl<'a> SearchModalWidget<'a> {
 
     fn render_youtube_liked_body(&self, area: Rect, list_x: u16, list_w: u16, buf: &mut Buffer) {
         if !self.youtube_cookies_configured {
-            self.render_youtube_message(
-                area,
-                list_x,
-                list_w,
-                &t("modal.youtube.library_requires_cookies"),
-                self.palette.muted,
-                buf,
-            );
+            self.render_youtube_auth_notice(area, buf);
             return;
         }
 
@@ -206,14 +211,7 @@ impl<'a> SearchModalWidget<'a> {
         }
 
         if !self.youtube_cookies_configured {
-            self.render_youtube_message(
-                area,
-                list_x,
-                list_w,
-                &t("modal.youtube.library_requires_cookies"),
-                self.palette.muted,
-                buf,
-            );
+            self.render_youtube_auth_notice(area, buf);
             return;
         }
 
@@ -406,6 +404,71 @@ impl<'a> SearchModalWidget<'a> {
 
         if state.videos.len() > visible_n {
             self.render_scrollbar(list_area, state.videos.len(), state.selected, buf);
+        }
+    }
+
+    fn render_youtube_auth_notice(&self, area: Rect, buf: &mut Buffer) {
+        use ratatui::widgets::{Block, BorderType, Borders, Clear};
+
+        let box_w = area.width.saturating_sub(4).min(70);
+        let box_h = 13.min(area.height);
+        if box_w < 20 || box_h < 6 {
+            return;
+        }
+        let box_x = area.x + (area.width - box_w) / 2;
+        let box_y = area.y + (area.height.saturating_sub(box_h)) / 2;
+        let box_area = Rect::new(box_x, box_y, box_w, box_h);
+
+        Clear.render(box_area, buf);
+        Block::default()
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
+            .border_style(Style::default().fg(self.palette.warning))
+            .style(Style::default().bg(self.palette.panel_bg))
+            .render(box_area, buf);
+
+        let inner_x = box_x + 2;
+        let inner_w = box_w.saturating_sub(4);
+        let mut y = box_y + 1;
+
+        Paragraph::new(Span::styled(
+            t("modal.youtube.auth_notice.title"),
+            Style::default()
+                .fg(self.palette.warning)
+                .add_modifier(Modifier::BOLD),
+        ))
+        .alignment(Alignment::Center)
+        .render(Rect::new(inner_x, y, inner_w, 1), buf);
+        y += 2;
+
+        Paragraph::new(Span::styled(
+            t("modal.youtube.auth_notice.body"),
+            Style::default().fg(self.palette.highlight),
+        ))
+        .wrap(Wrap { trim: true })
+        .render(Rect::new(inner_x, y, inner_w, 3), buf);
+        y += 4;
+
+        Paragraph::new(Span::styled(
+            t("modal.youtube.auth_notice.risk"),
+            Style::default().fg(self.palette.caution),
+        ))
+        .wrap(Wrap { trim: true })
+        .render(Rect::new(inner_x, y, inner_w, 2), buf);
+        y += 3;
+
+        if y < box_y + box_h - 1 {
+            Paragraph::new(Span::styled(
+                t("modal.youtube.auth_notice.guide"),
+                Style::default()
+                    .fg(self.palette.accent)
+                    .add_modifier(Modifier::BOLD),
+            ))
+            .wrap(Wrap { trim: true })
+            .render(
+                Rect::new(inner_x, y, inner_w, (box_y + box_h - 1).saturating_sub(y)),
+                buf,
+            );
         }
     }
 
