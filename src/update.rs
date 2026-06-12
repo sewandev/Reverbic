@@ -300,13 +300,13 @@ pub fn apply_update(new_exe: &Path) {
         }
     }
 
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(unix)]
     {
         apply_update_in_place(new_exe);
     }
 }
 
-#[cfg(not(target_os = "windows"))]
+#[cfg(unix)]
 fn apply_update_in_place(new_exe: &Path) {
     let Ok(current) = std::env::current_exe() else {
         return;
@@ -316,22 +316,25 @@ fn apply_update_in_place(new_exe: &Path) {
     };
 
     use std::os::unix::fs::PermissionsExt;
-    if let Ok(metadata) = std::fs::metadata(&current) {
-        let mut perms = metadata.permissions();
-        perms.set_mode(perms.mode() | 0o111);
-        let _ = std::fs::set_permissions(new_exe, perms);
-    }
+    let mut perms = std::fs::metadata(&current)
+        .map(|m| m.permissions())
+        .unwrap_or_else(|_| std::fs::Permissions::from_mode(0o755));
+    perms.set_mode(perms.mode() | 0o111);
+    let _ = std::fs::set_permissions(new_exe, perms);
 
     let old_name = format!("{}.old", file_name.to_string_lossy());
     let old = current.with_file_name(old_name);
+
     if std::fs::rename(&current, &old).is_ok() {
         if std::fs::rename(new_exe, &current).is_err() && std::fs::copy(new_exe, &current).is_err()
         {
+            // Restore backup if both rename and copy failed
             let _ = std::fs::rename(&old, &current);
-        } else {
-            let _ = std::fs::remove_file(new_exe);
         }
     }
+
+    // Always attempt to clean up the temporary file (harmless if rename succeeded and moved it)
+    let _ = std::fs::remove_file(new_exe);
 }
 
 #[cfg(target_os = "windows")]
