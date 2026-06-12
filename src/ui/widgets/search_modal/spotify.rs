@@ -180,24 +180,32 @@ impl<'a> SearchModalWidget<'a> {
 
         let active_device =
             active_spotify_device(self.spotify_devices, self.spotify_active_device_id);
-        let mode_text =
-            if self.spotify_playback_mode_kind == crate::config::SpotifyPlaybackMode::Native {
-                t("modal.spotify.footer.mode_native")
-            } else {
-                let dev_name = active_device
-                    .map(|d| d.name.clone())
-                    .unwrap_or_else(|| t("modal.spotify.footer.unknown_device"));
-                let dev_type = active_device.map(|d| d.device_type.as_str()).unwrap_or("");
-                let switch_hint = if self.spotify_devices.len() > 1 {
-                    t("modal.spotify.footer.mode_remote_switch_hint")
+        let mode_text = match self.spotify_playback_mode_kind {
+            crate::config::SpotifyPlaybackMode::Native => t("modal.spotify.footer.mode_native"),
+            mode_kind => {
+                let mode = if mode_kind == crate::config::SpotifyPlaybackMode::Auto {
+                    t("modal.spotify.footer.mode_auto")
                 } else {
-                    String::new()
+                    t("modal.spotify.footer.mode_remote")
                 };
-                let mode = t("modal.spotify.footer.mode_remote");
-                let active = t("modal.spotify.footer.active");
-
-                format!("{mode} {dev_name} * {dev_type} [{active}]{switch_hint}")
-            };
+                match active_device {
+                    Some(device) => {
+                        let switch_hint = if self.spotify_devices.len() > 1 {
+                            t("modal.spotify.footer.mode_remote_switch_hint")
+                        } else {
+                            String::new()
+                        };
+                        let listening = t("modal.spotify.footer.listening_on");
+                        let active = t("modal.spotify.footer.active");
+                        format!(
+                            "{mode} {listening} {} * {} [{active}]{switch_hint}",
+                            device.name, device.device_type
+                        )
+                    }
+                    None => format!("{mode} — {}", t("modal.spotify.footer.no_device")),
+                }
+            }
+        };
 
         let footer_area = Rect::new(text_x, layout.footer.y, text_w, 1);
         let mode_style = Style::default()
