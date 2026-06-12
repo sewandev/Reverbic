@@ -1,11 +1,18 @@
 [package]
-name    = "reverbic"
-version = "1.5.1"
-edition = "2021"
+name        = "reverbic"
+version     = "1.5.2"
+edition     = "2021"
+description = "Terminal player for radio, Spotify and YouTube with gaming overlay and Discord Rich Presence"
+repository  = "https://github.com/sewandev/Reverbic"
+license     = "MIT"
+authors     = ["Esteban Jaramillo"]
+readme      = "README.md"
+keywords    = ["radio", "spotify", "youtube", "terminal", "tui"]
+categories  = ["command-line-utilities", "multimedia::audio"]
 
 [dependencies]
-ratatui            = "0.29"
-crossterm          = { version = "0.28", features = ["event-stream"] }
+ratatui            = "0.30"
+crossterm          = { version = "0.29", features = ["event-stream"] }
 tokio              = { version = "1",    features = ["full"] }
 reqwest            = { version = "0.12", features = ["stream", "json"] }
 rodio              = { version = "0.22", default-features = false, features = ["symphonia-all", "playback"] }
@@ -19,9 +26,11 @@ image              = { version = "0.25", default-features = false, features = ["
 serde              = { version = "1", features = ["derive"] }
 serde_json         = "1"
 chrono             = "0.4"
-sha2               = "0.10"
-rand               = { version = "0.8", default-features = false, features = ["std", "std_rng"] }
+sha2               = "0.11"
+rand               = { version = "0.9", default-features = false, features = ["std", "std_rng"] }
 base64             = "0.21"
+dunce              = "1"
+zip                = { version = "2", default-features = false, features = ["deflate"] }
 librespot-core     = { version = "0.8", default-features = false, features = ["rustls-tls-native-roots"] }
 librespot-playback = { version = "0.8", default-features = false, features = ["rodio-backend", "rustls-tls-native-roots"] }
 librespot-audio    = { version = "0.8", default-features = false, features = ["rustls-tls-native-roots"] }

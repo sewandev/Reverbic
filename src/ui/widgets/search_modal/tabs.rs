@@ -28,31 +28,65 @@ impl<'a> SearchModalWidget<'a> {
             .fg(self.palette.spotify)
             .add_modifier(Modifier::BOLD);
         let youtube_active = Style::default()
-            .fg(self.palette.danger)
+            .fg(self.palette.youtube)
             .add_modifier(Modifier::BOLD);
         let inactive = Style::default().fg(self.palette.muted);
 
-        let radio_st = match self.mode {
-            SearchMode::Name | SearchMode::Genre | SearchMode::Country => radio_active,
-            _ => inactive,
+        let radio_is_active = matches!(
+            self.mode,
+            SearchMode::Name | SearchMode::Genre | SearchMode::Country
+        );
+        let spotify_is_active = matches!(self.mode, SearchMode::Spotify);
+        let youtube_is_active = matches!(self.mode, SearchMode::Youtube);
+
+        let radio_st = if radio_is_active {
+            radio_active
+        } else {
+            inactive
         };
-        let spotify_st = match self.mode {
-            SearchMode::Spotify => spotify_active,
-            _ => inactive,
+        let spotify_st = if spotify_is_active {
+            spotify_active
+        } else {
+            inactive
         };
-        let youtube_st = match self.mode {
-            SearchMode::Youtube => youtube_active,
-            _ => inactive,
+        let youtube_st = if youtube_is_active {
+            youtube_active
+        } else {
+            inactive
         };
 
-        Paragraph::new(Line::from(vec![
-            Span::styled(t("modal.tab.radio"), radio_st),
-            Span::styled("  ", Style::default()),
-            Span::styled(t("modal.tab.spotify"), spotify_st),
-            Span::styled("  ", Style::default()),
-            Span::styled(t("modal.tab.youtube"), youtube_st),
-        ]))
-        .render(tab_area, buf);
+        let mut spans: Vec<Span<'static>> = Vec::new();
+        let tabs = [
+            (self.tab_dots.radio, t("modal.tab.radio"), radio_st),
+            (self.tab_dots.spotify, t("modal.tab.spotify"), spotify_st),
+            (self.tab_dots.youtube, t("modal.tab.youtube"), youtube_st),
+        ];
+        for (i, (dot, label, style)) in tabs.into_iter().enumerate() {
+            if i > 0 {
+                spans.push(Span::styled("  ", Style::default()));
+            }
+            if let Some(dot) = dot {
+                use crate::app::TabDot;
+                let (color, pulsing) = match dot {
+                    TabDot::Playing => (self.palette.status_ok, true),
+                    TabDot::Paused => (self.palette.status_ok, false),
+                    TabDot::Warning => (self.palette.warning, true),
+                    TabDot::Danger => (self.palette.danger, true),
+                };
+                let dot_color = if pulsing {
+                    crate::ui::theme::status_pulse(color, self.border_tick)
+                } else {
+                    color
+                };
+                spans.push(Span::styled(
+                    "\u{25CF} ",
+                    Style::default().fg(dot_color).add_modifier(Modifier::BOLD),
+                ));
+            }
+            spans.push(Span::styled(label, style));
+        }
+
+        Paragraph::new(Line::from(spans)).render(tab_area, buf);
     }
 
     pub(super) fn render_name_body(
@@ -72,6 +106,9 @@ impl<'a> SearchModalWidget<'a> {
             RadioSubTab::Search => self.render_name_search(layout.body, content_x, content_w, buf),
             RadioSubTab::Favorites => {
                 self.render_favorites_body(layout.body, content_x, content_w, buf)
+            }
+            RadioSubTab::Playlists => {
+                self.render_playlists_body(layout.body, content_x, content_w, buf)
             }
         }
     }
@@ -138,9 +175,10 @@ impl<'a> SearchModalWidget<'a> {
             .add_modifier(Modifier::BOLD);
         let inactive = Style::default().fg(self.palette.dim);
 
-        let (search_st, fav_st) = match self.radio_sub_tab {
-            RadioSubTab::Search => (active, inactive),
-            RadioSubTab::Favorites => (inactive, active),
+        let (search_st, fav_st, pl_st) = match self.radio_sub_tab {
+            RadioSubTab::Search => (active, inactive, inactive),
+            RadioSubTab::Favorites => (inactive, active, inactive),
+            RadioSubTab::Playlists => (inactive, inactive, active),
         };
 
         Paragraph::new(Line::from(vec![
@@ -153,6 +191,15 @@ impl<'a> SearchModalWidget<'a> {
                     self.favorites.len()
                 ),
                 fav_st,
+            ),
+            Span::styled("  ", Style::default()),
+            Span::styled(
+                format!(
+                    "[ {} ({}) ]",
+                    t("modal.radio.subtab.playlists.label"),
+                    self.playlists.len()
+                ),
+                pl_st,
             ),
         ]))
         .render(Rect::new(text_x, area.y, text_w, 1), buf);
@@ -189,69 +236,13 @@ impl<'a> SearchModalWidget<'a> {
             .skip(offset)
             .take(visible_n)
             .map(|(i, fav)| {
-                let active = i == self.radio_fav_selected;
-                let is_playing = self.playing_favorite_index == Some(i);
-                let (prefix, name_st, star_st, meta_st) = if active {
-                    (
-                        "▶  ",
-                        Style::default()
-                            .fg(self.palette.playing)
-                            .add_modifier(Modifier::BOLD),
-                        Style::default()
-                            .fg(self.palette.playing)
-                            .add_modifier(Modifier::BOLD),
-                        Style::default().fg(self.palette.playing),
-                    )
-                } else if is_playing {
-                    (
-                        "   ",
-                        Style::default().fg(self.palette.playing),
-                        Style::default().fg(self.palette.accent),
-                        Style::default().fg(self.palette.muted),
-                    )
-                } else {
-                    (
-                        "   ",
-                        Style::default().fg(self.palette.highlight),
-                        Style::default().fg(self.palette.accent),
-                        Style::default().fg(self.palette.muted),
-                    )
-                };
-                let display_name = strings::title_case(&fav.name);
-                let mut meta_parts: Vec<String> = Vec::new();
-                if !fav.country.is_empty() {
-                    meta_parts.push(strings::title_case(&fav.country));
-                }
-                if let Some(tag) = fav.tags.first() {
-                    if !tag.is_empty() {
-                        meta_parts.push(strings::title_case(tag));
-                    }
-                }
-                if !fav.homepage.is_empty() {
-                    meta_parts.push(fav.homepage.clone());
-                }
-
-                let name_w = items_w.saturating_sub(5) as usize;
-                let name_truncated = strings::truncate(&display_name, name_w);
-
-                if meta_parts.is_empty() {
-                    ListItem::new(Line::from(vec![
-                        Span::styled(prefix, name_st),
-                        Span::styled("★ ", star_st),
-                        Span::styled(name_truncated.to_string(), name_st),
-                    ]))
-                } else {
-                    let meta_str = format!("  ·  {}", meta_parts.join("  ·  "));
-                    let avail_w =
-                        items_w.saturating_sub(5 + name_truncated.chars().count() as u16) as usize;
-                    let meta_trunc = strings::truncate(&meta_str, avail_w);
-                    ListItem::new(Line::from(vec![
-                        Span::styled(prefix, name_st),
-                        Span::styled("★ ", star_st),
-                        Span::styled(name_truncated.to_string(), name_st),
-                        Span::styled(meta_trunc.to_string(), meta_st),
-                    ]))
-                }
+                self.station_list_item(
+                    fav,
+                    i == self.radio_fav_selected,
+                    self.playing_favorite_index == Some(i),
+                    "★ ",
+                    items_w,
+                )
             })
             .collect();
 
@@ -262,6 +253,230 @@ impl<'a> SearchModalWidget<'a> {
                 items_area,
                 self.favorites.len(),
                 self.radio_fav_selected,
+                buf,
+            );
+        }
+    }
+
+    fn station_list_item(
+        &self,
+        station: &crate::favorites::FavoriteStation,
+        active: bool,
+        is_playing: bool,
+        icon: &str,
+        items_w: u16,
+    ) -> ListItem<'static> {
+        let (prefix, name_st, star_st, meta_st) = if active {
+            (
+                "▶  ",
+                Style::default()
+                    .fg(self.palette.playing)
+                    .add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(self.palette.playing)
+                    .add_modifier(Modifier::BOLD),
+                Style::default().fg(self.palette.playing),
+            )
+        } else if is_playing {
+            (
+                "   ",
+                Style::default().fg(self.palette.playing),
+                Style::default().fg(self.palette.accent),
+                Style::default().fg(self.palette.muted),
+            )
+        } else {
+            (
+                "   ",
+                Style::default().fg(self.palette.highlight),
+                Style::default().fg(self.palette.accent),
+                Style::default().fg(self.palette.muted),
+            )
+        };
+        let display_name = strings::title_case(&station.name);
+        let mut meta_parts: Vec<String> = Vec::new();
+        if !station.country.is_empty() {
+            meta_parts.push(strings::title_case(&station.country));
+        }
+        if let Some(tag) = station.tags.first() {
+            if !tag.is_empty() {
+                meta_parts.push(strings::title_case(tag));
+            }
+        }
+        if !station.homepage.is_empty() {
+            meta_parts.push(station.homepage.clone());
+        }
+
+        let name_w = items_w.saturating_sub(5) as usize;
+        let name_truncated = strings::truncate(&display_name, name_w);
+
+        if meta_parts.is_empty() {
+            ListItem::new(Line::from(vec![
+                Span::styled(prefix, name_st),
+                Span::styled(icon.to_string(), star_st),
+                Span::styled(name_truncated.to_string(), name_st),
+            ]))
+        } else {
+            let meta_str = format!("  ·  {}", meta_parts.join("  ·  "));
+            let avail_w =
+                items_w.saturating_sub(5 + name_truncated.chars().count() as u16) as usize;
+            let meta_trunc = strings::truncate(&meta_str, avail_w);
+            ListItem::new(Line::from(vec![
+                Span::styled(prefix, name_st),
+                Span::styled(icon.to_string(), star_st),
+                Span::styled(name_truncated.to_string(), name_st),
+                Span::styled(meta_trunc.to_string(), meta_st),
+            ]))
+        }
+    }
+
+    fn render_playlists_body(&self, area: Rect, content_x: u16, content_w: u16, buf: &mut Buffer) {
+        let text_x = content_x + 2;
+        let text_w = content_w.saturating_sub(2);
+        let list_area = radio_favorites_list_layout(area);
+
+        if let Some(pl_idx) = self.radio_open_playlist {
+            let Some(playlist) = self.playlists.get(pl_idx) else {
+                return;
+            };
+            let layout = header_list_layout(list_area);
+
+            Paragraph::new(Line::from(vec![
+                Span::styled("« ", Style::default().fg(self.palette.muted)),
+                Span::styled(
+                    strings::title_case(&playlist.name),
+                    Style::default()
+                        .fg(self.palette.radio_accent)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(
+                    format!(
+                        "  ·  {} {}",
+                        playlist.stations.len(),
+                        t("modal.playlists.stations_label")
+                    ),
+                    Style::default().fg(self.palette.muted),
+                ),
+            ]))
+            .render(Rect::new(text_x, layout.header.y, text_w, 1), buf);
+
+            if playlist.stations.is_empty() {
+                Paragraph::new(Span::styled(
+                    t("modal.playlists.empty_stations"),
+                    Style::default().fg(self.palette.muted),
+                ))
+                .render(Rect::new(text_x, layout.list.y, text_w, 1), buf);
+                return;
+            }
+
+            let visible_n = layout.list.height as usize;
+            let needs_scroll = playlist.stations.len() > visible_n;
+            let items_w = text_w.saturating_sub(if needs_scroll { 1 } else { 0 });
+            let items_area = Rect::new(text_x, layout.list.y, items_w, layout.list.height);
+            let offset = scroll_offset_for_selection(
+                self.radio_playlist_station_selected,
+                visible_n,
+                self.radio_playlist_station_scroll_offset,
+            );
+
+            let items: Vec<ListItem> = playlist
+                .stations
+                .iter()
+                .enumerate()
+                .skip(offset)
+                .take(visible_n)
+                .map(|(i, station)| {
+                    self.station_list_item(
+                        station,
+                        i == self.radio_playlist_station_selected,
+                        self.playing_playlist_station_index == Some(i),
+                        "♪ ",
+                        items_w,
+                    )
+                })
+                .collect();
+
+            List::new(items).render(items_area, buf);
+
+            if needs_scroll {
+                self.render_scrollbar(
+                    items_area,
+                    playlist.stations.len(),
+                    self.radio_playlist_station_selected,
+                    buf,
+                );
+            }
+            return;
+        }
+
+        if self.playlists.is_empty() {
+            Paragraph::new(Span::styled(
+                t("modal.playlists.empty"),
+                Style::default().fg(self.palette.muted),
+            ))
+            .render(Rect::new(text_x, list_area.y, text_w, 1), buf);
+            return;
+        }
+
+        let visible_n = list_area.height as usize;
+        let needs_scroll = self.playlists.len() > visible_n;
+        let items_w = text_w.saturating_sub(if needs_scroll { 1 } else { 0 });
+        let items_area = Rect::new(text_x, list_area.y, items_w, list_area.height);
+        let offset = scroll_offset_for_selection(
+            self.radio_playlist_selected,
+            visible_n,
+            self.radio_playlist_scroll_offset,
+        );
+
+        let items: Vec<ListItem> = self
+            .playlists
+            .iter()
+            .enumerate()
+            .skip(offset)
+            .take(visible_n)
+            .map(|(i, playlist)| {
+                let active = i == self.radio_playlist_selected;
+                let (prefix, name_st, meta_st) = if active {
+                    (
+                        "▶  ",
+                        Style::default()
+                            .fg(self.palette.playing)
+                            .add_modifier(Modifier::BOLD),
+                        Style::default().fg(self.palette.playing),
+                    )
+                } else {
+                    (
+                        "   ",
+                        Style::default().fg(self.palette.highlight),
+                        Style::default().fg(self.palette.muted),
+                    )
+                };
+                let display_name = strings::title_case(&playlist.name);
+                let name_w = items_w.saturating_sub(5) as usize;
+                let name_truncated = strings::truncate(&display_name, name_w);
+                let meta_str = format!(
+                    "  ·  {} {}",
+                    playlist.stations.len(),
+                    t("modal.playlists.stations_label")
+                );
+                let avail_w =
+                    items_w.saturating_sub(5 + name_truncated.chars().count() as u16) as usize;
+                let meta_trunc = strings::truncate(&meta_str, avail_w);
+                ListItem::new(Line::from(vec![
+                    Span::styled(prefix, name_st),
+                    Span::styled("♪ ", Style::default().fg(self.palette.accent)),
+                    Span::styled(name_truncated.to_string(), name_st),
+                    Span::styled(meta_trunc.to_string(), meta_st),
+                ]))
+            })
+            .collect();
+
+        List::new(items).render(items_area, buf);
+
+        if needs_scroll {
+            self.render_scrollbar(
+                items_area,
+                self.playlists.len(),
+                self.radio_playlist_selected,
                 buf,
             );
         }
@@ -502,7 +717,7 @@ impl<'a> SearchModalWidget<'a> {
             } else if row == thumb {
                 let color = match self.mode {
                     crate::app::SearchMode::Spotify => self.palette.spotify,
-                    crate::app::SearchMode::Youtube => self.palette.danger,
+                    crate::app::SearchMode::Youtube => self.palette.youtube,
                     _ => self.palette.accent,
                 };
                 ("┃", color)

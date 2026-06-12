@@ -27,8 +27,9 @@ pub fn crossfade_display(secs: u8) -> String {
     match secs {
         0 => t("crossfade.off"),
         1 => t("crossfade.1s"),
-        2 => t("crossfade.2s"),
-        _ => t("crossfade.3s"),
+        3 => t("crossfade.3s"),
+        5 => t("crossfade.5s"),
+        _ => t("crossfade.7s"),
     }
 }
 

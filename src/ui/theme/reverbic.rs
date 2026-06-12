@@ -25,6 +25,8 @@ pub const PALETTE: Palette = Palette {
     warning: Color::Yellow,
     buffering: Color::Rgb(80, 80, 80),
     spotify: Color::Rgb(30, 215, 96),
+    youtube: Color::Rgb(255, 0, 0),
+    status_ok: Color::Rgb(57, 255, 20),
     caution: Color::Rgb(180, 130, 30),
     panel_bg: Color::Rgb(13, 13, 13),
     overlay_color: Color::Rgb(5, 5, 5),

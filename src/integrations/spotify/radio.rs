@@ -49,7 +49,7 @@ pub async fn fetch_radio_pool(
 
     tracks.retain(|t| t.uri != seed_uri && !recently_played.contains(&t.uri));
 
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     tracks.shuffle(&mut rng);
 
     Ok(tracks)

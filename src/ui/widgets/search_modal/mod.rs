@@ -13,19 +13,24 @@ use crate::ui::theme::{self, Palette};
 
 use helpers::{key, sep_s};
 pub(crate) use layout::{
-    filter_list_layout, header_list_layout, modal_content_area, modal_layout, modal_rect,
-    modal_tab_at, one_line_list_index_at, radio_favorites_list_area, radio_favorites_list_layout,
-    radio_filter_list_area, radio_filtered_results_list_area, radio_name_layout,
+    auth_notice_box, filter_list_layout, header_list_layout, modal_content_area, modal_layout,
+    modal_rect, modal_tab_at, one_line_list_index_at, radio_favorites_list_area,
+    radio_favorites_list_layout, radio_filter_list_area, radio_filtered_results_list_area,
+    radio_name_layout, radio_playlist_stations_list_area, radio_playlists_list_area,
     radio_search_results_list_area, radio_subtab_at, settings_items_area, settings_layout,
-    settings_visible_rows, spotify_body_area, spotify_layout, spotify_search_layout,
-    spotify_search_list_area, spotify_subtab_at, spotify_titled_track_list_area,
-    spotify_titled_track_list_layout, two_line_list_index_at, visible_items,
-    visible_rows_excluding_scrollbar, youtube_list_area, ListItemHeight,
+    settings_visible_rows, spotify_auth_notice_at, spotify_body_area, spotify_layout,
+    spotify_no_device_notice_at, spotify_search_layout, spotify_search_list_area,
+    spotify_subtab_at, spotify_titled_track_list_area, spotify_titled_track_list_layout,
+    two_line_list_index_at, visible_items, visible_rows_excluding_scrollbar,
+    youtube_auth_notice_at, youtube_layout, youtube_liked_list_area,
+    youtube_playlist_videos_list_area, youtube_playlists_list_area, youtube_search_layout,
+    youtube_search_list_area, youtube_subtab_at, ListItemHeight,
 };
 pub(in crate::ui) use layout::{MODAL_MIN_HEIGHT, MODAL_MIN_WIDTH};
 
 mod helpers;
 mod layout;
+mod notice_panel;
 mod settings;
 mod spotify;
 mod tabs;
@@ -52,6 +57,9 @@ pub struct SearchModalWidget<'a> {
     pub overlay_style: String,
     pub overlay_position: String,
     pub crossfade: String,
+    pub youtube_crossfade: String,
+    pub youtube_radio_mode: bool,
+    pub youtube_sponsorblock: bool,
     pub media_keys: bool,
     pub tray_icon: bool,
     pub notifications: bool,
@@ -73,6 +81,8 @@ pub struct SearchModalWidget<'a> {
     pub spotify_is_premium: Option<bool>,
     pub spotify_devices: &'a [crate::integrations::spotify::devices::SpotifyDevice],
     pub spotify_active_device_id: Option<&'a str>,
+    pub spotify_remote_blocked: bool,
+    pub spotify_devices_loading: bool,
     pub spotify_stop_on_quit: bool,
     pub spotify_start_on_spotify: bool,
     pub spotify_playback_mode: String,
@@ -119,10 +129,37 @@ pub struct SearchModalWidget<'a> {
     pub youtube_loading: bool,
     pub youtube_selected: usize,
     pub youtube_scroll_offset: usize,
+    pub youtube_cookies_configured: bool,
+    pub youtube_session_health: Option<bool>,
+    pub youtube_validating: bool,
+    pub youtube_sub_tab: crate::app::YoutubeSubTab,
+    pub youtube_bookmarks: &'a [crate::integrations::youtube::YoutubeVideo],
+    pub youtube_bookmarks_selected: usize,
+    pub youtube_bookmarks_scroll_offset: usize,
+    pub youtube_liked_videos: &'a [crate::integrations::youtube::YoutubeVideo],
+    pub youtube_liked_selected: usize,
+    pub youtube_liked_scroll_offset: usize,
+    pub youtube_liked_loading: bool,
+    pub youtube_playlists: &'a [crate::integrations::youtube::YoutubePlaylist],
+    pub youtube_playlists_selected: usize,
+    pub youtube_playlists_scroll_offset: usize,
+    pub youtube_playlists_loading: bool,
+    pub youtube_open_playlist: Option<&'a crate::integrations::youtube::YoutubePlaylist>,
+    pub youtube_playlist_videos: &'a [crate::integrations::youtube::YoutubeVideo],
+    pub youtube_playlist_videos_selected: usize,
+    pub youtube_playlist_videos_scroll_offset: usize,
+    pub youtube_playlist_videos_loading: bool,
     pub radio_sub_tab: crate::app::RadioSubTab,
     pub favorites: &'a [crate::favorites::FavoriteStation],
     pub radio_fav_selected: usize,
     pub radio_fav_scroll_offset: usize,
+    pub playlists: &'a [crate::playlists::RadioPlaylist],
+    pub radio_playlist_selected: usize,
+    pub radio_playlist_scroll_offset: usize,
+    pub radio_open_playlist: Option<usize>,
+    pub radio_playlist_station_selected: usize,
+    pub radio_playlist_station_scroll_offset: usize,
+    pub playing_playlist_station_index: Option<usize>,
     pub radio_search_scroll_offset: usize,
     pub radio_genre_results_scroll_offset: usize,
     pub radio_country_results_scroll_offset: usize,
@@ -130,6 +167,8 @@ pub struct SearchModalWidget<'a> {
     pub auto_update: bool,
     pub discord_rpc: bool,
     pub save_notice: Option<String>,
+    pub save_notice_severity: crate::app::NoticeSeverity,
+    pub tab_dots: crate::app::TabDots,
     pub border_tick: u32,
 }
 
@@ -207,6 +246,9 @@ impl<'a> SearchModalWidget<'a> {
             overlay_style: app.config.overlay_style.display(),
             overlay_position: app.config.overlay_position.display(),
             crossfade: app.config.crossfade_display(),
+            youtube_crossfade: app.config.youtube_crossfade_display(),
+            youtube_radio_mode: app.config.youtube_radio_mode,
+            youtube_sponsorblock: app.config.youtube_sponsorblock,
             media_keys: app.config.media_keys,
             tray_icon: app.config.tray_icon,
             notifications: app.config.notifications,
@@ -228,6 +270,10 @@ impl<'a> SearchModalWidget<'a> {
             spotify_is_premium: sp.is_premium,
             spotify_devices: &sp.devices,
             spotify_active_device_id: sp.active_device_id.as_deref(),
+            spotify_remote_blocked: app.config.spotify.playback_mode
+                == crate::config::SpotifyPlaybackMode::Remote
+                && sp.active_device_id.is_none(),
+            spotify_devices_loading: sp.devices_loading,
             spotify_stop_on_quit: app.config.spotify.stop_on_quit,
             spotify_start_on_spotify: app.config.spotify.start_on_spotify,
             spotify_playback_mode: app.config.spotify.playback_mode.display(),
@@ -280,10 +326,45 @@ impl<'a> SearchModalWidget<'a> {
             youtube_loading: yt.loading,
             youtube_selected: yt.selected,
             youtube_scroll_offset: yt.scroll_offset,
+            youtube_cookies_configured: app.config.youtube.cookies_path.is_some(),
+            youtube_session_health: yt.session_health,
+            youtube_validating: yt.validating(),
+            youtube_sub_tab: yt.sub_tab,
+            youtube_bookmarks: &yt.bookmarks,
+            youtube_bookmarks_selected: yt.bookmarks_selected,
+            youtube_bookmarks_scroll_offset: yt.bookmarks_scroll_offset,
+            youtube_liked_videos: &yt.liked_videos,
+            youtube_liked_selected: yt.liked_selected,
+            youtube_liked_scroll_offset: yt.liked_scroll_offset,
+            youtube_liked_loading: yt.liked_loading,
+            youtube_playlists: &yt.playlists,
+            youtube_playlists_selected: yt.playlists_selected,
+            youtube_playlists_scroll_offset: yt.playlists_scroll_offset,
+            youtube_playlists_loading: yt.playlists_loading,
+            youtube_open_playlist: yt.open_playlist.as_ref(),
+            youtube_playlist_videos: &yt.playlist_videos,
+            youtube_playlist_videos_selected: yt.playlist_videos_selected,
+            youtube_playlist_videos_scroll_offset: yt.playlist_videos_scroll_offset,
+            youtube_playlist_videos_loading: yt.playlist_videos_loading,
             radio_sub_tab: app.radio_sub_tab,
             favorites: &app.favorites,
             radio_fav_selected: app.radio_fav_selected,
             radio_fav_scroll_offset: app.radio_fav_scroll_offset,
+            playlists: &app.playlists,
+            radio_playlist_selected: app.radio_playlist_selected,
+            radio_playlist_scroll_offset: app.radio_playlist_scroll_offset,
+            radio_open_playlist: app.radio_open_playlist,
+            radio_playlist_station_selected: app.radio_playlist_station_selected,
+            radio_playlist_station_scroll_offset: app.radio_playlist_station_scroll_offset,
+            playing_playlist_station_index: {
+                let state = app.player.state();
+                app.radio_open_playlist
+                    .and_then(|idx| app.playlists.get(idx))
+                    .zip(state.station.as_ref())
+                    .and_then(|(playlist, playing)| {
+                        playlist.stations.iter().position(|s| s.url == playing.url)
+                    })
+            },
             radio_search_scroll_offset: app.radio_search_scroll_offset,
             radio_genre_results_scroll_offset: app.radio_genre_results_scroll_offset,
             radio_country_results_scroll_offset: app.radio_country_results_scroll_offset,
@@ -297,6 +378,8 @@ impl<'a> SearchModalWidget<'a> {
             auto_update: app.config.auto_update,
             discord_rpc: app.config.discord_rpc,
             save_notice: app.save_notice.clone(),
+            save_notice_severity: app.save_notice_severity,
+            tab_dots: app.tab_dots(),
             border_tick: app.border_tick,
         }
     }
@@ -305,16 +388,21 @@ impl<'a> SearchModalWidget<'a> {
 impl SearchModalWidget<'_> {
     fn bottom_hint(&self) -> Vec<Span<'static>> {
         if let Some(ref notice) = self.save_notice {
+            let color = match self.save_notice_severity {
+                crate::app::NoticeSeverity::Error => self.palette.danger,
+                crate::app::NoticeSeverity::Warning => self.palette.warning,
+                crate::app::NoticeSeverity::Info => match self.mode {
+                    crate::app::SearchMode::Spotify => self.palette.spotify,
+                    crate::app::SearchMode::Youtube => self.palette.youtube,
+                    _ => self.palette.playing,
+                },
+            };
             return vec![
                 Span::raw("  "),
                 Span::styled(
                     notice.clone(),
                     ratatui::style::Style::default()
-                        .fg(match self.mode {
-                            crate::app::SearchMode::Spotify => self.palette.spotify,
-                            crate::app::SearchMode::Youtube => self.palette.danger,
-                            _ => self.palette.playing,
-                        })
+                        .fg(color)
                         .add_modifier(ratatui::style::Modifier::BOLD),
                 ),
                 Span::raw("  "),
@@ -330,9 +418,11 @@ impl SearchModalWidget<'_> {
                 Span::raw(" "),
                 key("[↵]"),
                 sep_s(format!(" {}  ", t("hint.play"))),
-                key("[Space]"),
-                sep_s(format!(" {}  ", t("hint.pause"))),
             ];
+            if matches!(self.mode, SearchMode::Genre | SearchMode::Country) {
+                spans.push(key("[Space]"));
+                spans.push(sep_s(format!(" {}  ", t("hint.pause"))));
+            }
             if matches!(self.mode, crate::app::SearchMode::Spotify) {
                 spans.push(key("[Alt+L]"));
                 spans.push(sep_s(format!(" {}  ", t("hint.like"))));
@@ -343,6 +433,13 @@ impl SearchModalWidget<'_> {
             } else {
                 spans.push(key("[Alt+F]"));
                 spans.push(sep_s(format!(" {}  ", t("hint.fav"))));
+                if matches!(
+                    self.mode,
+                    SearchMode::Name | SearchMode::Genre | SearchMode::Country
+                ) {
+                    spans.push(key("[Alt+P]"));
+                    spans.push(sep_s(format!(" {}  ", t("hint.playlist"))));
+                }
             }
             spans.extend(vec![
                 key("[↑↓]"),
@@ -373,8 +470,51 @@ impl SearchModalWidget<'_> {
                         sep_s(format!(" {}  ", t("hint.nav"))),
                         key("[Alt+F]"),
                         sep_s(format!(" {}  ", t("hint.fav"))),
+                        key("[Alt+P]"),
+                        sep_s(format!(" {}  ", t("hint.playlist"))),
                         key("[←→]"),
                         sep_s(format!(" {}  ", t("hint.tabs"))),
+                        key("[?]"),
+                        sep_s(format!(" {} ", t("hint.help"))),
+                    ];
+                }
+                if matches!(self.radio_sub_tab, RadioSubTab::Playlists) {
+                    if self.radio_open_playlist.is_some() {
+                        return vec![
+                            Span::raw(" "),
+                            key("[↵]"),
+                            sep_s(format!(" {}  ", t("hint.play"))),
+                            key("[↑↓]"),
+                            sep_s(format!(" {}  ", t("hint.nav"))),
+                            key("[Alt+F]"),
+                            sep_s(format!(" {}  ", t("hint.fav"))),
+                            key("[Esc]"),
+                            sep_s(format!(" {}  ", t("hint.back"))),
+                            key("[?]"),
+                            sep_s(format!(" {} ", t("hint.help"))),
+                        ];
+                    }
+                    if self.playlists.is_empty() {
+                        return vec![
+                            Span::raw(" "),
+                            key("[N]"),
+                            sep_s(format!(" {}  ", t("hint.new"))),
+                            key("[←→]"),
+                            sep_s(format!(" {}  ", t("hint.tabs"))),
+                            key("[?]"),
+                            sep_s(format!(" {} ", t("hint.help"))),
+                        ];
+                    }
+                    return vec![
+                        Span::raw(" "),
+                        key("[↵]"),
+                        sep_s(format!(" {}  ", t("hint.open"))),
+                        key("[N]"),
+                        sep_s(format!(" {}  ", t("hint.new"))),
+                        key("[R]"),
+                        sep_s(format!(" {}  ", t("hint.rename"))),
+                        key("[Alt+F]"),
+                        sep_s(format!(" {}  ", t("hint.fav"))),
                         key("[?]"),
                         sep_s(format!(" {} ", t("hint.help"))),
                     ];
@@ -433,12 +573,14 @@ impl SearchModalWidget<'_> {
                 Span::raw(" "),
                 key("[↵]"),
                 sep_s(format!(" {}  ", t("hint.play"))),
+                key("[Ctrl+R]"),
+                sep_s(format!(" {}  ", t("hint.mix"))),
+                key("[Alt+F]"),
+                sep_s(format!(" {}  ", t("hint.bookmark"))),
                 key("[↑↓]"),
                 sep_s(format!(" {}  ", t("hint.nav"))),
-                key("[Tab]"),
+                key("[←→]"),
                 sep_s(format!(" {}  ", t("hint.tabs"))),
-                key("[Esc]"),
-                sep_s(format!(" {}  ", t("hint.close"))),
                 key("[?]"),
                 sep_s(format!(" {} ", t("hint.help"))),
             ],

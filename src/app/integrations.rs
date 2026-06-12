@@ -255,6 +255,9 @@ impl App {
                     self.config.spotify.followers = followers;
                     self.config.save();
                     self.spotify.status = SpotifyAuthStatus::LoggedIn;
+                    if is_premium == Some(false) {
+                        self.notify_warning(crate::i18n::t("notice.spotify_not_premium"));
+                    }
                     if self.config.spotify.start_on_spotify {
                         self.modal_mode = SearchMode::Spotify;
                     }
@@ -320,9 +323,7 @@ impl App {
         self.spotify.native_error = Some(message.clone());
         if self.config.spotify.playback_mode == SpotifyPlaybackMode::Native {
             self.spotify.player_status = SpotifyPlayerStatus::Error(message.clone());
-            self.save_notice = Some(format!("Spotify: {message}"));
-            self.save_notice_is_dup = false;
-            self.notice_until = Some(std::time::Instant::now() + std::time::Duration::from_secs(8));
+            self.notify_error(format!("Spotify: {message}"));
         }
     }
 
@@ -427,10 +428,7 @@ impl App {
                     }
                     self.spotify.player_status = SpotifyPlayerStatus::Error(message.clone());
                     if self.config.spotify.playback_mode == SpotifyPlaybackMode::Native {
-                        self.save_notice = Some(format!("Spotify: {message}"));
-                        self.save_notice_is_dup = false;
-                        self.notice_until =
-                            Some(std::time::Instant::now() + std::time::Duration::from_secs(8));
+                        self.notify_error(format!("Spotify: {message}"));
                     }
                 }
             }
@@ -561,6 +559,7 @@ impl App {
         let (tx, rx) = std::sync::mpsc::channel();
         self.spotify.devices_rx = Some(rx);
         self.spotify.devices_loading = true;
+        self.spotify.devices_last_fetch = Some(std::time::Instant::now());
         let handle = tokio::spawn(async move {
             let result: Result<_, crate::integrations::spotify::SpotifyError> =
                 list_devices(&token).await;
@@ -569,14 +568,53 @@ impl App {
         self.spotify.devices_task = Some(handle);
     }
 
+    pub(super) fn spotify_remote_blocked(&self) -> bool {
+        self.config.spotify.playback_mode == SpotifyPlaybackMode::Remote
+            && matches!(
+                self.spotify.status,
+                super::modal::SpotifyAuthStatus::LoggedIn
+            )
+            && self.spotify.active_device_id.is_none()
+    }
+
+    pub fn ensure_spotify_device_rescan(&mut self) {
+        const RESCAN_INTERVAL: std::time::Duration = std::time::Duration::from_secs(10);
+        if !self.show_search_modal
+            || !matches!(self.modal_mode, crate::app::SearchMode::Spotify)
+            || !self.spotify_remote_blocked()
+            || self.spotify.devices_loading
+        {
+            return;
+        }
+        let due = self
+            .spotify
+            .devices_last_fetch
+            .is_none_or(|at| at.elapsed() >= RESCAN_INTERVAL);
+        if due {
+            self.fetch_spotify_devices();
+        }
+    }
+
     pub fn poll_spotify_devices(&mut self) {
         use crate::integrations::spotify::SpotifyError;
         if let Some(rx) = self.spotify.devices_rx.take() {
             match rx.try_recv() {
                 Ok(Ok(devices)) => {
+                    for device in &devices {
+                        if device.is_active {
+                            if let Some(id) = device.id.as_deref() {
+                                self.spotify.failed_device_ids.remove(id);
+                            }
+                        }
+                    }
                     self.spotify.devices = devices
                         .into_iter()
-                        .filter(|d| d.name.to_lowercase() != "reverbic")
+                        .filter(|d| {
+                            d.name.to_lowercase() != "reverbic"
+                                && d.id
+                                    .as_deref()
+                                    .is_none_or(|id| !self.spotify.failed_device_ids.contains(id))
+                        })
                         .collect();
                     self.spotify.devices_loading = false;
 
@@ -589,7 +627,7 @@ impl App {
                     tracing::warn!("spotify devices: {e}");
                     self.spotify.devices_loading = false;
                     if !matches!(e, SpotifyError::RateLimit(_)) {
-                        self.save_notice = Some(format!("Spotify devices: {e}"));
+                        self.notify_error(format!("Spotify devices: {e}"));
                     }
                 }
                 Err(std::sync::mpsc::TryRecvError::Empty) => {
@@ -649,7 +687,7 @@ impl App {
             }
             Err(e) => {
                 tracing::warn!("transfer playback: {e}");
-                self.save_notice = Some(format!("Spotify: {e}"));
+                self.notify_error(format!("Spotify: {e}"));
             }
         }
     }
@@ -723,6 +761,29 @@ impl App {
                     tracing::warn!("spotify play: token expirado, renovando");
                     self.spotify.token_refreshed_at =
                         Some(std::time::Instant::now() - std::time::Duration::from_secs(60 * 60));
+                }
+                Ok(Err(SpotifyError::DeviceUnavailable)) => {
+                    if self.spotify.active_backend == Some(SpotifyPlaybackBackend::Remote) {
+                        self.spotify.active_backend = None;
+                    }
+                    if let Some(dead_id) = self.spotify.active_device_id.take() {
+                        tracing::warn!(
+                            device_id = dead_id,
+                            "spotify play_on_device: device did not respond, evicting it"
+                        );
+                        self.spotify.failed_device_ids.insert(dead_id.clone());
+                        self.spotify
+                            .devices
+                            .retain(|d| d.id.as_deref() != Some(&dead_id));
+                    }
+                    self.spotify.active_device_id = resolve_active_spotify_device(
+                        &self.spotify.devices,
+                        self.spotify.active_device_id.as_deref(),
+                    );
+                    let message = crate::i18n::t("integrations.spotify.error.device_gone");
+                    self.spotify.player_status = SpotifyPlayerStatus::Error(message.clone());
+                    self.notify_error(format!("Spotify: {message}"));
+                    self.fetch_spotify_devices();
                 }
                 Ok(Err(e)) => {
                     tracing::warn!("spotify play_on_device: {e}");
@@ -949,8 +1010,7 @@ impl App {
                 let Some(handle) = &self.spotify.player_tx else {
                     let message = crate::i18n::t("integrations.spotify.error.native_unavailable");
                     self.spotify.player_status = SpotifyPlayerStatus::Error(message.clone());
-                    self.save_notice = Some(format!("Spotify: {message}"));
-                    self.save_notice_is_dup = false;
+                    self.notify_error(format!("Spotify: {message}"));
                     return;
                 };
                 handle.play(vec![track.uri.clone()]);
@@ -966,8 +1026,7 @@ impl App {
                 }
                 tracing::warn!("spotify playback unavailable: {message}");
                 self.spotify.player_status = SpotifyPlayerStatus::Error(message.clone());
-                self.save_notice = Some(format!("Spotify: {message}"));
-                self.save_notice_is_dup = false;
+                self.notify_error(format!("Spotify: {message}"));
             }
         }
     }
@@ -1054,9 +1113,7 @@ impl App {
                     self.spotify.liked_rate_limited_until =
                         Some(std::time::Instant::now() + std::time::Duration::from_secs(secs));
                 } else {
-                    self.save_notice = Some(format!("Spotify liked: {e}"));
-                    self.notice_until =
-                        Some(std::time::Instant::now() + std::time::Duration::from_secs(8));
+                    self.notify_error(format!("Spotify liked: {e}"));
                 }
             }
             Err(std::sync::mpsc::TryRecvError::Empty) => {
@@ -1186,9 +1243,7 @@ impl App {
             Ok(Err(e)) => {
                 self.spotify.playlist_tracks_loading = false;
                 tracing::warn!("playlist tracks fetch: {e}");
-                self.save_notice = Some(format!("Spotify playlist: {e}"));
-                self.notice_until =
-                    Some(std::time::Instant::now() + std::time::Duration::from_secs(8));
+                self.notify_error(format!("Spotify playlist: {e}"));
             }
             Err(std::sync::mpsc::TryRecvError::Empty) => {
                 self.spotify.playlist_tracks_rx = Some(rx);
@@ -1455,9 +1510,11 @@ impl App {
 
         let (tx, rx) = std::sync::mpsc::channel();
         self.spotify.save_track_rx = Some(rx);
-        self.save_notice = Some(format!("Guardando {}...", name));
-        self.save_notice_is_dup = false;
-        self.notice_until = Some(std::time::Instant::now() + std::time::Duration::from_secs(4));
+        self.notify(
+            crate::app::NoticeSeverity::Info,
+            crate::i18n::t("notice.spotify_like_saving").replace("{}", &name),
+            4,
+        );
 
         tokio::spawn(async move {
             match save_track(&token, &id).await {
@@ -1479,14 +1536,10 @@ impl App {
         };
         match rx.try_recv() {
             Ok(Ok(name)) => {
-                self.save_notice = Some(format!("Guardado en Tus Me Gusta: {name}"));
-                self.notice_until =
-                    Some(std::time::Instant::now() + std::time::Duration::from_secs(4));
+                self.notify_info(crate::i18n::t("notice.spotify_like_saved").replace("{}", &name));
             }
             Ok(Err(e)) => {
-                self.save_notice = Some(format!("Error al guardar: {e}"));
-                self.notice_until =
-                    Some(std::time::Instant::now() + std::time::Duration::from_secs(4));
+                self.notify_error(crate::i18n::t("notice.spotify_like_error").replace("{}", &e));
             }
             Err(std::sync::mpsc::TryRecvError::Empty) => {
                 self.spotify.save_track_rx = Some(rx);

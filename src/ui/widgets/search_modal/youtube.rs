@@ -6,14 +6,15 @@ use ratatui::{
     widgets::{List, ListItem, Paragraph, Widget, Wrap},
 };
 
-use crate::app::YoutubeStatus;
+use crate::app::{YoutubeStatus, YoutubeSubTab};
 use crate::i18n::t;
+use crate::integrations::youtube::{YoutubePlaylist, YoutubeVideo};
 use crate::ui::strings;
 use crate::ui::widgets::scroll_offset_for_selection;
 
-use super::filter_list_layout;
 use super::helpers::{render_filter_input, spin_frame};
 use super::SearchModalWidget;
+use super::{spotify_titled_track_list_layout, youtube_layout, youtube_search_layout};
 
 fn fmt_duration(secs: u32) -> String {
     if secs == 0 {
@@ -21,6 +22,14 @@ fn fmt_duration(secs: u32) -> String {
     } else {
         format!("{}:{:02}", secs / 60, secs % 60)
     }
+}
+
+struct VideoListState<'a> {
+    videos: &'a [YoutubeVideo],
+    selected: usize,
+    scroll_offset: usize,
+    loading: bool,
+    empty_message: &'a str,
 }
 
 impl<'a> SearchModalWidget<'a> {
@@ -31,34 +40,17 @@ impl<'a> SearchModalWidget<'a> {
         content_w: u16,
         buf: &mut Buffer,
     ) {
-        let layout = filter_list_layout(area);
+        let layout = youtube_layout(area);
 
         let text_x = content_x + 2;
         let text_w = content_w.saturating_sub(2);
 
-        buf[(content_x, layout.input.y)]
-            .set_symbol("┃")
-            .set_fg(self.palette.accent)
-            .set_bg(self.palette.panel_bg);
-
-        render_filter_input(
-            self.youtube_query,
-            &t("modal.youtube.placeholder"),
-            Rect::new(text_x, layout.input.y, text_w, 1),
-            self.palette,
-            buf,
-            self.palette.danger,
-        );
-
-        buf[(content_x, layout.cap.y)]
-            .set_symbol("╹")
-            .set_fg(self.palette.accent)
-            .set_bg(self.palette.panel_bg);
+        self.render_youtube_subtabs(layout.subtab, text_x, text_w, buf);
 
         match self.youtube_status {
             YoutubeStatus::Installing => {
                 self.render_youtube_message(
-                    layout.list,
+                    layout.body,
                     text_x,
                     text_w,
                     &format!("{}  {}", spin_frame(), t("modal.youtube.installing")),
@@ -68,7 +60,7 @@ impl<'a> SearchModalWidget<'a> {
             }
             YoutubeStatus::Resolving => {
                 self.render_youtube_message(
-                    layout.list,
+                    layout.body,
                     text_x,
                     text_w,
                     &format!("{}  {}", spin_frame(), t("modal.youtube.resolving")),
@@ -77,12 +69,416 @@ impl<'a> SearchModalWidget<'a> {
                 );
             }
             YoutubeStatus::Error(msg) => {
-                self.render_youtube_error(layout.list, text_x, text_w, msg, buf);
+                self.render_youtube_error(layout.body, text_x, text_w, msg, buf);
             }
-            YoutubeStatus::Idle | YoutubeStatus::Ready => {
-                self.render_youtube_results(layout.list, text_x, text_w, buf);
-            }
+            YoutubeStatus::Idle | YoutubeStatus::Ready => match self.youtube_sub_tab {
+                YoutubeSubTab::Search => {
+                    self.render_youtube_search_body(layout.body, content_x, text_x, text_w, buf)
+                }
+                YoutubeSubTab::Bookmarks => {
+                    self.render_youtube_bookmarks_body(layout.body, text_x, text_w, buf)
+                }
+                YoutubeSubTab::Liked => {
+                    self.render_youtube_liked_body(layout.body, text_x, text_w, buf)
+                }
+                YoutubeSubTab::Playlists => {
+                    self.render_youtube_playlists_body(layout.body, text_x, text_w, buf)
+                }
+            },
         }
+    }
+
+    fn render_youtube_subtabs(&self, area: Rect, text_x: u16, text_w: u16, buf: &mut Buffer) {
+        let tab_style = |active: bool| {
+            if active {
+                Style::default()
+                    .fg(self.palette.youtube)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(self.palette.dim)
+            }
+        };
+        let library_tab_style = |active: bool| {
+            if !self.youtube_cookies_configured {
+                if active {
+                    Style::default()
+                        .fg(self.palette.warning)
+                        .add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default().fg(self.palette.muted)
+                }
+            } else {
+                tab_style(active)
+            }
+        };
+
+        let line = Line::from(vec![
+            Span::styled(
+                t("modal.youtube.subtab.search"),
+                tab_style(self.youtube_sub_tab == YoutubeSubTab::Search),
+            ),
+            Span::raw("  "),
+            Span::styled(
+                t("modal.youtube.subtab.bookmarks"),
+                tab_style(self.youtube_sub_tab == YoutubeSubTab::Bookmarks),
+            ),
+            Span::raw("  "),
+            Span::styled(
+                t("modal.youtube.subtab.liked"),
+                library_tab_style(self.youtube_sub_tab == YoutubeSubTab::Liked),
+            ),
+            Span::raw("  "),
+            Span::styled(
+                t("modal.youtube.subtab.playlists"),
+                library_tab_style(self.youtube_sub_tab == YoutubeSubTab::Playlists),
+            ),
+        ]);
+
+        Paragraph::new(line).render(Rect::new(text_x, area.y, text_w, area.height), buf);
+    }
+
+    fn render_youtube_search_body(
+        &self,
+        area: Rect,
+        content_x: u16,
+        text_x: u16,
+        text_w: u16,
+        buf: &mut Buffer,
+    ) {
+        let layout = youtube_search_layout(area);
+
+        buf[(content_x, layout.input.y)]
+            .set_symbol("┃")
+            .set_fg(self.palette.youtube)
+            .set_bg(self.palette.panel_bg);
+
+        render_filter_input(
+            self.youtube_query,
+            &t("modal.youtube.placeholder"),
+            Rect::new(text_x, layout.input.y, text_w, 1),
+            self.palette,
+            buf,
+            self.palette.youtube,
+        );
+
+        buf[(content_x, layout.cap.y)]
+            .set_symbol("╹")
+            .set_fg(self.palette.youtube)
+            .set_bg(self.palette.panel_bg);
+
+        if !self.youtube_loading && self.youtube_results.is_empty() && self.youtube_query.is_empty()
+        {
+            return;
+        }
+
+        self.render_video_list(
+            layout.list,
+            text_x,
+            text_w,
+            buf,
+            VideoListState {
+                videos: self.youtube_results,
+                selected: self.youtube_selected,
+                scroll_offset: self.youtube_scroll_offset,
+                loading: self.youtube_loading,
+                empty_message: &t("modal.youtube.no_results"),
+            },
+        );
+    }
+
+    fn render_youtube_bookmarks_body(
+        &self,
+        area: Rect,
+        list_x: u16,
+        list_w: u16,
+        buf: &mut Buffer,
+    ) {
+        self.render_video_list(
+            area,
+            list_x,
+            list_w,
+            buf,
+            VideoListState {
+                videos: self.youtube_bookmarks,
+                selected: self.youtube_bookmarks_selected,
+                scroll_offset: self.youtube_bookmarks_scroll_offset,
+                loading: false,
+                empty_message: &t("modal.youtube.bookmarks_empty"),
+            },
+        );
+    }
+
+    fn render_youtube_liked_body(&self, area: Rect, list_x: u16, list_w: u16, buf: &mut Buffer) {
+        if !self.youtube_cookies_configured {
+            self.render_youtube_auth_notice(area, buf);
+            return;
+        }
+
+        self.render_video_list(
+            area,
+            list_x,
+            list_w,
+            buf,
+            VideoListState {
+                videos: self.youtube_liked_videos,
+                selected: self.youtube_liked_selected,
+                scroll_offset: self.youtube_liked_scroll_offset,
+                loading: self.youtube_liked_loading,
+                empty_message: &t("modal.youtube.liked_empty"),
+            },
+        );
+    }
+
+    fn render_youtube_playlists_body(
+        &self,
+        area: Rect,
+        list_x: u16,
+        list_w: u16,
+        buf: &mut Buffer,
+    ) {
+        if let Some(playlist) = self.youtube_open_playlist {
+            self.render_youtube_playlist_videos(area, list_x, list_w, playlist, buf);
+            return;
+        }
+
+        if !self.youtube_cookies_configured {
+            self.render_youtube_auth_notice(area, buf);
+            return;
+        }
+
+        if self.youtube_playlists_loading {
+            Paragraph::new(Span::styled(
+                format!("{}  {}", spin_frame(), t("modal.loading.youtube")),
+                Style::default().fg(self.palette.muted),
+            ))
+            .render(Rect::new(list_x, area.y, list_w, 1), buf);
+            return;
+        }
+
+        if self.youtube_playlists.is_empty() {
+            Paragraph::new(Span::styled(
+                t("modal.youtube.playlists_empty"),
+                Style::default().fg(self.palette.muted),
+            ))
+            .render(Rect::new(list_x, area.y, list_w, 1), buf);
+            return;
+        }
+
+        const ITEM_HEIGHT: usize = 2;
+        let visible_n = (area.height as usize) / ITEM_HEIGHT;
+        let selected = self.youtube_playlists_selected;
+        let offset =
+            scroll_offset_for_selection(selected, visible_n, self.youtube_playlists_scroll_offset);
+
+        let items: Vec<ListItem> = self
+            .youtube_playlists
+            .iter()
+            .enumerate()
+            .skip(offset)
+            .take(visible_n)
+            .map(|(i, playlist)| {
+                let active = i == selected;
+                let prefix = if active { "▶  " } else { "   " };
+                let name_max = list_w.saturating_sub(3) as usize;
+                let name = strings::truncate(&playlist.title, name_max);
+                let st = if active {
+                    Style::default()
+                        .fg(self.palette.youtube)
+                        .add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default().fg(self.palette.highlight)
+                };
+                let sub_st = Style::default().fg(self.palette.muted);
+                let sub = strings::truncate(
+                    &format!("{} videos", playlist.video_count),
+                    list_w.saturating_sub(3) as usize,
+                );
+                ListItem::new(vec![
+                    Line::from(vec![Span::styled(prefix, st), Span::styled(name, st)]),
+                    Line::from(vec![Span::styled("   ", sub_st), Span::styled(sub, sub_st)]),
+                ])
+            })
+            .collect();
+
+        let list_area = Rect::new(list_x, area.y, list_w, area.height);
+        List::new(items).render(list_area, buf);
+
+        if self.youtube_playlists.len() > visible_n {
+            self.render_scrollbar(list_area, self.youtube_playlists.len(), selected, buf);
+        }
+    }
+
+    fn render_youtube_playlist_videos(
+        &self,
+        area: Rect,
+        list_x: u16,
+        list_w: u16,
+        playlist: &YoutubePlaylist,
+        buf: &mut Buffer,
+    ) {
+        let esc_hint = "[Esc]";
+        let sep = " <- ";
+        let reserved = (esc_hint.len() + sep.len() + 1) as u16;
+        let title = strings::truncate(&playlist.title, list_w.saturating_sub(reserved) as usize);
+        let video_count = if playlist.video_count > 0 {
+            format!("  ({} videos)", playlist.video_count)
+        } else {
+            String::new()
+        };
+        let line = Line::from(vec![
+            Span::styled(esc_hint, Style::default().fg(self.palette.muted)),
+            Span::styled(sep, Style::default().fg(self.palette.dim)),
+            Span::styled(
+                title,
+                Style::default()
+                    .fg(self.palette.youtube)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(video_count, Style::default().fg(self.palette.muted)),
+        ]);
+        Paragraph::new(line).render(Rect::new(list_x, area.y, list_w, 1), buf);
+
+        let inner = spotify_titled_track_list_layout(area);
+        self.render_video_list(
+            inner,
+            list_x,
+            list_w,
+            buf,
+            VideoListState {
+                videos: self.youtube_playlist_videos,
+                selected: self.youtube_playlist_videos_selected,
+                scroll_offset: self.youtube_playlist_videos_scroll_offset,
+                loading: self.youtube_playlist_videos_loading,
+                empty_message: &t("modal.empty.no_results"),
+            },
+        );
+    }
+
+    fn render_video_list(
+        &self,
+        area: Rect,
+        list_x: u16,
+        list_w: u16,
+        buf: &mut Buffer,
+        state: VideoListState,
+    ) {
+        if state.loading {
+            Paragraph::new(Span::styled(
+                format!("{}  {}", spin_frame(), t("modal.loading.youtube")),
+                Style::default().fg(self.palette.muted),
+            ))
+            .render(Rect::new(list_x, area.y, list_w, 1), buf);
+            return;
+        }
+
+        if state.videos.is_empty() {
+            Paragraph::new(Span::styled(
+                state.empty_message,
+                Style::default().fg(self.palette.muted),
+            ))
+            .render(Rect::new(list_x, area.y, list_w, 1), buf);
+            return;
+        }
+
+        const ITEM_HEIGHT: usize = 2;
+        let visible_n = (area.height as usize) / ITEM_HEIGHT;
+        let offset = scroll_offset_for_selection(state.selected, visible_n, state.scroll_offset);
+
+        let items: Vec<ListItem> = state
+            .videos
+            .iter()
+            .enumerate()
+            .skip(offset)
+            .take(visible_n)
+            .map(|(i, video)| {
+                let active = i == state.selected;
+                let duration = fmt_duration(video.duration_secs);
+                let live_badge = video.is_live.then(|| t("modal.youtube.live_badge"));
+                let badge_w = live_badge
+                    .as_ref()
+                    .map(|badge| badge.chars().count() as u16 + 2)
+                    .unwrap_or(0);
+                let title_w = list_w.saturating_sub(4 + duration.len() as u16 + badge_w) as usize;
+                let title = strings::truncate(&video.title, title_w);
+                let channel = strings::truncate(&video.channel, list_w.saturating_sub(3) as usize);
+                let badge_st = Style::default()
+                    .fg(self.palette.youtube)
+                    .add_modifier(Modifier::BOLD | Modifier::REVERSED);
+
+                if active {
+                    let title_st = Style::default()
+                        .fg(self.palette.youtube)
+                        .add_modifier(Modifier::BOLD);
+                    let meta_st = Style::default().fg(self.palette.youtube);
+                    let mut first_line = vec![Span::styled("▶  ", title_st)];
+                    if let Some(badge) = live_badge {
+                        first_line.push(Span::styled(badge, badge_st));
+                        first_line.push(Span::raw("  "));
+                    }
+                    first_line.push(Span::styled(title, title_st));
+                    first_line.push(Span::styled(format!("  {}", duration), meta_st));
+                    ListItem::new(vec![
+                        Line::from(first_line),
+                        Line::from(vec![
+                            Span::styled("   ", meta_st),
+                            Span::styled(channel, meta_st),
+                        ]),
+                    ])
+                } else {
+                    let title_st = Style::default().fg(self.palette.highlight);
+                    let meta_st = Style::default().fg(self.palette.muted);
+                    let mut first_line = vec![Span::styled("   ", title_st)];
+                    if let Some(badge) = live_badge {
+                        first_line.push(Span::styled(badge, badge_st));
+                        first_line.push(Span::raw("  "));
+                    }
+                    first_line.push(Span::styled(title, title_st));
+                    ListItem::new(vec![
+                        Line::from(first_line),
+                        Line::from(vec![
+                            Span::styled("   ", meta_st),
+                            Span::styled(channel, meta_st),
+                        ]),
+                    ])
+                }
+            })
+            .collect();
+
+        let list_area = Rect::new(list_x, area.y, list_w, area.height);
+        List::new(items).render(list_area, buf);
+
+        if state.videos.len() > visible_n {
+            self.render_scrollbar(list_area, state.videos.len(), state.selected, buf);
+        }
+    }
+
+    fn render_youtube_auth_notice(&self, area: Rect, buf: &mut Buffer) {
+        use super::notice_panel::{NoticeHint, NoticePanel};
+
+        NoticePanel {
+            title: t("modal.youtube.auth_notice.title"),
+            emphasis: None,
+            body: t("modal.youtube.auth_notice.body"),
+            caution: Some(t("modal.youtube.auth_notice.risk")),
+            link: Some((
+                t("modal.youtube.auth_notice.guide_label"),
+                t("modal.youtube.auth_notice.guide_url"),
+            )),
+            spinner_text: None,
+            hints: vec![
+                NoticeHint {
+                    key: "[\u{2190} \u{2192}]".to_string(),
+                    text: t("modal.youtube.auth_notice.back_hint"),
+                    strong: false,
+                },
+                NoticeHint {
+                    key: "[O]".to_string(),
+                    text: t("modal.notice.settings_hint"),
+                    strong: false,
+                },
+            ],
+        }
+        .render(area, buf, self.palette);
     }
 
     fn render_youtube_message(
@@ -128,94 +524,6 @@ impl<'a> SearchModalWidget<'a> {
             .wrap(Wrap { trim: true })
             .render(
                 Rect::new(text_x, y, text_w, area.bottom().saturating_sub(y)),
-                buf,
-            );
-        }
-    }
-
-    fn render_youtube_results(&self, area: Rect, list_x: u16, list_w: u16, buf: &mut Buffer) {
-        if self.youtube_loading {
-            Paragraph::new(Span::styled(
-                format!("{}  {}", spin_frame(), t("modal.loading.youtube")),
-                Style::default().fg(self.palette.muted),
-            ))
-            .render(Rect::new(list_x, area.y, list_w, 1), buf);
-            return;
-        }
-
-        if self.youtube_results.is_empty() {
-            if !self.youtube_query.is_empty() {
-                Paragraph::new(Span::styled(
-                    t("modal.youtube.no_results"),
-                    Style::default().fg(self.palette.muted),
-                ))
-                .render(Rect::new(list_x, area.y, list_w, 1), buf);
-            }
-            return;
-        }
-
-        const ITEM_HEIGHT: usize = 2;
-        let visible_n = (area.height as usize) / ITEM_HEIGHT;
-        let offset = scroll_offset_for_selection(
-            self.youtube_selected,
-            visible_n,
-            self.youtube_scroll_offset,
-        );
-
-        let items: Vec<ListItem> = self
-            .youtube_results
-            .iter()
-            .enumerate()
-            .skip(offset)
-            .take(visible_n)
-            .map(|(i, video)| {
-                let active = i == self.youtube_selected;
-                let duration = fmt_duration(video.duration_secs);
-                let title_w = list_w.saturating_sub(4 + duration.len() as u16) as usize;
-                let title = strings::truncate(&video.title, title_w);
-                let channel = strings::truncate(&video.channel, list_w.saturating_sub(3) as usize);
-
-                if active {
-                    let title_st = Style::default()
-                        .fg(self.palette.playing)
-                        .add_modifier(Modifier::BOLD);
-                    let meta_st = Style::default().fg(self.palette.accent);
-                    ListItem::new(vec![
-                        Line::from(vec![
-                            Span::styled("▶  ", title_st),
-                            Span::styled(title, title_st),
-                            Span::styled(format!("  {}", duration), meta_st),
-                        ]),
-                        Line::from(vec![
-                            Span::styled("   ", meta_st),
-                            Span::styled(channel, meta_st),
-                        ]),
-                    ])
-                } else {
-                    let title_st = Style::default().fg(self.palette.highlight);
-                    let meta_st = Style::default().fg(self.palette.muted);
-                    ListItem::new(vec![
-                        Line::from(vec![
-                            Span::styled("   ", title_st),
-                            Span::styled(title, title_st),
-                        ]),
-                        Line::from(vec![
-                            Span::styled("   ", meta_st),
-                            Span::styled(channel, meta_st),
-                        ]),
-                    ])
-                }
-            })
-            .collect();
-
-        let list_area = Rect::new(list_x, area.y, list_w, area.height);
-        List::new(items).render(list_area, buf);
-
-        if self.youtube_results.len() > visible_n {
-            self.render_scrollbar(
-                list_area,
-                self.youtube_results.len(),
-                self.youtube_selected,
                 buf,
             );
         }

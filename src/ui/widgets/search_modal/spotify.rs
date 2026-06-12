@@ -3,7 +3,7 @@ use ratatui::{
     layout::{Constraint, Layout, Rect},
     style::{Modifier, Style},
     text::{Line, Span},
-    widgets::{List, ListItem, Paragraph, Widget, Wrap},
+    widgets::{List, ListItem, Paragraph, Widget},
 };
 
 use crate::app::SpotifyAuthStatus;
@@ -54,7 +54,7 @@ impl<'a> SearchModalWidget<'a> {
             SpotifyAuthStatus::Error(msg) => {
                 self.render_spotify_error(area, lx, lw, buf, msg.as_str())
             }
-            SpotifyAuthStatus::Idle => self.render_spotify_connect(area, lx, lw, buf),
+            SpotifyAuthStatus::Idle => self.render_spotify_connect(area, buf),
         }
     }
 
@@ -74,7 +74,9 @@ impl<'a> SearchModalWidget<'a> {
 
         {
             let tab_style = |active: bool| {
-                if active {
+                if self.spotify_remote_blocked {
+                    Style::default().fg(self.palette.muted)
+                } else if active {
                     Style::default()
                         .fg(self.palette.spotify)
                         .add_modifier(Modifier::BOLD)
@@ -119,6 +121,11 @@ impl<'a> SearchModalWidget<'a> {
                 Rect::new(text_x, layout.subtab.y, text_w, layout.subtab.height),
                 buf,
             );
+        }
+
+        if self.spotify_remote_blocked {
+            self.render_spotify_no_device(layout.body, buf);
+            return;
         }
 
         match self.spotify_sub_tab {
@@ -173,24 +180,36 @@ impl<'a> SearchModalWidget<'a> {
 
         let active_device =
             active_spotify_device(self.spotify_devices, self.spotify_active_device_id);
-        let mode_text =
-            if self.spotify_playback_mode_kind == crate::config::SpotifyPlaybackMode::Native {
-                t("modal.spotify.footer.mode_native")
-            } else {
-                let dev_name = active_device
-                    .map(|d| d.name.clone())
-                    .unwrap_or_else(|| t("modal.spotify.footer.unknown_device"));
-                let dev_type = active_device.map(|d| d.device_type.as_str()).unwrap_or("");
-                let switch_hint = if self.spotify_devices.len() > 1 {
-                    t("modal.spotify.footer.mode_remote_switch_hint")
+        let mode_text = match self.spotify_playback_mode_kind {
+            crate::config::SpotifyPlaybackMode::Native => t("modal.spotify.footer.mode_native"),
+            mode_kind => {
+                let mode = if mode_kind == crate::config::SpotifyPlaybackMode::Auto {
+                    t("modal.spotify.footer.mode_auto")
                 } else {
-                    String::new()
+                    t("modal.spotify.footer.mode_remote")
                 };
-                let mode = t("modal.spotify.footer.mode_remote");
-                let active = t("modal.spotify.footer.active");
-
-                format!("{mode} {dev_name} * {dev_type} [{active}]{switch_hint}")
-            };
+                match active_device {
+                    Some(device) => {
+                        let switch_hint = if self.spotify_devices.len() > 1 {
+                            t("modal.spotify.footer.mode_remote_switch_hint")
+                        } else {
+                            String::new()
+                        };
+                        let listening = t("modal.spotify.footer.listening_on");
+                        let status = if device.is_active {
+                            t("modal.spotify.footer.active")
+                        } else {
+                            t("modal.spotify.footer.available")
+                        };
+                        format!(
+                            "{mode} {listening} {} * {} [{status}]{switch_hint}",
+                            device.name, device.device_type
+                        )
+                    }
+                    None => format!("{mode} — {}", t("modal.spotify.footer.no_device")),
+                }
+            }
+        };
 
         let footer_area = Rect::new(text_x, layout.footer.y, text_w, 1);
         let mode_style = Style::default()
@@ -235,82 +254,67 @@ impl<'a> SearchModalWidget<'a> {
         }
     }
 
-    fn render_spotify_connect(&self, area: Rect, lx: u16, lw: u16, buf: &mut Buffer) {
-        let mut y = area.y + 1;
-        if y >= area.bottom() {
-            return;
-        }
-        Paragraph::new(Span::styled(
-            "SPOTIFY",
-            Style::default()
-                .fg(self.palette.playing)
-                .add_modifier(Modifier::BOLD),
-        ))
-        .alignment(ratatui::layout::Alignment::Center)
-        .render(Rect::new(lx, y, lw, 1), buf);
-        y += 2;
-        if y >= area.bottom() {
-            return;
-        }
-        Paragraph::new(Span::styled(
-            t("modal.spotify.remote_feature"),
-            Style::default()
-                .fg(self.palette.highlight)
-                .add_modifier(Modifier::BOLD),
-        ))
-        .render(Rect::new(lx, y, lw, 1), buf);
-        y += 1;
+    fn render_spotify_no_device(&self, area: Rect, buf: &mut Buffer) {
+        use super::notice_panel::{NoticeHint, NoticePanel};
 
-        if y >= area.bottom() {
-            return;
+        let mut hints = Vec::new();
+        if !self.spotify_devices_loading {
+            hints.push(NoticeHint {
+                key: "[Ctrl+D]".to_string(),
+                text: t("modal.spotify.no_device.scan"),
+                strong: false,
+            });
         }
-        Paragraph::new(Span::styled(
-            t("modal.spotify.remote_subtitle"),
-            Style::default().fg(self.palette.muted),
-        ))
-        .wrap(Wrap { trim: true })
-        .render(
-            Rect::new(lx, y, lw, 2.min(area.bottom().saturating_sub(y))),
-            buf,
-        );
-        y += 3;
-        if y >= area.bottom() {
-            return;
+        hints.push(NoticeHint {
+            key: "[O]".to_string(),
+            text: t("modal.notice.settings_hint"),
+            strong: false,
+        });
+
+        NoticePanel {
+            title: t("modal.spotify.no_device.title"),
+            emphasis: Some((t("modal.spotify.no_device.mode"), self.palette.spotify)),
+            body: t("modal.spotify.no_device.body"),
+            caution: None,
+            link: Some((
+                t("modal.spotify.auth_notice.guide_label"),
+                t("modal.spotify.auth_notice.guide_url"),
+            )),
+            spinner_text: self
+                .spotify_devices_loading
+                .then(|| t("modal.spotify.no_device.scanning")),
+            hints,
         }
-        Paragraph::new(Span::styled(
-            "─".repeat(lw as usize),
-            Style::default().fg(self.palette.dim),
-        ))
-        .render(Rect::new(lx, y, lw, 1), buf);
-        y += 1;
-        if y >= area.bottom() {
-            return;
+        .render(area, buf, self.palette);
+    }
+
+    fn render_spotify_connect(&self, area: Rect, buf: &mut Buffer) {
+        use super::notice_panel::{NoticeHint, NoticePanel};
+
+        NoticePanel {
+            title: t("modal.spotify.auth_notice.title"),
+            emphasis: None,
+            body: t("modal.spotify.auth_notice.body"),
+            caution: Some(t("modal.spotify.auth_notice.requirements")),
+            link: Some((
+                t("modal.spotify.auth_notice.guide_label"),
+                t("modal.spotify.auth_notice.guide_url"),
+            )),
+            spinner_text: None,
+            hints: vec![
+                NoticeHint {
+                    key: "[\u{21B5}]".to_string(),
+                    text: t("modal.spotify.connect_action"),
+                    strong: true,
+                },
+                NoticeHint {
+                    key: "[O]".to_string(),
+                    text: t("modal.notice.settings_hint"),
+                    strong: false,
+                },
+            ],
         }
-        Paragraph::new(Line::from(vec![
-            Span::styled(
-                "[↵]  ",
-                Style::default()
-                    .fg(self.palette.accent)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(
-                t("modal.spotify.connect_action"),
-                Style::default()
-                    .fg(self.palette.highlight)
-                    .add_modifier(Modifier::BOLD),
-            ),
-        ]))
-        .render(Rect::new(lx, y, lw, 1), buf);
-        y += 2;
-        if y >= area.bottom() {
-            return;
-        }
-        Paragraph::new(Span::styled(
-            t("modal.spotify.experimental"),
-            Style::default().fg(self.palette.caution),
-        ))
-        .wrap(Wrap { trim: true })
-        .render(Rect::new(lx, y, lw, area.bottom().saturating_sub(y)), buf);
+        .render(area, buf, self.palette);
     }
 
     fn render_spotify_connecting(&self, area: Rect, lx: u16, lw: u16, buf: &mut Buffer) {

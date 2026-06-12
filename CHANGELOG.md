@@ -10,6 +10,71 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ## [Unreleased]
 
+## [1.5.2] - 2026-06-12
+
+### Added
+- Added a setting to configure a YouTube cookies.txt file, allowing access to age-restricted, region-locked, or members-only videos
+- Added [Liked] and [Playlists] sub-tabs to the YouTube tab, mirroring Spotify, to browse and play your liked videos and personal playlists (requires a configured cookies.txt)
+- Reverbic now automatically downloads and verifies the Deno runtime, used by yt-dlp to solve YouTube's signature challenges with near-instant resolution times (the binary stays on disk and is not loaded into memory at startup)
+- Continuous YouTube playback: when a video ends, the next one in the active list (search results, Liked, or playlist) plays automatically, pre-resolving the upcoming video ahead of time
+- Added a "YouTube Crossfade" setting to blend the end of each video into the start of the next when playing YouTube lists
+- Added a "Validate YouTube session" action in Settings to instantly check whether the configured cookies.txt is still valid
+- Resolved YouTube audio URLs are now reused for 4 hours, making replays of recent videos near-instant; the cache now survives restarts (cookie-authenticated resolves are never written to disk)
+- YouTube Mix: press Ctrl+R on any video to start an "infinite radio" of similar songs that extends itself as the queue nears its end
+- yt-dlp now updates itself automatically (daily check against GitHub with SHA256 verification), preventing YouTube changes from breaking the integration over time
+- The highlighted video is pre-resolved in the background, making Enter playback near-instant
+- YouTube tracks now download to a temporary file at full speed, enabling precise seeking and playback immune to network drops
+- YouTube chapters: in long videos the current chapter shows next to the title, and the [ and ] keys jump between chapters
+- New optional "SponsorBlock (YouTube)" setting that automatically skips non-music sections using the community database (off by default)
+- New "YouTube Radio" setting, on by default: when the playing list ends, playback continues automatically with a mix of similar songs
+- The game overlay now shows a countdown with the time remaining in the current track (Spotify and YouTube), in both Full and Compact styles; Radio has no duration so nothing changes there
+- In Spotify Remote mode, when no Connect device is detected the Spotify tab now locks with a clear notice explaining to open Spotify on a device (phone, computer or web player); it rescans automatically every few seconds and unlocks itself as soon as a device appears (Ctrl+D forces an immediate scan)
+- Radio playlists: new [ Playlists ] sub-tab in the Radio tab to group your stations into named collections; press Alt+P on any station (in Search, Genre, Country or Favorites) to add it to an existing playlist or create a new one, and playlists persist on disk between sessions
+- Inside the [ Playlists ] sub-tab: N creates a named empty playlist, R renames the selected one, Shift+↑/↓ reorders stations within a playlist and Alt+F removes the station or deletes the playlist depending on the level
+- Ctrl+Shift+→/← jumps to the next or previous station of the active playlist without opening any list, ideal for switching vibes without leaving what you are doing
+- Local YouTube bookmarks: new [ Bookmarks ] sub-tab in the YouTube tab; press Alt+F on any video (search results, Liked or a playlist) to save it locally and play it later — no Google account, cookies or authentication needed
+- Animated playback dot on the main tabs: an intense green dot pulses next to the tab whose source is actually playing right now (it stays there even while you browse other tabs, and stops pulsing while paused); the active tab additionally shows an amber dot on [Spotify] in Remote mode with no device or a red one on [YouTube] when the cookies session expired
+- The YouTube session is now validated automatically in the background at startup and whenever the cookies file changes; the result shows next to the "Validate YouTube session" setting ("Session valid" / "Cookies expired") and drives the [YouTube] tab status dot
+- Spotify device picker: Ctrl+D now opens a list of every Connect device (name, type, active/available) and Enter transfers playback to the chosen one, instead of blindly cycling to the next device
+- Ongoing live streams now show a red LIVE badge in YouTube search results, and trying to play one explains immediately that live broadcasts are not supported yet, before any resolving starts
+- Notice panels now include an [O] shortcut that jumps straight to the relevant setting (YouTube cookies file, Spotify Client ID or the Spotify playback mode), with the item preselected
+- New "Open logs folder" action in Settings to reach Reverbic's log files without using the terminal; each session now logs the app version and the Spotify playback mode at startup
+
+### Changed
+- The YouTube tab now uses YouTube's red consistently across all its elements (selected video, search input, typing cursor, scrollbar), mirroring the green pattern of the Spotify tab so it is always clear which tab is active
+- The YouTube [Liked] and [Playlists] sub-tabs now show a clear notice panel when no cookies.txt is configured: it explains that authentication is needed, recommends using a secondary account and links to the step-by-step guide with the risks; the sub-tab labels also render as disabled (the old message overflowed the panel and was easy to miss)
+- The Spotify tab now shows the same style of notice panel when the account is not connected: it explains that signing in is mandatory, that a Premium account and a Spotify Developer Dashboard app are required, and links to the step-by-step guide (clickable, includes the legal notes); Enter still starts the sign-in flow
+- Bottom notices are now color-coded by severity (errors in red, warnings in amber, info in the source color) and queue up instead of overwriting each other, so an error can no longer be hidden by a routine message
+- All notice panels (Spotify connect, Spotify no-device, YouTube authentication) now share one consistent component; the no-device panel gained the clickable guide link the others already had
+- Connecting a non-Premium Spotify account now shows a clear warning that playback will not work, instead of failing later with confusing errors
+- The YouTube authentication panel now mentions the local [ Bookmarks ] alternative for saving videos without an account
+
+### Fixed
+- Videos from recently ended live streams no longer hang in an endless retry loop; Reverbic now explains that YouTube is still processing the recording and to try again later
+- Trying to play a YouTube stream that is live right now no longer shows the generic "no compatible format" error; Reverbic now explains it is an ongoing live broadcast and that it can be played once the stream ends
+- The Spotify footer no longer claims "Mode: Remote Listening on Unknown [active]" when using Auto mode with no device; it now shows the real mode (Auto or Remote) and "no Spotify device detected" when there is none
+- The Spotify footer now distinguishes between a device that is really playing ([active]) and one that is merely listed by Spotify ([available])
+- When a Spotify device does not respond on playback (e.g. a phone whose app was closed but Spotify still lists it), Reverbic now discards it, explains what happened, and rescans instead of keeping it as the target
+- The [?] help overlay now has a dedicated YouTube section (it previously showed generic hints) and every listed shortcut was audited against real behavior
+- Space now pauses/resumes in every list without a text input (radio Favorites and Playlists, Genre/Country results, Spotify and YouTube library sub-tabs); it previously only worked in radio Favorites while the help claimed otherwise
+- Alt+F and Alt+R no longer act on leftover radio search results while browsing the Spotify or YouTube tabs
+
+### Security
+- Updated dependencies (OpenSSL, ratatui, crossterm and others) to resolve known security advisories reported by Dependabot
+- The Windows install script now verifies the SHA256 checksum of the downloaded binary before running it, and removes the "downloaded from the internet" mark only after verification succeeds
+- The Windows install script now aborts if the release asset has no SHA256 digest to verify against, instead of running an unverified binary; this can be overridden at the user's own risk via the `REVERBIC_SKIP_VERIFY` environment variable
+
+### Changed
+- The Crossfade setting now offers 1, 3, 5 and 7 second steps (previously 1, 2 and 3)
+- The Windows install script no longer overwrites the current session's PATH; it only appends Reverbic's install folder if missing
+- The Windows install script now shows a clearer message before launching Reverbic, since the terminal stays occupied until the app is closed with `q`
+
+### Fixed
+- The Windows install script now handles network failures and GitHub API rate limits with friendly messages instead of raw errors, removes the temporary installer file afterwards, and supports ARM64 (via x86_64 emulation) and pre-release builds (via the `REVERBIC_PRERELEASE` environment variable)
+- Fixed "Requested format is not available" errors when searching, resolving, or browsing YouTube videos and playlists, caused by yt-dlp now requiring a JavaScript runtime to solve YouTube's signature challenges
+- On-demand playback (YouTube and replays) now reconnects and resumes from the exact byte if the connection drops mid-song
+- Fixed YouTube songs cutting off mid-track or going silent: YouTube only served a combined video format whose HE-AAC audio the decoder cannot handle; playback now uses yt-dlp's android_vr client, which serves higher-quality audio-only AAC-LC
+
 ---
 
 ## [1.5.1] — 2026-06-10
@@ -163,7 +228,8 @@ Versioning: [Semantic Versioning](https://semver.org/)
 [1.5.0]: https://github.com/sewandev/Reverbic/compare/v1.4.2...v1.5.0
 [1.4.2]: https://github.com/sewandev/Reverbic/compare/v1.4.1...v1.4.2
 [1.4.1]: https://github.com/sewandev/Reverbic/compare/v1.4.0...v1.4.1
-[1.4.0]: https://github.com/sewandev/Reverbic/compare/v1.3.0...v1.4.0
+[1.4.0]: https://github.com/sewandev/Reverbic/compare/v1.3.1...v1.4.0
+[1.3.1]: https://github.com/sewandev/Reverbic/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/sewandev/Reverbic/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/sewandev/Reverbic/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/sewandev/Reverbic/compare/v1.0.0...v1.1.0

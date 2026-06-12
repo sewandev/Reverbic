@@ -51,17 +51,23 @@ impl App {
         }
         self.stop_metadata_polling();
 
-        let fade = self.config.crossfade_secs;
+        let is_youtube = station.key.starts_with("youtube:");
+        let fade = if is_youtube {
+            self.config.youtube_crossfade_secs
+        } else {
+            self.config.crossfade_secs
+        };
         let is_active = matches!(
             self.player.state().status,
             PlayerStatus::Playing | PlayerStatus::Buffering(_) | PlayerStatus::Reconnecting(_)
         );
 
-        if fade > 0 && is_active && playback_duration_secs.is_none() {
+        if fade > 0 && is_active && (is_youtube || playback_duration_secs.is_none()) {
             self.player
                 .send(PlayerCommand::CrossfadeTo {
                     station: station.clone(),
                     secs: fade,
+                    duration_secs: playback_duration_secs.filter(|d| *d > 0.0),
                 })
                 .await;
         } else if let Some(duration_secs) = playback_duration_secs.filter(|d| *d > 0.0) {
@@ -92,6 +98,7 @@ impl App {
             return;
         }
         let station = self.favorites[index].to_station();
+        self.active_playlist = None;
         self.play_station(station).await;
     }
 
@@ -110,6 +117,7 @@ impl App {
             schedule_url: None,
             show_countdown: false,
             bitrate_kbps: ds.bitrate_kbps,
+            custom_headers: None,
         };
 
         if let Some(enrichment) = find_enrichment(&station.name) {
@@ -117,6 +125,7 @@ impl App {
             tracing::info!("Enrichment enabled for '{}'", station.name);
         }
 
+        self.active_playlist = None;
         self.play_station(station).await;
     }
 
@@ -125,6 +134,11 @@ impl App {
         if state.is_dead_url {
             if let Some(station) = &state.station {
                 self.dead_urls.insert(station.url.clone());
+                if let Some(video_id) = station.key.strip_prefix("youtube:") {
+                    crate::integrations::youtube::resolve::invalidate_cached_url(&format!(
+                        "https://www.youtube.com/watch?v={video_id}"
+                    ));
+                }
             }
         }
     }

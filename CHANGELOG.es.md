@@ -10,6 +10,71 @@ Versionado: [Semantic Versioning](https://semver.org/)
 
 ## [Sin publicar]
 
+## [1.5.2] - 2026-06-12
+
+### Agregado
+- Se agregó un ajuste para configurar un archivo cookies.txt de YouTube, que permite acceder a videos con restricción de edad, de región o solo para miembros
+- Se agregaron las sub-pestañas [Me gusta] y [Playlists] a la pestaña de YouTube, igual que en Spotify, para explorar y reproducir tus videos con Me gusta y tus playlists personales (requiere un cookies.txt configurado)
+- Reverbic ahora descarga y verifica automáticamente el runtime Deno, utilizado por yt-dlp para resolver los desafíos de firma de YouTube con tiempos de resolución casi instantáneos (el binario queda en disco y no se carga en memoria al iniciar)
+- Reproducción continua en YouTube: al terminar un video, se reproduce automáticamente el siguiente de la lista activa (resultados de búsqueda, Me gusta o playlist), precargando el siguiente video por anticipado
+- Se agregó el ajuste "Crossfade (YouTube)" para fundir el final de cada video con el inicio del siguiente al reproducir listas de YouTube
+- Se agregó la acción "Validar sesión de YouTube" en Ajustes para comprobar al instante si el cookies.txt configurado sigue vigente
+- Las URLs de audio de YouTube ya resueltas se reutilizan durante 4 horas, haciendo casi instantáneo volver a reproducir un video reciente; el cache ahora sobrevive reinicios (las resoluciones hechas con cookies nunca se guardan en disco)
+- YouTube Mix: con Ctrl+R sobre cualquier video se inicia una "radio infinita" de canciones similares que se extiende sola al acercarse al final de la cola
+- yt-dlp ahora se actualiza automáticamente (chequeo diario contra GitHub con verificación SHA256), evitando que los cambios de YouTube rompan la integración con el tiempo
+- El video resaltado se pre-resuelve en segundo plano, haciendo que reproducirlo con Enter sea casi instantáneo
+- Las pistas de YouTube ahora se descargan a un archivo temporal a velocidad completa, habilitando adelantar/retroceder con precisión exacta y reproducción inmune a cortes de red
+- Capítulos de YouTube: en videos largos el capítulo actual se muestra junto al título, y las teclas [ y ] saltan entre capítulos
+- Nuevo ajuste opcional "SponsorBlock (YouTube)" que salta automáticamente las secciones sin música usando la base de datos comunitaria (desactivado por defecto)
+- Nuevo ajuste "Radio (YouTube)", activado por defecto: cuando la lista en reproducción se termina, continúa automáticamente con un mix de canciones similares
+- El overlay de juego ahora muestra una cuenta regresiva con el tiempo restante de la pista actual (Spotify y YouTube), tanto en estilo Completo como Compacto; la Radio no tiene duración, así que ahí no cambia nada
+- En modo Remoto de Spotify, cuando no se detecta ningún dispositivo Connect la pestaña de Spotify se bloquea con un aviso claro que explica abrir Spotify en un dispositivo (teléfono, computador o reproductor web); reescanea automáticamente cada pocos segundos y se desbloquea sola en cuanto aparece un dispositivo (Ctrl+D fuerza un escaneo inmediato)
+- Playlists de radio: nueva sub-pestaña [ Playlists ] en la pestaña de Radio para agrupar tus estaciones en colecciones con nombre; con Alt+P sobre cualquier estación (en Buscar, Género, País o Favoritas) se agrega a una playlist existente o se crea una nueva, y las playlists se guardan en disco entre sesiones
+- Dentro de la sub-pestaña [ Playlists ]: N crea una playlist vacía con nombre, R renombra la seleccionada, Shift+↑/↓ reordena las estaciones dentro de una playlist y Alt+F quita la estación o elimina la playlist según el nivel
+- Con Ctrl+Shift+→/← se salta a la siguiente o anterior estación de la playlist activa sin abrir ninguna lista, ideal para cambiar de ambiente sin soltar lo que estás haciendo
+- Favoritos locales de YouTube: nueva sub-pestaña [ Favoritos ] en la pestaña de YouTube; con Alt+F sobre cualquier video (resultados, Me gusta o una playlist) se guarda localmente para escucharlo después — sin cuenta de Google, cookies ni autenticación
+- Punto de reproducción animado en las pestañas principales: un punto verde intenso pulsa junto a la pestaña cuya fuente está sonando en este momento (se mantiene ahí aunque navegues otras pestañas, y deja de pulsar en pausa); la pestaña activa además muestra un punto ámbar en [Spotify] en modo Remoto sin dispositivo o uno rojo en [YouTube] con la sesión de cookies expirada
+- La sesión de YouTube ahora se valida automáticamente en segundo plano al iniciar y al cambiar el archivo de cookies; el resultado se muestra junto al ajuste "Validar sesión de YouTube" ("Sesión válida" / "Cookies expiradas") y alimenta el punto de estado de la pestaña [YouTube]
+- Selector de dispositivos de Spotify: Ctrl+D ahora abre una lista con todos los dispositivos Connect (nombre, tipo, activo/disponible) y Enter transfiere la reproducción al elegido, en vez de saltar a ciegas al siguiente
+- Las transmisiones en vivo ahora muestran una etiqueta roja EN VIVO en los resultados de búsqueda de YouTube, y al intentar reproducir una se explica de inmediato que aún no se soportan, antes de iniciar cualquier resolución
+- Los paneles de aviso ahora incluyen el atajo [O] que salta directo al ajuste relevante (archivo de cookies de YouTube, Client ID de Spotify o el modo de reproducción de Spotify), con el ítem preseleccionado
+- Nueva acción "Abrir carpeta de logs" en Ajustes para llegar a los registros de Reverbic sin usar la terminal; cada sesión ahora registra la versión de la app y el modo de reproducción de Spotify al inicio
+
+### Cambiado
+- La pestaña de YouTube ahora usa el rojo de YouTube de forma consistente en todos sus elementos (video seleccionado, campo de búsqueda, cursor de escritura, barra de scroll), replicando el patrón verde de la pestaña de Spotify para que siempre quede claro en qué pestaña estás
+- Las sub-pestañas [Me gusta] y [Playlists] de YouTube ahora muestran un panel de aviso claro cuando no hay cookies.txt configurado: explica que se necesita autenticación, recomienda usar una cuenta secundaria y enlaza a la guía paso a paso con los riesgos; las etiquetas de las sub-pestañas también se ven deshabilitadas (el mensaje anterior se desbordaba del panel y pasaba desapercibido)
+- La pestaña de Spotify ahora muestra el mismo estilo de panel de aviso cuando la cuenta no está conectada: explica que iniciar sesión es obligatorio, que se necesita una cuenta Premium y una app en el Spotify Developer Dashboard, y enlaza a la guía paso a paso (clickeable, incluye las notas legales); Enter sigue iniciando el flujo de conexión
+- Los avisos inferiores ahora se colorean por severidad (errores en rojo, advertencias en ámbar, información en el color de la fuente) y se encolan en vez de pisarse, de modo que un error ya no puede quedar oculto por un mensaje rutinario
+- Todos los paneles de aviso (conexión de Spotify, sin dispositivo de Spotify, autenticación de YouTube) ahora comparten un mismo componente consistente; el panel de "sin dispositivo" ganó el link clickeable a la guía que los otros ya tenían
+- Conectar una cuenta de Spotify sin Premium ahora muestra una advertencia clara de que la reproducción no funcionará, en vez de fallar después con errores confusos
+- El panel de autenticación de YouTube ahora menciona la alternativa local [ Favoritos ] para guardar videos sin cuenta
+
+### Corregido
+- Los videos de transmisiones en vivo recién finalizadas ya no se quedan en un ciclo infinito de reintentos; Reverbic ahora explica que YouTube todavía está procesando la grabación y que se intente más tarde
+- Intentar reproducir un stream de YouTube que está en vivo en este momento ya no muestra el error genérico de "formato no compatible"; Reverbic ahora explica que es una transmisión en curso y que podrá reproducirse cuando termine
+- El pie de la pestaña de Spotify ya no afirma "Modo: Remoto Escuchando en Desconocido [activo]" al usar el modo Auto sin dispositivos; ahora muestra el modo real (Auto o Remoto) y "ningún dispositivo de Spotify detectado" cuando no hay ninguno
+- El pie de la pestaña de Spotify ahora distingue entre un dispositivo realmente reproduciendo ([activo]) y uno que Spotify solo lista como disponible ([disponible])
+- Cuando un dispositivo de Spotify no responde al reproducir (ej. un teléfono cuya app se cerró pero Spotify aún lo lista), Reverbic ahora lo descarta, explica lo que pasó y reescanea en vez de mantenerlo como destino
+- La ayuda [?] ahora tiene una sección propia para YouTube (antes mostraba atajos genéricos) y cada atajo listado fue auditado contra el comportamiento real
+- La tecla Espacio ahora pausa/reanuda en todas las listas sin campo de texto (Favoritas y Playlists de radio, resultados de Género/País, y las sub-pestañas de biblioteca de Spotify y YouTube); antes solo funcionaba en Favoritas de radio aunque la ayuda decía lo contrario
+- Alt+F y Alt+R ya no actúan sobre resultados de radio residuales mientras navegas las pestañas de Spotify o YouTube
+
+### Seguridad
+- Se actualizaron dependencias (OpenSSL, ratatui, crossterm y otras) para corregir vulnerabilidades conocidas reportadas por Dependabot
+- El instalador de Windows ahora verifica el hash SHA256 del binario descargado antes de ejecutarlo, y solo retira la marca de "descargado de internet" tras una verificación exitosa
+- El instalador de Windows ahora aborta si el asset del release no incluye un hash SHA256 contra el cual verificar, en vez de ejecutar un binario sin verificar; esto se puede omitir bajo el propio riesgo del usuario mediante la variable de entorno `REVERBIC_SKIP_VERIFY`
+
+### Cambiado
+- El ajuste de Crossfade ahora ofrece pasos de 1, 3, 5 y 7 segundos (antes 1, 2 y 3)
+- El instalador de Windows ya no sobrescribe el PATH de la sesión actual; solo agrega la carpeta de instalación de Reverbic si falta
+- El instalador de Windows ahora muestra un mensaje más claro antes de abrir Reverbic, ya que la terminal queda ocupada hasta cerrar la aplicación con `q`
+
+### Corregido
+- El instalador de Windows ahora maneja fallos de red y límites de la API de GitHub con mensajes claros en vez de errores crudos, elimina el archivo temporal al finalizar, y soporta ARM64 (vía emulación x86_64) y versiones pre-release (mediante la variable de entorno `REVERBIC_PRERELEASE`)
+- Se corrigió el error "Requested format is not available" al buscar, resolver o explorar videos y playlists de YouTube, causado porque yt-dlp ahora requiere un runtime de JavaScript para resolver los desafíos de firma de YouTube
+- Las reproducciones on-demand (YouTube y replays) ahora se reconectan y reanudan automáticamente desde el byte exacto si la conexión se corta a mitad de una canción
+- Se corrigió que las canciones de YouTube se cortaran a la mitad o quedaran en silencio: YouTube solo entregaba un formato combinado de video cuyo audio HE-AAC el decodificador no soporta; ahora se usa el cliente android_vr de yt-dlp, que entrega audio puro AAC-LC de mayor calidad
+
 ---
 
 ## [1.5.1] — 2026-06-10
@@ -163,7 +228,8 @@ Versionado: [Semantic Versioning](https://semver.org/)
 [1.5.0]: https://github.com/sewandev/Reverbic/compare/v1.4.2...v1.5.0
 [1.4.2]: https://github.com/sewandev/Reverbic/compare/v1.4.1...v1.4.2
 [1.4.1]: https://github.com/sewandev/Reverbic/compare/v1.4.0...v1.4.1
-[1.4.0]: https://github.com/sewandev/Reverbic/compare/v1.3.0...v1.4.0
+[1.4.0]: https://github.com/sewandev/Reverbic/compare/v1.3.1...v1.4.0
+[1.3.1]: https://github.com/sewandev/Reverbic/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/sewandev/Reverbic/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/sewandev/Reverbic/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/sewandev/Reverbic/compare/v1.0.0...v1.1.0

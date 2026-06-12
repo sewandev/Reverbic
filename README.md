@@ -6,6 +6,7 @@
 
 <p align="center">
   <a href="https://github.com/sewandev/Reverbic/actions/workflows/ci.yml"><img alt="Build" src="https://github.com/sewandev/Reverbic/actions/workflows/ci.yml/badge.svg" /></a>
+  <a href="https://github.com/sewandev/Reverbic/actions/workflows/codeql.yml"><img alt="CodeQL" src="https://github.com/sewandev/Reverbic/actions/workflows/codeql.yml/badge.svg" /></a>
   <img alt="Version" src="https://img.shields.io/github/v/release/sewandev/Reverbic?style=flat-square&label=version&color=blueviolet" />
   <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-0078d4?style=flat-square" />
   <img alt="Built with Rust" src="https://img.shields.io/badge/built_with-Rust-CE422B?style=flat-square" />
@@ -18,7 +19,7 @@
 </p>
 
 <p align="center">
-  <img src="assets/Preview-Reverbic-1.5.0.gif" alt="Reverbic preview" width="100%">
+  <img src="assets/Preview-Reverbic.gif" alt="Reverbic preview" width="100%">
 </p>
 
 ---
@@ -51,13 +52,27 @@ cargo build --release
 ## Features
 
 - **Radio** — Search and play thousands of internet radio stations by name, genre, or country
-- **Spotify** — Remote control: search, play, pause, seek, volume, and device transfer (Premium required for playback)
+- **Spotify** — Remote control: search, play, pause, seek, volume, and device transfer (Premium required)
 - **YouTube** — Search and stream audio directly from YouTube
 - **Lightweight** — ~25 MB RAM and < 1% CPU at idle, starts in under a second
 - **Floating overlay** — always on top, with automatic game detection
 - **Discord Rich Presence** — shows your current station and track on your profile
 - **Favorites & crossfade** — save your favorite stations with smooth crossfade between them
 - **Screensaver mode** — clock, station info, and track metadata when idle
+
+> [!NOTE]
+> Spotify's 2026 policy changes could restrict native playback (librespot) at any time. Remote Control mode (search and playback control via the official Spotify API) does not depend on librespot and is a reasonable fallback for that risk, though it has its own requirements (your own Spotify Premium account and Developer app). See [LEGAL.md](LEGAL.md) for details.
+
+---
+
+## Documentation
+
+- **[Spotify guide](docs/spotify.md)** — playback modes, Client ID setup, shortcuts, and known limitations
+- **[YouTube guide](docs/youtube.md)** — features (Mix, chapters, SponsorBlock), cookies setup, and known limitations
+- **[Legal notes](LEGAL.md)** — third-party services, terms of service, and risk disclosures
+
+> [!WARNING]
+> If you configure YouTube cookies, **use a secondary ("burner") account** — never your main Google account. Full instructions in the [YouTube guide](docs/youtube.md).
 
 ---
 

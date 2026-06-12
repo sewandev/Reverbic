@@ -34,6 +34,21 @@ impl<'a> SearchModalWidget<'a> {
                 }
             }
             SettingItem::Crossfade => self.crossfade.clone(),
+            SettingItem::YoutubeCrossfade => self.youtube_crossfade.clone(),
+            SettingItem::YoutubeRadioMode => {
+                if self.youtube_radio_mode {
+                    on
+                } else {
+                    off
+                }
+            }
+            SettingItem::YoutubeSponsorblock => {
+                if self.youtube_sponsorblock {
+                    on
+                } else {
+                    off
+                }
+            }
             SettingItem::VolumeStep => format!("{}%", self.volume_step),
             SettingItem::Prebuffer => format!("{}s", self.prebuffer_secs),
             SettingItem::OverlayMode => self.overlay_mode.clone(),
@@ -127,6 +142,29 @@ impl<'a> SearchModalWidget<'a> {
                 }
             }
             SettingItem::ReplayOnboarding => t("hint.open"),
+            SettingItem::OpenLogs => t("hint.open"),
+            SettingItem::YoutubeCookiesPath => {
+                if self.youtube_cookies_configured {
+                    t("config.value.configured")
+                } else {
+                    t("config.value.not_configured")
+                }
+            }
+            SettingItem::YoutubeCookiesValidate => {
+                if self.youtube_validating {
+                    format!(
+                        "{} {}",
+                        super::helpers::spin_frame(),
+                        t("config.value.validating")
+                    )
+                } else {
+                    match self.youtube_session_health {
+                        Some(true) => t("config.value.session_ok"),
+                        Some(false) => t("config.value.session_expired"),
+                        None => t("config.value.validate"),
+                    }
+                }
+            }
         }
     }
 
@@ -204,11 +242,20 @@ impl<'a> SearchModalWidget<'a> {
                 };
                 let is_on = Self::is_on_value(value);
                 let is_off = value == t("config.value.off").as_str();
-                let val_st = if active {
+                let is_session_expired = value == t("config.value.session_expired").as_str();
+                let is_session_ok = value == t("config.value.session_ok").as_str();
+                let val_st = if is_session_expired {
+                    let style = Style::default().fg(self.palette.danger);
+                    if active {
+                        style.add_modifier(Modifier::BOLD)
+                    } else {
+                        style
+                    }
+                } else if active {
                     Style::default()
                         .fg(self.palette.playing)
                         .add_modifier(Modifier::BOLD)
-                } else if is_on {
+                } else if is_on || is_session_ok {
                     Style::default().fg(self.palette.playing)
                 } else if is_off {
                     Style::default().fg(self.palette.muted)

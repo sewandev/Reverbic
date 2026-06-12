@@ -68,7 +68,6 @@ impl UpdateTarget {
     fn from_parts(os: &str, arch: &str) -> Result<Self, AssetSelectionError> {
         let os = match os {
             "windows" => UpdateOs::Windows,
-            // macOS release archives need extraction/apply support before self-update can enable them.
             _ => return Err(AssetSelectionError::UnsupportedPlatform),
         };
 
@@ -246,6 +245,7 @@ fn expected_sha256(digest: Option<&str>) -> Result<&str, PayloadValidationError>
 
 fn sha256_file(path: &Path) -> Result<String, PayloadValidationError> {
     use sha2::{Digest, Sha256};
+    use std::fmt::Write;
     use std::io::Read;
 
     let mut file = std::fs::File::open(path).map_err(|_| PayloadValidationError::ReadFailed)?;
@@ -261,7 +261,13 @@ fn sha256_file(path: &Path) -> Result<String, PayloadValidationError> {
         hasher.update(&buffer[..read]);
     }
 
-    Ok(format!("{:x}", hasher.finalize()))
+    Ok(hasher
+        .finalize()
+        .iter()
+        .fold(String::new(), |mut hex, byte| {
+            let _ = write!(hex, "{byte:02x}");
+            hex
+        }))
 }
 
 pub fn apply_update(new_exe: &Path) {

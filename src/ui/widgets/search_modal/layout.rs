@@ -1,6 +1,6 @@
 use ratatui::layout::{Constraint, Layout, Rect};
 
-use crate::app::{RadioSubTab, SearchMode, SpotifySubTab};
+use crate::app::{RadioSubTab, SearchMode, SpotifySubTab, YoutubeSubTab};
 use crate::i18n::t;
 use crate::ui::widgets::scroll_offset_for_selection;
 
@@ -24,6 +24,9 @@ const SPOTIFY_SUBTAB_ROWS: u16 = 1;
 const SPOTIFY_BODY_GAP_ROWS: u16 = 1;
 const SPOTIFY_FOOTER_ROWS: u16 = 1;
 const SPOTIFY_TITLE_ROWS: u16 = 1;
+const YOUTUBE_TOP_GAP_ROWS: u16 = 1;
+const YOUTUBE_SUBTAB_ROWS: u16 = 1;
+const YOUTUBE_BODY_GAP_ROWS: u16 = 1;
 const SCROLLBAR_RESERVED_ROWS: u16 = 1;
 const MODAL_CONTENT_HORIZONTAL_PADDING: u16 = 2;
 const MODAL_SUBTAB_INDENT: u16 = 2;
@@ -74,6 +77,12 @@ pub(crate) struct SpotifySearchLayout {
     pub input: Rect,
     pub cap: Rect,
     pub list: Rect,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct YoutubeLayout {
+    pub subtab: Rect,
+    pub body: Rect,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -234,18 +243,39 @@ fn list_index_at(hit: ListHitTest) -> Option<usize> {
     (index < hit.item_count).then_some(index)
 }
 
-pub(crate) fn modal_tab_at(area: Rect, col: u16, row: u16) -> Option<SearchMode> {
+pub(crate) fn modal_tab_at(
+    area: Rect,
+    col: u16,
+    row: u16,
+    dots: crate::app::TabDots,
+) -> Option<SearchMode> {
     let layout = modal_layout(area)?;
     let content = modal_content_area(area)?;
     let tab_area = Rect::new(content.x, layout.tabs.y, content.width, layout.tabs.height);
+    let label = |has_dot: bool, text: String| {
+        if has_dot {
+            format!("\u{25CF} {text}")
+        } else {
+            text
+        }
+    };
     tab_value_at(
         tab_area,
         col,
         row,
         &[
-            (t("modal.tab.radio"), SearchMode::Name),
-            (t("modal.tab.spotify"), SearchMode::Spotify),
-            (t("modal.tab.youtube"), SearchMode::Youtube),
+            (
+                label(dots.radio.is_some(), t("modal.tab.radio")),
+                SearchMode::Name,
+            ),
+            (
+                label(dots.spotify.is_some(), t("modal.tab.spotify")),
+                SearchMode::Spotify,
+            ),
+            (
+                label(dots.youtube.is_some(), t("modal.tab.youtube")),
+                SearchMode::Youtube,
+            ),
         ],
     )
 }
@@ -255,6 +285,7 @@ pub(crate) fn radio_subtab_at(
     col: u16,
     row: u16,
     favorites_count: usize,
+    playlists_count: usize,
 ) -> Option<RadioSubTab> {
     let body = modal_body_area(area)?;
     let content = modal_content_area(area)?;
@@ -279,6 +310,14 @@ pub(crate) fn radio_subtab_at(
                     favorites_count
                 ),
                 RadioSubTab::Favorites,
+            ),
+            (
+                format!(
+                    "[ {} ({}) ]",
+                    t("modal.radio.subtab.playlists.label"),
+                    playlists_count
+                ),
+                RadioSubTab::Playlists,
             ),
         ],
     )
@@ -309,6 +348,36 @@ pub(crate) fn spotify_subtab_at(area: Rect, col: u16, row: u16) -> Option<Spotif
             (t("Top Tracks"), SpotifySubTab::TopTracks),
             (t("Recent"), SpotifySubTab::Recent),
             (t("Albums"), SpotifySubTab::Albums),
+        ],
+    )
+}
+
+pub(crate) fn youtube_subtab_at(area: Rect, col: u16, row: u16) -> Option<YoutubeSubTab> {
+    let body = modal_body_area(area)?;
+    let content = modal_content_area(area)?;
+    let subtab = youtube_layout(body).subtab;
+    let tab_area = Rect::new(
+        content.x.saturating_add(MODAL_SUBTAB_INDENT),
+        subtab.y,
+        content.width.saturating_sub(MODAL_SUBTAB_INDENT),
+        subtab.height,
+    );
+
+    tab_value_at(
+        tab_area,
+        col,
+        row,
+        &[
+            (t("modal.youtube.subtab.search"), YoutubeSubTab::Search),
+            (
+                t("modal.youtube.subtab.bookmarks"),
+                YoutubeSubTab::Bookmarks,
+            ),
+            (t("modal.youtube.subtab.liked"), YoutubeSubTab::Liked),
+            (
+                t("modal.youtube.subtab.playlists"),
+                YoutubeSubTab::Playlists,
+            ),
         ],
     )
 }
@@ -352,6 +421,14 @@ pub(crate) fn radio_favorites_list_area(area: Rect) -> Option<Rect> {
     Some(radio_favorites_list_layout(radio_name_layout(body).body))
 }
 
+pub(crate) fn radio_playlists_list_area(area: Rect) -> Option<Rect> {
+    radio_favorites_list_area(area)
+}
+
+pub(crate) fn radio_playlist_stations_list_area(area: Rect) -> Option<Rect> {
+    radio_playlists_list_area(area).map(|list| header_list_layout(list).list)
+}
+
 pub(crate) fn radio_filter_list_area(area: Rect) -> Option<Rect> {
     let body = modal_body_area(area)?;
     Some(filter_list_layout(body).list)
@@ -385,9 +462,26 @@ pub(crate) fn spotify_titled_track_list_area(area: Rect) -> Option<Rect> {
     spotify_body_area(area).map(spotify_titled_track_list_layout)
 }
 
-pub(crate) fn youtube_list_area(area: Rect) -> Option<Rect> {
+pub(crate) fn youtube_body_area(area: Rect) -> Option<Rect> {
     let body = modal_body_area(area)?;
-    Some(filter_list_layout(body).list)
+    Some(youtube_layout(body).body)
+}
+
+pub(crate) fn youtube_search_list_area(area: Rect) -> Option<Rect> {
+    let body = youtube_body_area(area)?;
+    Some(youtube_search_layout(body).list)
+}
+
+pub(crate) fn youtube_liked_list_area(area: Rect) -> Option<Rect> {
+    youtube_body_area(area)
+}
+
+pub(crate) fn youtube_playlists_list_area(area: Rect) -> Option<Rect> {
+    youtube_body_area(area)
+}
+
+pub(crate) fn youtube_playlist_videos_list_area(area: Rect) -> Option<Rect> {
+    youtube_body_area(area).map(spotify_titled_track_list_layout)
 }
 
 pub(crate) fn radio_name_layout(area: Rect) -> RadioNameLayout {
@@ -455,6 +549,64 @@ pub(crate) fn spotify_search_layout(area: Rect) -> SpotifySearchLayout {
     SpotifySearchLayout { input, cap, list }
 }
 
+pub(crate) fn youtube_layout(area: Rect) -> YoutubeLayout {
+    let [_gap, subtab, _body_gap, body] = Layout::vertical([
+        Constraint::Length(YOUTUBE_TOP_GAP_ROWS),
+        Constraint::Length(YOUTUBE_SUBTAB_ROWS),
+        Constraint::Length(YOUTUBE_BODY_GAP_ROWS),
+        Constraint::Fill(1),
+    ])
+    .areas(area);
+
+    YoutubeLayout { subtab, body }
+}
+
+pub(crate) fn auth_notice_box(body: Rect) -> Option<Rect> {
+    let box_w = body.width.saturating_sub(4).min(70);
+    let box_h = 14.min(body.height);
+    if box_w < 20 || box_h < 6 {
+        return None;
+    }
+    Some(Rect::new(
+        body.x + (body.width - box_w) / 2,
+        body.y + body.height.saturating_sub(box_h) / 2,
+        box_w,
+        box_h,
+    ))
+}
+
+pub(crate) fn youtube_auth_notice_at(area: Rect, col: u16, row: u16) -> bool {
+    let Some(body) = modal_body_area(area) else {
+        return false;
+    };
+    auth_notice_box(youtube_layout(body).body).is_some_and(|notice| contains(notice, col, row))
+}
+
+pub(crate) fn spotify_auth_notice_at(area: Rect, col: u16, row: u16) -> bool {
+    let Some(body) = modal_body_area(area) else {
+        return false;
+    };
+    auth_notice_box(body).is_some_and(|notice| contains(notice, col, row))
+}
+
+pub(crate) fn spotify_no_device_notice_at(area: Rect, col: u16, row: u16) -> bool {
+    let Some(body) = modal_body_area(area) else {
+        return false;
+    };
+    auth_notice_box(spotify_layout(body).body).is_some_and(|notice| contains(notice, col, row))
+}
+
+pub(crate) fn youtube_search_layout(area: Rect) -> SpotifySearchLayout {
+    let [input, cap, list] = Layout::vertical([
+        Constraint::Length(SEARCH_INPUT_ROWS),
+        Constraint::Length(SEARCH_CAP_ROWS),
+        Constraint::Fill(1),
+    ])
+    .areas(area);
+
+    SpotifySearchLayout { input, cap, list }
+}
+
 pub(crate) fn spotify_titled_track_list_layout(area: Rect) -> Rect {
     Rect::new(
         area.x,
@@ -487,8 +639,8 @@ mod tests {
         spotify_search_layout, spotify_search_list_area, spotify_subtab_at,
         spotify_titled_track_list_area, spotify_titled_track_list_layout, text_cell_width,
         two_line_list_index_at, visible_items, visible_rows, visible_rows_excluding_scrollbar,
-        youtube_list_area, ListItemHeight, MODAL_MIN_HEIGHT, MODAL_MIN_WIDTH, MODAL_SUBTAB_INDENT,
-        TAB_GAP_WIDTH,
+        youtube_layout, youtube_search_layout, youtube_search_list_area, ListItemHeight,
+        MODAL_MIN_HEIGHT, MODAL_MIN_WIDTH, MODAL_SUBTAB_INDENT, TAB_GAP_WIDTH,
     };
     use crate::app::{RadioSubTab, SearchMode, SpotifySubTab};
     use crate::i18n::t;
@@ -593,18 +745,22 @@ mod tests {
         let area = normal_terminal();
         let layout = modal_layout(area).expect("modal should render");
         let content = modal_content_area(area).expect("content should render");
-        let radio_w = text_cell_width(&t("modal.tab.radio"));
+        let dots = crate::app::TabDots {
+            radio: Some(crate::app::TabDot::Playing),
+            ..Default::default()
+        };
+        let radio_w = text_cell_width(&t("modal.tab.radio")) + 2;
         let spotify_x = content.x + radio_w + TAB_GAP_WIDTH;
 
         assert!(matches!(
-            modal_tab_at(area, content.x, layout.tabs.y),
+            modal_tab_at(area, content.x, layout.tabs.y, dots),
             Some(SearchMode::Name)
         ));
         assert!(matches!(
-            modal_tab_at(area, spotify_x, layout.tabs.y),
+            modal_tab_at(area, spotify_x, layout.tabs.y, dots),
             Some(SearchMode::Spotify)
         ));
-        assert!(modal_tab_at(area, content.x + radio_w, layout.tabs.y).is_none());
+        assert!(modal_tab_at(area, content.x + radio_w, layout.tabs.y, dots).is_none());
     }
 
     #[test]
@@ -618,11 +774,11 @@ mod tests {
         let favorites_x = text_x + search_w + TAB_GAP_WIDTH;
 
         assert!(matches!(
-            radio_subtab_at(area, text_x, subtab.y, 12),
+            radio_subtab_at(area, text_x, subtab.y, 12, 3),
             Some(RadioSubTab::Search)
         ));
         assert!(matches!(
-            radio_subtab_at(area, favorites_x, subtab.y, 12),
+            radio_subtab_at(area, favorites_x, subtab.y, 12, 3),
             Some(RadioSubTab::Favorites)
         ));
     }
@@ -774,11 +930,12 @@ mod tests {
     #[test]
     fn modal_viewport_youtube_results_match_filter_layout() {
         let terminal = normal_terminal();
-        let rendered = filter_list_layout(normal_modal_body());
-        let input_list = youtube_list_area(terminal);
+        let rendered_youtube = youtube_layout(normal_modal_body());
+        let rendered_search = youtube_search_layout(rendered_youtube.body);
+        let input_list = youtube_search_list_area(terminal);
 
-        assert_eq!(input_list, Some(rendered.list));
-        assert_eq!(visible_items(input_list, ListItemHeight::TwoLines), 12);
+        assert_eq!(input_list, Some(rendered_search.list));
+        assert_eq!(visible_items(input_list, ListItemHeight::TwoLines), 11);
     }
 
     #[test]

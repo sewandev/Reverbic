@@ -43,6 +43,8 @@ pub struct Palette {
     pub warning: Color,
     pub buffering: Color,
     pub spotify: Color,
+    pub youtube: Color,
+    pub status_ok: Color,
     pub caution: Color,
     pub panel_bg: Color,
     pub overlay_color: Color,
@@ -65,6 +67,16 @@ pub fn border_color_for(palette: &Palette, tick: u32) -> Color {
     let (r2, g2, b2) = palette.border_cycle[(seg + 1) % palette.border_cycle.len()];
     let lerp = |a: u8, b: u8| (a as f32 + (b as f32 - a as f32) * t) as u8;
     Color::Rgb(lerp(r1, r2), lerp(g1, g2), lerp(b1, b2))
+}
+
+pub fn status_pulse(base: Color, tick: u32) -> Color {
+    let Color::Rgb(r, g, b) = base else {
+        return base;
+    };
+    let phase = (tick % 60) as f32 / 60.0;
+    let level = 0.45 + 0.55 * (0.5 + 0.5 * (phase * std::f32::consts::TAU).sin());
+    let scale = |c: u8| (c as f32 * level).round().min(255.0) as u8;
+    Color::Rgb(scale(r), scale(g), scale(b))
 }
 
 pub fn playing_style(palette: &Palette) -> Style {

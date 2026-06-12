@@ -3,8 +3,10 @@ mod input;
 mod integrations;
 mod metadata;
 mod modal;
+mod notice;
 mod on_demand;
 mod player_ctrl;
+mod playlists;
 mod search;
 mod spotify_state;
 mod update_ctrl;
@@ -13,8 +15,11 @@ mod youtube_state;
 
 pub use modal::{
     settings_items, AppFocus, RadioSubTab, SearchMode, SettingItem, SpotifyAuthStatus,
-    SpotifyPlayerStatus, SpotifySubTab,
+    SpotifyPlayerStatus, SpotifySubTab, YoutubeSubTab,
 };
+use notice::NoticeQueue;
+pub use notice::NoticeSeverity;
+pub use playlists::{ActivePlaylist, PlaylistPicker};
 use spotify_state::SpotifyPlaybackBackend;
 pub use spotify_state::SpotifyState;
 pub use youtube_state::{YoutubeState, YoutubeStatus};
@@ -28,6 +33,7 @@ use ratatui::layout::Rect;
 use crate::audio::{AudioPlayer, PlayerState};
 use crate::config::{Config, SpotifyPlaybackMode};
 use crate::favorites::{self as fav_store, FavoriteStation};
+use crate::playlists::{self as playlist_store, RadioPlaylist};
 use crate::station::on_demand::OnDemandShow;
 use crate::station::{DynamicStation, Station, StationDetails};
 use crate::ui::widgets::keep_selected_visible;
@@ -109,6 +115,21 @@ enum SpotifyControlTarget {
     None,
 }
 
+#[derive(Clone, Copy, PartialEq)]
+pub enum TabDot {
+    Playing,
+    Paused,
+    Warning,
+    Danger,
+}
+
+#[derive(Clone, Copy, Default, PartialEq)]
+pub struct TabDots {
+    pub radio: Option<TabDot>,
+    pub spotify: Option<TabDot>,
+    pub youtube: Option<TabDot>,
+}
+
 pub struct App {
     pub stations: Vec<Station>,
     pub favorites: Vec<FavoriteStation>,
@@ -120,7 +141,8 @@ pub struct App {
     pub recent_selected: usize,
     pub saved_tracks: Vec<String>,
     pub save_notice: Option<String>,
-    pub save_notice_is_dup: bool,
+    pub save_notice_severity: NoticeSeverity,
+    notice_queue: NoticeQueue,
     pub search_query: String,
     pub search_results: Vec<DynamicStation>,
     pub search_loading: bool,
@@ -138,6 +160,15 @@ pub struct App {
     pub radio_sub_tab: RadioSubTab,
     pub radio_fav_selected: usize,
     pub radio_fav_scroll_offset: usize,
+    pub playlists: Vec<RadioPlaylist>,
+    pub radio_playlist_selected: usize,
+    pub radio_playlist_scroll_offset: usize,
+    pub radio_open_playlist: Option<usize>,
+    pub radio_playlist_station_selected: usize,
+    pub radio_playlist_station_scroll_offset: usize,
+    pub playlist_picker: Option<PlaylistPicker>,
+    pub active_playlist: Option<ActivePlaylist>,
+    pub renaming_playlist: Option<usize>,
     pub radio_search_scroll_offset: usize,
     pub radio_genre_results_scroll_offset: usize,
     pub radio_country_results_scroll_offset: usize,
@@ -152,6 +183,9 @@ pub struct App {
     pub rename_input: String,
     pub editing_client_id: bool,
     pub client_id_input: String,
+    pub editing_cookies_path: bool,
+    pub cookies_path_input: String,
+    pub cookies_path_error: Option<String>,
     pub theme_picker_open: bool,
     pub theme_picker_selected: usize,
     pub click_flash: Option<(usize, Instant)>,
@@ -207,6 +241,11 @@ impl App {
             .await;
 
         let favorites = fav_store::load();
+        let playlists = playlist_store::load();
+        let youtube = YoutubeState {
+            bookmarks: crate::youtube_bookmarks::load(),
+            ..YoutubeState::default()
+        };
         let mut app = Self {
             stations: Vec::new(),
             favorites,
@@ -218,7 +257,8 @@ impl App {
             recent_selected: 0,
             saved_tracks: Vec::new(),
             save_notice: None,
-            save_notice_is_dup: false,
+            save_notice_severity: NoticeSeverity::Info,
+            notice_queue: NoticeQueue::new(),
             search_query: String::new(),
             search_results: Vec::new(),
             search_loading: false,
@@ -236,6 +276,15 @@ impl App {
             radio_sub_tab: RadioSubTab::default(),
             radio_fav_selected: 0,
             radio_fav_scroll_offset: 0,
+            playlists,
+            radio_playlist_selected: 0,
+            radio_playlist_scroll_offset: 0,
+            radio_open_playlist: None,
+            radio_playlist_station_selected: 0,
+            radio_playlist_station_scroll_offset: 0,
+            playlist_picker: None,
+            active_playlist: None,
+            renaming_playlist: None,
             radio_search_scroll_offset: 0,
             radio_genre_results_scroll_offset: 0,
             radio_country_results_scroll_offset: 0,
@@ -250,6 +299,9 @@ impl App {
             rename_input: String::new(),
             editing_client_id: false,
             client_id_input: String::new(),
+            editing_cookies_path: false,
+            cookies_path_input: String::new(),
+            cookies_path_error: None,
             theme_picker_open: false,
             theme_picker_selected: 0,
             click_flash: None,
@@ -260,7 +312,7 @@ impl App {
             config,
             show_help: false,
             spotify: SpotifyState::default(),
-            youtube: YoutubeState::default(),
+            youtube,
             radio_enriched_track: None,
             radio_enriched_for: None,
             radio_enrichment_task: None,
@@ -513,6 +565,64 @@ impl App {
         }
     }
 
+    pub fn tab_dots(&self) -> TabDots {
+        use crate::audio::PlayerStatus;
+        let mut dots = TabDots::default();
+
+        if self.active_source_is_spotify() {
+            let playing = self
+                .spotify
+                .playback
+                .as_ref()
+                .map(|playback| playback.is_playing)
+                .unwrap_or(matches!(
+                    self.spotify.player_status,
+                    SpotifyPlayerStatus::Playing | SpotifyPlayerStatus::Loading
+                ));
+            dots.spotify = Some(if playing {
+                TabDot::Playing
+            } else {
+                TabDot::Paused
+            });
+        } else {
+            let state = self.player.state();
+            if !matches!(state.status, PlayerStatus::Idle | PlayerStatus::Error(_)) {
+                if let Some(station) = state.station.as_ref() {
+                    let dot = if matches!(state.status, PlayerStatus::Paused) {
+                        TabDot::Paused
+                    } else {
+                        TabDot::Playing
+                    };
+                    if station.key.starts_with("youtube:") {
+                        dots.youtube = Some(dot);
+                    } else {
+                        dots.radio = Some(dot);
+                    }
+                }
+            }
+        }
+
+        match self.modal_mode {
+            SearchMode::Spotify
+                if dots.spotify.is_none()
+                    && matches!(self.spotify.status, SpotifyAuthStatus::LoggedIn)
+                    && self.spotify_remote_blocked() =>
+            {
+                dots.spotify = Some(TabDot::Warning);
+            }
+            SearchMode::Youtube
+                if dots.youtube.is_none()
+                    && self.config.youtube.cookies_path.is_some()
+                    && self.youtube.session_health == Some(false) =>
+            {
+                dots.youtube = Some(TabDot::Danger);
+            }
+            _ => {}
+        }
+
+        dots
+    }
+
     pub(super) fn total_stations(&self) -> usize {
         self.favorites.len() + self.stations.len() + self.search_results.len()
     }
@@ -625,7 +735,8 @@ mod tests {
             recent_selected: 0,
             saved_tracks: Vec::new(),
             save_notice: None,
-            save_notice_is_dup: false,
+            save_notice_severity: NoticeSeverity::Info,
+            notice_queue: NoticeQueue::new(),
             search_query: String::new(),
             search_results: Vec::new(),
             search_loading: false,
@@ -643,6 +754,15 @@ mod tests {
             radio_sub_tab: RadioSubTab::default(),
             radio_fav_selected: 0,
             radio_fav_scroll_offset: 0,
+            playlists: Vec::new(),
+            radio_playlist_selected: 0,
+            radio_playlist_scroll_offset: 0,
+            radio_open_playlist: None,
+            radio_playlist_station_selected: 0,
+            radio_playlist_station_scroll_offset: 0,
+            playlist_picker: None,
+            active_playlist: None,
+            renaming_playlist: None,
             radio_search_scroll_offset: 0,
             radio_genre_results_scroll_offset: 0,
             radio_country_results_scroll_offset: 0,
@@ -657,6 +777,9 @@ mod tests {
             rename_input: String::new(),
             editing_client_id: false,
             client_id_input: String::new(),
+            editing_cookies_path: false,
+            cookies_path_input: String::new(),
+            cookies_path_error: None,
             theme_picker_open: false,
             theme_picker_selected: 0,
             click_flash: None,

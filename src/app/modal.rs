@@ -42,6 +42,16 @@ pub enum RadioSubTab {
     #[default]
     Search,
     Favorites,
+    Playlists,
+}
+
+#[derive(Clone, Copy, PartialEq, Default)]
+pub enum YoutubeSubTab {
+    #[default]
+    Search,
+    Bookmarks,
+    Liked,
+    Playlists,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -49,6 +59,7 @@ pub enum SettingItem {
     Autoplay,
     RestoreVolume,
     Crossfade,
+    YoutubeCrossfade,
     VolumeStep,
     Prebuffer,
     OverlayMode,
@@ -69,9 +80,14 @@ pub enum SettingItem {
     SpotifyClientId,
     SpotifyPlaybackMode,
     SpotifyRadioMode,
+    YoutubeRadioMode,
+    YoutubeSponsorblock,
+    YoutubeCookiesPath,
+    YoutubeCookiesValidate,
     AutoUpdate,
     DiscordRpc,
     ReplayOnboarding,
+    OpenLogs,
 }
 
 impl SettingItem {
@@ -80,6 +96,7 @@ impl SettingItem {
             Self::Autoplay => t("config.setting.autoplay"),
             Self::RestoreVolume => t("config.setting.restore_volume"),
             Self::Crossfade => t("config.setting.crossfade"),
+            Self::YoutubeCrossfade => t("config.setting.youtube_crossfade"),
             Self::VolumeStep => t("config.setting.volume_step"),
             Self::Prebuffer => t("config.setting.prebuffer"),
             Self::OverlayMode => t("config.setting.overlay"),
@@ -102,7 +119,12 @@ impl SettingItem {
             Self::AutoUpdate => t("config.setting.auto_update"),
             Self::DiscordRpc => t("config.setting.discord_rpc"),
             Self::ReplayOnboarding => t("config.setting.replay_onboarding"),
+            Self::OpenLogs => t("config.setting.open_logs"),
             Self::SpotifyRadioMode => t("config.setting.spotify_radio_mode"),
+            Self::YoutubeRadioMode => t("config.setting.youtube_radio_mode"),
+            Self::YoutubeSponsorblock => t("config.setting.youtube_sponsorblock"),
+            Self::YoutubeCookiesPath => t("config.setting.youtube_cookies_path"),
+            Self::YoutubeCookiesValidate => t("config.setting.youtube_cookies_validate"),
         }
     }
 
@@ -111,6 +133,7 @@ impl SettingItem {
             Self::Autoplay => "config.tooltip.autoplay",
             Self::RestoreVolume => "config.tooltip.restore_volume",
             Self::Crossfade => "config.tooltip.crossfade",
+            Self::YoutubeCrossfade => "config.tooltip.youtube_crossfade",
             Self::VolumeStep => "config.tooltip.volume_step",
             Self::Prebuffer => "config.tooltip.prebuffer",
             Self::OverlayMode => "config.tooltip.overlay",
@@ -133,7 +156,12 @@ impl SettingItem {
             Self::AutoUpdate => "config.tooltip.auto_update",
             Self::DiscordRpc => "config.tooltip.discord_rpc",
             Self::ReplayOnboarding => "config.tooltip.replay_onboarding",
+            Self::OpenLogs => "config.tooltip.open_logs",
             Self::SpotifyRadioMode => "config.tooltip.spotify_radio_mode",
+            Self::YoutubeRadioMode => "config.tooltip.youtube_radio_mode",
+            Self::YoutubeSponsorblock => "config.tooltip.youtube_sponsorblock",
+            Self::YoutubeCookiesPath => "config.tooltip.youtube_cookies_path",
+            Self::YoutubeCookiesValidate => "config.tooltip.youtube_cookies_validate",
         }
     }
 
@@ -156,13 +184,19 @@ impl SettingItem {
             | Self::Notifications
             | Self::AutoUpdate
             | Self::DiscordRpc
-            | Self::ReplayOnboarding => "config.group.system",
+            | Self::ReplayOnboarding
+            | Self::OpenLogs => "config.group.system",
             Self::Language | Self::Theme => "config.group.appearance",
             Self::SpotifyStopOnQuit
             | Self::SpotifyStartOnSpotify
             | Self::SpotifyClientId
             | Self::SpotifyPlaybackMode
-            | Self::SpotifyRadioMode => "config.group.integrations",
+            | Self::SpotifyRadioMode
+            | Self::YoutubeCrossfade
+            | Self::YoutubeRadioMode
+            | Self::YoutubeSponsorblock
+            | Self::YoutubeCookiesPath
+            | Self::YoutubeCookiesValidate => "config.group.integrations",
         }
     }
 }
@@ -192,6 +226,7 @@ pub fn settings_items(duck_enabled: bool) -> Vec<SettingItem> {
         SettingItem::AutoUpdate,
         SettingItem::DiscordRpc,
         SettingItem::ReplayOnboarding,
+        SettingItem::OpenLogs,
         SettingItem::Language,
         SettingItem::Theme,
         SettingItem::SpotifyStopOnQuit,
@@ -199,6 +234,11 @@ pub fn settings_items(duck_enabled: bool) -> Vec<SettingItem> {
         SettingItem::SpotifyClientId,
         SettingItem::SpotifyPlaybackMode,
         SettingItem::SpotifyRadioMode,
+        SettingItem::YoutubeCrossfade,
+        SettingItem::YoutubeRadioMode,
+        SettingItem::YoutubeSponsorblock,
+        SettingItem::YoutubeCookiesPath,
+        SettingItem::YoutubeCookiesValidate,
     ]);
     items
 }
