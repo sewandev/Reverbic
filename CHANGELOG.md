@@ -30,11 +30,22 @@ Versioning: [Semantic Versioning](https://semver.org/)
 - Radio playlists: new [ Playlists ] sub-tab in the Radio tab to group your stations into named collections; press Alt+P on any station (in Search, Genre, Country or Favorites) to add it to an existing playlist or create a new one, and playlists persist on disk between sessions
 - Inside the [ Playlists ] sub-tab: N creates a named empty playlist, R renames the selected one, Shift+↑/↓ reorders stations within a playlist and Alt+F removes the station or deletes the playlist depending on the level
 - Ctrl+Shift+→/← jumps to the next or previous station of the active playlist without opening any list, ideal for switching vibes without leaving what you are doing
+- Local YouTube bookmarks: new [ Bookmarks ] sub-tab in the YouTube tab; press Alt+F on any video (search results, Liked or a playlist) to save it locally and play it later — no Google account, cookies or authentication needed
+- Animated playback dot on the main tabs: an intense green dot pulses next to the tab whose source is actually playing right now (it stays there even while you browse other tabs, and stops pulsing while paused); the active tab additionally shows an amber dot on [Spotify] in Remote mode with no device or a red one on [YouTube] when the cookies session expired
+- The YouTube session is now validated automatically in the background at startup and whenever the cookies file changes; the result shows next to the "Validate YouTube session" setting ("Session valid" / "Cookies expired") and drives the [YouTube] tab status dot
+- Spotify device picker: Ctrl+D now opens a list of every Connect device (name, type, active/available) and Enter transfers playback to the chosen one, instead of blindly cycling to the next device
+- Ongoing live streams now show a red LIVE badge in YouTube search results, and trying to play one explains immediately that live broadcasts are not supported yet, before any resolving starts
+- Notice panels now include an [O] shortcut that jumps straight to the relevant setting (YouTube cookies file, Spotify Client ID or the Spotify playback mode), with the item preselected
+- New "Open logs folder" action in Settings to reach Reverbic's log files without using the terminal; each session now logs the app version and the Spotify playback mode at startup
 
 ### Changed
 - The YouTube tab now uses YouTube's red consistently across all its elements (selected video, search input, typing cursor, scrollbar), mirroring the green pattern of the Spotify tab so it is always clear which tab is active
 - The YouTube [Liked] and [Playlists] sub-tabs now show a clear notice panel when no cookies.txt is configured: it explains that authentication is needed, recommends using a secondary account and links to the step-by-step guide with the risks; the sub-tab labels also render as disabled (the old message overflowed the panel and was easy to miss)
 - The Spotify tab now shows the same style of notice panel when the account is not connected: it explains that signing in is mandatory, that a Premium account and a Spotify Developer Dashboard app are required, and links to the step-by-step guide (clickable, includes the legal notes); Enter still starts the sign-in flow
+- Bottom notices are now color-coded by severity (errors in red, warnings in amber, info in the source color) and queue up instead of overwriting each other, so an error can no longer be hidden by a routine message
+- All notice panels (Spotify connect, Spotify no-device, YouTube authentication) now share one consistent component; the no-device panel gained the clickable guide link the others already had
+- Connecting a non-Premium Spotify account now shows a clear warning that playback will not work, instead of failing later with confusing errors
+- The YouTube authentication panel now mentions the local [ Bookmarks ] alternative for saving videos without an account
 
 ### Fixed
 - Videos from recently ended live streams no longer hang in an endless retry loop; Reverbic now explains that YouTube is still processing the recording and to try again later
@@ -42,6 +53,9 @@ Versioning: [Semantic Versioning](https://semver.org/)
 - The Spotify footer no longer claims "Mode: Remote Listening on Unknown [active]" when using Auto mode with no device; it now shows the real mode (Auto or Remote) and "no Spotify device detected" when there is none
 - The Spotify footer now distinguishes between a device that is really playing ([active]) and one that is merely listed by Spotify ([available])
 - When a Spotify device does not respond on playback (e.g. a phone whose app was closed but Spotify still lists it), Reverbic now discards it, explains what happened, and rescans instead of keeping it as the target
+- The [?] help overlay now has a dedicated YouTube section (it previously showed generic hints) and every listed shortcut was audited against real behavior
+- Space now pauses/resumes in every list without a text input (radio Favorites and Playlists, Genre/Country results, Spotify and YouTube library sub-tabs); it previously only worked in radio Favorites while the help claimed otherwise
+- Alt+F and Alt+R no longer act on leftover radio search results while browsing the Spotify or YouTube tabs
 
 ### Security
 - Updated dependencies (OpenSSL, ratatui, crossterm and others) to resolve known security advisories reported by Dependabot

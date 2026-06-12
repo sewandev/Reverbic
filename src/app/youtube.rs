@@ -204,6 +204,14 @@ impl App {
         let Some(video) = list.get(index).cloned() else {
             return false;
         };
+        if video.is_live {
+            self.show_notice(
+                crate::app::NoticeSeverity::Warning,
+                crate::i18n::t("modal.youtube.live_not_supported"),
+                8,
+            );
+            return false;
+        }
         let next_video = list.get(index + 1).cloned();
         let is_mix = matches!(ctx, YoutubePlaybackContext::Mix);
         self.youtube.playback_context = Some((ctx, index));
@@ -217,6 +225,7 @@ impl App {
     fn youtube_context_list(&self, ctx: &YoutubePlaybackContext) -> &[YoutubeVideo] {
         match ctx {
             YoutubePlaybackContext::SearchResults => &self.youtube.results,
+            YoutubePlaybackContext::Bookmarks => &self.youtube.bookmarks,
             YoutubePlaybackContext::LikedVideos => &self.youtube.liked_videos,
             YoutubePlaybackContext::PlaylistVideos => &self.youtube.playlist_videos,
             YoutubePlaybackContext::Mix => &self.youtube.mix_videos,
@@ -233,6 +242,7 @@ impl App {
         }
         tracing::info!(video_id = %seed.id, title = %seed.title, "youtube: starting mix");
         self.show_notice(
+            crate::app::NoticeSeverity::Info,
             format!(
                 "{}: {}",
                 crate::i18n::t("modal.youtube.mix_starting"),
@@ -290,7 +300,7 @@ impl App {
                     Err(e) => {
                         tracing::warn!("youtube: mix fetch failed: {e}");
                         if !self.youtube.mix_is_extension {
-                            self.show_notice(e.to_string(), 6);
+                            self.show_notice(crate::app::NoticeSeverity::Error, e.to_string(), 6);
                         }
                     }
                 }
@@ -332,7 +342,11 @@ impl App {
         }
 
         if videos.is_empty() {
-            self.show_notice(crate::i18n::t("modal.youtube.mix_failed"), 6);
+            self.show_notice(
+                crate::app::NoticeSeverity::Error,
+                crate::i18n::t("modal.youtube.mix_failed"),
+                6,
+            );
             return;
         }
         let start_index = match self.youtube.mix_seed_to_skip.take() {
@@ -492,6 +506,11 @@ impl App {
         }
         match self.youtube.sub_tab {
             YoutubeSubTab::Search => self.youtube.results.get(self.youtube.selected).cloned(),
+            YoutubeSubTab::Bookmarks => self
+                .youtube
+                .bookmarks
+                .get(self.youtube.bookmarks_selected)
+                .cloned(),
             YoutubeSubTab::Liked => self
                 .youtube
                 .liked_videos
@@ -594,6 +613,7 @@ impl App {
                         "youtube: list ended, radio mode continuing with a mix"
                     );
                     self.show_notice(
+                        crate::app::NoticeSeverity::Info,
                         format!(
                             "{}: {}",
                             crate::i18n::t("modal.youtube.mix_starting"),
@@ -662,8 +682,7 @@ impl App {
             Ok(Err(e)) => {
                 self.youtube.liked_loading = false;
                 tracing::warn!("youtube liked videos fetch: {e}");
-                self.save_notice = Some(format!("YouTube: {e}"));
-                self.notice_until = Some(Instant::now() + Duration::from_secs(8));
+                self.notify_error(format!("YouTube: {e}"));
             }
             Err(std::sync::mpsc::TryRecvError::Empty) => {
                 self.youtube.liked_rx = Some(rx);
@@ -723,8 +742,7 @@ impl App {
             Ok(Err(e)) => {
                 self.youtube.playlists_loading = false;
                 tracing::warn!("youtube playlists fetch: {e}");
-                self.save_notice = Some(format!("YouTube: {e}"));
-                self.notice_until = Some(Instant::now() + Duration::from_secs(8));
+                self.notify_error(format!("YouTube: {e}"));
             }
             Err(std::sync::mpsc::TryRecvError::Empty) => {
                 self.youtube.playlists_rx = Some(rx);
@@ -784,8 +802,7 @@ impl App {
             Ok(Err(e)) => {
                 self.youtube.playlist_videos_loading = false;
                 tracing::warn!("youtube playlist videos fetch: {e}");
-                self.save_notice = Some(format!("YouTube: {e}"));
-                self.notice_until = Some(Instant::now() + Duration::from_secs(8));
+                self.notify_error(format!("YouTube: {e}"));
             }
             Err(std::sync::mpsc::TryRecvError::Empty) => {
                 self.youtube.playlist_videos_rx = Some(rx);
@@ -848,23 +865,90 @@ impl App {
             })
             .await;
     }
+    pub(super) fn toggle_youtube_bookmark(&mut self) {
+        use super::modal::YoutubeSubTab;
+        let video = match self.youtube.sub_tab {
+            YoutubeSubTab::Search => self.youtube.results.get(self.youtube.selected).cloned(),
+            YoutubeSubTab::Bookmarks => self
+                .youtube
+                .bookmarks
+                .get(self.youtube.bookmarks_selected)
+                .cloned(),
+            YoutubeSubTab::Liked => self
+                .youtube
+                .liked_videos
+                .get(self.youtube.liked_selected)
+                .cloned(),
+            YoutubeSubTab::Playlists if self.youtube.open_playlist.is_some() => self
+                .youtube
+                .playlist_videos
+                .get(self.youtube.playlist_videos_selected)
+                .cloned(),
+            YoutubeSubTab::Playlists => None,
+        };
+        let Some(video) = video else {
+            return;
+        };
+        let added = crate::youtube_bookmarks::toggle(&mut self.youtube.bookmarks, video);
+        crate::youtube_bookmarks::save(&self.youtube.bookmarks);
+        let max = self.youtube.bookmarks.len().saturating_sub(1);
+        self.youtube.bookmarks_selected = self.youtube.bookmarks_selected.min(max);
+        self.notify_info(crate::i18n::t(if added {
+            "notice.youtube_bookmark_added"
+        } else {
+            "notice.youtube_bookmark_removed"
+        }));
+    }
+
     pub fn validate_youtube_cookies(&mut self) {
         let Some(cookies_path) =
             cookies::configured_cookies_path(self.config.youtube.cookies_path.as_deref())
         else {
-            self.show_notice(crate::i18n::t("modal.youtube.auth_required"), 4);
+            self.show_notice(
+                crate::app::NoticeSeverity::Warning,
+                crate::i18n::t("modal.youtube.auth_required"),
+                4,
+            );
             return;
         };
 
         if !runtime_installed() {
-            self.show_notice(crate::i18n::t("modal.youtube.installing"), 4);
+            self.show_notice(
+                crate::app::NoticeSeverity::Info,
+                crate::i18n::t("modal.youtube.installing"),
+                4,
+            );
             self.ensure_youtube_ready();
             return;
         }
 
-        self.show_notice(crate::i18n::t("modal.youtube.validating"), 8);
+        self.show_notice(
+            crate::app::NoticeSeverity::Info,
+            crate::i18n::t("modal.youtube.validating"),
+            8,
+        );
 
+        self.spawn_youtube_session_check(cookies_path, false);
+    }
+
+    pub fn start_youtube_session_health_check(&mut self) {
+        if self.youtube.validate_task.is_some() {
+            return;
+        }
+        let Some(cookies_path) =
+            cookies::configured_cookies_path(self.config.youtube.cookies_path.as_deref())
+        else {
+            return;
+        };
+        if !runtime_installed() {
+            return;
+        }
+        self.spawn_youtube_session_check(cookies_path, true);
+    }
+
+    fn spawn_youtube_session_check(&mut self, cookies_path: std::path::PathBuf, silent: bool) {
         abort_task(&mut self.youtube.validate_task);
+        self.youtube.validate_silent = silent;
         let binary = install::managed_binary_path();
         let deno_path = deno::managed_binary_path();
         let (tx, rx) = mpsc::channel();
@@ -883,14 +967,26 @@ impl App {
         match rx.try_recv() {
             Ok(Ok(_)) => {
                 self.youtube.validate_task = None;
-                self.show_notice(crate::i18n::t("modal.youtube.validate_ok"), 5);
+                self.youtube.session_health = Some(true);
+                if !self.youtube.validate_silent {
+                    self.show_notice(
+                        crate::app::NoticeSeverity::Info,
+                        crate::i18n::t("modal.youtube.validate_ok"),
+                        5,
+                    );
+                }
             }
             Ok(Err(e)) => {
                 self.youtube.validate_task = None;
-                self.show_notice(
-                    format!("{}: {e}", crate::i18n::t("modal.youtube.validate_failed")),
-                    8,
-                );
+                self.youtube.session_health = Some(false);
+                tracing::warn!("youtube session check failed: {e}");
+                if !self.youtube.validate_silent {
+                    self.show_notice(
+                        crate::app::NoticeSeverity::Error,
+                        format!("{}: {e}", crate::i18n::t("modal.youtube.validate_failed")),
+                        8,
+                    );
+                }
             }
             Err(std::sync::mpsc::TryRecvError::Empty) => {
                 self.youtube.validate_rx = Some(rx);
@@ -901,9 +997,8 @@ impl App {
         }
     }
 
-    fn show_notice(&mut self, message: String, secs: u64) {
-        self.save_notice = Some(message);
-        self.notice_until = Some(Instant::now() + Duration::from_secs(secs));
+    fn show_notice(&mut self, severity: crate::app::NoticeSeverity, message: String, secs: u64) {
+        self.notify(severity, message, secs);
     }
 
     pub fn poll_youtube_chapters(&mut self) {

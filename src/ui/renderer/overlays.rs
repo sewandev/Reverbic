@@ -66,6 +66,91 @@ pub(super) fn render_rename_overlay(
     );
 }
 
+pub(super) fn render_device_picker_overlay(
+    frame: &mut Frame,
+    devices: &[crate::integrations::spotify::devices::SpotifyDevice],
+    selected: usize,
+    active_device_id: Option<&str>,
+    palette: &Palette,
+) {
+    let area = frame.area();
+    let w = area.width.clamp(40, 56);
+    let h = (devices.len() as u16 + 4).clamp(5, area.height);
+    let x = area.width.saturating_sub(w) / 2;
+    let y = area.height.saturating_sub(h) / 2;
+    let panel = Rect::new(x, y, w, h);
+
+    frame.render_widget(Clear, panel);
+
+    let block = Block::default()
+        .title_top(
+            Line::from(Span::styled(
+                t("modal.device_picker.title"),
+                Style::default()
+                    .fg(palette.highlight)
+                    .add_modifier(Modifier::BOLD),
+            ))
+            .alignment(Alignment::Center),
+        )
+        .title_bottom(
+            Line::from(Span::styled(
+                t("modal.device_picker.hint"),
+                Style::default().fg(palette.muted),
+            ))
+            .alignment(Alignment::Center),
+        )
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(palette.spotify))
+        .style(Style::default().bg(palette.panel_bg));
+
+    let inner = block.inner(panel);
+    frame.render_widget(block, panel);
+
+    for (i, device) in devices.iter().enumerate() {
+        let row_y = inner.y + 1 + i as u16;
+        if row_y >= inner.bottom() {
+            break;
+        }
+        let focused = i == selected;
+        let is_active =
+            device.is_active || (device.id.is_some() && device.id.as_deref() == active_device_id);
+        let marker = if focused { ">" } else { " " };
+        let name_style = if focused {
+            Style::default()
+                .fg(palette.playing)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(palette.highlight)
+        };
+        let state_label = if is_active {
+            t("modal.spotify.footer.active")
+        } else {
+            t("modal.spotify.footer.available")
+        };
+        let state_style = if is_active {
+            Style::default().fg(palette.spotify)
+        } else {
+            Style::default().fg(palette.muted)
+        };
+        let name_w = inner.width.saturating_sub(6) as usize;
+        let label = crate::ui::strings::truncate(
+            &format!("{} · {}", device.name, device.device_type),
+            name_w.saturating_sub(state_label.chars().count() + 3),
+        )
+        .to_string();
+        frame.render_widget(
+            Paragraph::new(Line::from(vec![
+                Span::styled(format!(" {marker} "), name_style),
+                Span::styled(label, name_style),
+                Span::styled(format!("  [{state_label}]"), state_style),
+            ]))
+            .style(Style::default().bg(palette.panel_bg)),
+            Rect::new(inner.x + 1, row_y, inner.width.saturating_sub(2), 1),
+        );
+    }
+}
+
 pub(super) fn render_playlist_picker_overlay(
     frame: &mut Frame,
     picker: &crate::app::PlaylistPicker,
@@ -926,6 +1011,18 @@ pub(super) fn render_help_overlay(
                 ]
             }
         }
+        SearchMode::Youtube => vec![
+            ("[↵]", t("help.shortcut.play_video")),
+            ("[↑↓]", t("help.shortcut.nav_list")),
+            ("[←→]", t("help.shortcut.switch_subtab")),
+            ("[Ctrl+R]", t("help.shortcut.youtube_mix")),
+            ("[Alt+F]", t("help.shortcut.toggle_bookmark")),
+            ("[Space]", t("help.shortcut.pause_resume")),
+            ("[Alt+S]", t("help.shortcut.stop_playback")),
+            ("[Tab]", t("help.shortcut.go_radio")),
+            ("[Alt+O]", t("help.shortcut.open_config")),
+            ("[Esc]", t("help.shortcut.close_quit")),
+        ],
         SearchMode::Settings => vec![
             ("[Space]", t("help.shortcut.change_value")),
             ("[↑↓]", t("help.shortcut.nav_options")),

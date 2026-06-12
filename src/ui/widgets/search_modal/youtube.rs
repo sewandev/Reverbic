@@ -75,6 +75,9 @@ impl<'a> SearchModalWidget<'a> {
                 YoutubeSubTab::Search => {
                     self.render_youtube_search_body(layout.body, content_x, text_x, text_w, buf)
                 }
+                YoutubeSubTab::Bookmarks => {
+                    self.render_youtube_bookmarks_body(layout.body, text_x, text_w, buf)
+                }
                 YoutubeSubTab::Liked => {
                     self.render_youtube_liked_body(layout.body, text_x, text_w, buf)
                 }
@@ -113,6 +116,11 @@ impl<'a> SearchModalWidget<'a> {
             Span::styled(
                 t("modal.youtube.subtab.search"),
                 tab_style(self.youtube_sub_tab == YoutubeSubTab::Search),
+            ),
+            Span::raw("  "),
+            Span::styled(
+                t("modal.youtube.subtab.bookmarks"),
+                tab_style(self.youtube_sub_tab == YoutubeSubTab::Bookmarks),
             ),
             Span::raw("  "),
             Span::styled(
@@ -174,6 +182,28 @@ impl<'a> SearchModalWidget<'a> {
                 scroll_offset: self.youtube_scroll_offset,
                 loading: self.youtube_loading,
                 empty_message: &t("modal.youtube.no_results"),
+            },
+        );
+    }
+
+    fn render_youtube_bookmarks_body(
+        &self,
+        area: Rect,
+        list_x: u16,
+        list_w: u16,
+        buf: &mut Buffer,
+    ) {
+        self.render_video_list(
+            area,
+            list_x,
+            list_w,
+            buf,
+            VideoListState {
+                videos: self.youtube_bookmarks,
+                selected: self.youtube_bookmarks_selected,
+                scroll_offset: self.youtube_bookmarks_scroll_offset,
+                loading: false,
+                empty_message: &t("modal.youtube.bookmarks_empty"),
             },
         );
     }
@@ -363,21 +393,32 @@ impl<'a> SearchModalWidget<'a> {
             .map(|(i, video)| {
                 let active = i == state.selected;
                 let duration = fmt_duration(video.duration_secs);
-                let title_w = list_w.saturating_sub(4 + duration.len() as u16) as usize;
+                let live_badge = video.is_live.then(|| t("modal.youtube.live_badge"));
+                let badge_w = live_badge
+                    .as_ref()
+                    .map(|badge| badge.chars().count() as u16 + 2)
+                    .unwrap_or(0);
+                let title_w = list_w.saturating_sub(4 + duration.len() as u16 + badge_w) as usize;
                 let title = strings::truncate(&video.title, title_w);
                 let channel = strings::truncate(&video.channel, list_w.saturating_sub(3) as usize);
+                let badge_st = Style::default()
+                    .fg(self.palette.youtube)
+                    .add_modifier(Modifier::BOLD | Modifier::REVERSED);
 
                 if active {
                     let title_st = Style::default()
                         .fg(self.palette.youtube)
                         .add_modifier(Modifier::BOLD);
                     let meta_st = Style::default().fg(self.palette.youtube);
+                    let mut first_line = vec![Span::styled("▶  ", title_st)];
+                    if let Some(badge) = live_badge {
+                        first_line.push(Span::styled(badge, badge_st));
+                        first_line.push(Span::raw("  "));
+                    }
+                    first_line.push(Span::styled(title, title_st));
+                    first_line.push(Span::styled(format!("  {}", duration), meta_st));
                     ListItem::new(vec![
-                        Line::from(vec![
-                            Span::styled("▶  ", title_st),
-                            Span::styled(title, title_st),
-                            Span::styled(format!("  {}", duration), meta_st),
-                        ]),
+                        Line::from(first_line),
                         Line::from(vec![
                             Span::styled("   ", meta_st),
                             Span::styled(channel, meta_st),
@@ -386,11 +427,14 @@ impl<'a> SearchModalWidget<'a> {
                 } else {
                     let title_st = Style::default().fg(self.palette.highlight);
                     let meta_st = Style::default().fg(self.palette.muted);
+                    let mut first_line = vec![Span::styled("   ", title_st)];
+                    if let Some(badge) = live_badge {
+                        first_line.push(Span::styled(badge, badge_st));
+                        first_line.push(Span::raw("  "));
+                    }
+                    first_line.push(Span::styled(title, title_st));
                     ListItem::new(vec![
-                        Line::from(vec![
-                            Span::styled("   ", title_st),
-                            Span::styled(title, title_st),
-                        ]),
+                        Line::from(first_line),
                         Line::from(vec![
                             Span::styled("   ", meta_st),
                             Span::styled(channel, meta_st),
@@ -409,93 +453,32 @@ impl<'a> SearchModalWidget<'a> {
     }
 
     fn render_youtube_auth_notice(&self, area: Rect, buf: &mut Buffer) {
-        use ratatui::widgets::{Block, BorderType, Borders, Clear};
+        use super::notice_panel::{NoticeHint, NoticePanel};
 
-        let Some(box_area) = super::auth_notice_box(area) else {
-            return;
-        };
-
-        Clear.render(box_area, buf);
-        Block::default()
-            .borders(Borders::ALL)
-            .border_type(BorderType::Rounded)
-            .border_style(Style::default().fg(self.palette.warning))
-            .style(Style::default().bg(self.palette.panel_bg))
-            .render(box_area, buf);
-
-        let inner_x = box_area.x + 2;
-        let inner_w = box_area.width.saturating_sub(4);
-        let bottom = box_area.bottom().saturating_sub(1);
-        let mut y = box_area.y + 1;
-
-        Paragraph::new(Span::styled(
-            t("modal.youtube.auth_notice.title"),
-            Style::default()
-                .fg(self.palette.warning)
-                .add_modifier(Modifier::BOLD),
-        ))
-        .alignment(Alignment::Center)
-        .render(Rect::new(inner_x, y, inner_w, 1), buf);
-        y += 2;
-        if y >= bottom {
-            return;
-        }
-
-        Paragraph::new(Span::styled(
-            t("modal.youtube.auth_notice.body"),
-            Style::default().fg(self.palette.highlight),
-        ))
-        .wrap(Wrap { trim: true })
-        .render(Rect::new(inner_x, y, inner_w, 3.min(bottom - y)), buf);
-        y += 4;
-        if y >= bottom {
-            return;
-        }
-
-        Paragraph::new(Span::styled(
-            t("modal.youtube.auth_notice.risk"),
-            Style::default().fg(self.palette.caution),
-        ))
-        .wrap(Wrap { trim: true })
-        .render(Rect::new(inner_x, y, inner_w, 2.min(bottom - y)), buf);
-        y += 3;
-        if y >= bottom {
-            return;
-        }
-
-        Paragraph::new(Line::from(vec![
-            Span::styled(
-                format!("{} ", t("modal.youtube.auth_notice.guide_label")),
-                Style::default().fg(self.palette.dim),
-            ),
-            Span::styled(
+        NoticePanel {
+            title: t("modal.youtube.auth_notice.title"),
+            emphasis: None,
+            body: t("modal.youtube.auth_notice.body"),
+            caution: Some(t("modal.youtube.auth_notice.risk")),
+            link: Some((
+                t("modal.youtube.auth_notice.guide_label"),
                 t("modal.youtube.auth_notice.guide_url"),
-                Style::default()
-                    .fg(self.palette.accent)
-                    .add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
-            ),
-        ]))
-        .wrap(Wrap { trim: true })
-        .render(Rect::new(inner_x, y, inner_w, 2.min(bottom - y)), buf);
-        y += 2;
-        if y >= bottom {
-            return;
+            )),
+            spinner_text: None,
+            hints: vec![
+                NoticeHint {
+                    key: "[\u{2190} \u{2192}]".to_string(),
+                    text: t("modal.youtube.auth_notice.back_hint"),
+                    strong: false,
+                },
+                NoticeHint {
+                    key: "[O]".to_string(),
+                    text: t("modal.notice.settings_hint"),
+                    strong: false,
+                },
+            ],
         }
-
-        Paragraph::new(Line::from(vec![
-            Span::styled(
-                "[\u{2190} \u{2192}]  ",
-                Style::default()
-                    .fg(self.palette.accent)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(
-                t("modal.youtube.auth_notice.back_hint"),
-                Style::default().fg(self.palette.muted),
-            ),
-        ]))
-        .alignment(Alignment::Center)
-        .render(Rect::new(inner_x, y, inner_w, 1), buf);
+        .render(area, buf, self.palette);
     }
 
     fn render_youtube_message(

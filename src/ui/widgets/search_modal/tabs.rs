@@ -32,27 +32,61 @@ impl<'a> SearchModalWidget<'a> {
             .add_modifier(Modifier::BOLD);
         let inactive = Style::default().fg(self.palette.muted);
 
-        let radio_st = match self.mode {
-            SearchMode::Name | SearchMode::Genre | SearchMode::Country => radio_active,
-            _ => inactive,
+        let radio_is_active = matches!(
+            self.mode,
+            SearchMode::Name | SearchMode::Genre | SearchMode::Country
+        );
+        let spotify_is_active = matches!(self.mode, SearchMode::Spotify);
+        let youtube_is_active = matches!(self.mode, SearchMode::Youtube);
+
+        let radio_st = if radio_is_active {
+            radio_active
+        } else {
+            inactive
         };
-        let spotify_st = match self.mode {
-            SearchMode::Spotify => spotify_active,
-            _ => inactive,
+        let spotify_st = if spotify_is_active {
+            spotify_active
+        } else {
+            inactive
         };
-        let youtube_st = match self.mode {
-            SearchMode::Youtube => youtube_active,
-            _ => inactive,
+        let youtube_st = if youtube_is_active {
+            youtube_active
+        } else {
+            inactive
         };
 
-        Paragraph::new(Line::from(vec![
-            Span::styled(t("modal.tab.radio"), radio_st),
-            Span::styled("  ", Style::default()),
-            Span::styled(t("modal.tab.spotify"), spotify_st),
-            Span::styled("  ", Style::default()),
-            Span::styled(t("modal.tab.youtube"), youtube_st),
-        ]))
-        .render(tab_area, buf);
+        let mut spans: Vec<Span<'static>> = Vec::new();
+        let tabs = [
+            (self.tab_dots.radio, t("modal.tab.radio"), radio_st),
+            (self.tab_dots.spotify, t("modal.tab.spotify"), spotify_st),
+            (self.tab_dots.youtube, t("modal.tab.youtube"), youtube_st),
+        ];
+        for (i, (dot, label, style)) in tabs.into_iter().enumerate() {
+            if i > 0 {
+                spans.push(Span::styled("  ", Style::default()));
+            }
+            if let Some(dot) = dot {
+                use crate::app::TabDot;
+                let (color, pulsing) = match dot {
+                    TabDot::Playing => (self.palette.status_ok, true),
+                    TabDot::Paused => (self.palette.status_ok, false),
+                    TabDot::Warning => (self.palette.warning, true),
+                    TabDot::Danger => (self.palette.danger, true),
+                };
+                let dot_color = if pulsing {
+                    crate::ui::theme::status_pulse(color, self.border_tick)
+                } else {
+                    color
+                };
+                spans.push(Span::styled(
+                    "\u{25CF} ",
+                    Style::default().fg(dot_color).add_modifier(Modifier::BOLD),
+                ));
+            }
+            spans.push(Span::styled(label, style));
+        }
+
+        Paragraph::new(Line::from(spans)).render(tab_area, buf);
     }
 
     pub(super) fn render_name_body(

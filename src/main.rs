@@ -32,6 +32,7 @@ mod station;
 mod terminal;
 mod ui;
 mod update;
+mod youtube_bookmarks;
 
 use app::App;
 use audio::PlayerCommand;
@@ -65,7 +66,7 @@ async fn main() -> Result<()> {
     i18n::init(config::Config::load().language);
     game_detect::init_game_db();
 
-    tracing::info!("reverbic starting");
+    tracing::info!(version = env!("CARGO_PKG_VERSION"), "reverbic starting");
 
     let mut tui = terminal::init()?;
     let result = run(&mut tui).await;
@@ -118,6 +119,10 @@ fn init_logging() -> Option<tracing_appender::non_blocking::WorkerGuard> {
 
 async fn run(tui: &mut terminal::Tui) -> Result<()> {
     let mut app = App::new().await;
+    tracing::info!(
+        spotify_playback_mode = ?app.config.spotify.playback_mode,
+        "session config"
+    );
 
     if !app.config.onboarding_completed {
         onboarding::run(tui, &mut app.config, &app.player).await?;
@@ -135,6 +140,7 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
 
     app.init_integrations();
     app.start_update_check();
+    app.start_youtube_session_health_check();
     tokio::spawn(crate::integrations::youtube::install::update_if_outdated());
     tokio::task::spawn_blocking(crate::audio::stream::clear_youtube_cache);
 
@@ -216,8 +222,7 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
             .map(|t| std::time::Instant::now() >= t)
             .unwrap_or(false)
         {
-            app.save_notice = None;
-            app.notice_until = None;
+            app.advance_notice_queue();
         }
         if app
             .click_flash

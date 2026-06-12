@@ -19,16 +19,18 @@ pub(crate) use layout::{
     radio_name_layout, radio_playlist_stations_list_area, radio_playlists_list_area,
     radio_search_results_list_area, radio_subtab_at, settings_items_area, settings_layout,
     settings_visible_rows, spotify_auth_notice_at, spotify_body_area, spotify_layout,
-    spotify_search_layout, spotify_search_list_area, spotify_subtab_at,
-    spotify_titled_track_list_area, spotify_titled_track_list_layout, two_line_list_index_at,
-    visible_items, visible_rows_excluding_scrollbar, youtube_auth_notice_at, youtube_layout,
-    youtube_liked_list_area, youtube_playlist_videos_list_area, youtube_playlists_list_area,
-    youtube_search_layout, youtube_search_list_area, youtube_subtab_at, ListItemHeight,
+    spotify_no_device_notice_at, spotify_search_layout, spotify_search_list_area,
+    spotify_subtab_at, spotify_titled_track_list_area, spotify_titled_track_list_layout,
+    two_line_list_index_at, visible_items, visible_rows_excluding_scrollbar,
+    youtube_auth_notice_at, youtube_layout, youtube_liked_list_area,
+    youtube_playlist_videos_list_area, youtube_playlists_list_area, youtube_search_layout,
+    youtube_search_list_area, youtube_subtab_at, ListItemHeight,
 };
 pub(in crate::ui) use layout::{MODAL_MIN_HEIGHT, MODAL_MIN_WIDTH};
 
 mod helpers;
 mod layout;
+mod notice_panel;
 mod settings;
 mod spotify;
 mod tabs;
@@ -128,7 +130,12 @@ pub struct SearchModalWidget<'a> {
     pub youtube_selected: usize,
     pub youtube_scroll_offset: usize,
     pub youtube_cookies_configured: bool,
+    pub youtube_session_health: Option<bool>,
+    pub youtube_validating: bool,
     pub youtube_sub_tab: crate::app::YoutubeSubTab,
+    pub youtube_bookmarks: &'a [crate::integrations::youtube::YoutubeVideo],
+    pub youtube_bookmarks_selected: usize,
+    pub youtube_bookmarks_scroll_offset: usize,
     pub youtube_liked_videos: &'a [crate::integrations::youtube::YoutubeVideo],
     pub youtube_liked_selected: usize,
     pub youtube_liked_scroll_offset: usize,
@@ -160,6 +167,8 @@ pub struct SearchModalWidget<'a> {
     pub auto_update: bool,
     pub discord_rpc: bool,
     pub save_notice: Option<String>,
+    pub save_notice_severity: crate::app::NoticeSeverity,
+    pub tab_dots: crate::app::TabDots,
     pub border_tick: u32,
 }
 
@@ -318,7 +327,12 @@ impl<'a> SearchModalWidget<'a> {
             youtube_selected: yt.selected,
             youtube_scroll_offset: yt.scroll_offset,
             youtube_cookies_configured: app.config.youtube.cookies_path.is_some(),
+            youtube_session_health: yt.session_health,
+            youtube_validating: yt.validating(),
             youtube_sub_tab: yt.sub_tab,
+            youtube_bookmarks: &yt.bookmarks,
+            youtube_bookmarks_selected: yt.bookmarks_selected,
+            youtube_bookmarks_scroll_offset: yt.bookmarks_scroll_offset,
             youtube_liked_videos: &yt.liked_videos,
             youtube_liked_selected: yt.liked_selected,
             youtube_liked_scroll_offset: yt.liked_scroll_offset,
@@ -364,6 +378,8 @@ impl<'a> SearchModalWidget<'a> {
             auto_update: app.config.auto_update,
             discord_rpc: app.config.discord_rpc,
             save_notice: app.save_notice.clone(),
+            save_notice_severity: app.save_notice_severity,
+            tab_dots: app.tab_dots(),
             border_tick: app.border_tick,
         }
     }
@@ -372,16 +388,21 @@ impl<'a> SearchModalWidget<'a> {
 impl SearchModalWidget<'_> {
     fn bottom_hint(&self) -> Vec<Span<'static>> {
         if let Some(ref notice) = self.save_notice {
+            let color = match self.save_notice_severity {
+                crate::app::NoticeSeverity::Error => self.palette.danger,
+                crate::app::NoticeSeverity::Warning => self.palette.warning,
+                crate::app::NoticeSeverity::Info => match self.mode {
+                    crate::app::SearchMode::Spotify => self.palette.spotify,
+                    crate::app::SearchMode::Youtube => self.palette.youtube,
+                    _ => self.palette.playing,
+                },
+            };
             return vec![
                 Span::raw("  "),
                 Span::styled(
                     notice.clone(),
                     ratatui::style::Style::default()
-                        .fg(match self.mode {
-                            crate::app::SearchMode::Spotify => self.palette.spotify,
-                            crate::app::SearchMode::Youtube => self.palette.youtube,
-                            _ => self.palette.playing,
-                        })
+                        .fg(color)
                         .add_modifier(ratatui::style::Modifier::BOLD),
                 ),
                 Span::raw("  "),
@@ -397,9 +418,11 @@ impl SearchModalWidget<'_> {
                 Span::raw(" "),
                 key("[↵]"),
                 sep_s(format!(" {}  ", t("hint.play"))),
-                key("[Space]"),
-                sep_s(format!(" {}  ", t("hint.pause"))),
             ];
+            if matches!(self.mode, SearchMode::Genre | SearchMode::Country) {
+                spans.push(key("[Space]"));
+                spans.push(sep_s(format!(" {}  ", t("hint.pause"))));
+            }
             if matches!(self.mode, crate::app::SearchMode::Spotify) {
                 spans.push(key("[Alt+L]"));
                 spans.push(sep_s(format!(" {}  ", t("hint.like"))));
@@ -552,12 +575,12 @@ impl SearchModalWidget<'_> {
                 sep_s(format!(" {}  ", t("hint.play"))),
                 key("[Ctrl+R]"),
                 sep_s(format!(" {}  ", t("hint.mix"))),
+                key("[Alt+F]"),
+                sep_s(format!(" {}  ", t("hint.bookmark"))),
                 key("[↑↓]"),
                 sep_s(format!(" {}  ", t("hint.nav"))),
                 key("[←→]"),
                 sep_s(format!(" {}  ", t("hint.tabs"))),
-                key("[Esc]"),
-                sep_s(format!(" {}  ", t("hint.close"))),
                 key("[?]"),
                 sep_s(format!(" {} ", t("hint.help"))),
             ],

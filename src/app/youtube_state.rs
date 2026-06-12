@@ -20,6 +20,7 @@ pub enum YoutubeStatus {
 #[derive(Clone, Debug, PartialEq)]
 pub enum YoutubePlaybackContext {
     SearchResults,
+    Bookmarks,
     LikedVideos,
     PlaylistVideos,
     Mix,
@@ -41,6 +42,10 @@ pub struct YoutubeState {
     pub(super) resolve_rx: Option<ResolveRx>,
 
     pub sub_tab: YoutubeSubTab,
+
+    pub bookmarks: Vec<YoutubeVideo>,
+    pub bookmarks_selected: usize,
+    pub bookmarks_scroll_offset: usize,
 
     pub liked_videos: Vec<YoutubeVideo>,
     pub liked_selected: usize,
@@ -66,6 +71,8 @@ pub struct YoutubeState {
 
     pub(super) validate_task: Option<tokio::task::JoinHandle<()>>,
     pub(super) validate_rx: Option<VideosRx>,
+    pub(super) validate_silent: bool,
+    pub session_health: Option<bool>,
 
     pub(super) preresolve_last_id: Option<String>,
     pub(super) preresolve_deadline: Option<std::time::Instant>,
@@ -98,6 +105,10 @@ pub struct YoutubeState {
 }
 
 impl YoutubeState {
+    pub fn validating(&self) -> bool {
+        self.validate_task.is_some()
+    }
+
     pub fn cleanup(&mut self) {
         fn abort(handle: &mut Option<tokio::task::JoinHandle<()>>) {
             if let Some(task) = handle.take() {
@@ -112,6 +123,7 @@ impl YoutubeState {
         abort(&mut self.playlists_task);
         abort(&mut self.playlist_videos_task);
         abort(&mut self.validate_task);
+        self.validate_silent = false;
         abort(&mut self.preresolve_task);
         abort(&mut self.mix_task);
         abort(&mut self.sb_task);
@@ -136,6 +148,9 @@ impl Default for YoutubeState {
             resolve_task: None,
             resolve_rx: None,
             sub_tab: YoutubeSubTab::default(),
+            bookmarks: Vec::new(),
+            bookmarks_selected: 0,
+            bookmarks_scroll_offset: 0,
             liked_videos: Vec::new(),
             liked_selected: 0,
             liked_scroll_offset: 0,
@@ -157,6 +172,8 @@ impl Default for YoutubeState {
             playlist_videos_rx: None,
             validate_task: None,
             validate_rx: None,
+            validate_silent: false,
+            session_health: None,
             preresolve_last_id: None,
             preresolve_deadline: None,
             preresolve_video: None,

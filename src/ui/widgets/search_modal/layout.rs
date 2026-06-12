@@ -243,18 +243,39 @@ fn list_index_at(hit: ListHitTest) -> Option<usize> {
     (index < hit.item_count).then_some(index)
 }
 
-pub(crate) fn modal_tab_at(area: Rect, col: u16, row: u16) -> Option<SearchMode> {
+pub(crate) fn modal_tab_at(
+    area: Rect,
+    col: u16,
+    row: u16,
+    dots: crate::app::TabDots,
+) -> Option<SearchMode> {
     let layout = modal_layout(area)?;
     let content = modal_content_area(area)?;
     let tab_area = Rect::new(content.x, layout.tabs.y, content.width, layout.tabs.height);
+    let label = |has_dot: bool, text: String| {
+        if has_dot {
+            format!("\u{25CF} {text}")
+        } else {
+            text
+        }
+    };
     tab_value_at(
         tab_area,
         col,
         row,
         &[
-            (t("modal.tab.radio"), SearchMode::Name),
-            (t("modal.tab.spotify"), SearchMode::Spotify),
-            (t("modal.tab.youtube"), SearchMode::Youtube),
+            (
+                label(dots.radio.is_some(), t("modal.tab.radio")),
+                SearchMode::Name,
+            ),
+            (
+                label(dots.spotify.is_some(), t("modal.tab.spotify")),
+                SearchMode::Spotify,
+            ),
+            (
+                label(dots.youtube.is_some(), t("modal.tab.youtube")),
+                SearchMode::Youtube,
+            ),
         ],
     )
 }
@@ -348,6 +369,10 @@ pub(crate) fn youtube_subtab_at(area: Rect, col: u16, row: u16) -> Option<Youtub
         row,
         &[
             (t("modal.youtube.subtab.search"), YoutubeSubTab::Search),
+            (
+                t("modal.youtube.subtab.bookmarks"),
+                YoutubeSubTab::Bookmarks,
+            ),
             (t("modal.youtube.subtab.liked"), YoutubeSubTab::Liked),
             (
                 t("modal.youtube.subtab.playlists"),
@@ -564,6 +589,13 @@ pub(crate) fn spotify_auth_notice_at(area: Rect, col: u16, row: u16) -> bool {
     auth_notice_box(body).is_some_and(|notice| contains(notice, col, row))
 }
 
+pub(crate) fn spotify_no_device_notice_at(area: Rect, col: u16, row: u16) -> bool {
+    let Some(body) = modal_body_area(area) else {
+        return false;
+    };
+    auth_notice_box(spotify_layout(body).body).is_some_and(|notice| contains(notice, col, row))
+}
+
 pub(crate) fn youtube_search_layout(area: Rect) -> SpotifySearchLayout {
     let [input, cap, list] = Layout::vertical([
         Constraint::Length(SEARCH_INPUT_ROWS),
@@ -713,18 +745,22 @@ mod tests {
         let area = normal_terminal();
         let layout = modal_layout(area).expect("modal should render");
         let content = modal_content_area(area).expect("content should render");
-        let radio_w = text_cell_width(&t("modal.tab.radio"));
+        let dots = crate::app::TabDots {
+            radio: Some(crate::app::TabDot::Playing),
+            ..Default::default()
+        };
+        let radio_w = text_cell_width(&t("modal.tab.radio")) + 2;
         let spotify_x = content.x + radio_w + TAB_GAP_WIDTH;
 
         assert!(matches!(
-            modal_tab_at(area, content.x, layout.tabs.y),
+            modal_tab_at(area, content.x, layout.tabs.y, dots),
             Some(SearchMode::Name)
         ));
         assert!(matches!(
-            modal_tab_at(area, spotify_x, layout.tabs.y),
+            modal_tab_at(area, spotify_x, layout.tabs.y, dots),
             Some(SearchMode::Spotify)
         ));
-        assert!(modal_tab_at(area, content.x + radio_w, layout.tabs.y).is_none());
+        assert!(modal_tab_at(area, content.x + radio_w, layout.tabs.y, dots).is_none());
     }
 
     #[test]

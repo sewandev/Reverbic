@@ -30,11 +30,22 @@ Versionado: [Semantic Versioning](https://semver.org/)
 - Playlists de radio: nueva sub-pestaña [ Playlists ] en la pestaña de Radio para agrupar tus estaciones en colecciones con nombre; con Alt+P sobre cualquier estación (en Buscar, Género, País o Favoritas) se agrega a una playlist existente o se crea una nueva, y las playlists se guardan en disco entre sesiones
 - Dentro de la sub-pestaña [ Playlists ]: N crea una playlist vacía con nombre, R renombra la seleccionada, Shift+↑/↓ reordena las estaciones dentro de una playlist y Alt+F quita la estación o elimina la playlist según el nivel
 - Con Ctrl+Shift+→/← se salta a la siguiente o anterior estación de la playlist activa sin abrir ninguna lista, ideal para cambiar de ambiente sin soltar lo que estás haciendo
+- Favoritos locales de YouTube: nueva sub-pestaña [ Favoritos ] en la pestaña de YouTube; con Alt+F sobre cualquier video (resultados, Me gusta o una playlist) se guarda localmente para escucharlo después — sin cuenta de Google, cookies ni autenticación
+- Punto de reproducción animado en las pestañas principales: un punto verde intenso pulsa junto a la pestaña cuya fuente está sonando en este momento (se mantiene ahí aunque navegues otras pestañas, y deja de pulsar en pausa); la pestaña activa además muestra un punto ámbar en [Spotify] en modo Remoto sin dispositivo o uno rojo en [YouTube] con la sesión de cookies expirada
+- La sesión de YouTube ahora se valida automáticamente en segundo plano al iniciar y al cambiar el archivo de cookies; el resultado se muestra junto al ajuste "Validar sesión de YouTube" ("Sesión válida" / "Cookies expiradas") y alimenta el punto de estado de la pestaña [YouTube]
+- Selector de dispositivos de Spotify: Ctrl+D ahora abre una lista con todos los dispositivos Connect (nombre, tipo, activo/disponible) y Enter transfiere la reproducción al elegido, en vez de saltar a ciegas al siguiente
+- Las transmisiones en vivo ahora muestran una etiqueta roja EN VIVO en los resultados de búsqueda de YouTube, y al intentar reproducir una se explica de inmediato que aún no se soportan, antes de iniciar cualquier resolución
+- Los paneles de aviso ahora incluyen el atajo [O] que salta directo al ajuste relevante (archivo de cookies de YouTube, Client ID de Spotify o el modo de reproducción de Spotify), con el ítem preseleccionado
+- Nueva acción "Abrir carpeta de logs" en Ajustes para llegar a los registros de Reverbic sin usar la terminal; cada sesión ahora registra la versión de la app y el modo de reproducción de Spotify al inicio
 
 ### Cambiado
 - La pestaña de YouTube ahora usa el rojo de YouTube de forma consistente en todos sus elementos (video seleccionado, campo de búsqueda, cursor de escritura, barra de scroll), replicando el patrón verde de la pestaña de Spotify para que siempre quede claro en qué pestaña estás
 - Las sub-pestañas [Me gusta] y [Playlists] de YouTube ahora muestran un panel de aviso claro cuando no hay cookies.txt configurado: explica que se necesita autenticación, recomienda usar una cuenta secundaria y enlaza a la guía paso a paso con los riesgos; las etiquetas de las sub-pestañas también se ven deshabilitadas (el mensaje anterior se desbordaba del panel y pasaba desapercibido)
 - La pestaña de Spotify ahora muestra el mismo estilo de panel de aviso cuando la cuenta no está conectada: explica que iniciar sesión es obligatorio, que se necesita una cuenta Premium y una app en el Spotify Developer Dashboard, y enlaza a la guía paso a paso (clickeable, incluye las notas legales); Enter sigue iniciando el flujo de conexión
+- Los avisos inferiores ahora se colorean por severidad (errores en rojo, advertencias en ámbar, información en el color de la fuente) y se encolan en vez de pisarse, de modo que un error ya no puede quedar oculto por un mensaje rutinario
+- Todos los paneles de aviso (conexión de Spotify, sin dispositivo de Spotify, autenticación de YouTube) ahora comparten un mismo componente consistente; el panel de "sin dispositivo" ganó el link clickeable a la guía que los otros ya tenían
+- Conectar una cuenta de Spotify sin Premium ahora muestra una advertencia clara de que la reproducción no funcionará, en vez de fallar después con errores confusos
+- El panel de autenticación de YouTube ahora menciona la alternativa local [ Favoritos ] para guardar videos sin cuenta
 
 ### Corregido
 - Los videos de transmisiones en vivo recién finalizadas ya no se quedan en un ciclo infinito de reintentos; Reverbic ahora explica que YouTube todavía está procesando la grabación y que se intente más tarde
@@ -42,6 +53,9 @@ Versionado: [Semantic Versioning](https://semver.org/)
 - El pie de la pestaña de Spotify ya no afirma "Modo: Remoto Escuchando en Desconocido [activo]" al usar el modo Auto sin dispositivos; ahora muestra el modo real (Auto o Remoto) y "ningún dispositivo de Spotify detectado" cuando no hay ninguno
 - El pie de la pestaña de Spotify ahora distingue entre un dispositivo realmente reproduciendo ([activo]) y uno que Spotify solo lista como disponible ([disponible])
 - Cuando un dispositivo de Spotify no responde al reproducir (ej. un teléfono cuya app se cerró pero Spotify aún lo lista), Reverbic ahora lo descarta, explica lo que pasó y reescanea en vez de mantenerlo como destino
+- La ayuda [?] ahora tiene una sección propia para YouTube (antes mostraba atajos genéricos) y cada atajo listado fue auditado contra el comportamiento real
+- La tecla Espacio ahora pausa/reanuda en todas las listas sin campo de texto (Favoritas y Playlists de radio, resultados de Género/País, y las sub-pestañas de biblioteca de Spotify y YouTube); antes solo funcionaba en Favoritas de radio aunque la ayuda decía lo contrario
+- Alt+F y Alt+R ya no actúan sobre resultados de radio residuales mientras navegas las pestañas de Spotify o YouTube
 
 ### Seguridad
 - Se actualizaron dependencias (OpenSSL, ratatui, crossterm y otras) para corregir vulnerabilidades conocidas reportadas por Dependabot

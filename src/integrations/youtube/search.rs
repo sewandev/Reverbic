@@ -92,6 +92,7 @@ pub(crate) fn parse_video_entries(bytes: &[u8]) -> Result<Vec<YoutubeVideo>, You
                 duration_secs: entry.duration.map(|value| value.as_u32()).unwrap_or(0),
                 watch_url,
                 thumbnail,
+                is_live: entry.live_status.as_deref() == Some("is_live"),
             }
         })
         .collect())
@@ -121,6 +122,7 @@ struct VideoEntry {
     url: Option<String>,
     thumbnail: Option<String>,
     thumbnails: Option<Vec<Thumbnail>>,
+    live_status: Option<String>,
 }
 
 #[derive(Deserialize)]
