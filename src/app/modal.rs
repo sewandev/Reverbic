@@ -42,6 +42,7 @@ pub enum RadioSubTab {
     #[default]
     Search,
     Favorites,
+    Playlists,
 }
 
 #[derive(Clone, Copy, PartialEq, Default)]

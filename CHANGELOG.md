@@ -27,6 +27,9 @@ Versioning: [Semantic Versioning](https://semver.org/)
 - New "YouTube Radio" setting, on by default: when the playing list ends, playback continues automatically with a mix of similar songs
 - The game overlay now shows a countdown with the time remaining in the current track (Spotify and YouTube), in both Full and Compact styles; Radio has no duration so nothing changes there
 - In Spotify Remote mode, when no Connect device is detected the Spotify tab now locks with a clear notice explaining to open Spotify on a device (phone, computer or web player); it rescans automatically every few seconds and unlocks itself as soon as a device appears (Ctrl+D forces an immediate scan)
+- Radio playlists: new [ Playlists ] sub-tab in the Radio tab to group your stations into named collections; press Alt+P on any station (in Search, Genre, Country or Favorites) to add it to an existing playlist or create a new one, and playlists persist on disk between sessions
+- Inside the [ Playlists ] sub-tab: N creates a named empty playlist, R renames the selected one, Shift+↑/↓ reorders stations within a playlist and Alt+F removes the station or deletes the playlist depending on the level
+- Ctrl+Shift+→/← jumps to the next or previous station of the active playlist without opening any list, ideal for switching vibes without leaving what you are doing
 
 ### Changed
 - The YouTube tab now uses YouTube's red consistently across all its elements (selected video, search input, typing cursor, scrollbar), mirroring the green pattern of the Spotify tab so it is always clear which tab is active

@@ -24,6 +24,7 @@ mod metadata;
 mod onboarding;
 #[cfg(target_os = "windows")]
 mod overlay;
+mod playlists;
 mod preview;
 mod schedule;
 mod shell;

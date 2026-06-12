@@ -10,7 +10,12 @@ use crate::audio::{PlayerState, PlayerStatus};
 use crate::i18n::t;
 use crate::ui::theme::{self, Palette, ThemeId};
 
-pub(super) fn render_rename_overlay(frame: &mut Frame, input: &str, palette: &Palette) {
+pub(super) fn render_rename_overlay(
+    frame: &mut Frame,
+    input: &str,
+    title: &str,
+    palette: &Palette,
+) {
     let area = frame.area();
     let w = area.width.clamp(30, 50);
     let h: u16 = 5;
@@ -23,7 +28,7 @@ pub(super) fn render_rename_overlay(frame: &mut Frame, input: &str, palette: &Pa
     let block = Block::default()
         .title_top(
             Line::from(Span::styled(
-                t("modal.rename.title"),
+                title.to_owned(),
                 Style::default()
                     .fg(palette.highlight)
                     .add_modifier(Modifier::BOLD),
@@ -59,6 +64,130 @@ pub(super) fn render_rename_overlay(frame: &mut Frame, input: &str, palette: &Pa
         ])),
         text_area,
     );
+}
+
+pub(super) fn render_playlist_picker_overlay(
+    frame: &mut Frame,
+    picker: &crate::app::PlaylistPicker,
+    playlists: &[crate::playlists::RadioPlaylist],
+    palette: &Palette,
+) {
+    let area = frame.area();
+
+    if picker.creating {
+        let w = area.width.clamp(30, 50);
+        let h: u16 = 5;
+        let x = area.width.saturating_sub(w) / 2;
+        let y = area.height.saturating_sub(h) / 2;
+        let panel = Rect::new(x, y, w, h);
+
+        frame.render_widget(Clear, panel);
+
+        let block = Block::default()
+            .title_top(
+                Line::from(Span::styled(
+                    t("modal.playlist_picker.name_title"),
+                    Style::default()
+                        .fg(palette.highlight)
+                        .add_modifier(Modifier::BOLD),
+                ))
+                .alignment(Alignment::Center),
+            )
+            .title_bottom(
+                Line::from(Span::styled(
+                    t("modal.playlist_picker.name_hint"),
+                    Style::default().fg(palette.muted),
+                ))
+                .alignment(Alignment::Center),
+            )
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
+            .border_style(Style::default().fg(palette.accent))
+            .style(Style::default().bg(palette.panel_bg));
+
+        let inner = block.inner(panel);
+        frame.render_widget(block, panel);
+
+        let text_area = Rect::new(inner.x + 1, inner.y + 1, inner.width.saturating_sub(2), 1);
+        frame.render_widget(
+            Paragraph::new(Line::from(vec![
+                Span::styled(
+                    picker.input.to_owned(),
+                    Style::default().fg(palette.highlight),
+                ),
+                Span::styled(
+                    "_",
+                    Style::default()
+                        .fg(palette.accent)
+                        .add_modifier(Modifier::BOLD),
+                ),
+            ])),
+            text_area,
+        );
+        return;
+    }
+
+    let item_count = playlists.len() + 1;
+    let w = area.width.clamp(34, 50);
+    let h = (item_count as u16 + 4).clamp(5, area.height);
+    let x = area.width.saturating_sub(w) / 2;
+    let y = area.height.saturating_sub(h) / 2;
+    let panel = Rect::new(x, y, w, h);
+
+    frame.render_widget(Clear, panel);
+
+    let block = Block::default()
+        .title_top(
+            Line::from(Span::styled(
+                t("modal.playlist_picker.title"),
+                Style::default()
+                    .fg(palette.highlight)
+                    .add_modifier(Modifier::BOLD),
+            ))
+            .alignment(Alignment::Center),
+        )
+        .title_bottom(
+            Line::from(Span::styled(
+                t("modal.playlist_picker.hint"),
+                Style::default().fg(palette.muted),
+            ))
+            .alignment(Alignment::Center),
+        )
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(palette.accent))
+        .style(Style::default().bg(palette.panel_bg));
+
+    let inner = block.inner(panel);
+    frame.render_widget(block, panel);
+
+    for i in 0..item_count {
+        let row_y = inner.y + 1 + i as u16;
+        if row_y >= inner.bottom() {
+            break;
+        }
+        let active = i == picker.selected;
+        let marker = if active { ">" } else { " " };
+        let style = if active {
+            Style::default()
+                .fg(palette.playing)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(palette.highlight)
+        };
+        let label = match playlists.get(i) {
+            Some(playlist) => format!(
+                " {marker} {} ({})",
+                crate::ui::strings::title_case(&playlist.name),
+                playlist.stations.len()
+            ),
+            None => format!(" {marker} {}", t("modal.playlist_picker.new")),
+        };
+        frame.render_widget(
+            Paragraph::new(Span::styled(label, style)).style(Style::default().bg(palette.panel_bg)),
+            Rect::new(inner.x + 1, row_y, inner.width.saturating_sub(2), 1),
+        );
+    }
 }
 
 pub(super) fn render_client_id_overlay(frame: &mut Frame, input: &str, palette: &Palette) {
@@ -762,6 +891,8 @@ pub(super) fn render_help_overlay(
             ("[↵]", t("help.shortcut.play_station")),
             ("[↑↓]", t("help.shortcut.nav_list")),
             ("[Alt+F]", t("help.shortcut.save_fav")),
+            ("[Alt+P]", t("help.shortcut.add_playlist")),
+            ("[Ctrl+Shift+←→]", t("help.shortcut.playlist_jump")),
             ("[Space]", t("help.shortcut.pause_resume")),
             ("[Alt+R]", t("help.shortcut.random_station")),
             ("[Alt+S]", t("help.shortcut.stop_radio")),

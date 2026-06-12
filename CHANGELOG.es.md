@@ -27,6 +27,9 @@ Versionado: [Semantic Versioning](https://semver.org/)
 - Nuevo ajuste "Radio (YouTube)", activado por defecto: cuando la lista en reproducción se termina, continúa automáticamente con un mix de canciones similares
 - El overlay de juego ahora muestra una cuenta regresiva con el tiempo restante de la pista actual (Spotify y YouTube), tanto en estilo Completo como Compacto; la Radio no tiene duración, así que ahí no cambia nada
 - En modo Remoto de Spotify, cuando no se detecta ningún dispositivo Connect la pestaña de Spotify se bloquea con un aviso claro que explica abrir Spotify en un dispositivo (teléfono, computador o reproductor web); reescanea automáticamente cada pocos segundos y se desbloquea sola en cuanto aparece un dispositivo (Ctrl+D fuerza un escaneo inmediato)
+- Playlists de radio: nueva sub-pestaña [ Playlists ] en la pestaña de Radio para agrupar tus estaciones en colecciones con nombre; con Alt+P sobre cualquier estación (en Buscar, Género, País o Favoritas) se agrega a una playlist existente o se crea una nueva, y las playlists se guardan en disco entre sesiones
+- Dentro de la sub-pestaña [ Playlists ]: N crea una playlist vacía con nombre, R renombra la seleccionada, Shift+↑/↓ reordena las estaciones dentro de una playlist y Alt+F quita la estación o elimina la playlist según el nivel
+- Con Ctrl+Shift+→/← se salta a la siguiente o anterior estación de la playlist activa sin abrir ninguna lista, ideal para cambiar de ambiente sin soltar lo que estás haciendo
 
 ### Cambiado
 - La pestaña de YouTube ahora usa el rojo de YouTube de forma consistente en todos sus elementos (video seleccionado, campo de búsqueda, cursor de escritura, barra de scroll), replicando el patrón verde de la pestaña de Spotify para que siempre quede claro en qué pestaña estás

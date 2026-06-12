@@ -264,6 +264,7 @@ pub(crate) fn radio_subtab_at(
     col: u16,
     row: u16,
     favorites_count: usize,
+    playlists_count: usize,
 ) -> Option<RadioSubTab> {
     let body = modal_body_area(area)?;
     let content = modal_content_area(area)?;
@@ -288,6 +289,14 @@ pub(crate) fn radio_subtab_at(
                     favorites_count
                 ),
                 RadioSubTab::Favorites,
+            ),
+            (
+                format!(
+                    "[ {} ({}) ]",
+                    t("modal.radio.subtab.playlists.label"),
+                    playlists_count
+                ),
+                RadioSubTab::Playlists,
             ),
         ],
     )
@@ -385,6 +394,14 @@ pub(crate) fn radio_search_results_list_area(area: Rect) -> Option<Rect> {
 pub(crate) fn radio_favorites_list_area(area: Rect) -> Option<Rect> {
     let body = modal_body_area(area)?;
     Some(radio_favorites_list_layout(radio_name_layout(body).body))
+}
+
+pub(crate) fn radio_playlists_list_area(area: Rect) -> Option<Rect> {
+    radio_favorites_list_area(area)
+}
+
+pub(crate) fn radio_playlist_stations_list_area(area: Rect) -> Option<Rect> {
+    radio_playlists_list_area(area).map(|list| header_list_layout(list).list)
 }
 
 pub(crate) fn radio_filter_list_area(area: Rect) -> Option<Rect> {
@@ -721,11 +738,11 @@ mod tests {
         let favorites_x = text_x + search_w + TAB_GAP_WIDTH;
 
         assert!(matches!(
-            radio_subtab_at(area, text_x, subtab.y, 12),
+            radio_subtab_at(area, text_x, subtab.y, 12, 3),
             Some(RadioSubTab::Search)
         ));
         assert!(matches!(
-            radio_subtab_at(area, favorites_x, subtab.y, 12),
+            radio_subtab_at(area, favorites_x, subtab.y, 12, 3),
             Some(RadioSubTab::Favorites)
         ));
     }
