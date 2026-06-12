@@ -26,6 +26,7 @@ Versioning: [Semantic Versioning](https://semver.org/)
 - New optional "SponsorBlock (YouTube)" setting that automatically skips non-music sections using the community database (off by default)
 - New "YouTube Radio" setting, on by default: when the playing list ends, playback continues automatically with a mix of similar songs
 - The game overlay now shows a countdown with the time remaining in the current track (Spotify and YouTube), in both Full and Compact styles; Radio has no duration so nothing changes there
+- In Spotify Remote mode, when no Connect device is detected the Spotify tab now locks with a clear notice explaining to open Spotify on a device (phone, computer or web player); it rescans automatically every few seconds and unlocks itself as soon as a device appears (Ctrl+D forces an immediate scan)
 
 ### Changed
 - The YouTube tab now uses YouTube's red consistently across all its elements (selected video, search input, typing cursor, scrollbar), mirroring the green pattern of the Spotify tab so it is always clear which tab is active

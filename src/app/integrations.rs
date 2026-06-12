@@ -561,12 +561,40 @@ impl App {
         let (tx, rx) = std::sync::mpsc::channel();
         self.spotify.devices_rx = Some(rx);
         self.spotify.devices_loading = true;
+        self.spotify.devices_last_fetch = Some(std::time::Instant::now());
         let handle = tokio::spawn(async move {
             let result: Result<_, crate::integrations::spotify::SpotifyError> =
                 list_devices(&token).await;
             let _ = tx.send(result);
         });
         self.spotify.devices_task = Some(handle);
+    }
+
+    pub(super) fn spotify_remote_blocked(&self) -> bool {
+        self.config.spotify.playback_mode == SpotifyPlaybackMode::Remote
+            && matches!(
+                self.spotify.status,
+                super::modal::SpotifyAuthStatus::LoggedIn
+            )
+            && self.spotify.active_device_id.is_none()
+    }
+
+    pub fn ensure_spotify_device_rescan(&mut self) {
+        const RESCAN_INTERVAL: std::time::Duration = std::time::Duration::from_secs(10);
+        if !self.show_search_modal
+            || !matches!(self.modal_mode, crate::app::SearchMode::Spotify)
+            || !self.spotify_remote_blocked()
+            || self.spotify.devices_loading
+        {
+            return;
+        }
+        let due = self
+            .spotify
+            .devices_last_fetch
+            .is_none_or(|at| at.elapsed() >= RESCAN_INTERVAL);
+        if due {
+            self.fetch_spotify_devices();
+        }
     }
 
     pub fn poll_spotify_devices(&mut self) {

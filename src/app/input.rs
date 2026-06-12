@@ -1461,6 +1461,9 @@ impl App {
             SearchMode::Country => self.on_click_radio_country(col, row).await,
             SearchMode::Settings => self.on_click_settings(col, row),
             SearchMode::Spotify if matches!(self.spotify.status, SpotifyAuthStatus::LoggedIn) => {
+                if self.spotify_remote_blocked() {
+                    return;
+                }
                 if let Some(tab) = spotify_subtab_at(self.terminal_area, col, row) {
                     if self.spotify.sub_tab != tab {
                         self.switch_spotify_sub_tab(tab);
@@ -2316,6 +2319,14 @@ impl App {
     async fn on_key_modal_spotify(&mut self, key: KeyCode) {
         if !matches!(self.spotify.status, SpotifyAuthStatus::LoggedIn) {
             self.on_key_spotify_auth(key);
+            return;
+        }
+
+        if self.spotify_remote_blocked() {
+            if key == KeyCode::Esc {
+                self.show_help = false;
+                self.should_quit = true;
+            }
             return;
         }
 

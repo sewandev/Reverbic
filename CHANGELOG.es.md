@@ -26,6 +26,7 @@ Versionado: [Semantic Versioning](https://semver.org/)
 - Nuevo ajuste opcional "SponsorBlock (YouTube)" que salta automáticamente las secciones sin música usando la base de datos comunitaria (desactivado por defecto)
 - Nuevo ajuste "Radio (YouTube)", activado por defecto: cuando la lista en reproducción se termina, continúa automáticamente con un mix de canciones similares
 - El overlay de juego ahora muestra una cuenta regresiva con el tiempo restante de la pista actual (Spotify y YouTube), tanto en estilo Completo como Compacto; la Radio no tiene duración, así que ahí no cambia nada
+- En modo Remoto de Spotify, cuando no se detecta ningún dispositivo Connect la pestaña de Spotify se bloquea con un aviso claro que explica abrir Spotify en un dispositivo (teléfono, computador o reproductor web); reescanea automáticamente cada pocos segundos y se desbloquea sola en cuanto aparece un dispositivo (Ctrl+D fuerza un escaneo inmediato)
 
 ### Cambiado
 - La pestaña de YouTube ahora usa el rojo de YouTube de forma consistente en todos sus elementos (video seleccionado, campo de búsqueda, cursor de escritura, barra de scroll), replicando el patrón verde de la pestaña de Spotify para que siempre quede claro en qué pestaña estás

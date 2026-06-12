@@ -74,7 +74,9 @@ impl<'a> SearchModalWidget<'a> {
 
         {
             let tab_style = |active: bool| {
-                if active {
+                if self.spotify_remote_blocked {
+                    Style::default().fg(self.palette.muted)
+                } else if active {
                     Style::default()
                         .fg(self.palette.spotify)
                         .add_modifier(Modifier::BOLD)
@@ -119,6 +121,11 @@ impl<'a> SearchModalWidget<'a> {
                 Rect::new(text_x, layout.subtab.y, text_w, layout.subtab.height),
                 buf,
             );
+        }
+
+        if self.spotify_remote_blocked {
+            self.render_spotify_no_device(layout.body, buf);
+            return;
         }
 
         match self.spotify_sub_tab {
@@ -232,6 +239,77 @@ impl<'a> SearchModalWidget<'a> {
                 mode_style,
             ))
             .render(footer_area, buf);
+        }
+    }
+
+    fn render_spotify_no_device(&self, area: Rect, buf: &mut Buffer) {
+        use ratatui::widgets::{Block, BorderType, Borders, Clear};
+
+        let box_w = area.width.saturating_sub(4).min(58);
+        let box_h = 9.min(area.height);
+        if box_w < 20 || box_h < 5 {
+            return;
+        }
+        let box_x = area.x + (area.width - box_w) / 2;
+        let box_y = area.y + (area.height.saturating_sub(box_h)) / 2;
+        let box_area = Rect::new(box_x, box_y, box_w, box_h);
+
+        Clear.render(box_area, buf);
+        Block::default()
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
+            .border_style(Style::default().fg(self.palette.warning))
+            .style(Style::default().bg(self.palette.panel_bg))
+            .render(box_area, buf);
+
+        let inner_x = box_x + 2;
+        let inner_w = box_w.saturating_sub(4);
+        let mut y = box_y + 1;
+
+        Paragraph::new(Span::styled(
+            t("modal.spotify.no_device.title"),
+            Style::default()
+                .fg(self.palette.warning)
+                .add_modifier(Modifier::BOLD),
+        ))
+        .alignment(ratatui::layout::Alignment::Center)
+        .render(Rect::new(inner_x, y, inner_w, 1), buf);
+        y += 2;
+
+        Paragraph::new(Span::styled(
+            t("modal.spotify.no_device.body"),
+            Style::default().fg(self.palette.highlight),
+        ))
+        .wrap(Wrap { trim: true })
+        .render(Rect::new(inner_x, y, inner_w, 3), buf);
+        y += 4;
+
+        if y < box_y + box_h - 1 {
+            let line = if self.spotify_devices_loading {
+                Line::from(vec![
+                    Span::styled(spin_frame(), Style::default().fg(self.palette.accent)),
+                    Span::styled(
+                        format!("  {}", t("modal.spotify.no_device.scanning")),
+                        Style::default().fg(self.palette.muted),
+                    ),
+                ])
+            } else {
+                Line::from(vec![
+                    Span::styled(
+                        "[Ctrl+D]  ",
+                        Style::default()
+                            .fg(self.palette.accent)
+                            .add_modifier(Modifier::BOLD),
+                    ),
+                    Span::styled(
+                        t("modal.spotify.no_device.scan"),
+                        Style::default().fg(self.palette.muted),
+                    ),
+                ])
+            };
+            Paragraph::new(line)
+                .alignment(ratatui::layout::Alignment::Center)
+                .render(Rect::new(inner_x, y, inner_w, 1), buf);
         }
     }
 

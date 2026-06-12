@@ -195,6 +195,7 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
         app.poll_albums();
         app.poll_album_tracks();
         app.poll_spotify_devices();
+        app.ensure_spotify_device_rescan();
         app.poll_remote_playback();
         app.poll_youtube_install();
         app.poll_youtube_search_debounce();
