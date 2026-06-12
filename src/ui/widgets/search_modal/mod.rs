@@ -416,9 +416,11 @@ impl SearchModalWidget<'_> {
                 Span::raw(" "),
                 key("[↵]"),
                 sep_s(format!(" {}  ", t("hint.play"))),
-                key("[Space]"),
-                sep_s(format!(" {}  ", t("hint.pause"))),
             ];
+            if matches!(self.mode, SearchMode::Genre | SearchMode::Country) {
+                spans.push(key("[Space]"));
+                spans.push(sep_s(format!(" {}  ", t("hint.pause"))));
+            }
             if matches!(self.mode, crate::app::SearchMode::Spotify) {
                 spans.push(key("[Alt+L]"));
                 spans.push(sep_s(format!(" {}  ", t("hint.like"))));

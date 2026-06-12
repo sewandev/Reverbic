@@ -1011,6 +1011,18 @@ pub(super) fn render_help_overlay(
                 ]
             }
         }
+        SearchMode::Youtube => vec![
+            ("[↵]", t("help.shortcut.play_video")),
+            ("[↑↓]", t("help.shortcut.nav_list")),
+            ("[←→]", t("help.shortcut.switch_subtab")),
+            ("[Ctrl+R]", t("help.shortcut.youtube_mix")),
+            ("[Alt+F]", t("help.shortcut.toggle_bookmark")),
+            ("[Space]", t("help.shortcut.pause_resume")),
+            ("[Alt+S]", t("help.shortcut.stop_playback")),
+            ("[Tab]", t("help.shortcut.go_radio")),
+            ("[Alt+O]", t("help.shortcut.open_config")),
+            ("[Esc]", t("help.shortcut.close_quit")),
+        ],
         SearchMode::Settings => vec![
             ("[Space]", t("help.shortcut.change_value")),
             ("[↑↓]", t("help.shortcut.nav_options")),

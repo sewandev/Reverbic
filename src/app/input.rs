@@ -607,7 +607,12 @@ impl App {
                 self.toggle_youtube_bookmark();
             }
             KeyCode::Char('f') | KeyCode::Char('F')
-                if self.show_search_modal && !self.search_results.is_empty() =>
+                if self.show_search_modal
+                    && matches!(
+                        self.modal_mode,
+                        SearchMode::Name | SearchMode::Genre | SearchMode::Country
+                    )
+                    && !self.search_results.is_empty() =>
             {
                 self.toggle_modal_favorite();
             }
@@ -616,7 +621,10 @@ impl App {
             }
             KeyCode::Char('r') | KeyCode::Char('R')
                 if self.show_search_modal
-                    && !matches!(self.modal_mode, SearchMode::Spotify)
+                    && matches!(
+                        self.modal_mode,
+                        SearchMode::Name | SearchMode::Genre | SearchMode::Country
+                    )
                     && !self.search_results.is_empty() =>
             {
                 self.last_activity = std::time::Instant::now();
@@ -881,17 +889,19 @@ impl App {
             }
             KeyCode::Char(' ')
                 if matches!(self.modal_mode, SearchMode::Name)
-                    && matches!(self.radio_sub_tab, RadioSubTab::Favorites) =>
+                    && matches!(
+                        self.radio_sub_tab,
+                        RadioSubTab::Favorites | RadioSubTab::Playlists
+                    ) =>
             {
-                match self.player.state().status {
-                    PlayerStatus::Playing => {
-                        self.player.send(PlayerCommand::Pause).await;
-                    }
-                    PlayerStatus::Paused => {
-                        self.player.send(PlayerCommand::Resume).await;
-                    }
-                    _ => {}
-                }
+                self.toggle_radio_pause().await;
+                return;
+            }
+            KeyCode::Char(' ')
+                if matches!(self.modal_mode, SearchMode::Genre | SearchMode::Country)
+                    && !self.search_results.is_empty() =>
+            {
+                self.toggle_radio_pause().await;
                 return;
             }
             _ => {}
@@ -2618,6 +2628,14 @@ impl App {
             return;
         }
 
+        {
+            use super::modal::SpotifySubTab;
+            if key == KeyCode::Char(' ') && !matches!(self.spotify.sub_tab, SpotifySubTab::Search) {
+                self.toggle_spotify_playback().await;
+                return;
+            }
+        }
+
         match key {
             KeyCode::Esc => {
                 self.show_help = false;
@@ -2723,6 +2741,18 @@ impl App {
                 } else {
                     self.should_quit = true;
                 }
+            }
+            _ => {}
+        }
+    }
+
+    async fn toggle_radio_pause(&mut self) {
+        match self.player.state().status {
+            PlayerStatus::Playing => {
+                self.player.send(PlayerCommand::Pause).await;
+            }
+            PlayerStatus::Paused => {
+                self.player.send(PlayerCommand::Resume).await;
             }
             _ => {}
         }
@@ -3126,6 +3156,10 @@ impl App {
     }
 
     async fn on_key_modal_youtube(&mut self, key: KeyCode) {
+        if key == KeyCode::Char(' ') && !matches!(self.youtube.sub_tab, YoutubeSubTab::Search) {
+            self.toggle_radio_pause().await;
+            return;
+        }
         match key {
             KeyCode::Esc => {
                 self.show_help = false;
