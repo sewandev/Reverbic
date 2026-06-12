@@ -99,6 +99,7 @@ struct State {
     overlay_position: crate::config::OverlayPosition,
     overlay_style: crate::config::OverlayStyle,
     duck_enabled: bool,
+    source: Option<&'static str>,
 }
 
 static MEDIA_VK_TX: std::sync::OnceLock<std::sync::mpsc::SyncSender<u32>> =
@@ -107,12 +108,13 @@ static MEDIA_VK_TX: std::sync::OnceLock<std::sync::mpsc::SyncSender<u32>> =
 pub fn spawn(
     state_rx: watch::Receiver<PlayerState>,
     config_rx: watch::Receiver<Config>,
+    dots_rx: watch::Receiver<crate::app::TabDots>,
     cmd_tx: mpsc::Sender<PlayerCommand>,
 ) {
     std::thread::Builder::new()
         .name("overlay".into())
         .spawn(move || unsafe {
-            if let Err(e) = run(state_rx, config_rx, cmd_tx) {
+            if let Err(e) = run(state_rx, config_rx, dots_rx, cmd_tx) {
                 tracing::error!("overlay: {e}");
             }
         })
@@ -122,6 +124,7 @@ pub fn spawn(
 unsafe fn run(
     mut rx: watch::Receiver<PlayerState>,
     mut config_rx: watch::Receiver<Config>,
+    mut dots_rx: watch::Receiver<crate::app::TabDots>,
     cmd_tx: mpsc::Sender<PlayerCommand>,
 ) -> windows::core::Result<()> {
     let own_pid = std::process::id();
@@ -158,6 +161,7 @@ unsafe fn run(
         overlay_position: config_rx.borrow().overlay_position,
         overlay_style: config_rx.borrow().overlay_style,
         duck_enabled: config_rx.borrow().duck_enabled,
+        source: None,
     }));
     let raw = Arc::into_raw(Arc::clone(&shared));
 
@@ -290,12 +294,19 @@ unsafe fn run(
         }
 
         let mut need_repaint = false;
-        if rx.has_changed().unwrap_or(false) {
+        let rx_changed = rx.has_changed().unwrap_or(false);
+        let dots_changed = dots_rx.has_changed().unwrap_or(false);
+
+        if rx_changed || dots_changed {
             let ps = rx.borrow_and_update().clone();
+            let dots = *dots_rx.borrow_and_update();
+
+            use crate::app::TabDot;
+            let spotify_playing = dots.spotify == Some(TabDot::Playing);
             playing = matches!(
                 ps.status,
                 PlayerStatus::Playing | PlayerStatus::Buffering(_) | PlayerStatus::Reconnecting(_)
-            );
+            ) || spotify_playing;
 
             let new_title = ps.title.clone().unwrap_or_default();
             let title_changed = new_title != last_title && !new_title.is_empty() && playing;
@@ -317,6 +328,19 @@ unsafe fn run(
                 };
                 s.recent = ps.recent_titles.iter().take(3).cloned().collect();
                 s.duck_enabled = cfg.duck_enabled;
+                s.source = if dots.spotify == Some(TabDot::Playing)
+                    || dots.spotify == Some(TabDot::Warning)
+                {
+                    Some("Spotify")
+                } else if dots.youtube == Some(TabDot::Playing)
+                    || dots.youtube == Some(TabDot::Danger)
+                {
+                    Some("YouTube")
+                } else if dots.radio == Some(TabDot::Playing) {
+                    Some("Radio")
+                } else {
+                    None
+                };
                 s.ostatus = match ps.status {
                     PlayerStatus::Buffering(f) => OStatus::Buffering(f),
                     PlayerStatus::Reconnecting(n) => OStatus::Reconnecting(n),
@@ -533,6 +557,12 @@ unsafe fn paint(hdc: HDC, s: &State) {
     let prev = SelectObject(hdc, HGDIOBJ(f_brand.0));
     SetTextColor(hdc, C_BRAND);
     let _ = TextOutW(hdc, PAD_L, 5, &wide("REVERBIC"));
+    if let Some(src) = s.source {
+        SelectObject(hdc, HGDIOBJ(f_small.0));
+        SetTextColor(hdc, rgb(0x80, 0x80, 0x80));
+        let _ = TextOutW(hdc, PAD_L + 75, 7, &wide(&format!("• {}", src)));
+        SelectObject(hdc, HGDIOBJ(f_brand.0));
+    }
 
     let clock = chrono::Local::now().format("%H:%M").to_string();
     let prev_align = SetTextAlign(hdc, TA_RIGHT);
@@ -773,6 +803,12 @@ unsafe fn paint_compact(hdc: HDC, s: &State) {
     let prev_align = SetTextAlign(hdc, TA_RIGHT);
     let clock = chrono::Local::now().format("%H:%M").to_string();
     let _ = TextOutW(hdc, OW - PAD_R, 5, &wide(&clock));
+    if let Some(src) = s.source {
+        SelectObject(hdc, HGDIOBJ(f_detail.0));
+        SetTextColor(hdc, rgb(0x80, 0x80, 0x80));
+        let _ = TextOutW(hdc, OW - PAD_R - 38, 7, &wide(&format!("• {}", src)));
+        SelectObject(hdc, HGDIOBJ(f_station.0));
+    }
     let _ = SetTextAlign(hdc, TEXT_ALIGN_OPTIONS(prev_align));
     fill(
         hdc,
