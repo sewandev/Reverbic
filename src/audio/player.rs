@@ -10,7 +10,7 @@ use tokio::sync::{mpsc, watch};
 use tracing::{error, info, warn};
 
 use crate::audio::meter::rms_to_db;
-use crate::audio::stream::{FileBackedReader, StreamReader};
+use crate::audio::stream::{FileBackedDownload, FileBackedReader, StreamReader};
 use crate::station::Station;
 
 pub enum PlayerCommand {
@@ -356,6 +356,7 @@ struct CrossfadeOut {
     from_vol: f32,
     start: std::time::Instant,
     duration_secs: f32,
+    partial_file_to_remove: Option<std::path::PathBuf>,
 }
 
 struct AudioLoopState {
@@ -379,6 +380,7 @@ struct AudioLoopState {
     file_backed: bool,
     stream_written: Option<Arc<AtomicU64>>,
     stream_total: Option<Arc<AtomicU64>>,
+    file_download: Option<FileBackedDownload>,
     crossfade_out: Option<CrossfadeOut>,
     pre_buffer_secs: f32,
 }
@@ -406,6 +408,7 @@ impl AudioLoopState {
             file_backed: false,
             stream_written: None,
             stream_total: None,
+            file_download: None,
             crossfade_out: None,
             pre_buffer_secs: 30.0,
         }
@@ -421,6 +424,7 @@ struct StreamConnection {
     file_backed: bool,
     written: Option<Arc<AtomicU64>>,
     total: Option<Arc<AtomicU64>>,
+    file_download: Option<FileBackedDownload>,
 }
 
 const STALL_SECS_LIVE: u64 = 30;
@@ -537,9 +541,46 @@ fn tick_crossfade(st: &mut AudioLoopState) {
         false
     };
     if cf_done {
-        if let Some(cf) = st.crossfade_out.take() {
-            cf.player.stop();
+        stop_crossfade_out(st);
+    }
+}
+
+fn stop_crossfade_out(st: &mut AudioLoopState) {
+    if let Some(cf) = st.crossfade_out.take() {
+        let CrossfadeOut {
+            player,
+            partial_file_to_remove,
+            ..
+        } = cf;
+        player.stop();
+        drop(player);
+        if let Some(path) = partial_file_to_remove {
+            FileBackedDownload::cleanup_partial(path);
         }
+    }
+}
+
+fn cancel_file_backed_download(
+    st: &mut AudioLoopState,
+    handle: &tokio::runtime::Handle,
+    remove_partial: bool,
+) -> Option<std::path::PathBuf> {
+    let partial = st
+        .file_download
+        .take()
+        .and_then(|download| download.cancel(handle));
+    st.stream_last_chunk = None;
+    st.stream_download_done = None;
+    st.file_backed = false;
+    st.stream_written = None;
+    st.stream_total = None;
+    if remove_partial {
+        if let Some(path) = partial {
+            FileBackedDownload::cleanup_partial(path);
+        }
+        None
+    } else {
+        partial
     }
 }
 
@@ -549,6 +590,7 @@ fn check_download_done(st: &mut AudioLoopState) -> bool {
             st.stream_last_chunk = None;
             st.stream_download_done = None;
             st.download_complete = true;
+            st.file_download = None;
             return true;
         }
     }
@@ -691,6 +733,7 @@ fn open_stream(
                 file_backed: false,
                 written: None,
                 total: None,
+                file_download: None,
             })
         }
         Err(e) => {
@@ -734,7 +777,7 @@ fn open_file_backed_stream(
     st: &mut AudioLoopState,
 ) -> Result<StreamConnection, Option<String>> {
     let cache_path = youtube_cache_path(&station.key);
-    let (reader, title_rx) = match FileBackedReader::create(
+    let (reader, download, title_rx) = match FileBackedReader::create(
         station.url.to_string(),
         station.custom_headers.clone(),
         cache_path,
@@ -781,10 +824,12 @@ fn open_file_backed_stream(
                 file_backed: true,
                 written: Some(written),
                 total: Some(total),
+                file_download: Some(download),
             })
         }
         Err(e) => {
             if dead_url_arc.load(Ordering::Acquire) {
+                download.cancel_and_cleanup(handle);
                 let _ = state_tx.send(PlayerState {
                     status: PlayerStatus::Error(crate::i18n::t("status.dead_url")),
                     station: Some(station.clone()),
@@ -794,6 +839,7 @@ fn open_file_backed_stream(
                 });
                 Err(None)
             } else {
+                download.cancel_and_cleanup(handle);
                 Err(Some(e.to_string()))
             }
         }
@@ -806,9 +852,7 @@ fn schedule_retry(
     station: Station,
     state_tx: &watch::Sender<PlayerState>,
 ) {
-    if let Some(cf) = st.crossfade_out.take() {
-        cf.player.stop();
-    }
+    stop_crossfade_out(st);
     st.title_rx = None;
     let retry_count = st
         .stream_retry_at
@@ -861,12 +905,11 @@ fn handle_play_cmd(
     st.volume_before_duck = None;
     st.od.reset();
     st.download_complete = false;
-    if let Some(cf) = st.crossfade_out.take() {
-        cf.player.stop();
-    }
+    stop_crossfade_out(st);
     if let Some(p) = st.player.take() {
         p.stop();
     }
+    cancel_file_backed_download(st, handle, true);
 
     info!("Connecting to: {}", station.name);
     let _ = state_tx.send(PlayerState {
@@ -892,6 +935,7 @@ fn handle_play_cmd(
             st.file_backed = conn.file_backed;
             st.stream_written = conn.written;
             st.stream_total = conn.total;
+            st.file_download = conn.file_download;
             info!(station = %station.name, url = %station.url, on_demand = st.od.active, "Playback started");
             let _ = state_tx.send(playing_state(
                 station,
@@ -916,9 +960,7 @@ fn handle_crossfade_cmd(
     state_tx: &watch::Sender<PlayerState>,
 ) {
     st.reconnect_count = 0;
-    if let Some(cf) = st.crossfade_out.take() {
-        cf.player.stop();
-    }
+    stop_crossfade_out(st);
     st.current_station = Some(station.clone());
     st.reconnect_at = None;
     st.stream_retry_at = None;
@@ -927,6 +969,7 @@ fn handle_crossfade_cmd(
     st.volume_before_duck = None;
     st.od.reset();
     st.download_complete = false;
+    let outgoing_partial = cancel_file_backed_download(st, handle, false);
 
     let outgoing = st.player.take();
 
@@ -947,13 +990,17 @@ fn handle_crossfade_cmd(
             st.file_backed = conn.file_backed;
             st.stream_written = conn.written;
             st.stream_total = conn.total;
+            st.file_download = conn.file_download;
             if let Some(out) = outgoing {
                 st.crossfade_out = Some(CrossfadeOut {
                     player: out,
                     from_vol: st.current_volume,
                     start: std::time::Instant::now(),
                     duration_secs: secs as f32,
+                    partial_file_to_remove: outgoing_partial,
                 });
+            } else if let Some(path) = outgoing_partial {
+                FileBackedDownload::cleanup_partial(path);
             }
             st.player = Some(conn.player);
             info!(station = %station.name, "Crossfade: playback started");
@@ -968,10 +1015,16 @@ fn handle_crossfade_cmd(
             if let Some(out) = outgoing {
                 out.stop();
             }
+            if let Some(path) = outgoing_partial {
+                FileBackedDownload::cleanup_partial(path);
+            }
         }
         Err(Some(e)) => {
             if let Some(out) = outgoing {
                 out.stop();
+            }
+            if let Some(path) = outgoing_partial {
+                FileBackedDownload::cleanup_partial(path);
             }
             schedule_retry(st, &e, station, state_tx);
         }
@@ -1178,6 +1231,7 @@ fn handle_device_change(
     st: &mut AudioLoopState,
     device_sink: &mut MixerDeviceSink,
     state_tx: &watch::Sender<PlayerState>,
+    handle: &tokio::runtime::Handle,
 ) {
     if let Some(p) = st.player.take() {
         p.stop();
@@ -1185,9 +1239,8 @@ fn handle_device_change(
     if let Some(p) = st.preview_player.take() {
         p.stop();
     }
-    if let Some(cf) = st.crossfade_out.take() {
-        cf.player.stop();
-    }
+    stop_crossfade_out(st);
+    cancel_file_backed_download(st, handle, true);
     st.title_rx = None;
     st.stream_last_chunk = None;
     st.stream_download_done = None;
@@ -1260,7 +1313,7 @@ fn audio_loop(
     loop {
         #[cfg(target_os = "windows")]
         if device_changed.swap(false, Ordering::AcqRel) {
-            handle_device_change(&mut st, &mut device_sink, &state_tx);
+            handle_device_change(&mut st, &mut device_sink, &state_tx, &handle);
         }
 
         tick_crossfade(&mut st);
@@ -1470,15 +1523,14 @@ fn audio_loop(
             }
 
             PlayerCommand::Stop => {
-                if let Some(cf) = st.crossfade_out.take() {
-                    cf.player.stop();
-                }
+                stop_crossfade_out(&mut st);
                 if let Some(p) = st.player.take() {
                     p.stop();
                 }
                 if let Some(p) = st.preview_player.take() {
                     p.stop();
                 }
+                cancel_file_backed_download(&mut st, &handle, true);
                 st.title_rx = None;
                 st.api_last_success = None;
                 st.current_station = None;
@@ -1577,5 +1629,87 @@ mod tests {
         assert_eq!(st.preview_id, None);
         assert_eq!(state_rx.borrow().preview_title, None);
         assert_eq!(state_rx.borrow().preview_playing_track, None);
+    }
+
+    fn test_cache_path(name: &str) -> std::path::PathBuf {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos();
+        std::env::temp_dir()
+            .join(format!(
+                "reverbic-player-test-{}-{nanos}",
+                std::process::id()
+            ))
+            .join(name)
+    }
+
+    #[test]
+    fn cancelling_file_backed_download_removes_partial_file(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let rt = tokio::runtime::Runtime::new()?;
+        let path = test_cache_path("partial.m4a");
+        let dir = path.parent().map(std::path::Path::to_path_buf);
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::write(&path, b"partial")?;
+
+        let done = Arc::new(AtomicBool::new(false));
+        let task = rt.spawn(async {
+            tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+        });
+        let download =
+            FileBackedDownload::from_parts_for_test(task, path.clone(), Arc::clone(&done));
+        let mut st = AudioLoopState::new();
+        st.file_backed = true;
+        st.stream_last_chunk = Some(Arc::new(AtomicU64::new(1)));
+        st.stream_download_done = Some(done);
+        st.stream_written = Some(Arc::new(AtomicU64::new(1)));
+        st.stream_total = Some(Arc::new(AtomicU64::new(10)));
+        st.file_download = Some(download);
+
+        cancel_file_backed_download(&mut st, rt.handle(), true);
+
+        assert!(st.file_download.is_none());
+        assert!(!st.file_backed);
+        assert!(st.stream_last_chunk.is_none());
+        assert!(st.stream_download_done.is_none());
+        assert!(st.stream_written.is_none());
+        assert!(st.stream_total.is_none());
+        assert!(!path.exists());
+        if let Some(dir) = dir {
+            let _ = std::fs::remove_dir_all(dir);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn cancelling_completed_file_backed_download_keeps_cache_file(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let rt = tokio::runtime::Runtime::new()?;
+        let path = test_cache_path("complete.m4a");
+        let dir = path.parent().map(std::path::Path::to_path_buf);
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::write(&path, b"complete")?;
+
+        let done = Arc::new(AtomicBool::new(true));
+        let task = rt.spawn(async {});
+        let download =
+            FileBackedDownload::from_parts_for_test(task, path.clone(), Arc::clone(&done));
+        let mut st = AudioLoopState::new();
+        st.file_backed = true;
+        st.stream_download_done = Some(done);
+        st.file_download = Some(download);
+
+        cancel_file_backed_download(&mut st, rt.handle(), true);
+
+        assert!(path.exists());
+        if let Some(dir) = dir {
+            let _ = std::fs::remove_dir_all(dir);
+        }
+        Ok(())
     }
 }
