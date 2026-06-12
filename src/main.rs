@@ -65,7 +65,7 @@ async fn main() -> Result<()> {
     i18n::init(config::Config::load().language);
     game_detect::init_game_db();
 
-    tracing::info!("reverbic starting");
+    tracing::info!(version = env!("CARGO_PKG_VERSION"), "reverbic starting");
 
     let mut tui = terminal::init()?;
     let result = run(&mut tui).await;
@@ -118,6 +118,10 @@ fn init_logging() -> Option<tracing_appender::non_blocking::WorkerGuard> {
 
 async fn run(tui: &mut terminal::Tui) -> Result<()> {
     let mut app = App::new().await;
+    tracing::info!(
+        spotify_playback_mode = ?app.config.spotify.playback_mode,
+        "session config"
+    );
 
     if !app.config.onboarding_completed {
         onboarding::run(tui, &mut app.config, &app.player).await?;

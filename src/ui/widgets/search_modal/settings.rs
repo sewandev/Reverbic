@@ -142,6 +142,7 @@ impl<'a> SearchModalWidget<'a> {
                 }
             }
             SettingItem::ReplayOnboarding => t("hint.open"),
+            SettingItem::OpenLogs => t("hint.open"),
             SettingItem::YoutubeCookiesPath => {
                 if self.youtube_cookies_configured {
                     t("config.value.configured")

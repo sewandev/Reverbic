@@ -1299,6 +1299,9 @@ impl App {
             SettingItem::YoutubeCookiesValidate => {
                 self.validate_youtube_cookies();
             }
+            SettingItem::OpenLogs => {
+                crate::shell::open_folder(&crate::config::reverbic_dir().join("logs"));
+            }
             _ => self.apply_settings_toggle(self.settings_selected),
         }
     }
@@ -2535,6 +2538,7 @@ impl App {
             super::modal::SettingItem::YoutubeCookiesPath => {}
             super::modal::SettingItem::YoutubeCookiesValidate => {}
             super::modal::SettingItem::ReplayOnboarding => {}
+            super::modal::SettingItem::OpenLogs => {}
             super::modal::SettingItem::AutoUpdate => {
                 self.config.auto_update = !self.config.auto_update
             }

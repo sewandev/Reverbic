@@ -343,6 +343,8 @@
   "config.setting.discord_rpc": "Discord Rich Presence",
   "config.tooltip.discord_rpc": "Muestra la estación y canción actual en tu perfil de Discord.",
   "config.setting.replay_onboarding": "Ver bienvenida de nuevo",
+  "config.setting.open_logs": "Abrir carpeta de logs",
+  "config.tooltip.open_logs": "Abre la carpeta con los archivos de registro de Reverbic, útiles para reportar errores.",
   "config.tooltip.replay_onboarding": "Repite los pasos de bienvenida y configuración inicial.",
   "update.toast.downloading": " [ Descargando v{}... ] ",
   "update.toast.ready": " [ v{} Lista (Cierra la app) ] ",

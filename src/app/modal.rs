@@ -86,6 +86,7 @@ pub enum SettingItem {
     AutoUpdate,
     DiscordRpc,
     ReplayOnboarding,
+    OpenLogs,
 }
 
 impl SettingItem {
@@ -117,6 +118,7 @@ impl SettingItem {
             Self::AutoUpdate => t("config.setting.auto_update"),
             Self::DiscordRpc => t("config.setting.discord_rpc"),
             Self::ReplayOnboarding => t("config.setting.replay_onboarding"),
+            Self::OpenLogs => t("config.setting.open_logs"),
             Self::SpotifyRadioMode => t("config.setting.spotify_radio_mode"),
             Self::YoutubeRadioMode => t("config.setting.youtube_radio_mode"),
             Self::YoutubeSponsorblock => t("config.setting.youtube_sponsorblock"),
@@ -153,6 +155,7 @@ impl SettingItem {
             Self::AutoUpdate => "config.tooltip.auto_update",
             Self::DiscordRpc => "config.tooltip.discord_rpc",
             Self::ReplayOnboarding => "config.tooltip.replay_onboarding",
+            Self::OpenLogs => "config.tooltip.open_logs",
             Self::SpotifyRadioMode => "config.tooltip.spotify_radio_mode",
             Self::YoutubeRadioMode => "config.tooltip.youtube_radio_mode",
             Self::YoutubeSponsorblock => "config.tooltip.youtube_sponsorblock",
@@ -180,7 +183,8 @@ impl SettingItem {
             | Self::Notifications
             | Self::AutoUpdate
             | Self::DiscordRpc
-            | Self::ReplayOnboarding => "config.group.system",
+            | Self::ReplayOnboarding
+            | Self::OpenLogs => "config.group.system",
             Self::Language | Self::Theme => "config.group.appearance",
             Self::SpotifyStopOnQuit
             | Self::SpotifyStartOnSpotify
@@ -221,6 +225,7 @@ pub fn settings_items(duck_enabled: bool) -> Vec<SettingItem> {
         SettingItem::AutoUpdate,
         SettingItem::DiscordRpc,
         SettingItem::ReplayOnboarding,
+        SettingItem::OpenLogs,
         SettingItem::Language,
         SettingItem::Theme,
         SettingItem::SpotifyStopOnQuit,
