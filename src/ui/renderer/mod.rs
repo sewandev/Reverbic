@@ -105,6 +105,7 @@ pub fn render(frame: &mut Frame, app: &App) {
                         version,
                         app.update_path.is_some(),
                         app.show_search_modal,
+                        app.border_tick,
                         area,
                         palette,
                     );
@@ -138,6 +139,7 @@ pub fn render(frame: &mut Frame, app: &App) {
                 version,
                 app.update_path.is_some(),
                 app.show_search_modal,
+                app.border_tick,
                 area,
                 palette,
             );
@@ -252,6 +254,7 @@ pub fn render(frame: &mut Frame, app: &App) {
             version,
             app.update_path.is_some(),
             app.show_search_modal,
+            app.border_tick,
             full_area,
             palette,
         );
