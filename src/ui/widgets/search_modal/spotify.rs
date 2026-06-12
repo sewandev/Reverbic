@@ -54,7 +54,7 @@ impl<'a> SearchModalWidget<'a> {
             SpotifyAuthStatus::Error(msg) => {
                 self.render_spotify_error(area, lx, lw, buf, msg.as_str())
             }
-            SpotifyAuthStatus::Idle => self.render_spotify_connect(area, lx, lw, buf),
+            SpotifyAuthStatus::Idle => self.render_spotify_connect(area, buf),
         }
     }
 
@@ -335,60 +335,83 @@ impl<'a> SearchModalWidget<'a> {
         }
     }
 
-    fn render_spotify_connect(&self, area: Rect, lx: u16, lw: u16, buf: &mut Buffer) {
-        let mut y = area.y + 1;
-        if y >= area.bottom() {
+    fn render_spotify_connect(&self, area: Rect, buf: &mut Buffer) {
+        use ratatui::widgets::{Block, BorderType, Borders, Clear};
+
+        let Some(box_area) = super::auth_notice_box(area) else {
             return;
-        }
+        };
+
+        Clear.render(box_area, buf);
+        Block::default()
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
+            .border_style(Style::default().fg(self.palette.warning))
+            .style(Style::default().bg(self.palette.panel_bg))
+            .render(box_area, buf);
+
+        let inner_x = box_area.x + 2;
+        let inner_w = box_area.width.saturating_sub(4);
+        let bottom = box_area.bottom().saturating_sub(1);
+        let mut y = box_area.y + 1;
+
         Paragraph::new(Span::styled(
-            "SPOTIFY",
+            t("modal.spotify.auth_notice.title"),
             Style::default()
-                .fg(self.palette.playing)
+                .fg(self.palette.warning)
                 .add_modifier(Modifier::BOLD),
         ))
         .alignment(ratatui::layout::Alignment::Center)
-        .render(Rect::new(lx, y, lw, 1), buf);
+        .render(Rect::new(inner_x, y, inner_w, 1), buf);
         y += 2;
-        if y >= area.bottom() {
+        if y >= bottom {
             return;
         }
-        Paragraph::new(Span::styled(
-            t("modal.spotify.remote_feature"),
-            Style::default()
-                .fg(self.palette.highlight)
-                .add_modifier(Modifier::BOLD),
-        ))
-        .render(Rect::new(lx, y, lw, 1), buf);
-        y += 1;
 
-        if y >= area.bottom() {
-            return;
-        }
         Paragraph::new(Span::styled(
-            t("modal.spotify.remote_subtitle"),
-            Style::default().fg(self.palette.muted),
+            t("modal.spotify.auth_notice.body"),
+            Style::default().fg(self.palette.highlight),
         ))
         .wrap(Wrap { trim: true })
-        .render(
-            Rect::new(lx, y, lw, 2.min(area.bottom().saturating_sub(y))),
-            buf,
-        );
-        y += 3;
-        if y >= area.bottom() {
+        .render(Rect::new(inner_x, y, inner_w, 3.min(bottom - y)), buf);
+        y += 4;
+        if y >= bottom {
             return;
         }
+
         Paragraph::new(Span::styled(
-            "─".repeat(lw as usize),
-            Style::default().fg(self.palette.dim),
+            t("modal.spotify.auth_notice.requirements"),
+            Style::default().fg(self.palette.caution),
         ))
-        .render(Rect::new(lx, y, lw, 1), buf);
-        y += 1;
-        if y >= area.bottom() {
+        .wrap(Wrap { trim: true })
+        .render(Rect::new(inner_x, y, inner_w, 2.min(bottom - y)), buf);
+        y += 3;
+        if y >= bottom {
             return;
         }
+
         Paragraph::new(Line::from(vec![
             Span::styled(
-                "[↵]  ",
+                format!("{} ", t("modal.spotify.auth_notice.guide_label")),
+                Style::default().fg(self.palette.dim),
+            ),
+            Span::styled(
+                t("modal.spotify.auth_notice.guide_url"),
+                Style::default()
+                    .fg(self.palette.accent)
+                    .add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
+            ),
+        ]))
+        .wrap(Wrap { trim: true })
+        .render(Rect::new(inner_x, y, inner_w, 2.min(bottom - y)), buf);
+        y += 2;
+        if y >= bottom {
+            return;
+        }
+
+        Paragraph::new(Line::from(vec![
+            Span::styled(
+                "[\u{21B5}]  ",
                 Style::default()
                     .fg(self.palette.accent)
                     .add_modifier(Modifier::BOLD),
@@ -400,17 +423,8 @@ impl<'a> SearchModalWidget<'a> {
                     .add_modifier(Modifier::BOLD),
             ),
         ]))
-        .render(Rect::new(lx, y, lw, 1), buf);
-        y += 2;
-        if y >= area.bottom() {
-            return;
-        }
-        Paragraph::new(Span::styled(
-            t("modal.spotify.experimental"),
-            Style::default().fg(self.palette.caution),
-        ))
-        .wrap(Wrap { trim: true })
-        .render(Rect::new(lx, y, lw, area.bottom().saturating_sub(y)), buf);
+        .alignment(ratatui::layout::Alignment::Center)
+        .render(Rect::new(inner_x, y, inner_w, 1), buf);
     }
 
     fn render_spotify_connecting(&self, area: Rect, lx: u16, lw: u16, buf: &mut Buffer) {

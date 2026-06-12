@@ -411,7 +411,7 @@ impl<'a> SearchModalWidget<'a> {
     fn render_youtube_auth_notice(&self, area: Rect, buf: &mut Buffer) {
         use ratatui::widgets::{Block, BorderType, Borders, Clear};
 
-        let Some(box_area) = super::youtube_auth_notice_box(area) else {
+        let Some(box_area) = super::auth_notice_box(area) else {
             return;
         };
 

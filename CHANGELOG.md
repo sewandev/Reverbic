@@ -31,6 +31,7 @@ Versioning: [Semantic Versioning](https://semver.org/)
 ### Changed
 - The YouTube tab now uses YouTube's red consistently across all its elements (selected video, search input, typing cursor, scrollbar), mirroring the green pattern of the Spotify tab so it is always clear which tab is active
 - The YouTube [Liked] and [Playlists] sub-tabs now show a clear notice panel when no cookies.txt is configured: it explains that authentication is needed, recommends using a secondary account and links to the step-by-step guide with the risks; the sub-tab labels also render as disabled (the old message overflowed the panel and was easy to miss)
+- The Spotify tab now shows the same style of notice panel when the account is not connected: it explains that signing in is mandatory, that a Premium account and a Spotify Developer Dashboard app are required, and links to the step-by-step guide (clickable, includes the legal notes); Enter still starts the sign-in flow
 
 ### Fixed
 - Videos from recently ended live streams no longer hang in an endless retry loop; Reverbic now explains that YouTube is still processing the recording and to try again later
