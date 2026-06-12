@@ -1,6 +1,7 @@
 use bytes::Bytes;
 use std::collections::{HashMap, VecDeque};
 use std::io::{self, Read, Seek, SeekFrom};
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::sync::{mpsc, Mutex};
@@ -209,13 +210,77 @@ pub struct FileBackedReader {
     dead_url: Arc<AtomicBool>,
 }
 
+pub struct FileBackedDownload {
+    task: tokio::task::JoinHandle<()>,
+    path: PathBuf,
+    download_done: Arc<AtomicBool>,
+}
+
+impl FileBackedDownload {
+    pub fn cancel(self, handle: &tokio::runtime::Handle) -> Option<PathBuf> {
+        let Self {
+            task,
+            path,
+            download_done,
+        } = self;
+        let remove_partial = !download_done.load(Ordering::Acquire);
+        task.abort();
+        handle.block_on(async {
+            match task.await {
+                Ok(()) => {}
+                Err(e) if e.is_cancelled() => {
+                    tracing::debug!("File-backed download task cancelled");
+                }
+                Err(e) => {
+                    tracing::warn!("File-backed download task ended with error: {e}");
+                }
+            }
+        });
+        remove_partial.then_some(path)
+    }
+
+    pub fn cancel_and_cleanup(self, handle: &tokio::runtime::Handle) {
+        if let Some(path) = self.cancel(handle) {
+            remove_partial_file(&path);
+        }
+    }
+
+    pub fn cleanup_partial(path: PathBuf) {
+        remove_partial_file(&path);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn from_parts_for_test(
+        task: tokio::task::JoinHandle<()>,
+        path: PathBuf,
+        download_done: Arc<AtomicBool>,
+    ) -> Self {
+        Self {
+            task,
+            path,
+            download_done,
+        }
+    }
+}
+
+fn remove_partial_file(path: &Path) {
+    match std::fs::remove_file(path) {
+        Ok(()) => tracing::debug!(path = %path.display(), "removed partial file-backed download"),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => {}
+        Err(e) => tracing::debug!(
+            path = %path.display(),
+            "could not remove partial file-backed download: {e}"
+        ),
+    }
+}
+
 impl FileBackedReader {
     pub fn create(
         url: String,
         custom_headers: Option<HashMap<String, String>>,
-        path: std::path::PathBuf,
+        path: PathBuf,
         handle: tokio::runtime::Handle,
-    ) -> io::Result<(Self, mpsc::Receiver<String>)> {
+    ) -> io::Result<(Self, FileBackedDownload, mpsc::Receiver<String>)> {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
@@ -238,7 +303,7 @@ impl FileBackedReader {
         let last_chunk_task = Arc::clone(&last_chunk_at);
         let done_task = Arc::clone(&download_done);
         let dead_task = Arc::clone(&dead_url);
-        handle.spawn(async move {
+        let task = handle.spawn(async move {
             if let Err(e) = download_to_file(
                 url,
                 custom_headers,
@@ -255,6 +320,11 @@ impl FileBackedReader {
             }
             drop(title_tx);
         });
+        let download = FileBackedDownload {
+            task,
+            path,
+            download_done: Arc::clone(&download_done),
+        };
 
         Ok((
             Self {
@@ -266,6 +336,7 @@ impl FileBackedReader {
                 download_done,
                 dead_url,
             },
+            download,
             title_rx,
         ))
     }
