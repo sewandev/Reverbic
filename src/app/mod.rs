@@ -193,6 +193,7 @@ pub struct App {
     pub border_tick: u32,
     pub station_details: Option<StationDetails>,
     pub windows_tx: Option<tokio::sync::watch::Sender<crate::config::Config>>,
+    #[allow(dead_code)]
     pub dots_tx: Option<tokio::sync::watch::Sender<TabDots>>,
     pub config: Config,
     pub show_help: bool,
