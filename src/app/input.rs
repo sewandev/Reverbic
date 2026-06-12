@@ -377,6 +377,32 @@ impl App {
     pub async fn on_key_event(&mut self, event: crossterm::event::KeyEvent) {
         use crossterm::event::KeyModifiers;
 
+        if event.modifiers.contains(KeyModifiers::CONTROL)
+            || event.modifiers.contains(KeyModifiers::SUPER)
+        {
+            match event.code {
+                KeyCode::Char('v') | KeyCode::Char('V') => {
+                    if let Ok(mut clipboard) = arboard::Clipboard::new() {
+                        if let Ok(text) = clipboard.get_text() {
+                            self.on_paste(text);
+                        }
+                    }
+                    return;
+                }
+                KeyCode::Char('c') | KeyCode::Char('C') => {
+                    if self.show_search_modal {
+                        if let Ok(mut clipboard) = arboard::Clipboard::new() {
+                            let _ = clipboard.set_text(self.search_query.clone());
+                        }
+                        return;
+                    }
+                    self.should_quit = true;
+                    return;
+                }
+                _ => {}
+            }
+        }
+
         if event.modifiers.contains(KeyModifiers::SHIFT)
             && !self.show_search_modal
             && matches!(self.focus, AppFocus::Stations)
