@@ -143,9 +143,11 @@ Write-Host "Press 'q' to exit and see the installation summary." -ForegroundColo
 Write-Host ""
 
 try {
+    $env:REVERBIC_INSTALLER = "1"
     & $tempPath
 } catch {
     Remove-Item -Path $tempPath -Force -ErrorAction SilentlyContinue
+    Remove-Item -Path "Env:\REVERBIC_INSTALLER" -ErrorAction SilentlyContinue
     Write-Host ""
     Write-Host "Could not start Reverbic: $($_.Exception.Message)" -ForegroundColor Red
     Write-Host "Your antivirus may have blocked the executable. Check Windows Defender" -ForegroundColor Yellow
@@ -154,6 +156,7 @@ try {
 }
 
 Remove-Item -Path $tempPath -Force -ErrorAction SilentlyContinue
+Remove-Item -Path "Env:\REVERBIC_INSTALLER" -ErrorAction SilentlyContinue
 
 # Only append Reverbic's install folder to this session's PATH, without overwriting
 # other variables the current session might have (e.g. virtual environments).
