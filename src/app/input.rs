@@ -3413,6 +3413,7 @@ mod tests {
             duration_secs: 120,
             watch_url: format!("https://youtube.test/watch?v={id}"),
             thumbnail: None,
+            is_live: false,
         }
     }
 

@@ -204,6 +204,14 @@ impl App {
         let Some(video) = list.get(index).cloned() else {
             return false;
         };
+        if video.is_live {
+            self.show_notice(
+                crate::app::NoticeSeverity::Warning,
+                crate::i18n::t("modal.youtube.live_not_supported"),
+                8,
+            );
+            return false;
+        }
         let next_video = list.get(index + 1).cloned();
         let is_mix = matches!(ctx, YoutubePlaybackContext::Mix);
         self.youtube.playback_context = Some((ctx, index));

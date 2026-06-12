@@ -363,21 +363,32 @@ impl<'a> SearchModalWidget<'a> {
             .map(|(i, video)| {
                 let active = i == state.selected;
                 let duration = fmt_duration(video.duration_secs);
-                let title_w = list_w.saturating_sub(4 + duration.len() as u16) as usize;
+                let live_badge = video.is_live.then(|| t("modal.youtube.live_badge"));
+                let badge_w = live_badge
+                    .as_ref()
+                    .map(|badge| badge.chars().count() as u16 + 2)
+                    .unwrap_or(0);
+                let title_w = list_w.saturating_sub(4 + duration.len() as u16 + badge_w) as usize;
                 let title = strings::truncate(&video.title, title_w);
                 let channel = strings::truncate(&video.channel, list_w.saturating_sub(3) as usize);
+                let badge_st = Style::default()
+                    .fg(self.palette.youtube)
+                    .add_modifier(Modifier::BOLD | Modifier::REVERSED);
 
                 if active {
                     let title_st = Style::default()
                         .fg(self.palette.youtube)
                         .add_modifier(Modifier::BOLD);
                     let meta_st = Style::default().fg(self.palette.youtube);
+                    let mut first_line = vec![Span::styled("▶  ", title_st)];
+                    if let Some(badge) = live_badge {
+                        first_line.push(Span::styled(badge, badge_st));
+                        first_line.push(Span::raw("  "));
+                    }
+                    first_line.push(Span::styled(title, title_st));
+                    first_line.push(Span::styled(format!("  {}", duration), meta_st));
                     ListItem::new(vec![
-                        Line::from(vec![
-                            Span::styled("▶  ", title_st),
-                            Span::styled(title, title_st),
-                            Span::styled(format!("  {}", duration), meta_st),
-                        ]),
+                        Line::from(first_line),
                         Line::from(vec![
                             Span::styled("   ", meta_st),
                             Span::styled(channel, meta_st),
@@ -386,11 +397,14 @@ impl<'a> SearchModalWidget<'a> {
                 } else {
                     let title_st = Style::default().fg(self.palette.highlight);
                     let meta_st = Style::default().fg(self.palette.muted);
+                    let mut first_line = vec![Span::styled("   ", title_st)];
+                    if let Some(badge) = live_badge {
+                        first_line.push(Span::styled(badge, badge_st));
+                        first_line.push(Span::raw("  "));
+                    }
+                    first_line.push(Span::styled(title, title_st));
                     ListItem::new(vec![
-                        Line::from(vec![
-                            Span::styled("   ", title_st),
-                            Span::styled(title, title_st),
-                        ]),
+                        Line::from(first_line),
                         Line::from(vec![
                             Span::styled("   ", meta_st),
                             Span::styled(channel, meta_st),

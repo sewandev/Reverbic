@@ -107,6 +107,7 @@ pub struct YoutubeVideo {
     pub duration_secs: u32,
     pub watch_url: String,
     pub thumbnail: Option<String>,
+    pub is_live: bool,
 }
 
 #[derive(Clone, Debug)]
