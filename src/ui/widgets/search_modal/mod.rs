@@ -16,9 +16,10 @@ pub(crate) use layout::{
     auth_notice_box, filter_list_layout, header_list_layout, modal_content_area, modal_layout,
     modal_rect, modal_tab_at, one_line_list_index_at, radio_favorites_list_area,
     radio_favorites_list_layout, radio_filter_list_area, radio_filtered_results_list_area,
-    radio_name_layout, radio_search_results_list_area, radio_subtab_at, settings_items_area,
-    settings_layout, settings_visible_rows, spotify_auth_notice_at, spotify_body_area,
-    spotify_layout, spotify_search_layout, spotify_search_list_area, spotify_subtab_at,
+    radio_name_layout, radio_playlist_stations_list_area, radio_playlists_list_area,
+    radio_search_results_list_area, radio_subtab_at, settings_items_area, settings_layout,
+    settings_visible_rows, spotify_auth_notice_at, spotify_body_area, spotify_layout,
+    spotify_search_layout, spotify_search_list_area, spotify_subtab_at,
     spotify_titled_track_list_area, spotify_titled_track_list_layout, two_line_list_index_at,
     visible_items, visible_rows_excluding_scrollbar, youtube_auth_notice_at, youtube_layout,
     youtube_liked_list_area, youtube_playlist_videos_list_area, youtube_playlists_list_area,
@@ -145,6 +146,13 @@ pub struct SearchModalWidget<'a> {
     pub favorites: &'a [crate::favorites::FavoriteStation],
     pub radio_fav_selected: usize,
     pub radio_fav_scroll_offset: usize,
+    pub playlists: &'a [crate::playlists::RadioPlaylist],
+    pub radio_playlist_selected: usize,
+    pub radio_playlist_scroll_offset: usize,
+    pub radio_open_playlist: Option<usize>,
+    pub radio_playlist_station_selected: usize,
+    pub radio_playlist_station_scroll_offset: usize,
+    pub playing_playlist_station_index: Option<usize>,
     pub radio_search_scroll_offset: usize,
     pub radio_genre_results_scroll_offset: usize,
     pub radio_country_results_scroll_offset: usize,
@@ -328,6 +336,21 @@ impl<'a> SearchModalWidget<'a> {
             favorites: &app.favorites,
             radio_fav_selected: app.radio_fav_selected,
             radio_fav_scroll_offset: app.radio_fav_scroll_offset,
+            playlists: &app.playlists,
+            radio_playlist_selected: app.radio_playlist_selected,
+            radio_playlist_scroll_offset: app.radio_playlist_scroll_offset,
+            radio_open_playlist: app.radio_open_playlist,
+            radio_playlist_station_selected: app.radio_playlist_station_selected,
+            radio_playlist_station_scroll_offset: app.radio_playlist_station_scroll_offset,
+            playing_playlist_station_index: {
+                let state = app.player.state();
+                app.radio_open_playlist
+                    .and_then(|idx| app.playlists.get(idx))
+                    .zip(state.station.as_ref())
+                    .and_then(|(playlist, playing)| {
+                        playlist.stations.iter().position(|s| s.url == playing.url)
+                    })
+            },
             radio_search_scroll_offset: app.radio_search_scroll_offset,
             radio_genre_results_scroll_offset: app.radio_genre_results_scroll_offset,
             radio_country_results_scroll_offset: app.radio_country_results_scroll_offset,
@@ -387,6 +410,13 @@ impl SearchModalWidget<'_> {
             } else {
                 spans.push(key("[Alt+F]"));
                 spans.push(sep_s(format!(" {}  ", t("hint.fav"))));
+                if matches!(
+                    self.mode,
+                    SearchMode::Name | SearchMode::Genre | SearchMode::Country
+                ) {
+                    spans.push(key("[Alt+P]"));
+                    spans.push(sep_s(format!(" {}  ", t("hint.playlist"))));
+                }
             }
             spans.extend(vec![
                 key("[↑↓]"),
@@ -413,6 +443,47 @@ impl SearchModalWidget<'_> {
                         Span::raw(" "),
                         key("[↵]"),
                         sep_s(format!(" {}  ", t("hint.play"))),
+                        key("[↑↓]"),
+                        sep_s(format!(" {}  ", t("hint.nav"))),
+                        key("[Alt+F]"),
+                        sep_s(format!(" {}  ", t("hint.fav"))),
+                        key("[Alt+P]"),
+                        sep_s(format!(" {}  ", t("hint.playlist"))),
+                        key("[←→]"),
+                        sep_s(format!(" {}  ", t("hint.tabs"))),
+                        key("[?]"),
+                        sep_s(format!(" {} ", t("hint.help"))),
+                    ];
+                }
+                if matches!(self.radio_sub_tab, RadioSubTab::Playlists) {
+                    if self.radio_open_playlist.is_some() {
+                        return vec![
+                            Span::raw(" "),
+                            key("[↵]"),
+                            sep_s(format!(" {}  ", t("hint.play"))),
+                            key("[↑↓]"),
+                            sep_s(format!(" {}  ", t("hint.nav"))),
+                            key("[Alt+F]"),
+                            sep_s(format!(" {}  ", t("hint.fav"))),
+                            key("[Esc]"),
+                            sep_s(format!(" {}  ", t("hint.back"))),
+                            key("[?]"),
+                            sep_s(format!(" {} ", t("hint.help"))),
+                        ];
+                    }
+                    if self.playlists.is_empty() {
+                        return vec![
+                            Span::raw(" "),
+                            key("[←→]"),
+                            sep_s(format!(" {}  ", t("hint.tabs"))),
+                            key("[?]"),
+                            sep_s(format!(" {} ", t("hint.help"))),
+                        ];
+                    }
+                    return vec![
+                        Span::raw(" "),
+                        key("[↵]"),
+                        sep_s(format!(" {}  ", t("hint.open"))),
                         key("[↑↓]"),
                         sep_s(format!(" {}  ", t("hint.nav"))),
                         key("[Alt+F]"),

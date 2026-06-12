@@ -98,6 +98,7 @@ impl App {
             return;
         }
         let station = self.favorites[index].to_station();
+        self.active_playlist = None;
         self.play_station(station).await;
     }
 
@@ -124,6 +125,7 @@ impl App {
             tracing::info!("Enrichment enabled for '{}'", station.name);
         }
 
+        self.active_playlist = None;
         self.play_station(station).await;
     }
 

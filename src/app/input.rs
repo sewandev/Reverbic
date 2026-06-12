@@ -11,7 +11,8 @@ use crate::ui::widgets::{
     keep_selected_visible,
     search_modal::{
         modal_tab_at, one_line_list_index_at, radio_favorites_list_area, radio_filter_list_area,
-        radio_filtered_results_list_area, radio_search_results_list_area, radio_subtab_at,
+        radio_filtered_results_list_area, radio_playlist_stations_list_area,
+        radio_playlists_list_area, radio_search_results_list_area, radio_subtab_at,
         settings_items_area, settings_visible_rows, spotify_auth_notice_at, spotify_body_area,
         spotify_search_list_area, spotify_subtab_at, spotify_titled_track_list_area,
         two_line_list_index_at, visible_items, visible_rows_excluding_scrollbar,
@@ -183,6 +184,30 @@ impl App {
         keep_selected_visible(
             &mut self.radio_search_scroll_offset,
             self.modal_selected,
+            visible,
+        );
+    }
+
+    pub(super) fn keep_radio_playlists_visible(&mut self) {
+        let visible = visible_items(
+            radio_playlists_list_area(self.terminal_area),
+            ListItemHeight::OneLine,
+        );
+        keep_selected_visible(
+            &mut self.radio_playlist_scroll_offset,
+            self.radio_playlist_selected,
+            visible,
+        );
+    }
+
+    pub(super) fn keep_radio_playlist_stations_visible(&mut self) {
+        let visible = visible_items(
+            radio_playlist_stations_list_area(self.terminal_area),
+            ListItemHeight::OneLine,
+        );
+        keep_selected_visible(
+            &mut self.radio_playlist_station_scroll_offset,
+            self.radio_playlist_station_selected,
             visible,
         );
     }
@@ -428,6 +453,11 @@ impl App {
             }
         }
 
+        if self.playlist_picker.is_some() {
+            self.on_key_playlist_picker(event.code);
+            return;
+        }
+
         if self.renaming_favorite.is_some() {
             self.on_key_rename(event.code);
             return;
@@ -446,6 +476,22 @@ impl App {
         if self.theme_picker_open {
             self.on_key_theme_picker(event.code);
             return;
+        }
+
+        if event.modifiers.contains(KeyModifiers::CONTROL)
+            && event.modifiers.contains(KeyModifiers::SHIFT)
+        {
+            match event.code {
+                KeyCode::Right => {
+                    self.playlist_jump(1).await;
+                    return;
+                }
+                KeyCode::Left => {
+                    self.playlist_jump(-1).await;
+                    return;
+                }
+                _ => {}
+            }
         }
 
         if event.modifiers.contains(KeyModifiers::ALT) {
@@ -526,6 +572,22 @@ impl App {
             {
                 self.remove_radio_fav_selected();
                 self.keep_radio_favorites_visible();
+            }
+            KeyCode::Char('f') | KeyCode::Char('F')
+                if self.show_search_modal
+                    && matches!(self.modal_mode, SearchMode::Name)
+                    && matches!(self.radio_sub_tab, RadioSubTab::Playlists) =>
+            {
+                self.remove_playlist_entry_selected();
+            }
+            KeyCode::Char('p') | KeyCode::Char('P')
+                if self.show_search_modal
+                    && matches!(
+                        self.modal_mode,
+                        SearchMode::Name | SearchMode::Genre | SearchMode::Country
+                    ) =>
+            {
+                self.open_playlist_picker_from_context();
             }
             KeyCode::Char('f') | KeyCode::Char('F')
                 if self.show_search_modal && !self.search_results.is_empty() =>
@@ -896,15 +958,23 @@ impl App {
 
     async fn on_key_modal_name(&mut self, key: KeyCode) {
         if matches!(key, KeyCode::Left | KeyCode::Right) {
-            let next_tab = match self.radio_sub_tab {
-                RadioSubTab::Search => RadioSubTab::Favorites,
-                RadioSubTab::Favorites => RadioSubTab::Search,
+            let next_tab = match (self.radio_sub_tab, key) {
+                (RadioSubTab::Search, KeyCode::Right) => RadioSubTab::Favorites,
+                (RadioSubTab::Favorites, KeyCode::Right) => RadioSubTab::Playlists,
+                (RadioSubTab::Playlists, KeyCode::Right) => RadioSubTab::Search,
+                (RadioSubTab::Search, _) => RadioSubTab::Playlists,
+                (RadioSubTab::Favorites, _) => RadioSubTab::Search,
+                (RadioSubTab::Playlists, _) => RadioSubTab::Favorites,
             };
             self.switch_radio_sub_tab(next_tab);
             return;
         }
         if matches!(self.radio_sub_tab, RadioSubTab::Favorites) {
             self.on_key_radio_favorites(key).await;
+            return;
+        }
+        if matches!(self.radio_sub_tab, RadioSubTab::Playlists) {
+            self.on_key_radio_playlists(key).await;
             return;
         }
         match key {
@@ -956,6 +1026,11 @@ impl App {
         self.radio_fav_selected = 0;
         self.radio_fav_scroll_offset = 0;
         self.radio_search_scroll_offset = 0;
+        self.radio_playlist_selected = 0;
+        self.radio_playlist_scroll_offset = 0;
+        self.radio_open_playlist = None;
+        self.radio_playlist_station_selected = 0;
+        self.radio_playlist_station_scroll_offset = 0;
     }
 
     async fn on_key_radio_favorites(&mut self, key: KeyCode) {
@@ -980,6 +1055,61 @@ impl App {
             KeyCode::Char('R') if self.radio_fav_selected < len => {
                 self.renaming_favorite = Some(self.radio_fav_selected);
                 self.rename_input = self.favorites[self.radio_fav_selected].name.clone();
+            }
+            _ => {}
+        }
+    }
+
+    async fn on_key_radio_playlists(&mut self, key: KeyCode) {
+        if let Some(pl_idx) = self.radio_open_playlist {
+            let len = self
+                .playlists
+                .get(pl_idx)
+                .map(|p| p.stations.len())
+                .unwrap_or(0);
+            match key {
+                KeyCode::Esc => {
+                    self.radio_open_playlist = None;
+                    self.radio_playlist_station_selected = 0;
+                    self.radio_playlist_station_scroll_offset = 0;
+                }
+                KeyCode::Up | KeyCode::Char('k') => {
+                    self.radio_playlist_station_selected =
+                        super::cycle_prev(self.radio_playlist_station_selected, len);
+                    self.keep_radio_playlist_stations_visible();
+                }
+                KeyCode::Down | KeyCode::Char('j') => {
+                    self.radio_playlist_station_selected =
+                        super::cycle_next(self.radio_playlist_station_selected, len);
+                    self.keep_radio_playlist_stations_visible();
+                }
+                KeyCode::Enter => {
+                    self.play_playlist_station(pl_idx, self.radio_playlist_station_selected)
+                        .await;
+                }
+                _ => {}
+            }
+            return;
+        }
+        let len = self.playlists.len();
+        match key {
+            KeyCode::Esc => {
+                self.radio_sub_tab = RadioSubTab::Search;
+                self.radio_playlist_scroll_offset = 0;
+                self.radio_search_scroll_offset = 0;
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                self.radio_playlist_selected = super::cycle_prev(self.radio_playlist_selected, len);
+                self.keep_radio_playlists_visible();
+            }
+            KeyCode::Down | KeyCode::Char('j') => {
+                self.radio_playlist_selected = super::cycle_next(self.radio_playlist_selected, len);
+                self.keep_radio_playlists_visible();
+            }
+            KeyCode::Enter if self.radio_playlist_selected < len => {
+                self.radio_open_playlist = Some(self.radio_playlist_selected);
+                self.radio_playlist_station_selected = 0;
+                self.radio_playlist_station_scroll_offset = 0;
             }
             _ => {}
         }
@@ -1447,9 +1577,13 @@ impl App {
 
         match self.modal_mode {
             SearchMode::Name => {
-                if let Some(tab) =
-                    radio_subtab_at(self.terminal_area, col, row, self.favorites.len())
-                {
+                if let Some(tab) = radio_subtab_at(
+                    self.terminal_area,
+                    col,
+                    row,
+                    self.favorites.len(),
+                    self.playlists.len(),
+                ) {
                     if self.radio_sub_tab != tab {
                         self.switch_radio_sub_tab(tab);
                     }
@@ -1503,6 +1637,7 @@ impl App {
         match self.radio_sub_tab {
             RadioSubTab::Search => self.on_click_radio_search_results(col, row).await,
             RadioSubTab::Favorites => self.on_click_radio_favorites(col, row).await,
+            RadioSubTab::Playlists => self.on_click_radio_playlists(col, row).await,
         }
     }
 
@@ -1544,6 +1679,51 @@ impl App {
 
         self.radio_fav_selected = idx;
         self.activate_radio_favorite_selected().await;
+    }
+
+    async fn on_click_radio_playlists(&mut self, col: u16, row: u16) {
+        if let Some(pl_idx) = self.radio_open_playlist {
+            let len = self
+                .playlists
+                .get(pl_idx)
+                .map(|p| p.stations.len())
+                .unwrap_or(0);
+            let area = radio_playlist_stations_list_area(self.terminal_area);
+            let visible = visible_items(area, ListItemHeight::OneLine);
+            let Some(idx) = one_line_list_index_at(
+                area,
+                col,
+                row,
+                self.radio_playlist_station_selected,
+                visible,
+                self.radio_playlist_station_scroll_offset,
+                len,
+            ) else {
+                return;
+            };
+            self.radio_playlist_station_selected = idx;
+            self.play_playlist_station(pl_idx, idx).await;
+            return;
+        }
+
+        let len = self.playlists.len();
+        let area = radio_playlists_list_area(self.terminal_area);
+        let visible = visible_items(area, ListItemHeight::OneLine);
+        let Some(idx) = one_line_list_index_at(
+            area,
+            col,
+            row,
+            self.radio_playlist_selected,
+            visible,
+            self.radio_playlist_scroll_offset,
+            len,
+        ) else {
+            return;
+        };
+        self.radio_playlist_selected = idx;
+        self.radio_open_playlist = Some(idx);
+        self.radio_playlist_station_selected = 0;
+        self.radio_playlist_station_scroll_offset = 0;
     }
 
     async fn on_click_radio_genre(&mut self, col: u16, row: u16) {
@@ -2043,6 +2223,31 @@ impl App {
                             self.radio_fav_selected =
                                 scroll_by(self.radio_fav_selected, delta, len);
                             self.keep_radio_favorites_visible();
+                        }
+                        return;
+                    }
+
+                    if matches!(self.modal_mode, SearchMode::Name)
+                        && matches!(self.radio_sub_tab, RadioSubTab::Playlists)
+                    {
+                        if let Some(pl_idx) = self.radio_open_playlist {
+                            let len = self
+                                .playlists
+                                .get(pl_idx)
+                                .map(|p| p.stations.len())
+                                .unwrap_or(0);
+                            if len > 0 {
+                                self.radio_playlist_station_selected =
+                                    scroll_by(self.radio_playlist_station_selected, delta, len);
+                                self.keep_radio_playlist_stations_visible();
+                            }
+                        } else {
+                            let len = self.playlists.len();
+                            if len > 0 {
+                                self.radio_playlist_selected =
+                                    scroll_by(self.radio_playlist_selected, delta, len);
+                                self.keep_radio_playlists_visible();
+                            }
                         }
                         return;
                     }

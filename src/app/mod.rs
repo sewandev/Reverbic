@@ -5,6 +5,7 @@ mod metadata;
 mod modal;
 mod on_demand;
 mod player_ctrl;
+mod playlists;
 mod search;
 mod spotify_state;
 mod update_ctrl;
@@ -15,6 +16,7 @@ pub use modal::{
     settings_items, AppFocus, RadioSubTab, SearchMode, SettingItem, SpotifyAuthStatus,
     SpotifyPlayerStatus, SpotifySubTab, YoutubeSubTab,
 };
+pub use playlists::{ActivePlaylist, PlaylistPicker};
 use spotify_state::SpotifyPlaybackBackend;
 pub use spotify_state::SpotifyState;
 pub use youtube_state::{YoutubeState, YoutubeStatus};
@@ -28,6 +30,7 @@ use ratatui::layout::Rect;
 use crate::audio::{AudioPlayer, PlayerState};
 use crate::config::{Config, SpotifyPlaybackMode};
 use crate::favorites::{self as fav_store, FavoriteStation};
+use crate::playlists::{self as playlist_store, RadioPlaylist};
 use crate::station::on_demand::OnDemandShow;
 use crate::station::{DynamicStation, Station, StationDetails};
 use crate::ui::widgets::keep_selected_visible;
@@ -138,6 +141,14 @@ pub struct App {
     pub radio_sub_tab: RadioSubTab,
     pub radio_fav_selected: usize,
     pub radio_fav_scroll_offset: usize,
+    pub playlists: Vec<RadioPlaylist>,
+    pub radio_playlist_selected: usize,
+    pub radio_playlist_scroll_offset: usize,
+    pub radio_open_playlist: Option<usize>,
+    pub radio_playlist_station_selected: usize,
+    pub radio_playlist_station_scroll_offset: usize,
+    pub playlist_picker: Option<PlaylistPicker>,
+    pub active_playlist: Option<ActivePlaylist>,
     pub radio_search_scroll_offset: usize,
     pub radio_genre_results_scroll_offset: usize,
     pub radio_country_results_scroll_offset: usize,
@@ -210,6 +221,7 @@ impl App {
             .await;
 
         let favorites = fav_store::load();
+        let playlists = playlist_store::load();
         let mut app = Self {
             stations: Vec::new(),
             favorites,
@@ -239,6 +251,14 @@ impl App {
             radio_sub_tab: RadioSubTab::default(),
             radio_fav_selected: 0,
             radio_fav_scroll_offset: 0,
+            playlists,
+            radio_playlist_selected: 0,
+            radio_playlist_scroll_offset: 0,
+            radio_open_playlist: None,
+            radio_playlist_station_selected: 0,
+            radio_playlist_station_scroll_offset: 0,
+            playlist_picker: None,
+            active_playlist: None,
             radio_search_scroll_offset: 0,
             radio_genre_results_scroll_offset: 0,
             radio_country_results_scroll_offset: 0,
@@ -649,6 +669,14 @@ mod tests {
             radio_sub_tab: RadioSubTab::default(),
             radio_fav_selected: 0,
             radio_fav_scroll_offset: 0,
+            playlists: Vec::new(),
+            radio_playlist_selected: 0,
+            radio_playlist_scroll_offset: 0,
+            radio_open_playlist: None,
+            radio_playlist_station_selected: 0,
+            radio_playlist_station_scroll_offset: 0,
+            playlist_picker: None,
+            active_playlist: None,
             radio_search_scroll_offset: 0,
             radio_genre_results_scroll_offset: 0,
             radio_country_results_scroll_offset: 0,
