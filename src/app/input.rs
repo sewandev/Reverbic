@@ -12,11 +12,11 @@ use crate::ui::widgets::{
     search_modal::{
         modal_tab_at, one_line_list_index_at, radio_favorites_list_area, radio_filter_list_area,
         radio_filtered_results_list_area, radio_search_results_list_area, radio_subtab_at,
-        settings_items_area, settings_visible_rows, spotify_body_area, spotify_search_list_area,
-        spotify_subtab_at, spotify_titled_track_list_area, two_line_list_index_at, visible_items,
-        visible_rows_excluding_scrollbar, youtube_auth_notice_at, youtube_liked_list_area,
-        youtube_playlist_videos_list_area, youtube_playlists_list_area, youtube_search_list_area,
-        youtube_subtab_at, ListItemHeight,
+        settings_items_area, settings_visible_rows, spotify_auth_notice_at, spotify_body_area,
+        spotify_search_list_area, spotify_subtab_at, spotify_titled_track_list_area,
+        two_line_list_index_at, visible_items, visible_rows_excluding_scrollbar,
+        youtube_auth_notice_at, youtube_liked_list_area, youtube_playlist_videos_list_area,
+        youtube_playlists_list_area, youtube_search_list_area, youtube_subtab_at, ListItemHeight,
     },
 };
 
@@ -1471,6 +1471,11 @@ impl App {
                     return;
                 }
                 self.on_click_spotify(col, row).await;
+            }
+            SearchMode::Spotify if matches!(self.spotify.status, SpotifyAuthStatus::Idle) => {
+                if spotify_auth_notice_at(self.terminal_area, col, row) {
+                    crate::shell::open_url(&t("modal.spotify.auth_notice.guide_url"));
+                }
             }
             SearchMode::Youtube => {
                 if let Some(tab) = youtube_subtab_at(self.terminal_area, col, row) {
