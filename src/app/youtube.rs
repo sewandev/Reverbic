@@ -225,6 +225,7 @@ impl App {
     fn youtube_context_list(&self, ctx: &YoutubePlaybackContext) -> &[YoutubeVideo] {
         match ctx {
             YoutubePlaybackContext::SearchResults => &self.youtube.results,
+            YoutubePlaybackContext::Bookmarks => &self.youtube.bookmarks,
             YoutubePlaybackContext::LikedVideos => &self.youtube.liked_videos,
             YoutubePlaybackContext::PlaylistVideos => &self.youtube.playlist_videos,
             YoutubePlaybackContext::Mix => &self.youtube.mix_videos,
@@ -505,6 +506,11 @@ impl App {
         }
         match self.youtube.sub_tab {
             YoutubeSubTab::Search => self.youtube.results.get(self.youtube.selected).cloned(),
+            YoutubeSubTab::Bookmarks => self
+                .youtube
+                .bookmarks
+                .get(self.youtube.bookmarks_selected)
+                .cloned(),
             YoutubeSubTab::Liked => self
                 .youtube
                 .liked_videos
@@ -859,6 +865,41 @@ impl App {
             })
             .await;
     }
+    pub(super) fn toggle_youtube_bookmark(&mut self) {
+        use super::modal::YoutubeSubTab;
+        let video = match self.youtube.sub_tab {
+            YoutubeSubTab::Search => self.youtube.results.get(self.youtube.selected).cloned(),
+            YoutubeSubTab::Bookmarks => self
+                .youtube
+                .bookmarks
+                .get(self.youtube.bookmarks_selected)
+                .cloned(),
+            YoutubeSubTab::Liked => self
+                .youtube
+                .liked_videos
+                .get(self.youtube.liked_selected)
+                .cloned(),
+            YoutubeSubTab::Playlists if self.youtube.open_playlist.is_some() => self
+                .youtube
+                .playlist_videos
+                .get(self.youtube.playlist_videos_selected)
+                .cloned(),
+            YoutubeSubTab::Playlists => None,
+        };
+        let Some(video) = video else {
+            return;
+        };
+        let added = crate::youtube_bookmarks::toggle(&mut self.youtube.bookmarks, video);
+        crate::youtube_bookmarks::save(&self.youtube.bookmarks);
+        let max = self.youtube.bookmarks.len().saturating_sub(1);
+        self.youtube.bookmarks_selected = self.youtube.bookmarks_selected.min(max);
+        self.notify_info(crate::i18n::t(if added {
+            "notice.youtube_bookmark_added"
+        } else {
+            "notice.youtube_bookmark_removed"
+        }));
+    }
+
     pub fn validate_youtube_cookies(&mut self) {
         let Some(cookies_path) =
             cookies::configured_cookies_path(self.config.youtube.cookies_path.as_deref())

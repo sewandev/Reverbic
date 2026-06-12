@@ -20,6 +20,7 @@ pub enum YoutubeStatus {
 #[derive(Clone, Debug, PartialEq)]
 pub enum YoutubePlaybackContext {
     SearchResults,
+    Bookmarks,
     LikedVideos,
     PlaylistVideos,
     Mix,
@@ -41,6 +42,10 @@ pub struct YoutubeState {
     pub(super) resolve_rx: Option<ResolveRx>,
 
     pub sub_tab: YoutubeSubTab,
+
+    pub bookmarks: Vec<YoutubeVideo>,
+    pub bookmarks_selected: usize,
+    pub bookmarks_scroll_offset: usize,
 
     pub liked_videos: Vec<YoutubeVideo>,
     pub liked_selected: usize,
@@ -143,6 +148,9 @@ impl Default for YoutubeState {
             resolve_task: None,
             resolve_rx: None,
             sub_tab: YoutubeSubTab::default(),
+            bookmarks: Vec::new(),
+            bookmarks_selected: 0,
+            bookmarks_scroll_offset: 0,
             liked_videos: Vec::new(),
             liked_selected: 0,
             liked_scroll_offset: 0,

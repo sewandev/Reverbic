@@ -32,6 +32,7 @@ mod station;
 mod terminal;
 mod ui;
 mod update;
+mod youtube_bookmarks;
 
 use app::App;
 use audio::PlayerCommand;

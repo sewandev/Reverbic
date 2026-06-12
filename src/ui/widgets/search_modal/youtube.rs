@@ -75,6 +75,9 @@ impl<'a> SearchModalWidget<'a> {
                 YoutubeSubTab::Search => {
                     self.render_youtube_search_body(layout.body, content_x, text_x, text_w, buf)
                 }
+                YoutubeSubTab::Bookmarks => {
+                    self.render_youtube_bookmarks_body(layout.body, text_x, text_w, buf)
+                }
                 YoutubeSubTab::Liked => {
                     self.render_youtube_liked_body(layout.body, text_x, text_w, buf)
                 }
@@ -113,6 +116,11 @@ impl<'a> SearchModalWidget<'a> {
             Span::styled(
                 t("modal.youtube.subtab.search"),
                 tab_style(self.youtube_sub_tab == YoutubeSubTab::Search),
+            ),
+            Span::raw("  "),
+            Span::styled(
+                t("modal.youtube.subtab.bookmarks"),
+                tab_style(self.youtube_sub_tab == YoutubeSubTab::Bookmarks),
             ),
             Span::raw("  "),
             Span::styled(
@@ -174,6 +182,28 @@ impl<'a> SearchModalWidget<'a> {
                 scroll_offset: self.youtube_scroll_offset,
                 loading: self.youtube_loading,
                 empty_message: &t("modal.youtube.no_results"),
+            },
+        );
+    }
+
+    fn render_youtube_bookmarks_body(
+        &self,
+        area: Rect,
+        list_x: u16,
+        list_w: u16,
+        buf: &mut Buffer,
+    ) {
+        self.render_video_list(
+            area,
+            list_x,
+            list_w,
+            buf,
+            VideoListState {
+                videos: self.youtube_bookmarks,
+                selected: self.youtube_bookmarks_selected,
+                scroll_offset: self.youtube_bookmarks_scroll_offset,
+                loading: false,
+                empty_message: &t("modal.youtube.bookmarks_empty"),
             },
         );
     }

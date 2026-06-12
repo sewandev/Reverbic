@@ -357,6 +357,10 @@ pub(crate) fn youtube_subtab_at(area: Rect, col: u16, row: u16) -> Option<Youtub
         row,
         &[
             (t("modal.youtube.subtab.search"), YoutubeSubTab::Search),
+            (
+                t("modal.youtube.subtab.bookmarks"),
+                YoutubeSubTab::Bookmarks,
+            ),
             (t("modal.youtube.subtab.liked"), YoutubeSubTab::Liked),
             (
                 t("modal.youtube.subtab.playlists"),

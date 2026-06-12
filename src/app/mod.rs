@@ -227,6 +227,10 @@ impl App {
 
         let favorites = fav_store::load();
         let playlists = playlist_store::load();
+        let youtube = YoutubeState {
+            bookmarks: crate::youtube_bookmarks::load(),
+            ..YoutubeState::default()
+        };
         let mut app = Self {
             stations: Vec::new(),
             favorites,
@@ -293,7 +297,7 @@ impl App {
             config,
             show_help: false,
             spotify: SpotifyState::default(),
-            youtube: YoutubeState::default(),
+            youtube,
             radio_enriched_track: None,
             radio_enriched_for: None,
             radio_enrichment_task: None,

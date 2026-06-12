@@ -103,6 +103,18 @@ impl App {
         );
     }
 
+    fn keep_youtube_bookmarks_visible(&mut self) {
+        let visible = visible_items(
+            youtube_liked_list_area(self.terminal_area),
+            ListItemHeight::TwoLines,
+        );
+        keep_selected_visible(
+            &mut self.youtube.bookmarks_scroll_offset,
+            self.youtube.bookmarks_selected,
+            visible,
+        );
+    }
+
     fn keep_youtube_playlists_visible(&mut self) {
         let visible = visible_items(
             youtube_playlists_list_area(self.terminal_area),
@@ -588,6 +600,11 @@ impl App {
                     ) =>
             {
                 self.open_playlist_picker_from_context();
+            }
+            KeyCode::Char('f') | KeyCode::Char('F')
+                if self.show_search_modal && matches!(self.modal_mode, SearchMode::Youtube) =>
+            {
+                self.toggle_youtube_bookmark();
             }
             KeyCode::Char('f') | KeyCode::Char('F')
                 if self.show_search_modal && !self.search_results.is_empty() =>
@@ -2022,9 +2039,30 @@ impl App {
     async fn on_click_youtube(&mut self, col: u16, row: u16) {
         match self.youtube.sub_tab {
             YoutubeSubTab::Search => self.on_click_youtube_search(col, row).await,
+            YoutubeSubTab::Bookmarks => self.on_click_youtube_bookmarks(col, row).await,
             YoutubeSubTab::Liked => self.on_click_youtube_liked(col, row).await,
             YoutubeSubTab::Playlists => self.on_click_youtube_playlists(col, row).await,
         }
+    }
+
+    async fn on_click_youtube_bookmarks(&mut self, col: u16, row: u16) {
+        let Some(idx) = two_line_list_index_at(
+            youtube_liked_list_area(self.terminal_area),
+            col,
+            row,
+            self.youtube.bookmarks_selected,
+            visible_items(
+                youtube_liked_list_area(self.terminal_area),
+                ListItemHeight::TwoLines,
+            ),
+            self.youtube.bookmarks_scroll_offset,
+            self.youtube.bookmarks.len(),
+        ) else {
+            return;
+        };
+
+        self.youtube.bookmarks_selected = idx;
+        self.activate_youtube_bookmark_selected().await;
     }
 
     async fn on_click_youtube_search(&mut self, col: u16, row: u16) {
@@ -2122,6 +2160,14 @@ impl App {
                         if len > 0 {
                             self.youtube.selected = scroll_by(self.youtube.selected, delta, len);
                             self.keep_youtube_search_visible();
+                        }
+                    }
+                    YoutubeSubTab::Bookmarks => {
+                        let len = self.youtube.bookmarks.len();
+                        if len > 0 {
+                            self.youtube.bookmarks_selected =
+                                scroll_by(self.youtube.bookmarks_selected, delta, len);
+                            self.keep_youtube_bookmarks_visible();
                         }
                     }
                     YoutubeSubTab::Liked => {
@@ -3110,6 +3156,7 @@ impl App {
             KeyCode::Left | KeyCode::Right => {
                 let tabs = [
                     YoutubeSubTab::Search,
+                    YoutubeSubTab::Bookmarks,
                     YoutubeSubTab::Liked,
                     YoutubeSubTab::Playlists,
                 ];
@@ -3136,6 +3183,7 @@ impl App {
                 }
                 match self.youtube.sub_tab {
                     YoutubeSubTab::Search => self.on_key_youtube_search(key).await,
+                    YoutubeSubTab::Bookmarks => self.on_key_youtube_bookmarks(key).await,
                     YoutubeSubTab::Liked => self.on_key_youtube_liked(key).await,
                     YoutubeSubTab::Playlists => self.on_key_youtube_playlists(key).await,
                 }
@@ -3190,6 +3238,28 @@ impl App {
                 self.youtube.selected = 0;
                 self.youtube.scroll_offset = 0;
                 self.perform_youtube_search();
+            }
+            _ => {}
+        }
+    }
+
+    async fn on_key_youtube_bookmarks(&mut self, key: KeyCode) {
+        let len = self.youtube.bookmarks.len();
+        match key {
+            KeyCode::Up => {
+                if self.youtube.bookmarks_selected > 0 {
+                    self.youtube.bookmarks_selected -= 1;
+                    self.keep_youtube_bookmarks_visible();
+                }
+            }
+            KeyCode::Down => {
+                if len > 0 && self.youtube.bookmarks_selected < len - 1 {
+                    self.youtube.bookmarks_selected += 1;
+                    self.keep_youtube_bookmarks_visible();
+                }
+            }
+            KeyCode::Enter => {
+                self.activate_youtube_bookmark_selected().await;
             }
             _ => {}
         }
@@ -3289,6 +3359,13 @@ impl App {
         self.play_youtube_from_context(
             crate::app::youtube_state::YoutubePlaybackContext::LikedVideos,
             self.youtube.liked_selected,
+        );
+    }
+
+    async fn activate_youtube_bookmark_selected(&mut self) {
+        self.play_youtube_from_context(
+            crate::app::youtube_state::YoutubePlaybackContext::Bookmarks,
+            self.youtube.bookmarks_selected,
         );
     }
 
