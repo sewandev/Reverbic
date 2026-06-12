@@ -34,6 +34,8 @@ Versionado: [Semantic Versioning](https://semver.org/)
 ### Corregido
 - Los videos de transmisiones en vivo recién finalizadas ya no se quedan en un ciclo infinito de reintentos; Reverbic ahora explica que YouTube todavía está procesando la grabación y que se intente más tarde
 - El pie de la pestaña de Spotify ya no afirma "Modo: Remoto Escuchando en Desconocido [activo]" al usar el modo Auto sin dispositivos; ahora muestra el modo real (Auto o Remoto) y "ningún dispositivo de Spotify detectado" cuando no hay ninguno
+- El pie de la pestaña de Spotify ahora distingue entre un dispositivo realmente reproduciendo ([activo]) y uno que Spotify solo lista como disponible ([disponible])
+- Cuando un dispositivo de Spotify no responde al reproducir (ej. un teléfono cuya app se cerró pero Spotify aún lo lista), Reverbic ahora lo descarta, explica lo que pasó y reescanea en vez de mantenerlo como destino
 
 ### Seguridad
 - Se actualizaron dependencias (OpenSSL, ratatui, crossterm y otras) para corregir vulnerabilidades conocidas reportadas por Dependabot

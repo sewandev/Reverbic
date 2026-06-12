@@ -196,9 +196,13 @@ impl<'a> SearchModalWidget<'a> {
                             String::new()
                         };
                         let listening = t("modal.spotify.footer.listening_on");
-                        let active = t("modal.spotify.footer.active");
+                        let status = if device.is_active {
+                            t("modal.spotify.footer.active")
+                        } else {
+                            t("modal.spotify.footer.available")
+                        };
                         format!(
-                            "{mode} {listening} {} * {} [{active}]{switch_hint}",
+                            "{mode} {listening} {} * {} [{status}]{switch_hint}",
                             device.name, device.device_type
                         )
                     }

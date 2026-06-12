@@ -55,6 +55,7 @@ pub struct SpotifyState {
     pub devices: Vec<SpotifyDevice>,
     pub devices_loading: bool,
     pub devices_last_fetch: Option<std::time::Instant>,
+    pub(super) failed_device_ids: std::collections::HashSet<String>,
 
     pub playback: Option<SpotifyPlaybackState>,
     pub(super) active_backend: Option<SpotifyPlaybackBackend>,
@@ -200,6 +201,7 @@ impl Default for SpotifyState {
             devices: Vec::new(),
             devices_loading: false,
             devices_last_fetch: None,
+            failed_device_ids: std::collections::HashSet::new(),
             playback: None,
             active_backend: None,
             player_tx: None,

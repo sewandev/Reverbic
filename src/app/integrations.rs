@@ -602,9 +602,21 @@ impl App {
         if let Some(rx) = self.spotify.devices_rx.take() {
             match rx.try_recv() {
                 Ok(Ok(devices)) => {
+                    for device in &devices {
+                        if device.is_active {
+                            if let Some(id) = device.id.as_deref() {
+                                self.spotify.failed_device_ids.remove(id);
+                            }
+                        }
+                    }
                     self.spotify.devices = devices
                         .into_iter()
-                        .filter(|d| d.name.to_lowercase() != "reverbic")
+                        .filter(|d| {
+                            d.name.to_lowercase() != "reverbic"
+                                && d.id
+                                    .as_deref()
+                                    .is_none_or(|id| !self.spotify.failed_device_ids.contains(id))
+                        })
                         .collect();
                     self.spotify.devices_loading = false;
 
@@ -751,6 +763,30 @@ impl App {
                     tracing::warn!("spotify play: token expirado, renovando");
                     self.spotify.token_refreshed_at =
                         Some(std::time::Instant::now() - std::time::Duration::from_secs(60 * 60));
+                }
+                Ok(Err(SpotifyError::DeviceUnavailable)) => {
+                    if self.spotify.active_backend == Some(SpotifyPlaybackBackend::Remote) {
+                        self.spotify.active_backend = None;
+                    }
+                    if let Some(dead_id) = self.spotify.active_device_id.take() {
+                        tracing::warn!(
+                            device_id = dead_id,
+                            "spotify play_on_device: device did not respond, evicting it"
+                        );
+                        self.spotify.failed_device_ids.insert(dead_id.clone());
+                        self.spotify
+                            .devices
+                            .retain(|d| d.id.as_deref() != Some(&dead_id));
+                    }
+                    self.spotify.active_device_id = resolve_active_spotify_device(
+                        &self.spotify.devices,
+                        self.spotify.active_device_id.as_deref(),
+                    );
+                    let message = crate::i18n::t("integrations.spotify.error.device_gone");
+                    self.spotify.player_status = SpotifyPlayerStatus::Error(message.clone());
+                    self.save_notice = Some(format!("Spotify: {message}"));
+                    self.save_notice_is_dup = false;
+                    self.fetch_spotify_devices();
                 }
                 Ok(Err(e)) => {
                     tracing::warn!("spotify play_on_device: {e}");
