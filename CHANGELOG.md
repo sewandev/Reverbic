@@ -10,6 +10,8 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ## [Unreleased]
 
+## [1.5.2] - 2026-06-12
+
 ### Added
 - Added a setting to configure a YouTube cookies.txt file, allowing access to age-restricted, region-locked, or members-only videos
 - Added [Liked] and [Playlists] sub-tabs to the YouTube tab, mirroring Spotify, to browse and play your liked videos and personal playlists (requires a configured cookies.txt)
