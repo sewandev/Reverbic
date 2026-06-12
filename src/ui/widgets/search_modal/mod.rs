@@ -168,6 +168,7 @@ pub struct SearchModalWidget<'a> {
     pub discord_rpc: bool,
     pub save_notice: Option<String>,
     pub save_notice_severity: crate::app::NoticeSeverity,
+    pub tab_dots: crate::app::TabDots,
     pub border_tick: u32,
 }
 
@@ -378,6 +379,7 @@ impl<'a> SearchModalWidget<'a> {
             discord_rpc: app.config.discord_rpc,
             save_notice: app.save_notice.clone(),
             save_notice_severity: app.save_notice_severity,
+            tab_dots: app.tab_dots(),
             border_tick: app.border_tick,
         }
     }

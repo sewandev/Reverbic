@@ -55,50 +55,33 @@ impl<'a> SearchModalWidget<'a> {
             inactive
         };
 
-        let active_dot = if radio_is_active {
-            Some(self.palette.status_ok)
-        } else if spotify_is_active {
-            Some(match self.spotify_status {
-                crate::app::SpotifyAuthStatus::LoggedIn if self.spotify_remote_blocked => {
-                    self.palette.warning
-                }
-                crate::app::SpotifyAuthStatus::LoggedIn => self.palette.status_ok,
-                _ => self.palette.dim,
-            })
-        } else if youtube_is_active {
-            Some(if !self.youtube_cookies_configured {
-                self.palette.dim
-            } else if self.youtube_session_health == Some(false) {
-                self.palette.danger
-            } else {
-                self.palette.status_ok
-            })
-        } else {
-            None
-        };
-
         let mut spans: Vec<Span<'static>> = Vec::new();
         let tabs = [
-            (radio_is_active, t("modal.tab.radio"), radio_st),
-            (spotify_is_active, t("modal.tab.spotify"), spotify_st),
-            (youtube_is_active, t("modal.tab.youtube"), youtube_st),
+            (self.tab_dots.radio, t("modal.tab.radio"), radio_st),
+            (self.tab_dots.spotify, t("modal.tab.spotify"), spotify_st),
+            (self.tab_dots.youtube, t("modal.tab.youtube"), youtube_st),
         ];
-        for (i, (is_active, label, style)) in tabs.into_iter().enumerate() {
+        for (i, (dot, label, style)) in tabs.into_iter().enumerate() {
             if i > 0 {
                 spans.push(Span::styled("  ", Style::default()));
             }
-            if is_active {
-                if let Some(color) = active_dot {
-                    let dot_color = if color == self.palette.dim {
-                        color
-                    } else {
-                        crate::ui::theme::status_pulse(color, self.border_tick)
-                    };
-                    spans.push(Span::styled(
-                        "\u{25CF} ",
-                        Style::default().fg(dot_color).add_modifier(Modifier::BOLD),
-                    ));
-                }
+            if let Some(dot) = dot {
+                use crate::app::TabDot;
+                let (color, pulsing) = match dot {
+                    TabDot::Playing => (self.palette.status_ok, true),
+                    TabDot::Paused => (self.palette.status_ok, false),
+                    TabDot::Warning => (self.palette.warning, true),
+                    TabDot::Danger => (self.palette.danger, true),
+                };
+                let dot_color = if pulsing {
+                    crate::ui::theme::status_pulse(color, self.border_tick)
+                } else {
+                    color
+                };
+                spans.push(Span::styled(
+                    "\u{25CF} ",
+                    Style::default().fg(dot_color).add_modifier(Modifier::BOLD),
+                ));
             }
             spans.push(Span::styled(label, style));
         }

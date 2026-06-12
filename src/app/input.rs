@@ -1608,7 +1608,7 @@ impl App {
     }
 
     async fn on_click_search_modal(&mut self, col: u16, row: u16) {
-        if let Some(mode) = modal_tab_at(self.terminal_area, col, row, &self.modal_mode) {
+        if let Some(mode) = modal_tab_at(self.terminal_area, col, row, self.tab_dots()) {
             if !self.modal_tab_is_active(mode) {
                 self.switch_modal_mode(mode);
             }

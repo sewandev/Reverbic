@@ -115,6 +115,21 @@ enum SpotifyControlTarget {
     None,
 }
 
+#[derive(Clone, Copy, PartialEq)]
+pub enum TabDot {
+    Playing,
+    Paused,
+    Warning,
+    Danger,
+}
+
+#[derive(Clone, Copy, Default, PartialEq)]
+pub struct TabDots {
+    pub radio: Option<TabDot>,
+    pub spotify: Option<TabDot>,
+    pub youtube: Option<TabDot>,
+}
+
 pub struct App {
     pub stations: Vec<Station>,
     pub favorites: Vec<FavoriteStation>,
@@ -548,6 +563,64 @@ impl App {
                 self.spotify_remote_status_is_active() || self.spotify_native_status_is_active()
             }
         }
+    }
+
+    pub fn tab_dots(&self) -> TabDots {
+        use crate::audio::PlayerStatus;
+        let mut dots = TabDots::default();
+
+        if self.active_source_is_spotify() {
+            let playing = self
+                .spotify
+                .playback
+                .as_ref()
+                .map(|playback| playback.is_playing)
+                .unwrap_or(matches!(
+                    self.spotify.player_status,
+                    SpotifyPlayerStatus::Playing | SpotifyPlayerStatus::Loading
+                ));
+            dots.spotify = Some(if playing {
+                TabDot::Playing
+            } else {
+                TabDot::Paused
+            });
+        } else {
+            let state = self.player.state();
+            if !matches!(state.status, PlayerStatus::Idle | PlayerStatus::Error(_)) {
+                if let Some(station) = state.station.as_ref() {
+                    let dot = if matches!(state.status, PlayerStatus::Paused) {
+                        TabDot::Paused
+                    } else {
+                        TabDot::Playing
+                    };
+                    if station.key.starts_with("youtube:") {
+                        dots.youtube = Some(dot);
+                    } else {
+                        dots.radio = Some(dot);
+                    }
+                }
+            }
+        }
+
+        match self.modal_mode {
+            SearchMode::Spotify
+                if dots.spotify.is_none()
+                    && matches!(self.spotify.status, SpotifyAuthStatus::LoggedIn)
+                    && self.spotify_remote_blocked() =>
+            {
+                dots.spotify = Some(TabDot::Warning);
+            }
+            SearchMode::Youtube
+                if dots.youtube.is_none()
+                    && self.config.youtube.cookies_path.is_some()
+                    && self.youtube.session_health == Some(false) =>
+            {
+                dots.youtube = Some(TabDot::Danger);
+            }
+            _ => {}
+        }
+
+        dots
     }
 
     pub(super) fn total_stations(&self) -> usize {
