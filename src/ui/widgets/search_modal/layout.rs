@@ -564,6 +564,13 @@ pub(crate) fn spotify_auth_notice_at(area: Rect, col: u16, row: u16) -> bool {
     auth_notice_box(body).is_some_and(|notice| contains(notice, col, row))
 }
 
+pub(crate) fn spotify_no_device_notice_at(area: Rect, col: u16, row: u16) -> bool {
+    let Some(body) = modal_body_area(area) else {
+        return false;
+    };
+    auth_notice_box(spotify_layout(body).body).is_some_and(|notice| contains(notice, col, row))
+}
+
 pub(crate) fn youtube_search_layout(area: Rect) -> SpotifySearchLayout {
     let [input, cap, list] = Layout::vertical([
         Constraint::Length(SEARCH_INPUT_ROWS),

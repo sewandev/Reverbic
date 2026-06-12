@@ -79,6 +79,7 @@
   "modal.spotify.no_device.mode": "Estás en modo Remoto: la música se reproduce en un dispositivo externo con Spotify.",
   "modal.spotify.no_device.body": "Abre Spotify en un dispositivo (teléfono, computador o reproductor web en tu navegador) y mantenlo abierto. Esta pestaña se desbloqueará automáticamente al detectar un dispositivo.",
   "modal.spotify.no_device.scan": "buscar dispositivos ahora",
+  "modal.notice.settings_hint": "abrir Ajustes",
   "modal.spotify.no_device.scanning": "Buscando dispositivos...",
   "modal.spotify.footer.mode_native": "Modo: Nativo",
   "modal.spotify.footer.mode_remote": "Modo: Remoto",

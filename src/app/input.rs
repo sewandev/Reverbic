@@ -14,10 +14,11 @@ use crate::ui::widgets::{
         radio_filtered_results_list_area, radio_playlist_stations_list_area,
         radio_playlists_list_area, radio_search_results_list_area, radio_subtab_at,
         settings_items_area, settings_visible_rows, spotify_auth_notice_at, spotify_body_area,
-        spotify_search_list_area, spotify_subtab_at, spotify_titled_track_list_area,
-        two_line_list_index_at, visible_items, visible_rows_excluding_scrollbar,
-        youtube_auth_notice_at, youtube_liked_list_area, youtube_playlist_videos_list_area,
-        youtube_playlists_list_area, youtube_search_list_area, youtube_subtab_at, ListItemHeight,
+        spotify_no_device_notice_at, spotify_search_list_area, spotify_subtab_at,
+        spotify_titled_track_list_area, two_line_list_index_at, visible_items,
+        visible_rows_excluding_scrollbar, youtube_auth_notice_at, youtube_liked_list_area,
+        youtube_playlist_videos_list_area, youtube_playlists_list_area, youtube_search_list_area,
+        youtube_subtab_at, ListItemHeight,
     },
 };
 
@@ -1630,6 +1631,9 @@ impl App {
             SearchMode::Settings => self.on_click_settings(col, row),
             SearchMode::Spotify if matches!(self.spotify.status, SpotifyAuthStatus::LoggedIn) => {
                 if self.spotify_remote_blocked() {
+                    if spotify_no_device_notice_at(self.terminal_area, col, row) {
+                        crate::shell::open_url(&t("modal.spotify.auth_notice.guide_url"));
+                    }
                     return;
                 }
                 if let Some(tab) = spotify_subtab_at(self.terminal_area, col, row) {
@@ -2576,9 +2580,15 @@ impl App {
         }
 
         if self.spotify_remote_blocked() {
-            if key == KeyCode::Esc {
-                self.show_help = false;
-                self.should_quit = true;
+            match key {
+                KeyCode::Esc => {
+                    self.show_help = false;
+                    self.should_quit = true;
+                }
+                KeyCode::Char('o') | KeyCode::Char('O') => {
+                    self.open_settings_at(SettingItem::SpotifyPlaybackMode);
+                }
+                _ => {}
             }
             return;
         }
@@ -2674,6 +2684,11 @@ impl App {
             KeyCode::Enter if !matches!(self.spotify.status, SpotifyAuthStatus::Connecting) => {
                 self.start_oauth_flow();
             }
+            KeyCode::Char('o') | KeyCode::Char('O')
+                if matches!(self.spotify.status, SpotifyAuthStatus::Idle) =>
+            {
+                self.open_settings_at(SettingItem::SpotifyClientId);
+            }
             KeyCode::Esc => {
                 self.show_help = false;
                 if matches!(self.spotify.status, SpotifyAuthStatus::Connecting) {
@@ -2686,6 +2701,17 @@ impl App {
             }
             _ => {}
         }
+    }
+
+    fn open_settings_at(&mut self, item: SettingItem) {
+        self.show_search_modal = true;
+        self.modal_mode = SearchMode::Settings;
+        self.settings_selected = settings_items(self.config.duck_enabled)
+            .iter()
+            .position(|candidate| *candidate == item)
+            .unwrap_or(0);
+        self.settings_scroll_offset = 0;
+        self.keep_settings_visible();
     }
 
     async fn cycle_spotify_device(&mut self) {
@@ -3077,11 +3103,22 @@ impl App {
                 };
                 self.switch_youtube_sub_tab(tabs[next]);
             }
-            _ => match self.youtube.sub_tab {
-                YoutubeSubTab::Search => self.on_key_youtube_search(key).await,
-                YoutubeSubTab::Liked => self.on_key_youtube_liked(key).await,
-                YoutubeSubTab::Playlists => self.on_key_youtube_playlists(key).await,
-            },
+            _ => {
+                if matches!(
+                    self.youtube.sub_tab,
+                    YoutubeSubTab::Liked | YoutubeSubTab::Playlists
+                ) && self.config.youtube.cookies_path.is_none()
+                    && matches!(key, KeyCode::Char('o') | KeyCode::Char('O'))
+                {
+                    self.open_settings_at(SettingItem::YoutubeCookiesPath);
+                    return;
+                }
+                match self.youtube.sub_tab {
+                    YoutubeSubTab::Search => self.on_key_youtube_search(key).await,
+                    YoutubeSubTab::Liked => self.on_key_youtube_liked(key).await,
+                    YoutubeSubTab::Playlists => self.on_key_youtube_playlists(key).await,
+                }
+            }
         }
     }
 

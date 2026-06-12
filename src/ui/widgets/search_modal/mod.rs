@@ -19,16 +19,18 @@ pub(crate) use layout::{
     radio_name_layout, radio_playlist_stations_list_area, radio_playlists_list_area,
     radio_search_results_list_area, radio_subtab_at, settings_items_area, settings_layout,
     settings_visible_rows, spotify_auth_notice_at, spotify_body_area, spotify_layout,
-    spotify_search_layout, spotify_search_list_area, spotify_subtab_at,
-    spotify_titled_track_list_area, spotify_titled_track_list_layout, two_line_list_index_at,
-    visible_items, visible_rows_excluding_scrollbar, youtube_auth_notice_at, youtube_layout,
-    youtube_liked_list_area, youtube_playlist_videos_list_area, youtube_playlists_list_area,
-    youtube_search_layout, youtube_search_list_area, youtube_subtab_at, ListItemHeight,
+    spotify_no_device_notice_at, spotify_search_layout, spotify_search_list_area,
+    spotify_subtab_at, spotify_titled_track_list_area, spotify_titled_track_list_layout,
+    two_line_list_index_at, visible_items, visible_rows_excluding_scrollbar,
+    youtube_auth_notice_at, youtube_layout, youtube_liked_list_area,
+    youtube_playlist_videos_list_area, youtube_playlists_list_area, youtube_search_layout,
+    youtube_search_list_area, youtube_subtab_at, ListItemHeight,
 };
 pub(in crate::ui) use layout::{MODAL_MIN_HEIGHT, MODAL_MIN_WIDTH};
 
 mod helpers;
 mod layout;
+mod notice_panel;
 mod settings;
 mod spotify;
 mod tabs;

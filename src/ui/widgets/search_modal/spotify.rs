@@ -3,7 +3,7 @@ use ratatui::{
     layout::{Constraint, Layout, Rect},
     style::{Modifier, Style},
     text::{Line, Span},
-    widgets::{List, ListItem, Paragraph, Widget, Wrap},
+    widgets::{List, ListItem, Paragraph, Widget},
 };
 
 use crate::app::SpotifyAuthStatus;
@@ -255,176 +255,66 @@ impl<'a> SearchModalWidget<'a> {
     }
 
     fn render_spotify_no_device(&self, area: Rect, buf: &mut Buffer) {
-        use ratatui::widgets::{Block, BorderType, Borders, Clear};
+        use super::notice_panel::{NoticeHint, NoticePanel};
 
-        let box_w = area.width.saturating_sub(4).min(58);
-        let box_h = 11.min(area.height);
-        if box_w < 20 || box_h < 5 {
-            return;
+        let mut hints = Vec::new();
+        if !self.spotify_devices_loading {
+            hints.push(NoticeHint {
+                key: "[Ctrl+D]".to_string(),
+                text: t("modal.spotify.no_device.scan"),
+                strong: false,
+            });
         }
-        let box_x = area.x + (area.width - box_w) / 2;
-        let box_y = area.y + (area.height.saturating_sub(box_h)) / 2;
-        let box_area = Rect::new(box_x, box_y, box_w, box_h);
+        hints.push(NoticeHint {
+            key: "[O]".to_string(),
+            text: t("modal.notice.settings_hint"),
+            strong: false,
+        });
 
-        Clear.render(box_area, buf);
-        Block::default()
-            .borders(Borders::ALL)
-            .border_type(BorderType::Rounded)
-            .border_style(Style::default().fg(self.palette.warning))
-            .style(Style::default().bg(self.palette.panel_bg))
-            .render(box_area, buf);
-
-        let inner_x = box_x + 2;
-        let inner_w = box_w.saturating_sub(4);
-        let mut y = box_y + 1;
-
-        Paragraph::new(Span::styled(
-            t("modal.spotify.no_device.title"),
-            Style::default()
-                .fg(self.palette.warning)
-                .add_modifier(Modifier::BOLD),
-        ))
-        .alignment(ratatui::layout::Alignment::Center)
-        .render(Rect::new(inner_x, y, inner_w, 1), buf);
-        y += 2;
-
-        Paragraph::new(Span::styled(
-            t("modal.spotify.no_device.mode"),
-            Style::default()
-                .fg(self.palette.spotify)
-                .add_modifier(Modifier::BOLD),
-        ))
-        .wrap(Wrap { trim: true })
-        .render(Rect::new(inner_x, y, inner_w, 2), buf);
-        y += 2;
-
-        Paragraph::new(Span::styled(
-            t("modal.spotify.no_device.body"),
-            Style::default().fg(self.palette.highlight),
-        ))
-        .wrap(Wrap { trim: true })
-        .render(Rect::new(inner_x, y, inner_w, 3), buf);
-        y += 4;
-
-        if y < box_y + box_h - 1 {
-            let line = if self.spotify_devices_loading {
-                Line::from(vec![
-                    Span::styled(spin_frame(), Style::default().fg(self.palette.accent)),
-                    Span::styled(
-                        format!("  {}", t("modal.spotify.no_device.scanning")),
-                        Style::default().fg(self.palette.muted),
-                    ),
-                ])
-            } else {
-                Line::from(vec![
-                    Span::styled(
-                        "[Ctrl+D]  ",
-                        Style::default()
-                            .fg(self.palette.accent)
-                            .add_modifier(Modifier::BOLD),
-                    ),
-                    Span::styled(
-                        t("modal.spotify.no_device.scan"),
-                        Style::default().fg(self.palette.muted),
-                    ),
-                ])
-            };
-            Paragraph::new(line)
-                .alignment(ratatui::layout::Alignment::Center)
-                .render(Rect::new(inner_x, y, inner_w, 1), buf);
+        NoticePanel {
+            title: t("modal.spotify.no_device.title"),
+            emphasis: Some((t("modal.spotify.no_device.mode"), self.palette.spotify)),
+            body: t("modal.spotify.no_device.body"),
+            caution: None,
+            link: Some((
+                t("modal.spotify.auth_notice.guide_label"),
+                t("modal.spotify.auth_notice.guide_url"),
+            )),
+            spinner_text: self
+                .spotify_devices_loading
+                .then(|| t("modal.spotify.no_device.scanning")),
+            hints,
         }
+        .render(area, buf, self.palette);
     }
 
     fn render_spotify_connect(&self, area: Rect, buf: &mut Buffer) {
-        use ratatui::widgets::{Block, BorderType, Borders, Clear};
+        use super::notice_panel::{NoticeHint, NoticePanel};
 
-        let Some(box_area) = super::auth_notice_box(area) else {
-            return;
-        };
-
-        Clear.render(box_area, buf);
-        Block::default()
-            .borders(Borders::ALL)
-            .border_type(BorderType::Rounded)
-            .border_style(Style::default().fg(self.palette.warning))
-            .style(Style::default().bg(self.palette.panel_bg))
-            .render(box_area, buf);
-
-        let inner_x = box_area.x + 2;
-        let inner_w = box_area.width.saturating_sub(4);
-        let bottom = box_area.bottom().saturating_sub(1);
-        let mut y = box_area.y + 1;
-
-        Paragraph::new(Span::styled(
-            t("modal.spotify.auth_notice.title"),
-            Style::default()
-                .fg(self.palette.warning)
-                .add_modifier(Modifier::BOLD),
-        ))
-        .alignment(ratatui::layout::Alignment::Center)
-        .render(Rect::new(inner_x, y, inner_w, 1), buf);
-        y += 2;
-        if y >= bottom {
-            return;
-        }
-
-        Paragraph::new(Span::styled(
-            t("modal.spotify.auth_notice.body"),
-            Style::default().fg(self.palette.highlight),
-        ))
-        .wrap(Wrap { trim: true })
-        .render(Rect::new(inner_x, y, inner_w, 3.min(bottom - y)), buf);
-        y += 4;
-        if y >= bottom {
-            return;
-        }
-
-        Paragraph::new(Span::styled(
-            t("modal.spotify.auth_notice.requirements"),
-            Style::default().fg(self.palette.caution),
-        ))
-        .wrap(Wrap { trim: true })
-        .render(Rect::new(inner_x, y, inner_w, 2.min(bottom - y)), buf);
-        y += 3;
-        if y >= bottom {
-            return;
-        }
-
-        Paragraph::new(Line::from(vec![
-            Span::styled(
-                format!("{} ", t("modal.spotify.auth_notice.guide_label")),
-                Style::default().fg(self.palette.dim),
-            ),
-            Span::styled(
+        NoticePanel {
+            title: t("modal.spotify.auth_notice.title"),
+            emphasis: None,
+            body: t("modal.spotify.auth_notice.body"),
+            caution: Some(t("modal.spotify.auth_notice.requirements")),
+            link: Some((
+                t("modal.spotify.auth_notice.guide_label"),
                 t("modal.spotify.auth_notice.guide_url"),
-                Style::default()
-                    .fg(self.palette.accent)
-                    .add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
-            ),
-        ]))
-        .wrap(Wrap { trim: true })
-        .render(Rect::new(inner_x, y, inner_w, 2.min(bottom - y)), buf);
-        y += 2;
-        if y >= bottom {
-            return;
+            )),
+            spinner_text: None,
+            hints: vec![
+                NoticeHint {
+                    key: "[\u{21B5}]".to_string(),
+                    text: t("modal.spotify.connect_action"),
+                    strong: true,
+                },
+                NoticeHint {
+                    key: "[O]".to_string(),
+                    text: t("modal.notice.settings_hint"),
+                    strong: false,
+                },
+            ],
         }
-
-        Paragraph::new(Line::from(vec![
-            Span::styled(
-                "[\u{21B5}]  ",
-                Style::default()
-                    .fg(self.palette.accent)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(
-                t("modal.spotify.connect_action"),
-                Style::default()
-                    .fg(self.palette.highlight)
-                    .add_modifier(Modifier::BOLD),
-            ),
-        ]))
-        .alignment(ratatui::layout::Alignment::Center)
-        .render(Rect::new(inner_x, y, inner_w, 1), buf);
+        .render(area, buf, self.palette);
     }
 
     fn render_spotify_connecting(&self, area: Rect, lx: u16, lw: u16, buf: &mut Buffer) {
