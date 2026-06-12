@@ -86,12 +86,7 @@ pub fn toggle_auto_update(state: &mut OnboardingState) {
 }
 
 pub fn cycle_crossfade(state: &mut OnboardingState) {
-    state.crossfade_secs = match state.crossfade_secs {
-        0 => 1,
-        1 => 2,
-        2 => 3,
-        _ => 0,
-    };
+    state.crossfade_secs = crate::config::next_crossfade_step(state.crossfade_secs);
 }
 
 pub fn cycle_screensaver(state: &mut OnboardingState) {

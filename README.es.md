@@ -65,6 +65,17 @@ cargo build --release
 
 ---
 
+## Documentación
+
+- **[Guía de Spotify](docs/spotify.es.md)** — modos de reproducción, configuración del Client ID, atajos y limitaciones conocidas
+- **[Guía de YouTube](docs/youtube.es.md)** — funcionalidades (Mix, capítulos, SponsorBlock), configuración de cookies y limitaciones conocidas
+- **[Notas legales](LEGAL.md)** — servicios de terceros, términos de servicio y declaración de riesgos (en inglés)
+
+> [!WARNING]
+> Si configuras cookies de YouTube, **usa una cuenta secundaria ("burner")** — nunca tu cuenta principal de Google. Instrucciones completas en la [guía de YouTube](docs/youtube.es.md).
+
+---
+
 ## Capturas de pantalla
 
 <table align="center">

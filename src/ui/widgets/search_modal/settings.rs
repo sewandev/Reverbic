@@ -34,6 +34,21 @@ impl<'a> SearchModalWidget<'a> {
                 }
             }
             SettingItem::Crossfade => self.crossfade.clone(),
+            SettingItem::YoutubeCrossfade => self.youtube_crossfade.clone(),
+            SettingItem::YoutubeRadioMode => {
+                if self.youtube_radio_mode {
+                    on
+                } else {
+                    off
+                }
+            }
+            SettingItem::YoutubeSponsorblock => {
+                if self.youtube_sponsorblock {
+                    on
+                } else {
+                    off
+                }
+            }
             SettingItem::VolumeStep => format!("{}%", self.volume_step),
             SettingItem::Prebuffer => format!("{}s", self.prebuffer_secs),
             SettingItem::OverlayMode => self.overlay_mode.clone(),
@@ -127,6 +142,14 @@ impl<'a> SearchModalWidget<'a> {
                 }
             }
             SettingItem::ReplayOnboarding => t("hint.open"),
+            SettingItem::YoutubeCookiesPath => {
+                if self.youtube_cookies_configured {
+                    t("config.value.configured")
+                } else {
+                    t("config.value.not_configured")
+                }
+            }
+            SettingItem::YoutubeCookiesValidate => t("config.value.validate"),
         }
     }
 

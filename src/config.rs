@@ -161,6 +161,12 @@ pub struct SpotifyConfig {
     pub radio_enabled: bool,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct YoutubeConfig {
+    #[serde(default)]
+    pub cookies_path: Option<PathBuf>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     pub volume: f32,
@@ -175,6 +181,12 @@ pub struct Config {
     pub last_station: Option<LastStation>,
     #[serde(default)]
     pub crossfade_secs: u8,
+    #[serde(default)]
+    pub youtube_crossfade_secs: u8,
+    #[serde(default)]
+    pub youtube_sponsorblock: bool,
+    #[serde(default = "default_true")]
+    pub youtube_radio_mode: bool,
     #[serde(default)]
     pub media_keys: bool,
     #[serde(default)]
@@ -203,6 +215,8 @@ pub struct Config {
     pub game_integrations: GameIntegrationsConfig,
     #[serde(default)]
     pub spotify: SpotifyConfig,
+    #[serde(default)]
+    pub youtube: YoutubeConfig,
     #[serde(default = "default_volume_step")]
     pub volume_step: u8,
     #[serde(default = "default_prebuffer_secs")]
@@ -260,6 +274,9 @@ impl Default for Config {
             overlay_mode: OverlayMode::WhenPlaying,
             last_station: None,
             crossfade_secs: 0,
+            youtube_crossfade_secs: 0,
+            youtube_sponsorblock: false,
+            youtube_radio_mode: true,
             media_keys: false,
             tray_icon: false,
             notifications: false,
@@ -274,6 +291,7 @@ impl Default for Config {
             screensaver_secs: 10,
             game_integrations: GameIntegrationsConfig::default(),
             spotify: SpotifyConfig::default(),
+            youtube: YoutubeConfig::default(),
             volume_step: 5,
             prebuffer_secs: 30,
             screensaver_clock: true,
@@ -290,12 +308,33 @@ impl Config {
     }
 
     pub fn crossfade_next(&mut self) {
-        self.crossfade_secs = match self.crossfade_secs {
-            0 => 1,
-            1 => 2,
-            2 => 3,
-            _ => 0,
-        };
+        self.crossfade_secs = next_crossfade_step(self.crossfade_secs);
+    }
+
+    pub fn youtube_crossfade_display(&self) -> String {
+        crate::ui::strings::crossfade_display(self.youtube_crossfade_secs)
+    }
+
+    pub fn youtube_crossfade_next(&mut self) {
+        self.youtube_crossfade_secs = next_crossfade_step(self.youtube_crossfade_secs);
+    }
+}
+
+pub(crate) fn next_crossfade_step(secs: u8) -> u8 {
+    match secs {
+        0 => 1,
+        1 => 3,
+        3 => 5,
+        5 => 7,
+        _ => 0,
+    }
+}
+
+fn normalize_crossfade_secs(secs: u8) -> u8 {
+    match secs {
+        0 | 1 | 3 | 5 | 7 => secs,
+        2 => 3,
+        _ => 7,
     }
 }
 
@@ -376,6 +415,8 @@ impl Config {
                 error.message()
             );
         }
+        config.crossfade_secs = normalize_crossfade_secs(config.crossfade_secs);
+        config.youtube_crossfade_secs = normalize_crossfade_secs(config.youtube_crossfade_secs);
         config
     }
 

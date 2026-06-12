@@ -32,9 +32,9 @@ fn uses_legacy_windows_console() -> bool {
 use crate::app::App;
 use crate::ui::theme;
 use overlays::{
-    render_client_id_overlay, render_game_strip, render_help_overlay, render_modal_np_strip,
-    render_modal_spotify_strip, render_rename_overlay, render_theme_picker_overlay,
-    render_update_toast,
+    render_client_id_overlay, render_cookies_path_overlay, render_game_strip, render_help_overlay,
+    render_modal_np_strip, render_modal_spotify_strip, render_rename_overlay,
+    render_theme_picker_overlay, render_update_toast,
 };
 use screensaver::{render_screensaver, render_spotify_screensaver, ScreensaverCtx};
 
@@ -202,6 +202,15 @@ pub fn render(frame: &mut Frame, app: &App) {
 
     if app.editing_client_id {
         render_client_id_overlay(frame, &app.client_id_input, palette);
+    }
+
+    if app.editing_cookies_path {
+        render_cookies_path_overlay(
+            frame,
+            &app.cookies_path_input,
+            app.cookies_path_error.as_deref(),
+            palette,
+        );
     }
 
     if app.theme_picker_open {

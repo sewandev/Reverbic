@@ -13,7 +13,7 @@ mod youtube_state;
 
 pub use modal::{
     settings_items, AppFocus, RadioSubTab, SearchMode, SettingItem, SpotifyAuthStatus,
-    SpotifyPlayerStatus, SpotifySubTab,
+    SpotifyPlayerStatus, SpotifySubTab, YoutubeSubTab,
 };
 use spotify_state::SpotifyPlaybackBackend;
 pub use spotify_state::SpotifyState;
@@ -152,6 +152,9 @@ pub struct App {
     pub rename_input: String,
     pub editing_client_id: bool,
     pub client_id_input: String,
+    pub editing_cookies_path: bool,
+    pub cookies_path_input: String,
+    pub cookies_path_error: Option<String>,
     pub theme_picker_open: bool,
     pub theme_picker_selected: usize,
     pub click_flash: Option<(usize, Instant)>,
@@ -250,6 +253,9 @@ impl App {
             rename_input: String::new(),
             editing_client_id: false,
             client_id_input: String::new(),
+            editing_cookies_path: false,
+            cookies_path_input: String::new(),
+            cookies_path_error: None,
             theme_picker_open: false,
             theme_picker_selected: 0,
             click_flash: None,
@@ -657,6 +663,9 @@ mod tests {
             rename_input: String::new(),
             editing_client_id: false,
             client_id_input: String::new(),
+            editing_cookies_path: false,
+            cookies_path_input: String::new(),
+            cookies_path_error: None,
             theme_picker_open: false,
             theme_picker_selected: 0,
             click_flash: None,
