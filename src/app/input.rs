@@ -1398,6 +1398,7 @@ impl App {
                 let trimmed = self.cookies_path_input.trim();
                 if trimmed.is_empty() {
                     self.config.youtube.cookies_path = None;
+                    self.youtube.session_health = None;
                     self.save_config();
                     self.cookies_path_input.clear();
                     self.cookies_path_error = None;
@@ -1410,10 +1411,12 @@ impl App {
                 ) {
                     Ok(path) => {
                         self.config.youtube.cookies_path = Some(path);
+                        self.youtube.session_health = None;
                         self.save_config();
                         self.cookies_path_input.clear();
                         self.cookies_path_error = None;
                         self.editing_cookies_path = false;
+                        self.start_youtube_session_health_check();
                     }
                     Err(err) => {
                         self.cookies_path_error = Some(err.to_string());

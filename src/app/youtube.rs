@@ -879,7 +879,27 @@ impl App {
             8,
         );
 
+        self.spawn_youtube_session_check(cookies_path, false);
+    }
+
+    pub fn start_youtube_session_health_check(&mut self) {
+        if self.youtube.validate_task.is_some() {
+            return;
+        }
+        let Some(cookies_path) =
+            cookies::configured_cookies_path(self.config.youtube.cookies_path.as_deref())
+        else {
+            return;
+        };
+        if !runtime_installed() {
+            return;
+        }
+        self.spawn_youtube_session_check(cookies_path, true);
+    }
+
+    fn spawn_youtube_session_check(&mut self, cookies_path: std::path::PathBuf, silent: bool) {
         abort_task(&mut self.youtube.validate_task);
+        self.youtube.validate_silent = silent;
         let binary = install::managed_binary_path();
         let deno_path = deno::managed_binary_path();
         let (tx, rx) = mpsc::channel();
@@ -898,19 +918,26 @@ impl App {
         match rx.try_recv() {
             Ok(Ok(_)) => {
                 self.youtube.validate_task = None;
-                self.show_notice(
-                    crate::app::NoticeSeverity::Info,
-                    crate::i18n::t("modal.youtube.validate_ok"),
-                    5,
-                );
+                self.youtube.session_health = Some(true);
+                if !self.youtube.validate_silent {
+                    self.show_notice(
+                        crate::app::NoticeSeverity::Info,
+                        crate::i18n::t("modal.youtube.validate_ok"),
+                        5,
+                    );
+                }
             }
             Ok(Err(e)) => {
                 self.youtube.validate_task = None;
-                self.show_notice(
-                    crate::app::NoticeSeverity::Error,
-                    format!("{}: {e}", crate::i18n::t("modal.youtube.validate_failed")),
-                    8,
-                );
+                self.youtube.session_health = Some(false);
+                tracing::warn!("youtube session check failed: {e}");
+                if !self.youtube.validate_silent {
+                    self.show_notice(
+                        crate::app::NoticeSeverity::Error,
+                        format!("{}: {e}", crate::i18n::t("modal.youtube.validate_failed")),
+                        8,
+                    );
+                }
             }
             Err(std::sync::mpsc::TryRecvError::Empty) => {
                 self.youtube.validate_rx = Some(rx);

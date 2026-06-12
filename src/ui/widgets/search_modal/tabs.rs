@@ -45,11 +45,30 @@ impl<'a> SearchModalWidget<'a> {
             _ => inactive,
         };
 
+        let radio_dot = self.palette.playing;
+        let spotify_dot = match self.spotify_status {
+            crate::app::SpotifyAuthStatus::LoggedIn if self.spotify_remote_blocked => {
+                self.palette.warning
+            }
+            crate::app::SpotifyAuthStatus::LoggedIn => self.palette.playing,
+            _ => self.palette.dim,
+        };
+        let youtube_dot = if !self.youtube_cookies_configured {
+            self.palette.dim
+        } else if self.youtube_session_health == Some(false) {
+            self.palette.danger
+        } else {
+            self.palette.playing
+        };
+
         Paragraph::new(Line::from(vec![
+            Span::styled("\u{25CF} ", Style::default().fg(radio_dot)),
             Span::styled(t("modal.tab.radio"), radio_st),
             Span::styled("  ", Style::default()),
+            Span::styled("\u{25CF} ", Style::default().fg(spotify_dot)),
             Span::styled(t("modal.tab.spotify"), spotify_st),
             Span::styled("  ", Style::default()),
+            Span::styled("\u{25CF} ", Style::default().fg(youtube_dot)),
             Span::styled(t("modal.tab.youtube"), youtube_st),
         ]))
         .render(tab_area, buf);

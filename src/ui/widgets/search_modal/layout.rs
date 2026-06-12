@@ -252,9 +252,18 @@ pub(crate) fn modal_tab_at(area: Rect, col: u16, row: u16) -> Option<SearchMode>
         col,
         row,
         &[
-            (t("modal.tab.radio"), SearchMode::Name),
-            (t("modal.tab.spotify"), SearchMode::Spotify),
-            (t("modal.tab.youtube"), SearchMode::Youtube),
+            (
+                format!("\u{25CF} {}", t("modal.tab.radio")),
+                SearchMode::Name,
+            ),
+            (
+                format!("\u{25CF} {}", t("modal.tab.spotify")),
+                SearchMode::Spotify,
+            ),
+            (
+                format!("\u{25CF} {}", t("modal.tab.youtube")),
+                SearchMode::Youtube,
+            ),
         ],
     )
 }
@@ -720,7 +729,7 @@ mod tests {
         let area = normal_terminal();
         let layout = modal_layout(area).expect("modal should render");
         let content = modal_content_area(area).expect("content should render");
-        let radio_w = text_cell_width(&t("modal.tab.radio"));
+        let radio_w = text_cell_width(&t("modal.tab.radio")) + 2;
         let spotify_x = content.x + radio_w + TAB_GAP_WIDTH;
 
         assert!(matches!(
