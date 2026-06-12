@@ -10,6 +10,8 @@ Versionado: [Semantic Versioning](https://semver.org/)
 
 ## [Sin publicar]
 
+## [1.5.2] - 2026-06-12
+
 ### Agregado
 - Se agregó un ajuste para configurar un archivo cookies.txt de YouTube, que permite acceder a videos con restricción de edad, de región o solo para miembros
 - Se agregaron las sub-pestañas [Me gusta] y [Playlists] a la pestaña de YouTube, igual que en Spotify, para explorar y reproducir tus videos con Me gusta y tus playlists personales (requiere un cookies.txt configurado)
