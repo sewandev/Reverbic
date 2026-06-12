@@ -789,7 +789,7 @@ impl App {
             return;
         }
 
-        self.save_notice = None;
+        self.clear_notices();
         match key {
             KeyCode::Char(' ') => {
                 match self.player.state().status {
@@ -2716,9 +2716,11 @@ impl App {
 
     async fn cycle_spotify_device(&mut self) {
         if self.config.spotify.playback_mode == crate::config::SpotifyPlaybackMode::Native {
-            self.save_notice = Some(t("modal.spotify.devices_native_hint"));
-            self.save_notice_is_dup = false;
-            self.notice_until = Some(std::time::Instant::now() + std::time::Duration::from_secs(5));
+            self.notify(
+                crate::app::NoticeSeverity::Info,
+                t("modal.spotify.devices_native_hint"),
+                5,
+            );
             return;
         }
         let len = self.spotify.devices.len();
@@ -2741,9 +2743,11 @@ impl App {
             .get(self.spotify.search_selected)
             .cloned()
         {
-            self.save_notice = Some(t("notice.spotify_radio_stopped"));
-            self.save_notice_is_dup = false;
-            self.notice_until = Some(std::time::Instant::now() + std::time::Duration::from_secs(5));
+            self.notify(
+                crate::app::NoticeSeverity::Info,
+                t("notice.spotify_radio_stopped"),
+                5,
+            );
             let sel = self.spotify.search_selected;
             let queue = self.spotify.search_results[sel.saturating_add(1)..].to_vec();
             self.play_spotify_track_with_queue(track, queue).await;
@@ -3314,12 +3318,10 @@ impl App {
                 match library::save_track(&title, key_str) {
                     library::SaveResult::Saved => {
                         self.saved_tracks = library::load_saved_tracks(key_str);
-                        self.save_notice_is_dup = false;
-                        self.save_notice = Some(format!("{} {title}", t("notice.saved")));
+                        self.notify_info(format!("{} {title}", t("notice.saved")));
                     }
                     library::SaveResult::AlreadySaved => {
-                        self.save_notice_is_dup = true;
-                        self.save_notice = Some(format!("{} {title}", t("notice.already_saved")));
+                        self.notify_warning(format!("{} {title}", t("notice.already_saved")));
                     }
                 }
             }

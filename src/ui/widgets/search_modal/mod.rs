@@ -162,6 +162,7 @@ pub struct SearchModalWidget<'a> {
     pub auto_update: bool,
     pub discord_rpc: bool,
     pub save_notice: Option<String>,
+    pub save_notice_severity: crate::app::NoticeSeverity,
     pub border_tick: u32,
 }
 
@@ -366,6 +367,7 @@ impl<'a> SearchModalWidget<'a> {
             auto_update: app.config.auto_update,
             discord_rpc: app.config.discord_rpc,
             save_notice: app.save_notice.clone(),
+            save_notice_severity: app.save_notice_severity,
             border_tick: app.border_tick,
         }
     }
@@ -374,16 +376,21 @@ impl<'a> SearchModalWidget<'a> {
 impl SearchModalWidget<'_> {
     fn bottom_hint(&self) -> Vec<Span<'static>> {
         if let Some(ref notice) = self.save_notice {
+            let color = match self.save_notice_severity {
+                crate::app::NoticeSeverity::Error => self.palette.danger,
+                crate::app::NoticeSeverity::Warning => self.palette.warning,
+                crate::app::NoticeSeverity::Info => match self.mode {
+                    crate::app::SearchMode::Spotify => self.palette.spotify,
+                    crate::app::SearchMode::Youtube => self.palette.youtube,
+                    _ => self.palette.playing,
+                },
+            };
             return vec![
                 Span::raw("  "),
                 Span::styled(
                     notice.clone(),
                     ratatui::style::Style::default()
-                        .fg(match self.mode {
-                            crate::app::SearchMode::Spotify => self.palette.spotify,
-                            crate::app::SearchMode::Youtube => self.palette.youtube,
-                            _ => self.palette.playing,
-                        })
+                        .fg(color)
                         .add_modifier(ratatui::style::Modifier::BOLD),
                 ),
                 Span::raw("  "),

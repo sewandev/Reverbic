@@ -3,6 +3,7 @@ mod input;
 mod integrations;
 mod metadata;
 mod modal;
+mod notice;
 mod on_demand;
 mod player_ctrl;
 mod playlists;
@@ -16,6 +17,8 @@ pub use modal::{
     settings_items, AppFocus, RadioSubTab, SearchMode, SettingItem, SpotifyAuthStatus,
     SpotifyPlayerStatus, SpotifySubTab, YoutubeSubTab,
 };
+use notice::NoticeQueue;
+pub use notice::NoticeSeverity;
 pub use playlists::{ActivePlaylist, PlaylistPicker};
 use spotify_state::SpotifyPlaybackBackend;
 pub use spotify_state::SpotifyState;
@@ -123,7 +126,8 @@ pub struct App {
     pub recent_selected: usize,
     pub saved_tracks: Vec<String>,
     pub save_notice: Option<String>,
-    pub save_notice_is_dup: bool,
+    pub save_notice_severity: NoticeSeverity,
+    notice_queue: NoticeQueue,
     pub search_query: String,
     pub search_results: Vec<DynamicStation>,
     pub search_loading: bool,
@@ -234,7 +238,8 @@ impl App {
             recent_selected: 0,
             saved_tracks: Vec::new(),
             save_notice: None,
-            save_notice_is_dup: false,
+            save_notice_severity: NoticeSeverity::Info,
+            notice_queue: NoticeQueue::new(),
             search_query: String::new(),
             search_results: Vec::new(),
             search_loading: false,
@@ -653,7 +658,8 @@ mod tests {
             recent_selected: 0,
             saved_tracks: Vec::new(),
             save_notice: None,
-            save_notice_is_dup: false,
+            save_notice_severity: NoticeSeverity::Info,
+            notice_queue: NoticeQueue::new(),
             search_query: String::new(),
             search_results: Vec::new(),
             search_loading: false,

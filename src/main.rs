@@ -216,8 +216,7 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
             .map(|t| std::time::Instant::now() >= t)
             .unwrap_or(false)
         {
-            app.save_notice = None;
-            app.notice_until = None;
+            app.advance_notice_queue();
         }
         if app
             .click_flash
