@@ -43,6 +43,7 @@ pub struct Palette {
     pub warning: Color,
     pub buffering: Color,
     pub spotify: Color,
+    pub youtube: Color,
     pub caution: Color,
     pub panel_bg: Color,
     pub overlay_color: Color,

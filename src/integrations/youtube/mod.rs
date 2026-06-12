@@ -52,12 +52,8 @@ pub(crate) fn sha256_hex(bytes: &[u8]) -> String {
         })
 }
 
-// android_vr is the only client that still serves audio-only AAC-LC (itag 140)
-// without a PO token; web stays as fallback because android_vr ignores cookies.
 pub(crate) const EXTRACTOR_ARGS_DEFAULT: &str = "youtube:player_client=android_vr,web";
 
-// yt-dlp stderr can span dozens of lines (debug headers, warnings, tracebacks).
-// The UI shows only the decisive line; the full output goes to the log.
 pub(crate) fn summarize_ytdlp_error(raw: &str) -> String {
     const MAX_CHARS: usize = 200;
     let trimmed = raw.trim();
@@ -80,7 +76,6 @@ pub(crate) fn summarize_ytdlp_error(raw: &str) -> String {
 pub(crate) const EXTRACTOR_ARGS_FLAT: &str =
     "youtube:player_client=android,web;player_skip=configs,webpage";
 
-// --force-ipv4 avoids multi-second hangs on hosts with broken IPv6 routing.
 pub(crate) fn base_ytdlp_args(
     extractor_args: &str,
     deno_path: &std::path::Path,

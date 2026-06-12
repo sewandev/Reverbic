@@ -36,6 +36,7 @@
   "modal.youtube.search_failed": "Could not search YouTube.",
   "modal.youtube.resolve_failed": "Could not resolve the YouTube audio stream.",
   "modal.youtube.no_audio_formats": "YouTube did not offer a compatible audio format for this video. YouTube changes its restrictions frequently; try again later or after updating Reverbic.",
+  "modal.youtube.post_live_not_ready": "This video comes from a live stream that just ended. YouTube is still processing the recording and has not published the audio yet — try again in a few hours.",
   "modal.youtube.auth_required": "This video requires signing in to YouTube (due to age restrictions, region blocks, record label policies, or being private/members-only). Configure a cookies.txt file in Settings > YouTube Cookies File to access it.",
   "modal.youtube.cookies_expired": "Your YouTube cookies appear to be expired or invalid. Export a fresh cookies.txt from a private/incognito window and update the path in Settings.",
   "modal.youtube.cookies_invalid_path": "The cookies file could not be found or read.",

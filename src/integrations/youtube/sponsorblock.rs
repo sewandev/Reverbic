@@ -21,7 +21,6 @@ pub async fn fetch_music_offtopic_segments(video_id: &str) -> Result<Vec<(f32, f
     let url = format!("{SPONSORBLOCK_API}?videoID={video_id}&categories=[\"music_offtopic\"]");
     let resp = client.get(&url).send().await.map_err(|e| e.to_string())?;
 
-    // 404 means the video simply has no submitted segments
     if resp.status() == reqwest::StatusCode::NOT_FOUND {
         return Ok(Vec::new());
     }

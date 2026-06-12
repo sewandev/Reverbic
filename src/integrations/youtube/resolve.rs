@@ -63,6 +63,7 @@ fn load_cache_from_disk() -> HashMap<String, CacheEntry> {
         .filter(|(watch_url, entry)| {
             watch_url.starts_with("https://")
                 && entry.url.starts_with("https://")
+                && !entry.url.contains("/api/manifest/")
                 && entry.expires_at_unix > now
                 && !contains_sensitive_header(&entry.headers)
         })
@@ -118,10 +119,6 @@ pub async fn resolve_audio_url(
         }
     }
 
-    // Anonymous resolve first: when cookies are passed, yt-dlp skips android_vr
-    // (it does not support cookies) and falls back to the web client's combined
-    // itag 18, whose HE-AAC variant the decoder cannot play. Cookies are only
-    // worth it for restricted videos, so they are a retry, not the default.
     let (resolved, used_cookies) = match run_yt_dlp_resolve(binary, watch_url, None, deno_path)
         .await
     {
@@ -137,8 +134,6 @@ pub async fn resolve_audio_url(
     };
     let (resolved_url, headers, chapters) = resolved;
 
-    // Cached for 4 hours: YouTube stream URLs expire after ~6 hours.
-    // Cookie-authenticated resolves stay memory-only so session data never touches disk.
     let persist = !used_cookies && !contains_sensitive_header(&headers);
     if let Ok(mut cache) = get_url_cache().lock() {
         cache.insert(
@@ -289,6 +284,22 @@ fn parse_resolve_output(bytes: &[u8]) -> Result<ResolvedStream, YoutubeError> {
         })?
         .to_string();
 
+    let protocol = json["protocol"].as_str().unwrap_or("");
+    if is_manifest_protocol(protocol) {
+        let live_status = json["live_status"].as_str().unwrap_or("unknown");
+        tracing::warn!(
+            protocol,
+            live_status,
+            "yt-dlp resolved a manifest-based format the decoder cannot play"
+        );
+        let key = if live_status == "post_live" {
+            "modal.youtube.post_live_not_ready"
+        } else {
+            "modal.youtube.no_audio_formats"
+        };
+        return Err(YoutubeError::Resolve(crate::i18n::t(key)));
+    }
+
     let mut headers = HashMap::new();
     if let Some(h) = json["http_headers"].as_object() {
         for (k, v) in h {
@@ -303,6 +314,10 @@ fn parse_resolve_output(bytes: &[u8]) -> Result<ResolvedStream, YoutubeError> {
     log_resolved_format(&json);
 
     Ok((url, headers, chapters))
+}
+
+fn is_manifest_protocol(protocol: &str) -> bool {
+    protocol.contains("dash") || protocol.contains("m3u8")
 }
 
 fn parse_chapters(json: &serde_json::Value) -> Vec<YoutubeChapter> {

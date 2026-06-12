@@ -89,7 +89,7 @@ impl<'a> SearchModalWidget<'a> {
         let tab_style = |active: bool| {
             if active {
                 Style::default()
-                    .fg(self.palette.danger)
+                    .fg(self.palette.youtube)
                     .add_modifier(Modifier::BOLD)
             } else {
                 Style::default().fg(self.palette.dim)
@@ -128,7 +128,7 @@ impl<'a> SearchModalWidget<'a> {
 
         buf[(content_x, layout.input.y)]
             .set_symbol("┃")
-            .set_fg(self.palette.accent)
+            .set_fg(self.palette.youtube)
             .set_bg(self.palette.panel_bg);
 
         render_filter_input(
@@ -137,12 +137,12 @@ impl<'a> SearchModalWidget<'a> {
             Rect::new(text_x, layout.input.y, text_w, 1),
             self.palette,
             buf,
-            self.palette.danger,
+            self.palette.youtube,
         );
 
         buf[(content_x, layout.cap.y)]
             .set_symbol("╹")
-            .set_fg(self.palette.accent)
+            .set_fg(self.palette.youtube)
             .set_bg(self.palette.panel_bg);
 
         if !self.youtube_loading && self.youtube_results.is_empty() && self.youtube_query.is_empty()
@@ -254,7 +254,7 @@ impl<'a> SearchModalWidget<'a> {
                 let name = strings::truncate(&playlist.title, name_max);
                 let st = if active {
                     Style::default()
-                        .fg(self.palette.danger)
+                        .fg(self.palette.youtube)
                         .add_modifier(Modifier::BOLD)
                 } else {
                     Style::default().fg(self.palette.highlight)
@@ -302,7 +302,7 @@ impl<'a> SearchModalWidget<'a> {
             Span::styled(
                 title,
                 Style::default()
-                    .fg(self.palette.danger)
+                    .fg(self.palette.youtube)
                     .add_modifier(Modifier::BOLD),
             ),
             Span::styled(video_count, Style::default().fg(self.palette.muted)),
@@ -370,9 +370,9 @@ impl<'a> SearchModalWidget<'a> {
 
                 if active {
                     let title_st = Style::default()
-                        .fg(self.palette.playing)
+                        .fg(self.palette.youtube)
                         .add_modifier(Modifier::BOLD);
-                    let meta_st = Style::default().fg(self.palette.accent);
+                    let meta_st = Style::default().fg(self.palette.youtube);
                     ListItem::new(vec![
                         Line::from(vec![
                             Span::styled("▶  ", title_st),

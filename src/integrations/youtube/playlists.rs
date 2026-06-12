@@ -41,7 +41,6 @@ pub async fn fetch_mix_videos(
             "modal.youtube.library_failed",
         )));
     }
-    // RD<id> is YouTube's auto-generated Mix playlist seeded by that video
     let url = format!("https://www.youtube.com/watch?v={seed_video_id}&list=RD{seed_video_id}");
     let bytes = run_flat_playlist(binary, &url, limit, None, deno_path).await?;
     parse_video_entries(&bytes)

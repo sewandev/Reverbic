@@ -1139,8 +1139,6 @@ fn handle_file_backed_seek(
         return;
     };
 
-    // Seeking into a not-yet-downloaded region would block the mixer thread,
-    // so the target byte (estimated by time ratio) must already be on disk.
     if !st.download_complete {
         let written = st
             .stream_written

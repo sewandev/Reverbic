@@ -25,6 +25,13 @@ Versionado: [Semantic Versioning](https://semver.org/)
 - Capítulos de YouTube: en videos largos el capítulo actual se muestra junto al título, y las teclas [ y ] saltan entre capítulos
 - Nuevo ajuste opcional "SponsorBlock (YouTube)" que salta automáticamente las secciones sin música usando la base de datos comunitaria (desactivado por defecto)
 - Nuevo ajuste "Radio (YouTube)", activado por defecto: cuando la lista en reproducción se termina, continúa automáticamente con un mix de canciones similares
+- El overlay de juego ahora muestra una cuenta regresiva con el tiempo restante de la pista actual (Spotify y YouTube), tanto en estilo Completo como Compacto; la Radio no tiene duración, así que ahí no cambia nada
+
+### Cambiado
+- La pestaña de YouTube ahora usa el rojo de YouTube de forma consistente en todos sus elementos (video seleccionado, campo de búsqueda, cursor de escritura, barra de scroll), replicando el patrón verde de la pestaña de Spotify para que siempre quede claro en qué pestaña estás
+
+### Corregido
+- Los videos de transmisiones en vivo recién finalizadas ya no se quedan en un ciclo infinito de reintentos; Reverbic ahora explica que YouTube todavía está procesando la grabación y que se intente más tarde
 
 ### Seguridad
 - Se actualizaron dependencias (OpenSSL, ratatui, crossterm y otras) para corregir vulnerabilidades conocidas reportadas por Dependabot
