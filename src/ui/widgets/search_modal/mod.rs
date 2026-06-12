@@ -350,7 +350,7 @@ impl SearchModalWidget<'_> {
                     ratatui::style::Style::default()
                         .fg(match self.mode {
                             crate::app::SearchMode::Spotify => self.palette.spotify,
-                            crate::app::SearchMode::Youtube => self.palette.danger,
+                            crate::app::SearchMode::Youtube => self.palette.youtube,
                             _ => self.palette.playing,
                         })
                         .add_modifier(ratatui::style::Modifier::BOLD),

@@ -28,7 +28,7 @@ impl<'a> SearchModalWidget<'a> {
             .fg(self.palette.spotify)
             .add_modifier(Modifier::BOLD);
         let youtube_active = Style::default()
-            .fg(self.palette.danger)
+            .fg(self.palette.youtube)
             .add_modifier(Modifier::BOLD);
         let inactive = Style::default().fg(self.palette.muted);
 
@@ -502,7 +502,7 @@ impl<'a> SearchModalWidget<'a> {
             } else if row == thumb {
                 let color = match self.mode {
                     crate::app::SearchMode::Spotify => self.palette.spotify,
-                    crate::app::SearchMode::Youtube => self.palette.danger,
+                    crate::app::SearchMode::Youtube => self.palette.youtube,
                     _ => self.palette.accent,
                 };
                 ("┃", color)

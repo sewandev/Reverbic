@@ -26,6 +26,9 @@ Versioning: [Semantic Versioning](https://semver.org/)
 - New optional "SponsorBlock (YouTube)" setting that automatically skips non-music sections using the community database (off by default)
 - New "YouTube Radio" setting, on by default: when the playing list ends, playback continues automatically with a mix of similar songs
 
+### Changed
+- The YouTube tab now uses YouTube's red consistently across all its elements (selected video, search input, typing cursor, scrollbar), mirroring the green pattern of the Spotify tab so it is always clear which tab is active
+
 ### Fixed
 - Videos from recently ended live streams no longer hang in an endless retry loop; Reverbic now explains that YouTube is still processing the recording and to try again later
 

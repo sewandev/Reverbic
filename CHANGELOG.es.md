@@ -26,6 +26,9 @@ Versionado: [Semantic Versioning](https://semver.org/)
 - Nuevo ajuste opcional "SponsorBlock (YouTube)" que salta automáticamente las secciones sin música usando la base de datos comunitaria (desactivado por defecto)
 - Nuevo ajuste "Radio (YouTube)", activado por defecto: cuando la lista en reproducción se termina, continúa automáticamente con un mix de canciones similares
 
+### Cambiado
+- La pestaña de YouTube ahora usa el rojo de YouTube de forma consistente en todos sus elementos (video seleccionado, campo de búsqueda, cursor de escritura, barra de scroll), replicando el patrón verde de la pestaña de Spotify para que siempre quede claro en qué pestaña estás
+
 ### Corregido
 - Los videos de transmisiones en vivo recién finalizadas ya no se quedan en un ciclo infinito de reintentos; Reverbic ahora explica que YouTube todavía está procesando la grabación y que se intente más tarde
 
