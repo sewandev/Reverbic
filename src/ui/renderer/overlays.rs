@@ -10,7 +10,12 @@ use crate::audio::{PlayerState, PlayerStatus};
 use crate::i18n::t;
 use crate::ui::theme::{self, Palette, ThemeId};
 
-pub(super) fn render_rename_overlay(frame: &mut Frame, input: &str, palette: &Palette) {
+pub(super) fn render_rename_overlay(
+    frame: &mut Frame,
+    input: &str,
+    title: &str,
+    palette: &Palette,
+) {
     let area = frame.area();
     let w = area.width.clamp(30, 50);
     let h: u16 = 5;
@@ -23,7 +28,7 @@ pub(super) fn render_rename_overlay(frame: &mut Frame, input: &str, palette: &Pa
     let block = Block::default()
         .title_top(
             Line::from(Span::styled(
-                t("modal.rename.title"),
+                title.to_owned(),
                 Style::default()
                     .fg(palette.highlight)
                     .add_modifier(Modifier::BOLD),

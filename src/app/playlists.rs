@@ -8,7 +8,7 @@ use super::modal::{RadioSubTab, SearchMode};
 use super::App;
 
 pub struct PlaylistPicker {
-    pub station: FavoriteStation,
+    pub station: Option<FavoriteStation>,
     pub selected: usize,
     pub creating: bool,
     pub input: String,
@@ -44,12 +44,21 @@ impl App {
         if let Some(station) = station {
             let creating = self.playlists.is_empty();
             self.playlist_picker = Some(PlaylistPicker {
-                station,
+                station: Some(station),
                 selected: 0,
                 creating,
                 input: String::new(),
             });
         }
+    }
+
+    pub(super) fn open_new_playlist_input(&mut self) {
+        self.playlist_picker = Some(PlaylistPicker {
+            station: None,
+            selected: 0,
+            creating: true,
+            input: String::new(),
+        });
     }
 
     pub(super) fn on_key_playlist_picker(&mut self, key: KeyCode) {
@@ -59,7 +68,7 @@ impl App {
         if picker.creating {
             match key {
                 KeyCode::Esc => {
-                    if !self.playlists.is_empty() {
+                    if picker.station.is_some() && !self.playlists.is_empty() {
                         picker.creating = false;
                         picker.input.clear();
                         self.playlist_picker = Some(picker);
@@ -98,7 +107,9 @@ impl App {
             }
             KeyCode::Enter => {
                 if picker.selected < len {
-                    self.add_station_to_playlist(picker.selected, picker.station);
+                    if let Some(station) = picker.station {
+                        self.add_station_to_playlist(picker.selected, station);
+                    }
                 } else {
                     picker.creating = true;
                     self.playlist_picker = Some(picker);
@@ -108,21 +119,31 @@ impl App {
         }
     }
 
-    fn create_playlist_and_add(&mut self, name: String, station: FavoriteStation) {
+    fn create_playlist_and_add(&mut self, name: String, station: Option<FavoriteStation>) {
         if let Some(idx) = self
             .playlists
             .iter()
             .position(|p| p.name.eq_ignore_ascii_case(&name))
         {
-            self.add_station_to_playlist(idx, station);
+            match station {
+                Some(station) => self.add_station_to_playlist(idx, station),
+                None => self.playlist_notice(t("notice.playlist.name_taken")),
+            }
             return;
         }
+        let stations: Vec<FavoriteStation> = station.into_iter().collect();
+        let had_station = !stations.is_empty();
         self.playlists.push(RadioPlaylist {
             name: name.clone(),
-            stations: vec![station],
+            stations,
         });
         playlist_store::save(&self.playlists);
-        self.playlist_notice(t("notice.playlist.added").replace("{}", &name));
+        let notice = if had_station {
+            t("notice.playlist.added").replace("{}", &name)
+        } else {
+            t("notice.playlist.created").replace("{}", &name)
+        };
+        self.playlist_notice(notice);
     }
 
     fn add_station_to_playlist(&mut self, idx: usize, station: FavoriteStation) {
@@ -172,6 +193,73 @@ impl App {
         }
     }
 
+    pub(super) fn on_key_rename_playlist(&mut self, key: KeyCode) {
+        match key {
+            KeyCode::Esc => {
+                self.renaming_playlist = None;
+                self.rename_input.clear();
+            }
+            KeyCode::Enter => {
+                if let Some(idx) = self.renaming_playlist {
+                    let new_name = self.rename_input.trim().to_string();
+                    if !new_name.is_empty() {
+                        if let Some(playlist) = self.playlists.get_mut(idx) {
+                            let old_name = playlist.name.clone();
+                            playlist.name = new_name.clone();
+                            if let Some(active) = self.active_playlist.as_mut() {
+                                if active.name == old_name {
+                                    active.name = new_name;
+                                }
+                            }
+                            playlist_store::save(&self.playlists);
+                        }
+                    }
+                }
+                self.renaming_playlist = None;
+                self.rename_input.clear();
+            }
+            KeyCode::Backspace => {
+                self.rename_input.pop();
+            }
+            KeyCode::Char(c) if !c.is_control() => {
+                self.rename_input.push(c);
+            }
+            _ => {}
+        }
+    }
+
+    pub(super) fn move_playlist_station(&mut self, pl_idx: usize, idx: usize, delta: i32) {
+        let Some(playlist) = self.playlists.get_mut(pl_idx) else {
+            return;
+        };
+        let len = playlist.stations.len();
+        let other = if delta > 0 {
+            if idx + 1 >= len {
+                return;
+            }
+            idx + 1
+        } else {
+            if idx == 0 || idx >= len {
+                return;
+            }
+            idx - 1
+        };
+        playlist.stations.swap(idx, other);
+        let name = playlist.name.clone();
+        if let Some(active) = self.active_playlist.as_mut() {
+            if active.name == name {
+                if active.pos == idx {
+                    active.pos = other;
+                } else if active.pos == other {
+                    active.pos = idx;
+                }
+            }
+        }
+        playlist_store::save(&self.playlists);
+        self.radio_playlist_station_selected = other;
+        self.keep_radio_playlist_stations_visible();
+    }
+
     pub(super) async fn play_playlist_station(&mut self, pl_idx: usize, st_idx: usize) {
         let Some(playlist) = self.playlists.get(pl_idx) else {
             return;
@@ -199,7 +287,15 @@ impl App {
         if len == 0 {
             return;
         }
-        let pos = active.pos.min(len - 1);
+        let playing_url = self.player.state().station.as_ref().map(|s| s.url.clone());
+        let pos = playing_url
+            .and_then(|url| {
+                self.playlists[pl_idx]
+                    .stations
+                    .iter()
+                    .position(|s| s.url == url)
+            })
+            .unwrap_or_else(|| active.pos.min(len - 1));
         let next = if delta > 0 {
             (pos + 1) % len
         } else {

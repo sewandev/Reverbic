@@ -453,6 +453,28 @@ impl App {
             }
         }
 
+        if event.modifiers.contains(KeyModifiers::SHIFT)
+            && !event.modifiers.contains(KeyModifiers::CONTROL)
+            && self.show_search_modal
+            && matches!(self.modal_mode, SearchMode::Name)
+            && matches!(self.radio_sub_tab, RadioSubTab::Playlists)
+        {
+            if let Some(pl_idx) = self.radio_open_playlist {
+                let idx = self.radio_playlist_station_selected;
+                match event.code {
+                    KeyCode::Up => {
+                        self.move_playlist_station(pl_idx, idx, -1);
+                        return;
+                    }
+                    KeyCode::Down => {
+                        self.move_playlist_station(pl_idx, idx, 1);
+                        return;
+                    }
+                    _ => {}
+                }
+            }
+        }
+
         if self.playlist_picker.is_some() {
             self.on_key_playlist_picker(event.code);
             return;
@@ -460,6 +482,11 @@ impl App {
 
         if self.renaming_favorite.is_some() {
             self.on_key_rename(event.code);
+            return;
+        }
+
+        if self.renaming_playlist.is_some() {
+            self.on_key_rename_playlist(event.code);
             return;
         }
 
@@ -1110,6 +1137,13 @@ impl App {
                 self.radio_open_playlist = Some(self.radio_playlist_selected);
                 self.radio_playlist_station_selected = 0;
                 self.radio_playlist_station_scroll_offset = 0;
+            }
+            KeyCode::Char('n') | KeyCode::Char('N') => {
+                self.open_new_playlist_input();
+            }
+            KeyCode::Char('R') if self.radio_playlist_selected < len => {
+                self.renaming_playlist = Some(self.radio_playlist_selected);
+                self.rename_input = self.playlists[self.radio_playlist_selected].name.clone();
             }
             _ => {}
         }

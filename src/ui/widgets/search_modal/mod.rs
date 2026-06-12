@@ -474,6 +474,8 @@ impl SearchModalWidget<'_> {
                     if self.playlists.is_empty() {
                         return vec![
                             Span::raw(" "),
+                            key("[N]"),
+                            sep_s(format!(" {}  ", t("hint.new"))),
                             key("[←→]"),
                             sep_s(format!(" {}  ", t("hint.tabs"))),
                             key("[?]"),
@@ -484,12 +486,12 @@ impl SearchModalWidget<'_> {
                         Span::raw(" "),
                         key("[↵]"),
                         sep_s(format!(" {}  ", t("hint.open"))),
-                        key("[↑↓]"),
-                        sep_s(format!(" {}  ", t("hint.nav"))),
+                        key("[N]"),
+                        sep_s(format!(" {}  ", t("hint.new"))),
+                        key("[R]"),
+                        sep_s(format!(" {}  ", t("hint.rename"))),
                         key("[Alt+F]"),
                         sep_s(format!(" {}  ", t("hint.fav"))),
-                        key("[←→]"),
-                        sep_s(format!(" {}  ", t("hint.tabs"))),
                         key("[?]"),
                         sep_s(format!(" {} ", t("hint.help"))),
                     ];

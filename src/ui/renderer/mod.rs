@@ -197,7 +197,21 @@ pub fn render(frame: &mut Frame, app: &App) {
     }
 
     if app.renaming_favorite.is_some() {
-        render_rename_overlay(frame, &app.rename_input, palette);
+        render_rename_overlay(
+            frame,
+            &app.rename_input,
+            &crate::i18n::t("modal.rename.title"),
+            palette,
+        );
+    }
+
+    if app.renaming_playlist.is_some() {
+        render_rename_overlay(
+            frame,
+            &app.rename_input,
+            &crate::i18n::t("modal.rename_playlist.title"),
+            palette,
+        );
     }
 
     if let Some(ref picker) = app.playlist_picker {
