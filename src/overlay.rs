@@ -94,6 +94,7 @@ struct State {
     peak_ratio: f32,
     volume: f32,
     bitrate_kbps: Option<u16>,
+    remaining_secs: Option<u32>,
     recent: Vec<String>,
     overlay_position: crate::config::OverlayPosition,
     overlay_style: crate::config::OverlayStyle,
@@ -152,6 +153,7 @@ unsafe fn run(
         peak_ratio: 0.0,
         volume: 1.0,
         bitrate_kbps: None,
+        remaining_secs: None,
         recent: Vec::new(),
         overlay_position: config_rx.borrow().overlay_position,
         overlay_style: config_rx.borrow().overlay_style,
@@ -309,6 +311,10 @@ unsafe fn run(
                 s.level_db = ps.level_db;
                 s.volume = ps.volume;
                 s.bitrate_kbps = ps.station.as_ref().and_then(|st| st.bitrate_kbps);
+                s.remaining_secs = match (ps.playback_pos_secs, ps.playback_duration_secs) {
+                    (Some(pos), Some(dur)) if dur > 0.0 => Some((dur - pos).max(0.0) as u32),
+                    _ => None,
+                };
                 s.recent = ps.recent_titles.iter().take(3).cloned().collect();
                 s.duck_enabled = cfg.duck_enabled;
                 s.ostatus = match ps.status {
@@ -583,7 +589,22 @@ unsafe fn paint(hdc: HDC, s: &State) {
     } else {
         s.title.as_str()
     };
-    let _ = TextOutW(hdc, PAD_L, y_title, &wide_truncated(title, 50));
+    let title_max = if s.remaining_secs.is_some() { 43 } else { 50 };
+    let _ = TextOutW(hdc, PAD_L, y_title, &wide_truncated(title, title_max));
+
+    if let Some(remaining) = s.remaining_secs {
+        SelectObject(hdc, HGDIOBJ(f_small.0));
+        SetTextColor(hdc, C_BRAND);
+        let prev_a = SetTextAlign(hdc, TA_RIGHT);
+        let _ = TextOutW(
+            hdc,
+            OW - PAD_R,
+            y_title + 1,
+            &wide(&fmt_remaining(remaining)),
+        );
+        let _ = SetTextAlign(hdc, TEXT_ALIGN_OPTIONS(prev_a));
+        SelectObject(hdc, HGDIOBJ(f_detail.0));
+    }
 
     fill(
         hdc,
@@ -770,11 +791,23 @@ unsafe fn paint_compact(hdc: HDC, s: &State) {
     } else {
         s.title.as_str()
     };
-    let _ = TextOutW(hdc, PAD_L, 30, &wide_truncated(title, 50));
+    let title_max = if s.remaining_secs.is_some() { 43 } else { 50 };
+    let _ = TextOutW(hdc, PAD_L, 30, &wide_truncated(title, title_max));
+
+    if let Some(remaining) = s.remaining_secs {
+        SetTextColor(hdc, C_BRAND);
+        let prev_a = SetTextAlign(hdc, TA_RIGHT);
+        let _ = TextOutW(hdc, OW - PAD_R, 30, &wide(&fmt_remaining(remaining)));
+        let _ = SetTextAlign(hdc, TEXT_ALIGN_OPTIONS(prev_a));
+    }
 
     SelectObject(hdc, prev);
     let _ = DeleteObject(HGDIOBJ(f_station.0));
     let _ = DeleteObject(HGDIOBJ(f_detail.0));
+}
+
+fn fmt_remaining(secs: u32) -> String {
+    format!("-{}:{:02}", secs / 60, secs % 60)
 }
 
 fn status_label(os: OStatus) -> (String, COLORREF) {

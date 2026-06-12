@@ -25,6 +25,7 @@ Versioning: [Semantic Versioning](https://semver.org/)
 - YouTube chapters: in long videos the current chapter shows next to the title, and the [ and ] keys jump between chapters
 - New optional "SponsorBlock (YouTube)" setting that automatically skips non-music sections using the community database (off by default)
 - New "YouTube Radio" setting, on by default: when the playing list ends, playback continues automatically with a mix of similar songs
+- The game overlay now shows a countdown with the time remaining in the current track (Spotify and YouTube), in both Full and Compact styles; Radio has no duration so nothing changes there
 
 ### Changed
 - The YouTube tab now uses YouTube's red consistently across all its elements (selected video, search input, typing cursor, scrollbar), mirroring the green pattern of the Spotify tab so it is always clear which tab is active
