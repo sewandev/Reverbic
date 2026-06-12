@@ -925,23 +925,25 @@ pub(super) fn render_update_toast(
     version: &str,
     is_ready: bool,
     is_modal_open: bool,
+    tick: u32,
     full_area: Rect,
     palette: &Palette,
 ) {
-    use crate::i18n::t;
-    let text = if is_ready {
-        t("update.toast.ready").replace("{}", version)
+    use ratatui::widgets::{Block, BorderType, Borders};
+
+    let (text, border_color) = if is_ready {
+        (
+            format!(" [i] v{} Ready (Restart app) ", version),
+            palette.playing,
+        )
     } else {
-        t("update.toast.downloading").replace("{}", version)
+        let spinners = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+        let s = spinners[(tick as usize / 2) % spinners.len()];
+        (format!(" {} Downloading v{} ", s, version), palette.warning)
     };
 
-    let style = if is_ready {
-        Style::default().fg(palette.panel_bg).bg(palette.playing)
-    } else {
-        Style::default().fg(palette.panel_bg).bg(palette.warning)
-    };
-
-    let w = text.chars().count() as u16;
+    let w = text.chars().count() as u16 + 2;
+    let h = 3;
 
     let x = if is_modal_open {
         let modal_area = crate::ui::widgets::search_modal::modal_rect(full_area);
@@ -957,8 +959,20 @@ pub(super) fn render_update_toast(
         full_area.y + 1
     };
 
-    let area = Rect::new(x, y, w, 1);
-    frame.render_widget(Paragraph::new(text).style(style), area);
+    let area = Rect::new(x, y, w, h);
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(border_color))
+        .style(Style::default().bg(palette.panel_bg));
+
+    frame.render_widget(
+        Paragraph::new(text)
+            .block(block)
+            .style(Style::default().fg(palette.highlight)),
+        area,
+    );
 }
 
 pub(super) fn render_help_overlay(
@@ -1088,12 +1102,12 @@ pub(super) fn render_help_overlay(
     if let Some(version) = update_available {
         let row_y = sep_y + 1;
         if row_y < inner.bottom() {
-            let notice = format!("  {} v{version}", t("update.available"));
+            let notice = format!("  [i] Update v{version} is ready. Restart Reverbic to apply.");
             frame.render_widget(
                 Paragraph::new(Span::styled(
                     notice,
                     Style::default()
-                        .fg(palette.warning)
+                        .fg(palette.playing)
                         .add_modifier(Modifier::BOLD),
                 ))
                 .style(Style::default().bg(palette.panel_bg)),

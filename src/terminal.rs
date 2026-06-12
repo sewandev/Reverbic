@@ -41,3 +41,7 @@ pub fn restore() {
     );
     let _ = disable_raw_mode();
 }
+
+pub fn set_title(title: &str) {
+    let _ = execute!(io::stdout(), SetTitle(title));
+}
