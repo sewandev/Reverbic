@@ -519,6 +519,28 @@ pub(crate) fn youtube_layout(area: Rect) -> YoutubeLayout {
     YoutubeLayout { subtab, body }
 }
 
+pub(crate) fn youtube_auth_notice_box(body: Rect) -> Option<Rect> {
+    let box_w = body.width.saturating_sub(4).min(70);
+    let box_h = 14.min(body.height);
+    if box_w < 20 || box_h < 6 {
+        return None;
+    }
+    Some(Rect::new(
+        body.x + (body.width - box_w) / 2,
+        body.y + body.height.saturating_sub(box_h) / 2,
+        box_w,
+        box_h,
+    ))
+}
+
+pub(crate) fn youtube_auth_notice_at(area: Rect, col: u16, row: u16) -> bool {
+    let Some(body) = modal_body_area(area) else {
+        return false;
+    };
+    youtube_auth_notice_box(youtube_layout(body).body)
+        .is_some_and(|notice| contains(notice, col, row))
+}
+
 pub(crate) fn youtube_search_layout(area: Rect) -> SpotifySearchLayout {
     let [input, cap, list] = Layout::vertical([
         Constraint::Length(SEARCH_INPUT_ROWS),

@@ -30,9 +30,11 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ### Changed
 - The YouTube tab now uses YouTube's red consistently across all its elements (selected video, search input, typing cursor, scrollbar), mirroring the green pattern of the Spotify tab so it is always clear which tab is active
+- The YouTube [Liked] and [Playlists] sub-tabs now show a clear notice panel when no cookies.txt is configured: it explains that authentication is needed, recommends using a secondary account and links to the step-by-step guide with the risks; the sub-tab labels also render as disabled (the old message overflowed the panel and was easy to miss)
 
 ### Fixed
 - Videos from recently ended live streams no longer hang in an endless retry loop; Reverbic now explains that YouTube is still processing the recording and to try again later
+- Trying to play a YouTube stream that is live right now no longer shows the generic "no compatible format" error; Reverbic now explains it is an ongoing live broadcast and that it can be played once the stream ends
 - The Spotify footer no longer claims "Mode: Remote Listening on Unknown [active]" when using Auto mode with no device; it now shows the real mode (Auto or Remote) and "no Spotify device detected" when there is none
 - The Spotify footer now distinguishes between a device that is really playing ([active]) and one that is merely listed by Spotify ([available])
 - When a Spotify device does not respond on playback (e.g. a phone whose app was closed but Spotify still lists it), Reverbic now discards it, explains what happened, and rescans instead of keeping it as the target

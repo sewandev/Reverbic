@@ -30,9 +30,11 @@ Versionado: [Semantic Versioning](https://semver.org/)
 
 ### Cambiado
 - La pestaña de YouTube ahora usa el rojo de YouTube de forma consistente en todos sus elementos (video seleccionado, campo de búsqueda, cursor de escritura, barra de scroll), replicando el patrón verde de la pestaña de Spotify para que siempre quede claro en qué pestaña estás
+- Las sub-pestañas [Me gusta] y [Playlists] de YouTube ahora muestran un panel de aviso claro cuando no hay cookies.txt configurado: explica que se necesita autenticación, recomienda usar una cuenta secundaria y enlaza a la guía paso a paso con los riesgos; las etiquetas de las sub-pestañas también se ven deshabilitadas (el mensaje anterior se desbordaba del panel y pasaba desapercibido)
 
 ### Corregido
 - Los videos de transmisiones en vivo recién finalizadas ya no se quedan en un ciclo infinito de reintentos; Reverbic ahora explica que YouTube todavía está procesando la grabación y que se intente más tarde
+- Intentar reproducir un stream de YouTube que está en vivo en este momento ya no muestra el error genérico de "formato no compatible"; Reverbic ahora explica que es una transmisión en curso y que podrá reproducirse cuando termine
 - El pie de la pestaña de Spotify ya no afirma "Modo: Remoto Escuchando en Desconocido [activo]" al usar el modo Auto sin dispositivos; ahora muestra el modo real (Auto o Remoto) y "ningún dispositivo de Spotify detectado" cuando no hay ninguno
 - El pie de la pestaña de Spotify ahora distingue entre un dispositivo realmente reproduciendo ([activo]) y uno que Spotify solo lista como disponible ([disponible])
 - Cuando un dispositivo de Spotify no responde al reproducir (ej. un teléfono cuya app se cerró pero Spotify aún lo lista), Reverbic ahora lo descarta, explica lo que pasó y reescanea en vez de mantenerlo como destino

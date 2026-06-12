@@ -14,7 +14,7 @@ use crate::ui::widgets::{
         radio_filtered_results_list_area, radio_search_results_list_area, radio_subtab_at,
         settings_items_area, settings_visible_rows, spotify_body_area, spotify_search_list_area,
         spotify_subtab_at, spotify_titled_track_list_area, two_line_list_index_at, visible_items,
-        visible_rows_excluding_scrollbar, youtube_liked_list_area,
+        visible_rows_excluding_scrollbar, youtube_auth_notice_at, youtube_liked_list_area,
         youtube_playlist_videos_list_area, youtube_playlists_list_area, youtube_search_list_area,
         youtube_subtab_at, ListItemHeight,
     },
@@ -1477,6 +1477,15 @@ impl App {
                     if self.youtube.sub_tab != tab {
                         self.switch_youtube_sub_tab(tab);
                     }
+                    return;
+                }
+                if matches!(
+                    self.youtube.sub_tab,
+                    YoutubeSubTab::Liked | YoutubeSubTab::Playlists
+                ) && self.config.youtube.cookies_path.is_none()
+                    && youtube_auth_notice_at(self.terminal_area, col, row)
+                {
+                    crate::shell::open_url(&t("modal.youtube.auth_notice.guide_url"));
                     return;
                 }
                 self.on_click_youtube(col, row).await;

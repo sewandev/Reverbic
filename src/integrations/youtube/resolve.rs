@@ -195,9 +195,18 @@ async fn run_yt_dlp_resolve(
         }
 
         if no_compatible_formats(&raw) {
-            return Err(YoutubeError::Resolve(crate::i18n::t(
-                "modal.youtube.no_audio_formats",
-            )));
+            let key = match probe_live_status(binary, watch_url, cookies_path, deno_path)
+                .await
+                .as_deref()
+            {
+                Some("is_live") => {
+                    tracing::info!(watch_url, "video is a live stream, reporting it clearly");
+                    "modal.youtube.live_not_supported"
+                }
+                Some("post_live") => "modal.youtube.post_live_not_ready",
+                _ => "modal.youtube.no_audio_formats",
+            };
+            return Err(YoutubeError::Resolve(crate::i18n::t(key)));
         }
 
         return Err(YoutubeError::Resolve(format!(
@@ -208,6 +217,27 @@ async fn run_yt_dlp_resolve(
     }
 
     parse_resolve_output(&output.stdout)
+}
+
+async fn probe_live_status(
+    binary: &Path,
+    watch_url: &str,
+    cookies_path: Option<&Path>,
+    deno_path: &Path,
+) -> Option<String> {
+    let mut args = super::base_ytdlp_args(super::EXTRACTOR_ARGS_DEFAULT, deno_path, cookies_path);
+    args.push("--no-playlist".to_string());
+    args.push("-j".to_string());
+    args.push(watch_url.to_string());
+
+    let output = Command::new(binary).args(args).output().await.ok()?;
+    if !output.status.success() {
+        tracing::debug!(watch_url, "live status probe failed");
+        return None;
+    }
+    let json: serde_json::Value =
+        serde_json::from_str(String::from_utf8_lossy(&output.stdout).trim()).ok()?;
+    json["live_status"].as_str().map(str::to_string)
 }
 
 pub fn invalidate_cached_url(watch_url: &str) {
