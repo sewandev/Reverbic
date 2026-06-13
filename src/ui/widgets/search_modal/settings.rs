@@ -91,6 +91,20 @@ impl<'a> SearchModalWidget<'a> {
                     off
                 }
             }
+            SettingItem::ScreensaverStationDetails => {
+                if self.screensaver_station_details {
+                    on
+                } else {
+                    off
+                }
+            }
+            SettingItem::ScreensaverNowPlaying => {
+                if self.screensaver_now_playing {
+                    on
+                } else {
+                    off
+                }
+            }
             SettingItem::DuckEnabled => {
                 if self.duck_enabled {
                     on

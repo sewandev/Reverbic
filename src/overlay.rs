@@ -559,7 +559,7 @@ unsafe fn paint(hdc: HDC, s: &State) {
     let _ = TextOutW(hdc, PAD_L, 5, &wide("REVERBIC"));
     if let Some(src) = s.source {
         SelectObject(hdc, HGDIOBJ(f_small.0));
-        SetTextColor(hdc, rgb(0x80, 0x80, 0x80));
+        SetTextColor(hdc, source_color(src));
         let _ = TextOutW(hdc, PAD_L + 75, 7, &wide(&format!("• {}", src)));
         SelectObject(hdc, HGDIOBJ(f_brand.0));
     }
@@ -805,7 +805,7 @@ unsafe fn paint_compact(hdc: HDC, s: &State) {
     let _ = TextOutW(hdc, OW - PAD_R, 5, &wide(&clock));
     if let Some(src) = s.source {
         SelectObject(hdc, HGDIOBJ(f_detail.0));
-        SetTextColor(hdc, rgb(0x80, 0x80, 0x80));
+        SetTextColor(hdc, source_color(src));
         let _ = TextOutW(hdc, OW - PAD_R - 38, 7, &wide(&format!("• {}", src)));
         SelectObject(hdc, HGDIOBJ(f_station.0));
     }
@@ -851,6 +851,15 @@ fn status_label(os: OStatus) -> (String, COLORREF) {
         OStatus::Playing => ("●".into(), C_ST_OK),
         OStatus::Buffering(f) => (format!("◌ {:.0}%", f * 100.0), C_ST_BUF),
         OStatus::Reconnecting(n) => (format!("↻ x{n}"), C_ST_RECO),
+    }
+}
+
+fn source_color(src: &str) -> COLORREF {
+    match src {
+        "Spotify" => rgb(0x1E, 0xD7, 0x60),
+        "YouTube" => rgb(0xFF, 0x33, 0x33),
+        "Radio" => rgb(0xCC, 0xA0, 0x30),
+        _ => C_ACCENT,
     }
 }
 

@@ -1,4 +1,4 @@
-mod ambient;
+pub(crate) mod ambient;
 mod overlays;
 
 use ratatui::{layout::Rect, Frame};
@@ -68,6 +68,7 @@ pub fn render(frame: &mut Frame, app: &App) {
                         country: app.config.spotify.country.as_deref(),
                         followers: app.config.spotify.followers,
                         is_premium: app.spotify.is_premium,
+                        recent_titles: &app.session_recent_tracks,
                     },
                     &app.config,
                     app.border_tick,
@@ -92,6 +93,15 @@ pub fn render(frame: &mut Frame, app: &App) {
             .as_ref()
             .map(|s| app.favorites.iter().any(|f| f.url == s.url))
             .unwrap_or(false);
+        let is_youtube = player_state
+            .station
+            .as_ref()
+            .is_some_and(|s| s.key.starts_with("youtube:"));
+        let recent_titles: &[String] = if is_youtube {
+            &app.session_recent_tracks
+        } else {
+            &player_state.recent_titles
+        };
         render_ambient_mode(
             frame,
             area,
@@ -100,6 +110,7 @@ pub fn render(frame: &mut Frame, app: &App) {
                 details: app.station_details.as_ref(),
                 is_favorite: is_fav,
                 enriched_track: app.radio_enriched_track.as_ref(),
+                recent_titles,
             },
             &app.config,
             app.border_tick,

@@ -12,9 +12,21 @@ Versionado: [Semantic Versioning](https://semver.org/)
 
 ### Agregado
 - Se agregaron configuraciones individuales en Ajustes > Modo Ambiente para alternar el visualizador, pistas recientes, barra de progreso y logo dentro del Modo Ambiente.
+- El Modo Ambiente ahora identifica la fuente de YouTube y muestra el capítulo actual del video en reproducción debajo del título.
+- La lista de pistas recientes del Modo Ambiente ahora funciona en todas las fuentes (radio, YouTube y Spotify), conservando las últimas 5 pistas reproducidas durante la sesión.
+- Los detalles de la estación en el Modo Ambiente ahora son un widget dedicado y resaltado con color, que muestra país, región, idioma, códec y bitrate, etiquetas, popularidad (votos y reproducciones) y un sitio web clicable.
+- Se agregó un ajuste en Ajustes > Modo Ambiente para mostrar u ocultar los detalles de la estación.
+- Se agregó un ajuste en Ajustes > Modo Ambiente para mostrar u ocultar el bloque de reproducción actual (nombre de la fuente más artista, título y álbum).
 
 ### Cambiado
 - Se refactorizó el renderizado del Modo Ambiente para usar widgets modulares para el reloj, visualizador, barra de progreso y logo.
+- Se rediseñó la barra de atajos del Modo Ambiente: sin emojis, centrada y con las teclas resaltadas (ej. Space Pausa · +/- Volumen · Alt+S Detener · Tecla Salir).
+- Los títulos, artistas y nombres de álbum largos en el Modo Ambiente ahora se ajustan a una segunda línea en lugar de cortarse con puntos suspensivos.
+- El Modo Ambiente ya no se activa cuando todos sus widgets (reloj, logo, visualizador, barra de progreso, pistas recientes) están desactivados.
+
+### Corregido
+- El indicador de origen de reproducción (Radio / YouTube / Spotify) en el overlay de Windows era casi invisible en gris; ahora usa un color distinto por origen para que resalte.
+- El logo de Reverbic en el Modo Ambiente podía quedar fuera de pantalla cuando el panel crecía; ahora se reserva espacio para que siempre quede visible sobre el panel.
 
 ## [1.5.2] - 2026-06-12
 

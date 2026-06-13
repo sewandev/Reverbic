@@ -12,9 +12,21 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ### Added
 - Added individual settings in Settings > Ambient Mode to toggle visualizer, recent tracks, progress bar, and logo within the Ambient Mode.
+- Ambient Mode now labels the YouTube source and shows the current chapter of the playing video below the title.
+- The recent tracks list in Ambient Mode now works for every source (radio, YouTube, and Spotify), keeping the last 5 tracks played during the session.
+- The station details in Ambient Mode are now a dedicated, color-highlighted widget showing country, region, language, codec and bitrate, tags, popularity (votes and plays), and a clickable website.
+- Added a setting in Settings > Ambient Mode to toggle the station details on or off.
+- Added a setting in Settings > Ambient Mode to toggle the now playing block (source name plus current artist, title, and album) on or off.
 
 ### Changed
 - Refactored Ambient Mode rendering to use modular widgets for clock, visualizer, progress bar, and logo.
+- Redesigned the Ambient Mode shortcuts bar: emoji-free, centered, with highlighted keys (e.g. Space Pause · +/- Volume · Alt+S Stop · Key Exit).
+- Long titles, artists, and album names in Ambient Mode now wrap onto a second line instead of being cut off with an ellipsis.
+- Ambient Mode no longer activates when all of its widgets (clock, logo, visualizer, progress bar, recent tracks) are turned off.
+
+### Fixed
+- The playback source indicator (Radio / YouTube / Spotify) in the Windows overlay was nearly invisible in gray; it now uses a distinct color per source so it stands out.
+- The Reverbic logo in Ambient Mode could be pushed off-screen when the panel grew tall; space is now reserved so it always stays visible above the panel.
 
 ## [1.5.2] - 2026-06-12
 

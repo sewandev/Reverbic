@@ -12,14 +12,21 @@ use crate::ui::theme::Palette;
 
 pub struct RecentTracksWidget<'a> {
     tracks: &'a [String],
+    current_badge: &'a str,
     bg: ratatui::style::Color,
     palette: &'a Palette,
 }
 
 impl<'a> RecentTracksWidget<'a> {
-    pub fn new(tracks: &'a [String], bg: ratatui::style::Color, palette: &'a Palette) -> Self {
+    pub fn new(
+        tracks: &'a [String],
+        current_badge: &'a str,
+        bg: ratatui::style::Color,
+        palette: &'a Palette,
+    ) -> Self {
         Self {
             tracks,
+            current_badge,
             bg,
             palette,
         }
@@ -47,12 +54,13 @@ impl<'a> Widget for RecentTracksWidget<'a> {
             return;
         }
 
-        let now_live = t("screensaver.now_live");
-        let badge_w = now_live.chars().count() as u16 + 4;
+        let badge = self.current_badge;
+        let badge_w = badge.chars().count() as u16 + 6;
         let max_cur = cw.saturating_sub(3 + badge_w) as usize;
 
         if let Some(current) = self.tracks.first() {
             let display = strings::truncate(current, max_cur);
+            let badge_color = self.palette.accent;
             let p = Paragraph::new(Line::from(vec![
                 Span::styled("▶  ", Style::default().fg(self.palette.accent)),
                 Span::styled(
@@ -61,10 +69,16 @@ impl<'a> Widget for RecentTracksWidget<'a> {
                         .fg(self.palette.highlight)
                         .add_modifier(Modifier::BOLD),
                 ),
+                Span::styled("  ", Style::default().bg(self.bg)),
+                Span::styled("\u{e0b6}", Style::default().fg(badge_color).bg(self.bg)),
                 Span::styled(
-                    format!("  {now_live}"),
-                    Style::default().fg(self.palette.accent),
+                    format!(" {badge} "),
+                    Style::default()
+                        .fg(self.bg)
+                        .bg(badge_color)
+                        .add_modifier(Modifier::BOLD),
                 ),
+                Span::styled("\u{e0b4}", Style::default().fg(badge_color).bg(self.bg)),
             ]))
             .style(Style::default().bg(self.bg));
 
