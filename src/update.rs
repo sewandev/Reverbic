@@ -42,7 +42,6 @@ impl GitHubAsset {
 enum UpdateOs {
     Windows,
     MacOs,
-    Linux,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -72,7 +71,6 @@ impl UpdateTarget {
         let os = match os {
             "windows" => UpdateOs::Windows,
             "macos" | "darwin" => UpdateOs::MacOs,
-            "linux" => UpdateOs::Linux,
             _ => return Err(AssetSelectionError::UnsupportedPlatform),
         };
 
@@ -85,7 +83,6 @@ impl UpdateTarget {
         match (os, arch) {
             (UpdateOs::Windows, UpdateArch::X86_64) => Ok(Self { os, arch }),
             (UpdateOs::MacOs, _) => Ok(Self { os, arch }),
-            (UpdateOs::Linux, _) => Ok(Self { os, arch }),
             _ => Err(AssetSelectionError::NoCompatibleAsset),
         }
     }
@@ -96,16 +93,10 @@ impl UpdateTarget {
                 format!("reverbic-v{version}-x86_64-windows.exe")
             }
             (UpdateOs::MacOs, UpdateArch::X86_64) => {
-                format!("reverbic-v{version}-x86_64-apple-darwin")
+                format!("reverbic-v{version}-x86_64-macos.tar.gz")
             }
             (UpdateOs::MacOs, UpdateArch::Aarch64) => {
-                format!("reverbic-v{version}-aarch64-apple-darwin")
-            }
-            (UpdateOs::Linux, UpdateArch::X86_64) => {
-                format!("reverbic-v{version}-x86_64-unknown-linux-gnu")
-            }
-            (UpdateOs::Linux, UpdateArch::Aarch64) => {
-                format!("reverbic-v{version}-aarch64-unknown-linux-gnu")
+                format!("reverbic-v{version}-aarch64-macos.tar.gz")
             }
             _ => unreachable!(),
         }
@@ -635,12 +626,12 @@ mod asset_selection_tests {
     }
 
     #[test]
-    fn selects_update_asset_for_macos_aarch64() {
-        let target = UpdateTarget::from_parts("macos", "aarch64")
-            .expect("macos aarch64 should be a supported update target");
+    fn selects_update_asset_for_macos_x86_64() {
+        let target = UpdateTarget::from_parts("macos", "x86_64")
+            .expect("macos x86_64 should be a supported update target");
         let selected = select_compatible_asset(
             vec![
-                asset("reverbic-v2.0.0-aarch64-apple-darwin"),
+                asset("reverbic-v2.0.0-x86_64-macos.tar.gz"),
                 asset("reverbic-v2.0.0-x86_64-windows.exe"),
             ],
             "2.0.0",
@@ -648,24 +639,32 @@ mod asset_selection_tests {
         )
         .expect("macos release asset should be selected");
 
-        assert_eq!(selected.name, "reverbic-v2.0.0-aarch64-apple-darwin");
+        assert_eq!(selected.name, "reverbic-v2.0.0-x86_64-macos.tar.gz");
     }
 
     #[test]
-    fn selects_update_asset_for_linux_x86_64() {
-        let target = UpdateTarget::from_parts("linux", "x86_64")
-            .expect("linux x86_64 should be a supported update target");
+    fn selects_update_asset_for_macos_aarch64() {
+        let target = UpdateTarget::from_parts("macos", "aarch64")
+            .expect("macos aarch64 should be a supported update target");
         let selected = select_compatible_asset(
             vec![
-                asset("reverbic-v2.0.0-aarch64-apple-darwin"),
-                asset("reverbic-v2.0.0-x86_64-unknown-linux-gnu"),
+                asset("reverbic-v2.0.0-aarch64-macos.tar.gz"),
+                asset("reverbic-v2.0.0-x86_64-windows.exe"),
             ],
             "2.0.0",
             target,
         )
-        .expect("linux release asset should be selected");
+        .expect("macos release asset should be selected");
 
-        assert_eq!(selected.name, "reverbic-v2.0.0-x86_64-unknown-linux-gnu");
+        assert_eq!(selected.name, "reverbic-v2.0.0-aarch64-macos.tar.gz");
+    }
+
+    #[test]
+    fn rejects_update_asset_for_linux() {
+        let err = UpdateTarget::from_parts("linux", "x86_64")
+            .expect_err("linux update target should be unsupported");
+
+        assert_eq!(err, AssetSelectionError::UnsupportedPlatform);
     }
 
     #[test]
@@ -673,7 +672,7 @@ mod asset_selection_tests {
         let target = UpdateTarget::from_parts("windows", "x86_64")
             .expect("windows x86_64 should be a supported update target");
         let err = select_compatible_asset(
-            vec![asset("reverbic-v2.0.0-aarch64-apple-darwin")],
+            vec![asset("reverbic-v2.0.0-aarch64-macos.tar.gz")],
             "2.0.0",
             target,
         )
