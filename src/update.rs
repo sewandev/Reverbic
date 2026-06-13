@@ -299,10 +299,16 @@ pub fn apply_update(new_exe: &Path) {
 
 #[cfg(target_os = "macos")]
 fn apply_macos_update(update_payload: &Path) {
-    match prepare_macos_update_payload(update_payload) {
+    let prepared = prepare_macos_update_payload(update_payload);
+    let _ = std::fs::remove_file(update_payload);
+
+    match prepared {
         Ok(candidate) => {
-            if let Err(err) = replace_current_executable(&candidate) {
+            if let Err(err) = replace_current_executable(&candidate.binary_path) {
                 tracing::error!("Failed to apply macOS update: {err}");
+            }
+            if let Err(err) = std::fs::remove_dir_all(&candidate.extract_dir) {
+                tracing::debug!(?err, "Failed to clean macOS update extraction directory");
             }
         }
         Err(err) => {
@@ -316,14 +322,158 @@ fn apply_macos_update(update_payload: &Path) {
 }
 
 #[cfg(target_os = "macos")]
-fn prepare_macos_update_payload(update_payload: &Path) -> std::io::Result<PathBuf> {
-    Err(std::io::Error::new(
-        std::io::ErrorKind::Unsupported,
-        format!(
-            "macOS archive payload preparation is not implemented for {}",
-            update_payload.display()
-        ),
-    ))
+#[derive(Debug)]
+struct PreparedMacosUpdate {
+    binary_path: PathBuf,
+    extract_dir: PathBuf,
+}
+
+#[cfg(target_os = "macos")]
+fn prepare_macos_update_payload(update_payload: &Path) -> std::io::Result<PreparedMacosUpdate> {
+    let extract_dir = unique_macos_extract_dir(update_payload);
+    std::fs::create_dir(&extract_dir)?;
+
+    match extract_macos_update_archive(update_payload, &extract_dir) {
+        Ok(binary_path) => Ok(PreparedMacosUpdate {
+            binary_path,
+            extract_dir,
+        }),
+        Err(err) => {
+            let _ = std::fs::remove_dir_all(&extract_dir);
+            Err(err)
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn unique_macos_extract_dir(update_payload: &Path) -> PathBuf {
+    let payload_name = update_payload
+        .file_name()
+        .map(|name| name.to_string_lossy())
+        .unwrap_or_else(|| "reverbic-update".into());
+    let base = std::env::temp_dir().join(format!("{payload_name}.{}.extract", std::process::id()));
+    unique_part_path(&base)
+}
+
+#[cfg(target_os = "macos")]
+fn extract_macos_update_archive(
+    update_payload: &Path,
+    extract_dir: &Path,
+) -> std::io::Result<PathBuf> {
+    use flate2::read::GzDecoder;
+    use std::ffi::OsStr;
+    use std::io;
+    use tar::EntryType;
+
+    let archive_file = std::fs::File::open(update_payload)?;
+    let decoder = GzDecoder::new(archive_file);
+    let mut archive = tar::Archive::new(decoder);
+    let mut candidate = None;
+
+    for entry_result in archive.entries()? {
+        let mut entry = entry_result?;
+        let entry_path = safe_macos_archive_path(entry.path()?.as_ref())?;
+        let entry_type = entry.header().entry_type();
+
+        if entry_type == EntryType::Directory {
+            std::fs::create_dir_all(extract_dir.join(&entry_path))?;
+            continue;
+        }
+
+        if !entry_type.is_file() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!(
+                    "unsupported archive entry type for {}",
+                    entry_path.display()
+                ),
+            ));
+        }
+
+        let destination = extract_dir.join(&entry_path);
+        if let Some(parent) = destination.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        entry.unpack(&destination)?;
+
+        if entry_path.file_name() == Some(OsStr::new("reverbic"))
+            && candidate.replace(destination).is_some()
+        {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "macOS update archive contains multiple reverbic binaries",
+            ));
+        }
+    }
+
+    let candidate = candidate.ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::NotFound,
+            "macOS update archive does not contain a reverbic binary",
+        )
+    })?;
+    prepare_macos_update_binary(&candidate)?;
+    Ok(candidate)
+}
+
+#[cfg(target_os = "macos")]
+fn safe_macos_archive_path(path: &Path) -> std::io::Result<PathBuf> {
+    use std::path::Component;
+
+    let mut safe_path = PathBuf::new();
+    let mut has_component = false;
+
+    for component in path.components() {
+        match component {
+            Component::Normal(part) => {
+                safe_path.push(part);
+                has_component = true;
+            }
+            Component::CurDir => {}
+            _ => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!("unsafe archive path {}", path.display()),
+                ));
+            }
+        }
+    }
+
+    if !has_component {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "empty archive path",
+        ));
+    }
+
+    Ok(safe_path)
+}
+
+#[cfg(target_os = "macos")]
+fn prepare_macos_update_binary(candidate: &Path) -> std::io::Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+
+    let metadata = std::fs::symlink_metadata(candidate)?;
+    if !metadata.file_type().is_file() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "macOS update candidate is not a regular file",
+        ));
+    }
+
+    let mut permissions = metadata.permissions();
+    permissions.set_mode(permissions.mode() | 0o111);
+    std::fs::set_permissions(candidate, permissions)?;
+
+    let mode = std::fs::metadata(candidate)?.permissions().mode();
+    if mode & 0o111 == 0 {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::PermissionDenied,
+            "macOS update candidate is not executable",
+        ));
+    }
+
+    Ok(())
 }
 
 #[cfg(target_os = "macos")]
@@ -713,6 +863,109 @@ mod asset_selection_tests {
         .expect_err("missing compatible asset should be rejected");
 
         assert_eq!(err, AssetSelectionError::NoCompatibleAsset);
+    }
+}
+
+#[cfg(all(test, target_os = "macos"))]
+mod macos_payload_tests {
+    use super::{prepare_macos_update_payload, safe_macos_archive_path};
+    use flate2::write::GzEncoder;
+    use flate2::Compression;
+    use std::path::{Path, PathBuf};
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    fn next_id() -> u64 {
+        static COUNTER: AtomicU64 = AtomicU64::new(0);
+        COUNTER.fetch_add(1, Ordering::Relaxed)
+    }
+
+    fn test_path(label: &str) -> PathBuf {
+        std::env::temp_dir().join(format!(
+            "reverbic-macos-update-test-{}-{}-{label}",
+            std::process::id(),
+            next_id()
+        ))
+    }
+
+    fn write_archive(path: &Path, entries: &[(&str, &[u8])]) {
+        let file = std::fs::File::create(path).expect("test archive should be created");
+        let encoder = GzEncoder::new(file, Compression::default());
+        let mut builder = tar::Builder::new(encoder);
+
+        for (entry_path, content) in entries {
+            let mut header = tar::Header::new_gnu();
+            header.set_size(content.len() as u64);
+            header.set_mode(0o644);
+            header.set_cksum();
+            builder
+                .append_data(&mut header, entry_path, *content)
+                .expect("test archive entry should be appended");
+        }
+
+        builder.finish().expect("test archive should be finalized");
+    }
+
+    #[test]
+    fn prepares_valid_macos_archive_candidate() {
+        let archive_path = test_path("valid.tar.gz");
+        write_archive(&archive_path, &[("reverbic", b"#!/bin/sh\n")]);
+
+        let prepared = prepare_macos_update_payload(&archive_path)
+            .expect("valid macOS archive should produce a candidate");
+        let metadata =
+            std::fs::metadata(&prepared.binary_path).expect("candidate should have metadata");
+
+        assert!(metadata.is_file());
+        assert_eq!(
+            prepared
+                .binary_path
+                .file_name()
+                .expect("candidate should include a file name"),
+            "reverbic"
+        );
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_ne!(metadata.permissions().mode() & 0o111, 0);
+        }
+
+        let _ = std::fs::remove_dir_all(prepared.extract_dir);
+        let _ = std::fs::remove_file(archive_path);
+    }
+
+    #[test]
+    fn rejects_archive_without_reverbic_binary() {
+        let archive_path = test_path("missing.tar.gz");
+        write_archive(&archive_path, &[("README.txt", b"not the binary")]);
+
+        let err = prepare_macos_update_payload(&archive_path)
+            .expect_err("archive without reverbic should be rejected");
+
+        assert_eq!(err.kind(), std::io::ErrorKind::NotFound);
+        let _ = std::fs::remove_file(archive_path);
+    }
+
+    #[test]
+    fn rejects_archive_with_multiple_reverbic_binaries() {
+        let archive_path = test_path("duplicate.tar.gz");
+        write_archive(
+            &archive_path,
+            &[("reverbic", b"one"), ("nested/reverbic", b"two")],
+        );
+
+        let err = prepare_macos_update_payload(&archive_path)
+            .expect_err("archive with duplicate reverbic binaries should be rejected");
+
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
+        let _ = std::fs::remove_file(archive_path);
+    }
+
+    #[test]
+    fn rejects_suspicious_archive_paths() {
+        let err = safe_macos_archive_path(Path::new("../reverbic"))
+            .expect_err("parent directory path should be rejected");
+
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
     }
 }
 
