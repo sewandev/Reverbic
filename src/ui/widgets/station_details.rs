@@ -146,7 +146,7 @@ impl Widget for StationDetailsWidget<'_> {
         if Self::has_popularity(d) && y < area.bottom() {
             let mut spans: Vec<Span<'static>> = Vec::new();
             if d.votes > 0 {
-                spans.push(Span::styled(group_thousands(d.votes), value));
+                spans.push(Span::styled(strings::group_thousands(d.votes), value));
                 spans.push(Span::styled(
                     format!(" {}", t("screensaver.details.votes")),
                     dim,
@@ -156,7 +156,7 @@ impl Widget for StationDetailsWidget<'_> {
                 if !spans.is_empty() {
                     spans.push(self.separator());
                 }
-                spans.push(Span::styled(group_thousands(d.clickcount), value));
+                spans.push(Span::styled(strings::group_thousands(d.clickcount), value));
                 spans.push(Span::styled(
                     format!(" {}", t("screensaver.details.plays")),
                     dim,
@@ -177,18 +177,4 @@ impl Widget for StationDetailsWidget<'_> {
                 .render(Rect::new(area.x, y, area.width, 1), buf);
         }
     }
-}
-
-fn group_thousands(n: u32) -> String {
-    let digits = n.to_string();
-    let bytes = digits.as_bytes();
-    let mut out = String::with_capacity(digits.len() + digits.len() / 3);
-    let len = bytes.len();
-    for (i, b) in bytes.iter().enumerate() {
-        if i > 0 && (len - i).is_multiple_of(3) {
-            out.push('.');
-        }
-        out.push(*b as char);
-    }
-    out
 }
