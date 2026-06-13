@@ -1,4 +1,11 @@
+pub mod clock;
+pub mod controls;
+pub mod logo;
+pub mod progress;
+pub mod recent_tracks;
 pub mod search_modal;
+pub mod station_details;
+pub mod visualizer;
 
 pub(crate) fn keep_selected_visible(scroll_offset: &mut usize, selected: usize, visible: usize) {
     if visible == 0 {

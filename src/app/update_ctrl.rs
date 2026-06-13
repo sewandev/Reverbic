@@ -26,11 +26,16 @@ impl App {
             self.update_check_task = None;
             if let Some(asset) = result {
                 self.update_available = Some(asset.version.clone());
+                crate::terminal::set_title(&format!(
+                    "Reverbic - Downloading v{}...",
+                    asset.version
+                ));
                 self.start_update_download(asset);
             } else {
                 tracing::debug!("No compatible update available");
                 self.update_available = None;
                 self.update_path = None;
+                crate::terminal::set_title(concat!("Reverbic v", env!("CARGO_PKG_VERSION")));
             }
         }
     }
@@ -53,10 +58,14 @@ impl App {
             self.update_download_task = None;
             if let Some(path) = result {
                 self.update_path = Some(path);
+                if let Some(version) = &self.update_available {
+                    crate::terminal::set_title(&format!("Reverbic - Update v{} Ready", version));
+                }
             } else {
                 tracing::debug!("Update download failed or was rejected");
                 self.update_available = None;
                 self.update_path = None;
+                crate::terminal::set_title(concat!("Reverbic v", env!("CARGO_PKG_VERSION")));
             }
         }
     }

@@ -239,7 +239,11 @@ impl App {
     fn settings_selected_row(&self) -> usize {
         let mut row = 0usize;
         let mut last_group = "";
-        for (item_idx, item) in settings_items(self.config.duck_enabled).iter().enumerate() {
+        for (item_idx, item) in
+            settings_items(self.config.duck_enabled, self.config.screensaver_secs > 0)
+                .iter()
+                .enumerate()
+        {
             let group = item.group_key();
             if group != last_group {
                 row += 1;
@@ -1227,7 +1231,8 @@ impl App {
     }
 
     fn on_key_modal_settings(&mut self, key: KeyCode) {
-        let count = settings_items(self.config.duck_enabled).len();
+        let count =
+            settings_items(self.config.duck_enabled, self.config.screensaver_secs > 0).len();
         match key {
             KeyCode::Esc => {
                 self.show_help = false;
@@ -1290,7 +1295,7 @@ impl App {
     }
 
     fn activate_setting_selected(&mut self) {
-        let items = settings_items(self.config.duck_enabled);
+        let items = settings_items(self.config.duck_enabled, self.config.screensaver_secs > 0);
         if let Some(item) = items.get(self.settings_selected).copied() {
             self.activate_setting_item(item);
             if matches!(self.modal_mode, SearchMode::Settings) {
@@ -1571,6 +1576,13 @@ impl App {
         let screensaver_was_active = self.screensaver_active();
         self.last_activity = Instant::now();
         if screensaver_was_active {
+            if crate::ui::renderer::ambient::url_hit_at(col, row) {
+                if let Some(d) = self.station_details.as_ref() {
+                    if !d.homepage.is_empty() {
+                        crate::shell::open_url(&d.homepage);
+                    }
+                }
+            }
             return;
         }
 
@@ -1840,7 +1852,7 @@ impl App {
     }
 
     fn on_click_settings(&mut self, col: u16, row: u16) {
-        let items = settings_items(self.config.duck_enabled);
+        let items = settings_items(self.config.duck_enabled, self.config.screensaver_secs > 0);
         let visual_row_count = settings_visual_row_count(&items);
         let Some(visual_row) = one_line_list_index_at(
             settings_items_area(self.terminal_area),
@@ -2353,7 +2365,11 @@ impl App {
                             }
                         }
                         SearchMode::Settings => {
-                            let len = settings_items(self.config.duck_enabled).len();
+                            let len = settings_items(
+                                self.config.duck_enabled,
+                                self.config.screensaver_secs > 0,
+                            )
+                            .len();
                             if len > 0 {
                                 self.settings_selected =
                                     scroll_by(self.settings_selected, delta, len);
@@ -2498,7 +2514,9 @@ impl App {
 
     fn apply_settings_toggle(&mut self, idx: usize) {
         use crate::i18n;
-        let Some(&item) = settings_items(self.config.duck_enabled).get(idx) else {
+        let Some(&item) =
+            settings_items(self.config.duck_enabled, self.config.screensaver_secs > 0).get(idx)
+        else {
             return;
         };
         match item {
@@ -2542,6 +2560,24 @@ impl App {
             super::modal::SettingItem::Screensaver => self.config.screensaver_next(),
             super::modal::SettingItem::ScreensaverClock => {
                 self.config.screensaver_clock = !self.config.screensaver_clock
+            }
+            super::modal::SettingItem::ScreensaverLogo => {
+                self.config.screensaver_logo = !self.config.screensaver_logo
+            }
+            super::modal::SettingItem::ScreensaverVisualizer => {
+                self.config.screensaver_visualizer = !self.config.screensaver_visualizer
+            }
+            super::modal::SettingItem::ScreensaverRecentTracks => {
+                self.config.screensaver_recent_tracks = !self.config.screensaver_recent_tracks
+            }
+            super::modal::SettingItem::ScreensaverProgressBar => {
+                self.config.screensaver_progress_bar = !self.config.screensaver_progress_bar
+            }
+            super::modal::SettingItem::ScreensaverStationDetails => {
+                self.config.screensaver_station_details = !self.config.screensaver_station_details
+            }
+            super::modal::SettingItem::ScreensaverNowPlaying => {
+                self.config.screensaver_now_playing = !self.config.screensaver_now_playing
             }
             super::modal::SettingItem::DuckEnabled => {
                 self.config.duck_enabled = !self.config.duck_enabled
@@ -2761,10 +2797,11 @@ impl App {
     fn open_settings_at(&mut self, item: SettingItem) {
         self.show_search_modal = true;
         self.modal_mode = SearchMode::Settings;
-        self.settings_selected = settings_items(self.config.duck_enabled)
-            .iter()
-            .position(|candidate| *candidate == item)
-            .unwrap_or(0);
+        self.settings_selected =
+            settings_items(self.config.duck_enabled, self.config.screensaver_secs > 0)
+                .iter()
+                .position(|candidate| *candidate == item)
+                .unwrap_or(0);
         self.settings_scroll_offset = 0;
         self.keep_settings_visible();
     }
@@ -3534,7 +3571,7 @@ mod tests {
 
     #[test]
     fn setting_index_at_visual_row_ignores_headers() {
-        let items = settings_items(false);
+        let items = settings_items(false, false);
 
         assert_eq!(setting_index_at_visual_row(&items, 0), None);
         assert_eq!(setting_index_at_visual_row(&items, 6), None);
@@ -3542,7 +3579,7 @@ mod tests {
 
     #[test]
     fn setting_index_at_visual_row_returns_item_index() {
-        let items = settings_items(false);
+        let items = settings_items(false, false);
 
         assert_eq!(setting_index_at_visual_row(&items, 1), Some(0));
         assert_eq!(setting_index_at_visual_row(&items, 7), Some(5));
@@ -3550,7 +3587,7 @@ mod tests {
 
     #[test]
     fn settings_visual_row_count_includes_headers() {
-        let items = settings_items(false);
+        let items = settings_items(false, false);
 
         assert_eq!(settings_visual_row_count(&items), items.len() + 6);
     }
@@ -3562,6 +3599,7 @@ mod tests {
         app.show_search_modal = true;
         app.modal_mode = SearchMode::Youtube;
         app.config.screensaver_secs = 1;
+        app.config.screensaver_clock = true;
         app.last_activity = Instant::now() - std::time::Duration::from_secs(2);
         app.youtube.results = vec![youtube_video("one"), youtube_video("two")];
         app.youtube.selected = 0;

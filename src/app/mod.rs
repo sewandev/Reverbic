@@ -140,6 +140,7 @@ pub struct App {
     pub focus: AppFocus,
     pub recent_selected: usize,
     pub saved_tracks: Vec<String>,
+    pub session_recent_tracks: Vec<String>,
     pub save_notice: Option<String>,
     pub save_notice_severity: NoticeSeverity,
     notice_queue: NoticeQueue,
@@ -193,6 +194,8 @@ pub struct App {
     pub border_tick: u32,
     pub station_details: Option<StationDetails>,
     pub windows_tx: Option<tokio::sync::watch::Sender<crate::config::Config>>,
+    #[allow(dead_code)]
+    pub dots_tx: Option<tokio::sync::watch::Sender<TabDots>>,
     pub config: Config,
     pub show_help: bool,
     pub spotify: SpotifyState,
@@ -256,6 +259,7 @@ impl App {
             focus: AppFocus::Stations,
             recent_selected: 0,
             saved_tracks: Vec::new(),
+            session_recent_tracks: Vec::new(),
             save_notice: None,
             save_notice_severity: NoticeSeverity::Info,
             notice_queue: NoticeQueue::new(),
@@ -309,6 +313,7 @@ impl App {
             border_tick: 0,
             station_details: None,
             windows_tx: None,
+            dots_tx: None,
             config,
             show_help: false,
             spotify: SpotifyState::default(),
@@ -348,7 +353,17 @@ impl App {
 
     pub fn screensaver_active(&self) -> bool {
         let secs = self.config.screensaver_secs;
-        secs > 0 && self.show_search_modal && self.last_activity.elapsed().as_secs() >= secs as u64
+        let any_widget_enabled = self.config.screensaver_clock
+            || self.config.screensaver_logo
+            || self.config.screensaver_visualizer
+            || self.config.screensaver_progress_bar
+            || self.config.screensaver_recent_tracks
+            || self.config.screensaver_station_details
+            || self.config.screensaver_now_playing;
+        secs > 0
+            && any_widget_enabled
+            && self.show_search_modal
+            && self.last_activity.elapsed().as_secs() >= secs as u64
     }
 
     fn spotify_remote_control_target(&self) -> Option<(String, String)> {
@@ -708,6 +723,62 @@ impl App {
         self.player.state()
     }
 
+    fn current_now_playing_label(&self) -> Option<String> {
+        if self.active_source_is_spotify() {
+            if let Some(p) = self.spotify.playback.as_ref() {
+                if !p.track_name.is_empty() {
+                    return Some(if p.artist.is_empty() {
+                        p.track_name.clone()
+                    } else {
+                        format!("{} - {}", p.artist, p.track_name)
+                    });
+                }
+            }
+            if let Some(t) = self.spotify.now_playing.as_ref() {
+                if !t.name.is_empty() {
+                    return Some(if t.artist.is_empty() {
+                        t.name.clone()
+                    } else {
+                        format!("{} - {}", t.artist, t.name)
+                    });
+                }
+            }
+            return None;
+        }
+
+        let state = self.player.state();
+        let is_youtube = state
+            .station
+            .as_ref()
+            .is_some_and(|s| s.key.starts_with("youtube:"));
+        if !is_youtube {
+            return None;
+        }
+        if !matches!(
+            state.status,
+            crate::audio::PlayerStatus::Playing | crate::audio::PlayerStatus::Paused
+        ) {
+            return None;
+        }
+        state.title.clone()
+    }
+
+    pub fn update_session_recent_tracks(&mut self) {
+        let Some(current) = self.current_now_playing_label() else {
+            return;
+        };
+        if self
+            .session_recent_tracks
+            .first()
+            .is_some_and(|head| head == &current)
+        {
+            return;
+        }
+        self.session_recent_tracks.retain(|t| t != &current);
+        self.session_recent_tracks.insert(0, current);
+        self.session_recent_tracks.truncate(5);
+    }
+
     pub fn abort_all_tasks(&mut self) {
         abort_task(&mut self.metadata_task);
         abort_task(&mut self.search_task);
@@ -734,6 +805,7 @@ mod tests {
             focus: AppFocus::Stations,
             recent_selected: 0,
             saved_tracks: Vec::new(),
+            session_recent_tracks: Vec::new(),
             save_notice: None,
             save_notice_severity: NoticeSeverity::Info,
             notice_queue: NoticeQueue::new(),
@@ -787,6 +859,7 @@ mod tests {
             border_tick: 0,
             station_details: None,
             windows_tx: None,
+            dots_tx: None,
             config: Config::default(),
             show_help: false,
             spotify: SpotifyState::default(),

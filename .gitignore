@@ -28,6 +28,7 @@ Desktop.ini
 # Local design/planning documents
 FUTURE_FEATURES.md
 CLAUDE.md
+.internal/
 
 # AI Agent directories
 .agents/

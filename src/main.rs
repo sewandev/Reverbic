@@ -147,10 +147,17 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
     #[cfg(target_os = "windows")]
     {
         let (config_tx, config_rx) = tokio::sync::watch::channel(app.config.clone());
+        let (dots_tx, dots_rx) = tokio::sync::watch::channel(app.tab_dots());
         let discord_config_rx = config_rx.clone();
-        overlay::spawn(app.player.subscribe(), config_rx, app.player.clone_sender());
+        overlay::spawn(
+            app.player.subscribe(),
+            config_rx,
+            dots_rx,
+            app.player.clone_sender(),
+        );
         crate::integrations::discord::spawn(app.player.subscribe(), discord_config_rx);
         app.windows_tx = Some(config_tx);
+        app.dots_tx = Some(dots_tx);
     }
     if app.config.autoplay_last {
         if let Some(saved) = app.config.last_station.clone() {
@@ -217,6 +224,7 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
         app.poll_youtube_mix();
         app.poll_youtube_sponsorblock();
         app.poll_youtube_chapters();
+        app.update_session_recent_tracks();
         if app
             .notice_until
             .map(|t| std::time::Instant::now() >= t)
@@ -243,6 +251,12 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
         })
         .map_err(|e| error::AppError::Terminal(e.to_string()))?;
         app.terminal_area = last_area;
+        #[cfg(target_os = "windows")]
+        {
+            if let Some(tx) = &app.dots_tx {
+                let _ = tx.send(app.tab_dots());
+            }
+        }
         tokio::select! {
             _ = ticker.tick() => {
                 app.border_tick = app.border_tick.wrapping_add(1);

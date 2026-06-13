@@ -588,7 +588,13 @@ pub(super) fn render_modal_np_strip(
             .map(|text| text.chars().count() + 2)
             .unwrap_or(0);
         let viz_w = (cw as usize).saturating_sub(progress_w + vol_w + 1);
-        let mut spans = visualizer_spans(state.level_db, viz_w, palette.panel_bg, palette);
+        let viz_source = crate::ui::widgets::visualizer::AudioSource::Live(state.level_db);
+        let mut spans = crate::ui::widgets::visualizer::visualizer_spans(
+            viz_source,
+            viz_w,
+            palette.panel_bg,
+            palette,
+        );
         if let Some(text) = progress_text {
             if !spans.is_empty() {
                 spans.push(Span::raw("  "));
@@ -613,91 +619,6 @@ pub(crate) fn volume_bar_spans(vol: f32, bar_width: usize) -> (String, String) {
     let filled = (vol.clamp(0.0, 1.0) * bar_width as f32).round() as usize;
     let filled = filled.min(bar_width);
     ("█".repeat(filled), "░".repeat(bar_width - filled))
-}
-
-fn visualizer_spans(
-    level_db: f32,
-    width: usize,
-    bg: ratatui::style::Color,
-    palette: &Palette,
-) -> Vec<Span<'static>> {
-    let glyphs = super::visualizer_glyphs();
-    if width == 0 {
-        return vec![];
-    }
-    let base = ((level_db + 60.0) / 60.0).clamp(0.0, 1.0) as f64;
-    let ms = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis())
-        .unwrap_or(0) as f64;
-
-    let n_bars = (width / 2).max(1);
-    let mut spans: Vec<Span<'static>> = Vec::with_capacity(n_bars * 2);
-    for i in 0..n_bars {
-        let freq = 0.0025 + (i as f64) * 0.00025;
-        let phase = i as f64 * 1.1;
-        let wave = (ms * freq + phase).sin() * 0.35 + 0.35;
-        let h = (base * 0.65 + wave * 0.35).clamp(0.0, 1.0);
-        let idx = ((h * 7.0) as usize).min(7);
-        let pos_idx = (i * 7 / n_bars.saturating_sub(1).max(1)).min(7);
-        let color = if h < 0.05 {
-            palette.muted
-        } else {
-            palette.spectrum[pos_idx]
-        };
-        spans.push(Span::styled(
-            glyphs[idx].to_string(),
-            Style::default().fg(color).bg(bg),
-        ));
-        if i + 1 < n_bars {
-            spans.push(Span::styled(" ", Style::default().bg(bg)));
-        }
-    }
-    spans
-}
-
-pub(super) fn playback_progress_line(
-    state: &PlayerState,
-    width: u16,
-    active_color: ratatui::style::Color,
-    bg: ratatui::style::Color,
-    palette: &Palette,
-) -> Option<Line<'static>> {
-    let pos = state.playback_pos_secs?;
-    let elapsed = fmt_secs(pos);
-    let Some(duration) = state.playback_duration_secs.filter(|d| *d > 0.0) else {
-        return Some(Line::from(Span::styled(
-            elapsed,
-            Style::default().fg(palette.muted).bg(bg),
-        )));
-    };
-
-    let remaining = (duration - pos).max(0.0);
-    let prefix = format!("{elapsed} ");
-    let suffix = format!(" -{}", fmt_secs(remaining));
-    let bar_w = (width as usize).saturating_sub(prefix.len() + suffix.len());
-    if bar_w == 0 {
-        return Some(Line::from(Span::styled(
-            format!("{elapsed}  {}", suffix.trim()),
-            Style::default().fg(palette.muted).bg(bg),
-        )));
-    }
-
-    let ratio = (pos / duration).clamp(0.0, 1.0);
-    let filled = (ratio * bar_w as f32).round() as usize;
-    let empty = bar_w.saturating_sub(filled);
-    Some(Line::from(vec![
-        Span::styled(prefix, Style::default().fg(palette.muted).bg(bg)),
-        Span::styled(
-            "\u{2588}".repeat(filled),
-            Style::default().fg(active_color).bg(bg),
-        ),
-        Span::styled(
-            "\u{2591}".repeat(empty),
-            Style::default().fg(palette.muted).bg(bg),
-        ),
-        Span::styled(suffix, Style::default().fg(palette.muted).bg(bg)),
-    ]))
 }
 
 fn playback_progress_text(state: &PlayerState) -> Option<String> {
@@ -902,7 +823,13 @@ pub(super) fn render_modal_spotify_strip(
             0
         };
         let viz_w = (cw as usize).saturating_sub(vol_w + 1);
-        let mut spans = visualizer_spans(-60.0, viz_w, palette.panel_bg, palette);
+        let viz_source = crate::ui::widgets::visualizer::AudioSource::Simulated;
+        let mut spans = crate::ui::widgets::visualizer::visualizer_spans(
+            viz_source,
+            viz_w,
+            palette.panel_bg,
+            palette,
+        );
         if let Some(v) = volume_pct {
             let (filled, empty) = volume_bar_spans(v as f32 / 100.0, 8);
             spans.push(Span::raw("  "));
@@ -925,23 +852,25 @@ pub(super) fn render_update_toast(
     version: &str,
     is_ready: bool,
     is_modal_open: bool,
+    tick: u32,
     full_area: Rect,
     palette: &Palette,
 ) {
-    use crate::i18n::t;
-    let text = if is_ready {
-        t("update.toast.ready").replace("{}", version)
+    use ratatui::widgets::{Block, BorderType, Borders};
+
+    let (text, border_color) = if is_ready {
+        (
+            format!(" [i] v{} Ready (Restart app) ", version),
+            palette.playing,
+        )
     } else {
-        t("update.toast.downloading").replace("{}", version)
+        let spinners = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+        let s = spinners[(tick as usize / 2) % spinners.len()];
+        (format!(" {} Downloading v{} ", s, version), palette.warning)
     };
 
-    let style = if is_ready {
-        Style::default().fg(palette.panel_bg).bg(palette.playing)
-    } else {
-        Style::default().fg(palette.panel_bg).bg(palette.warning)
-    };
-
-    let w = text.chars().count() as u16;
+    let w = text.chars().count() as u16 + 2;
+    let h = 3;
 
     let x = if is_modal_open {
         let modal_area = crate::ui::widgets::search_modal::modal_rect(full_area);
@@ -957,8 +886,20 @@ pub(super) fn render_update_toast(
         full_area.y + 1
     };
 
-    let area = Rect::new(x, y, w, 1);
-    frame.render_widget(Paragraph::new(text).style(style), area);
+    let area = Rect::new(x, y, w, h);
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(border_color))
+        .style(Style::default().bg(palette.panel_bg));
+
+    frame.render_widget(
+        Paragraph::new(text)
+            .block(block)
+            .style(Style::default().fg(palette.highlight)),
+        area,
+    );
 }
 
 pub(super) fn render_help_overlay(
@@ -1088,12 +1029,12 @@ pub(super) fn render_help_overlay(
     if let Some(version) = update_available {
         let row_y = sep_y + 1;
         if row_y < inner.bottom() {
-            let notice = format!("  {} v{version}", t("update.available"));
+            let notice = format!("  [i] Update v{version} is ready. Restart Reverbic to apply.");
             frame.render_widget(
                 Paragraph::new(Span::styled(
                     notice,
                     Style::default()
-                        .fg(palette.warning)
+                        .fg(palette.playing)
                         .add_modifier(Modifier::BOLD),
                 ))
                 .style(Style::default().bg(palette.panel_bg)),
@@ -1141,67 +1082,12 @@ pub(super) fn wrap_into_lines(
 
 #[cfg(test)]
 mod tests {
-    use ratatui::style::Color;
-
-    use super::{fmt_secs, playback_progress_line, playback_progress_text};
+    use super::{fmt_secs, playback_progress_text};
     use crate::audio::{PlayerState, PlayerStatus};
-    use crate::ui::theme::{self, ThemeId};
-
-    fn line_text(line: &ratatui::text::Line<'_>) -> String {
-        line.spans
-            .iter()
-            .map(|span| span.content.as_ref())
-            .collect::<String>()
-    }
 
     #[test]
     fn formats_seconds_as_minutes_and_seconds() {
         assert_eq!(fmt_secs(65.0), "1:05");
-    }
-
-    #[test]
-    fn playback_progress_saturates_remaining_time() {
-        let state = PlayerState {
-            status: PlayerStatus::Playing,
-            playback_pos_secs: Some(70.0),
-            playback_duration_secs: Some(65.0),
-            ..Default::default()
-        };
-
-        let line = playback_progress_line(
-            &state,
-            20,
-            Color::Green,
-            Color::Black,
-            theme::palette(ThemeId::Reverbic),
-        )
-        .expect("progress line");
-
-        assert!(line_text(&line).contains("-0:00"));
-    }
-
-    #[test]
-    fn playback_progress_uses_unicode_block_glyphs() {
-        let state = PlayerState {
-            status: PlayerStatus::Playing,
-            playback_pos_secs: Some(65.0),
-            playback_duration_secs: Some(185.0),
-            ..Default::default()
-        };
-
-        let line = playback_progress_line(
-            &state,
-            20,
-            Color::Green,
-            Color::Black,
-            theme::palette(ThemeId::Reverbic),
-        )
-        .expect("progress line");
-        let text = line_text(&line);
-
-        assert!(text.contains('\u{2588}'));
-        assert!(text.contains('\u{2591}'));
-        assert!(!text.contains('\u{00e2}'));
     }
 
     #[test]
@@ -1217,26 +1103,5 @@ mod tests {
             playback_progress_text(&state),
             Some("1:05 -2:00".to_string())
         );
-    }
-
-    #[test]
-    fn playback_progress_without_duration_shows_elapsed_only() {
-        let state = PlayerState {
-            status: PlayerStatus::Playing,
-            playback_pos_secs: Some(65.0),
-            playback_duration_secs: None,
-            ..Default::default()
-        };
-
-        let line = playback_progress_line(
-            &state,
-            20,
-            Color::Green,
-            Color::Black,
-            theme::palette(ThemeId::Reverbic),
-        )
-        .expect("progress line");
-
-        assert_eq!(line_text(&line), "1:05");
     }
 }
