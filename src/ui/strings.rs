@@ -61,6 +61,20 @@ pub fn crossfade_display(secs: u8) -> String {
     }
 }
 
+pub fn group_thousands(n: u32) -> String {
+    let digits = n.to_string();
+    let bytes = digits.as_bytes();
+    let mut out = String::with_capacity(digits.len() + digits.len() / 3);
+    let len = bytes.len();
+    for (i, b) in bytes.iter().enumerate() {
+        if i > 0 && (len - i).is_multiple_of(3) {
+            out.push('.');
+        }
+        out.push(*b as char);
+    }
+    out
+}
+
 pub fn title_case(s: &str) -> String {
     s.split_whitespace()
         .map(|word| {

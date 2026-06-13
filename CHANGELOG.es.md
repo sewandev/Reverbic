@@ -10,6 +10,9 @@ Versionado: [Semantic Versioning](https://semver.org/)
 
 ## [Sin publicar]
 
+### Cambiado
+- Se rediseñó el bloque de perfil de Spotify en el Modo Ambiente como un widget propio con texto centrado: el nombre destaca y una sola línea muestra Premium, país y cantidad de seguidores (ahora con separador de miles).
+
 ## [1.5.3] - 2026-06-13
 
 ### Agregado

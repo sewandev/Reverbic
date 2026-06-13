@@ -10,6 +10,9 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ## [Unreleased]
 
+### Changed
+- Redesigned the Spotify profile block in Ambient Mode as a dedicated widget with centered text: the display name stands out and a single line shows Premium, country, and follower count (now formatted with thousands separators).
+
 ## [1.5.3] - 2026-06-13
 
 ### Added

@@ -784,11 +784,16 @@ fn render_spotify_info(
         row += 1;
     }
 
-    let has_name_row = profile_name.is_some() || country.is_some();
-    let has_plan_row = is_premium.is_some_and(|is_premium| is_premium) || followers.is_some();
-    let has_profile = has_name_row || has_plan_row;
+    let profile = crate::ui::widgets::spotify_profile::SpotifyProfileWidget::new(
+        profile_name,
+        country,
+        followers,
+        is_premium.unwrap_or(false),
+        ctx.bg,
+        ctx.palette,
+    );
 
-    if has_profile && row < ctx.inner.bottom() {
+    if profile.has_content() && row < ctx.inner.bottom() {
         let sep = "─".repeat(ctx.cw as usize);
         frame.render_widget(
             Paragraph::new(Span::styled(sep, Style::default().fg(ctx.palette.dim)))
@@ -797,77 +802,12 @@ fn render_spotify_info(
         );
         row += 1;
 
-        if has_name_row && row < ctx.inner.bottom() {
-            let name_tc = profile_name.map(strings::title_case);
-            let country_str = country.unwrap_or("");
-            let mut spans: Vec<Span<'static>> = Vec::new();
-            if let Some(name) = name_tc {
-                spans.push(Span::styled(
-                    name,
-                    Style::default()
-                        .fg(ctx.palette.highlight)
-                        .add_modifier(Modifier::BOLD),
-                ));
-            }
-            if !country_str.is_empty() {
-                let used = spans
-                    .iter()
-                    .map(|s| s.content.chars().count() as u16)
-                    .sum::<u16>();
-                let pad = ctx
-                    .cw
-                    .saturating_sub(used + country_str.chars().count() as u16);
-                spans.push(Span::styled(" ".repeat(pad as usize), Style::default()));
-                spans.push(Span::styled(
-                    country_str.to_string(),
-                    Style::default().fg(ctx.palette.muted),
-                ));
-            }
-            frame.render_widget(
-                Paragraph::new(Line::from(spans)).style(Style::default().bg(ctx.bg)),
-                Rect::new(ctx.cx, row, ctx.cw, 1).intersection(ctx.inner),
-            );
-            row += 1;
-        }
-
-        if has_plan_row && row < ctx.inner.bottom() {
-            let plan_str = if is_premium.is_some_and(|is_premium| is_premium) {
-                t("integrations.spotify.premium")
-            } else {
-                String::new()
-            };
-            let follow_str = followers
-                .map(|f| format!("{f} {}", t("screensaver.followers")))
-                .unwrap_or_default();
-            let mut spans: Vec<Span<'static>> = Vec::new();
-            if !plan_str.is_empty() {
-                spans.push(Span::styled(
-                    plan_str,
-                    Style::default().fg(green).add_modifier(Modifier::BOLD),
-                ));
-            }
-            if !follow_str.is_empty() {
-                let used = spans
-                    .iter()
-                    .map(|s| s.content.chars().count() as u16)
-                    .sum::<u16>();
-                let pad = ctx
-                    .cw
-                    .saturating_sub(used + follow_str.chars().count() as u16);
-                spans.push(Span::styled(" ".repeat(pad as usize), Style::default()));
-                spans.push(Span::styled(
-                    follow_str,
-                    Style::default().fg(ctx.palette.muted),
-                ));
-            }
-            if !spans.is_empty() {
-                frame.render_widget(
-                    Paragraph::new(Line::from(spans)).style(Style::default().bg(ctx.bg)),
-                    Rect::new(ctx.cx, row, ctx.cw, 1).intersection(ctx.inner),
-                );
-                row += 1;
-            }
-        }
+        let profile_rows = profile.content_rows();
+        frame.render_widget(
+            profile,
+            Rect::new(ctx.cx, row, ctx.cw, profile_rows).intersection(ctx.inner),
+        );
+        row += profile_rows;
     }
 
     if ctx.config.screensaver_recent_tracks && !recent_titles.is_empty() && row < ctx.inner.bottom()
