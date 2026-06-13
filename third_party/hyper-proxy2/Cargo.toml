@@ -1,0 +1,54 @@
+# Vendored fork of hyper-proxy2 0.1.0 (https://github.com/siketyan/hyper-proxy2).
+# The only change versus the upstream crate is bumping the Rustls TLS stack from
+# hyper-rustls 0.26 / tokio-rustls 0.25 / rustls 0.22 to the patched 0.27 / 0.26 / 0.23
+# line, removing the vulnerable rustls-webpki 0.102.8 instance pulled transitively
+# through librespot-core. Tracked in issue #169.
+
+[package]
+name = "hyper-proxy2"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.70.0"
+authors = ["Natsuki Ikeguchi <me@s6n.jp>"]
+description = "A proxy connector for Hyper-based applications (vendored TLS-patched fork)"
+license = "MIT"
+repository = "https://github.com/siketyan/hyper-proxy2"
+
+[dependencies]
+bytes = "1.5"
+futures-util = { version = "0.3.30", default-features = false }
+headers = "0.4"
+http = "1.0"
+hyper = { version = "1.0", features = ["client"] }
+hyper-util = { version = "0.1.2", features = ["client", "client-legacy", "tokio"] }
+pin-project-lite = "0.2.13"
+tokio = { version = "1.35", features = ["io-std", "io-util"] }
+tower-service = "0.3.2"
+
+# default-features disabled and ring selected to keep the existing crypto
+# provider (ring) and avoid pulling aws-lc-rs / cmake into the build, matching
+# how librespot-core configures hyper-rustls 0.27.
+hyper-rustls = { version = "0.27", optional = true, default-features = false, features = ["http1", "http2", "ring"] }
+hyper-tls = { version = "0.6.0", optional = true }
+native-tls = { version = "0.2.11", optional = true }
+openssl = { version = "0.10.62", optional = true }
+rustls-native-certs = { version = "0.8", optional = true }
+tokio-native-tls = { version = "0.3.1", optional = true }
+tokio-openssl = { version = "0.6.4", optional = true }
+tokio-rustls = { version = "0.26", optional = true, default-features = false, features = ["logging", "tls12", "ring"] }
+webpki-roots = { version = "0.26.0", optional = true }
+
+[dev-dependencies]
+futures = "0.3.30"
+http-body-util = "0.1.0"
+hyper = { version = "1.0", features = ["client", "http1"] }
+hyper-util = { version = "0.1.2", features = ["client", "client-legacy", "http1", "tokio"] }
+tokio = { version = "1.35", features = ["full"] }
+
+[features]
+default = ["tls"]
+openssl-tls = ["openssl", "tokio-openssl"]
+rustls = ["rustls-base", "rustls-native-certs", "hyper-rustls/native-tokio"]
+rustls-base = ["tokio-rustls", "hyper-rustls"]
+rustls-webpki = ["rustls-base", "webpki-roots", "hyper-rustls/webpki-tokio"]
+tls = ["tokio-native-tls", "hyper-tls", "native-tls"]

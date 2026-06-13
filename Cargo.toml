@@ -62,6 +62,11 @@ windows = { version = "0.58", features = [
 [build-dependencies]
 embed-resource = "2"
 
+# Vendored TLS-patched fork of hyper-proxy2 to drop the vulnerable rustls-webpki
+# 0.102.8 instance pulled transitively through librespot-core. See issue #169.
+[patch.crates-io]
+hyper-proxy2 = { path = "third_party/hyper-proxy2" }
+
 [profile.release]
 opt-level     = 3
 lto           = "thin"

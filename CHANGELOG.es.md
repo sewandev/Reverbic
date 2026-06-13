@@ -20,6 +20,9 @@ Versionado: [Semantic Versioning](https://semver.org/)
 - El panel de atajos mostraba una acción incorrecta para [Tab] e ignoraba YouTube; ahora indica "Cambiar fuente" de forma coherente en todas las pestañas.
 - Se unificó la etiqueta del atajo "Abrir Configuración", que era inconsistente entre las vistas de Radio, Spotify y YouTube.
 
+### Seguridad
+- Se eliminó la versión vulnerable `rustls-webpki 0.102.8` del árbol de dependencias (alertas de Dependabot RUSTSEC-2026-0049, 0098, 0099 y 0104). Solo la arrastraba `hyper-proxy2` a través de la integración de Spotify; ahora se compila contra la cadena ya parcheada (rustls 0.23 / hyper-rustls 0.27) que el resto de la app utiliza, conservando el backend de cripto `ring`.
+
 ## [1.5.3] - 2026-06-13
 
 ### Agregado
