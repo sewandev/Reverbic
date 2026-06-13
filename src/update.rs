@@ -291,19 +291,48 @@ pub fn apply_update(new_exe: &Path) {
         }
     }
 
-    #[cfg(unix)]
+    #[cfg(target_os = "macos")]
     {
-        apply_update_in_place(new_exe);
+        apply_macos_update(new_exe);
     }
 }
 
-#[cfg(unix)]
-fn apply_update_in_place(new_exe: &Path) {
+#[cfg(target_os = "macos")]
+fn apply_macos_update(update_payload: &Path) {
+    match prepare_macos_update_payload(update_payload) {
+        Ok(candidate) => {
+            if let Err(err) = replace_current_executable(&candidate) {
+                tracing::error!("Failed to apply macOS update: {err}");
+            }
+        }
+        Err(err) => {
+            tracing::debug!(
+                ?err,
+                payload = %update_payload.display(),
+                "Could not prepare macOS update payload"
+            );
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn prepare_macos_update_payload(update_payload: &Path) -> std::io::Result<PathBuf> {
+    Err(std::io::Error::new(
+        std::io::ErrorKind::Unsupported,
+        format!(
+            "macOS archive payload preparation is not implemented for {}",
+            update_payload.display()
+        ),
+    ))
+}
+
+#[cfg(target_os = "macos")]
+fn replace_current_executable(new_exe: &Path) -> std::io::Result<()> {
     let Ok(current) = std::env::current_exe() else {
-        return;
+        return Ok(());
     };
     let Some(file_name) = current.file_name() else {
-        return;
+        return Ok(());
     };
 
     use std::os::unix::fs::PermissionsExt;
@@ -311,21 +340,26 @@ fn apply_update_in_place(new_exe: &Path) {
         .map(|m| m.permissions())
         .unwrap_or_else(|_| std::fs::Permissions::from_mode(0o755));
     perms.set_mode(perms.mode() | 0o111);
-    let _ = std::fs::set_permissions(new_exe, perms);
+    let _ = std::fs::set_permissions(new_exe, perms.clone());
 
     let old_name = format!("{}.old", file_name.to_string_lossy());
     let old = current.with_file_name(old_name);
 
-    if std::fs::rename(&current, &old).is_ok()
-        && std::fs::rename(new_exe, &current).is_err()
-        && std::fs::copy(new_exe, &current).is_err()
-    {
-        // Restore backup if both rename and copy failed
+    std::fs::rename(&current, &old)?;
+    let replace_result = std::fs::rename(new_exe, &current).or_else(|_| {
+        std::fs::copy(new_exe, &current)?;
+        let _ = std::fs::remove_file(new_exe);
+        Ok(())
+    });
+
+    if let Err(err) = replace_result {
         let _ = std::fs::rename(&old, &current);
+        return Err(err);
     }
 
-    // Always attempt to clean up the temporary file (harmless if rename succeeded and moved it)
-    let _ = std::fs::remove_file(new_exe);
+    let _ = std::fs::set_permissions(&current, perms);
+    let _ = std::fs::remove_file(old);
+    Ok(())
 }
 
 #[cfg(target_os = "windows")]
