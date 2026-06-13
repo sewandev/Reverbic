@@ -12,6 +12,13 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ### Changed
 - Redesigned the Spotify profile block in Ambient Mode as a dedicated widget with centered text: the display name stands out and a single line shows Premium, country, and follower count (now formatted with thousands separators).
+- Reorganized the Settings menu into clearer categories: Radio, Spotify and YouTube each get their own section, separate from Overlay, Ducking, System and Appearance.
+- The Overlay and Ducking settings sections are now labeled "(Windows only)" so it is clear they do not apply on other platforms.
+- The shortcuts overlay ([?]) now groups keys by scope with section headers (Radio, Spotify, YouTube, Global) instead of showing one flat list.
+
+### Fixed
+- The shortcuts overlay showed the wrong action for [Tab] and ignored YouTube; it now reads "Switch source" consistently across every tab.
+- Unified the label of the "Open Settings" shortcut, which was inconsistent between the Radio, Spotify and YouTube views.
 
 ## [1.5.3] - 2026-06-13
 

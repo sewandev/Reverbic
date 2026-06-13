@@ -902,6 +902,98 @@ pub(super) fn render_update_toast(
     );
 }
 
+enum HelpRow {
+    Header(String),
+    Entry(&'static str, String),
+}
+
+fn help_header(key: &str) -> HelpRow {
+    HelpRow::Header(t(key))
+}
+
+fn help_rows(
+    mode: &crate::app::SearchMode,
+    spotify_logged_in: bool,
+    spotify_can_cycle_device: bool,
+) -> Vec<HelpRow> {
+    use crate::app::SearchMode;
+    use HelpRow::Entry;
+
+    let global = || {
+        vec![
+            help_header("help.group.global"),
+            Entry("[Tab]", t("help.shortcut.switch_source")),
+            Entry("[Alt+O]", t("help.shortcut.open_config")),
+            Entry("[Esc]", t("help.shortcut.close_quit")),
+        ]
+    };
+
+    match mode {
+        SearchMode::Name => {
+            let mut rows = vec![
+                help_header("help.group.radio"),
+                Entry("[↵]", t("help.shortcut.play_station")),
+                Entry("[↑↓]", t("help.shortcut.nav_list")),
+                Entry("[Alt+F]", t("help.shortcut.save_fav")),
+                Entry("[Alt+P]", t("help.shortcut.add_playlist")),
+                Entry("[Ctrl+Shift+←→]", t("help.shortcut.playlist_jump")),
+                Entry("[Space]", t("help.shortcut.pause_resume")),
+                Entry("[Alt+R]", t("help.shortcut.random_station")),
+                Entry("[Alt+S]", t("help.shortcut.stop_radio")),
+                Entry("[Alt+G]", t("help.shortcut.by_genre")),
+                Entry("[Alt+C]", t("help.shortcut.by_country")),
+            ];
+            rows.extend(global());
+            rows
+        }
+        SearchMode::Spotify => {
+            let mut rows = vec![help_header("help.group.spotify")];
+            if spotify_logged_in {
+                rows.extend([
+                    Entry("[←→]", t("help.shortcut.switch_subtab")),
+                    Entry("[↵]", t("help.shortcut.transfer_play")),
+                    Entry("[↑↓]", t("help.shortcut.navigate")),
+                    Entry("[Space]", t("help.shortcut.pause_resume")),
+                    Entry("[Alt+D]", t("integrations.spotify.hint_disconnect")),
+                    Entry("[Alt+R]", t("help.shortcut.reload_devices")),
+                ]);
+                if spotify_can_cycle_device {
+                    rows.push(Entry("[Ctrl+D]", t("help.shortcut.switch_device")));
+                }
+            } else {
+                rows.push(Entry("[↵]", t("help.shortcut.connect_spotify")));
+            }
+            rows.extend(global());
+            rows
+        }
+        SearchMode::Youtube => {
+            let mut rows = vec![
+                help_header("help.group.youtube"),
+                Entry("[↵]", t("help.shortcut.play_video")),
+                Entry("[↑↓]", t("help.shortcut.nav_list")),
+                Entry("[←→]", t("help.shortcut.switch_subtab")),
+                Entry("[Ctrl+R]", t("help.shortcut.youtube_mix")),
+                Entry("[Alt+F]", t("help.shortcut.toggle_bookmark")),
+                Entry("[Space]", t("help.shortcut.pause_resume")),
+                Entry("[Alt+S]", t("help.shortcut.stop_playback")),
+            ];
+            rows.extend(global());
+            rows
+        }
+        SearchMode::Settings => vec![
+            help_header("help.group.settings"),
+            Entry("[Space]", t("help.shortcut.change_value")),
+            Entry("[↑↓]", t("help.shortcut.nav_options")),
+            Entry("[Esc]", t("hint.back")),
+        ],
+        _ => vec![
+            Entry("[↑↓]", t("help.shortcut.navigate")),
+            Entry("[↵]", t("help.shortcut.confirm")),
+            Entry("[Esc]", t("hint.back")),
+        ],
+    }
+}
+
 pub(super) fn render_help_overlay(
     frame: &mut Frame,
     mode: &crate::app::SearchMode,
@@ -910,77 +1002,13 @@ pub(super) fn render_help_overlay(
     update_available: Option<&str>,
     palette: &Palette,
 ) {
-    use crate::app::SearchMode;
-
-    let lines: Vec<(&str, String)> = match mode {
-        SearchMode::Name => vec![
-            ("[↵]", t("help.shortcut.play_station")),
-            ("[↑↓]", t("help.shortcut.nav_list")),
-            ("[Alt+F]", t("help.shortcut.save_fav")),
-            ("[Alt+P]", t("help.shortcut.add_playlist")),
-            ("[Ctrl+Shift+←→]", t("help.shortcut.playlist_jump")),
-            ("[Space]", t("help.shortcut.pause_resume")),
-            ("[Alt+R]", t("help.shortcut.random_station")),
-            ("[Alt+S]", t("help.shortcut.stop_radio")),
-            ("[Tab]", t("help.shortcut.go_spotify")),
-            ("[Alt+G]", t("help.shortcut.by_genre")),
-            ("[Alt+C]", t("help.shortcut.by_country")),
-            ("[Alt+O]", t("help.shortcut.open_config")),
-            ("[Esc]", t("help.shortcut.close_quit")),
-        ],
-        SearchMode::Spotify => {
-            if spotify_logged_in {
-                let mut lines = vec![
-                    ("[←→]", t("help.shortcut.switch_subtab")),
-                    ("[↵]", t("help.shortcut.transfer_play")),
-                    ("[↑↓]", t("help.shortcut.navigate")),
-                    ("[Space]", t("help.shortcut.pause_resume")),
-                    ("[Alt+O]", t("help.shortcut.settings")),
-                    ("[Alt+D]", t("integrations.spotify.hint_disconnect")),
-                    ("[Alt+R]", t("help.shortcut.reload_devices")),
-                ];
-                if spotify_can_cycle_device {
-                    lines.push(("[Ctrl+D]", t("help.shortcut.switch_device")));
-                }
-                lines.push(("[Esc]", t("hint.close")));
-                lines
-            } else {
-                vec![
-                    ("[↵]", t("help.shortcut.connect_spotify")),
-                    ("[Tab]", t("help.shortcut.go_radio")),
-                    ("[Esc]", t("hint.close")),
-                ]
-            }
-        }
-        SearchMode::Youtube => vec![
-            ("[↵]", t("help.shortcut.play_video")),
-            ("[↑↓]", t("help.shortcut.nav_list")),
-            ("[←→]", t("help.shortcut.switch_subtab")),
-            ("[Ctrl+R]", t("help.shortcut.youtube_mix")),
-            ("[Alt+F]", t("help.shortcut.toggle_bookmark")),
-            ("[Space]", t("help.shortcut.pause_resume")),
-            ("[Alt+S]", t("help.shortcut.stop_playback")),
-            ("[Tab]", t("help.shortcut.go_radio")),
-            ("[Alt+O]", t("help.shortcut.open_config")),
-            ("[Esc]", t("help.shortcut.close_quit")),
-        ],
-        SearchMode::Settings => vec![
-            ("[Space]", t("help.shortcut.change_value")),
-            ("[↑↓]", t("help.shortcut.nav_options")),
-            ("[Esc]", t("hint.back")),
-        ],
-        _ => vec![
-            ("[↑↓]", t("help.shortcut.navigate")),
-            ("[↵]", t("help.shortcut.confirm")),
-            ("[Esc]", t("hint.back")),
-        ],
-    };
+    let rows = help_rows(mode, spotify_logged_in, spotify_can_cycle_device);
 
     const CREDITS: &[&str] = &["Esteban Jaramillo — Chile", "github.com/sewandev/Reverbic"];
 
     let area = frame.area();
     let w = 46u16.min(area.width);
-    let line_count = lines.len();
+    let line_count = rows.len();
     let update_row = update_available.is_some() as u16;
     let h = (line_count as u16 + 3 + CREDITS.len() as u16 + 2 + update_row).min(area.height);
     let x = area.x + area.width.saturating_sub(w) / 2;
@@ -997,13 +1025,19 @@ pub(super) fn render_help_overlay(
     let inner = block.inner(rect);
     frame.render_widget(block, rect);
 
-    for (i, (key_str, desc)) in lines.into_iter().enumerate() {
+    for (i, row) in rows.into_iter().enumerate() {
         let row_y = inner.y + i as u16;
         if row_y >= inner.bottom() {
             break;
         }
-        frame.render_widget(
-            Paragraph::new(Line::from(vec![
+        let line = match row {
+            HelpRow::Header(title) => Line::from(Span::styled(
+                title,
+                Style::default()
+                    .fg(palette.accent)
+                    .add_modifier(Modifier::BOLD),
+            )),
+            HelpRow::Entry(key_str, desc) => Line::from(vec![
                 Span::styled(
                     format!("  {:9}", key_str),
                     Style::default()
@@ -1011,8 +1045,10 @@ pub(super) fn render_help_overlay(
                         .add_modifier(Modifier::BOLD),
                 ),
                 Span::styled(desc, Style::default().fg(palette.highlight)),
-            ]))
-            .style(Style::default().bg(palette.panel_bg)),
+            ]),
+        };
+        frame.render_widget(
+            Paragraph::new(line).style(Style::default().bg(palette.panel_bg)),
             ratatui::layout::Rect::new(inner.x, row_y, inner.width, 1),
         );
     }
