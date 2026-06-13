@@ -20,6 +20,9 @@ Versioning: [Semantic Versioning](https://semver.org/)
 - The shortcuts overlay showed the wrong action for [Tab] and ignored YouTube; it now reads "Switch source" consistently across every tab.
 - Unified the label of the "Open Settings" shortcut, which was inconsistent between the Radio, Spotify and YouTube views.
 
+### Security
+- Removed the vulnerable `rustls-webpki 0.102.8` from the dependency tree (Dependabot alerts RUSTSEC-2026-0049, 0098, 0099 and 0104). It was pulled only by `hyper-proxy2` through the Spotify integration; the app now builds it against the patched rustls 0.23 / hyper-rustls 0.27 stack already used elsewhere, keeping the `ring` crypto backend.
+
 ## [1.5.3] - 2026-06-13
 
 ### Added
