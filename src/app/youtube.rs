@@ -476,7 +476,11 @@ impl App {
             return;
         };
 
-        if !runtime_installed() || resolve::is_cached(&video.watch_url) {
+        let cookies_path_val = self.config.youtube.cookies_path.clone();
+        let configured_cookies = cookies::configured_cookies_path(cookies_path_val.as_deref());
+        if !runtime_installed()
+            || resolve::is_cached(&video.watch_url, configured_cookies.as_deref())
+        {
             return;
         }
 
@@ -484,13 +488,11 @@ impl App {
         abort_task(&mut self.youtube.preresolve_task);
         let binary = install::managed_binary_path();
         let deno_path = deno::managed_binary_path();
-        let cookies_path_val = self.config.youtube.cookies_path.clone();
         self.youtube.preresolve_task = Some(tokio::spawn(async move {
-            let cookies_path = cookies::configured_cookies_path(cookies_path_val.as_deref());
             if let Err(e) = resolve::resolve_audio_url(
                 &binary,
                 &video.watch_url,
-                cookies_path.as_deref(),
+                configured_cookies.as_deref(),
                 &deno_path,
             )
             .await

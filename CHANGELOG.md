@@ -22,6 +22,7 @@ Versioning: [Semantic Versioning](https://semver.org/)
 - When the configured YouTube cookies file became invalid (removed, moved or unreadable), the Liked and Playlists tabs stayed silently empty; they now show a clear error and the same recovery guide as the unauthenticated state.
 
 ### Security
+- Disabling or removing the YouTube cookies file now immediately stops playback of cookie-backed restricted videos within the same session; the in-memory resolved-URL cache no longer serves a cookie-backed result once credentials are gone.
 - Removed the vulnerable `rustls-webpki 0.102.8` from the dependency tree (Dependabot alerts RUSTSEC-2026-0049, 0098, 0099 and 0104). It was pulled only by `hyper-proxy2` through the Spotify integration; the app now builds it against the patched rustls 0.23 / hyper-rustls 0.27 stack already used elsewhere, keeping the `ring` crypto backend.
 
 ## [1.5.3] - 2026-06-13
