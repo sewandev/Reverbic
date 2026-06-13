@@ -189,7 +189,17 @@ impl SettingItem {
             | Self::RestoreVolume
             | Self::Crossfade
             | Self::VolumeStep
-            | Self::Prebuffer => "config.group.playback",
+            | Self::Prebuffer => "config.group.radio",
+            Self::SpotifyRadioMode
+            | Self::SpotifyStopOnQuit
+            | Self::SpotifyStartOnSpotify
+            | Self::SpotifyClientId
+            | Self::SpotifyPlaybackMode => "config.group.spotify",
+            Self::YoutubeRadioMode
+            | Self::YoutubeSponsorblock
+            | Self::YoutubeCrossfade
+            | Self::YoutubeCookiesPath
+            | Self::YoutubeCookiesValidate => "config.group.youtube",
             Self::OverlayMode
             | Self::OverlayAlpha
             | Self::OverlayPosition
@@ -211,16 +221,6 @@ impl SettingItem {
             | Self::ReplayOnboarding
             | Self::OpenLogs => "config.group.system",
             Self::Language | Self::Theme => "config.group.appearance",
-            Self::SpotifyStopOnQuit
-            | Self::SpotifyStartOnSpotify
-            | Self::SpotifyClientId
-            | Self::SpotifyPlaybackMode
-            | Self::SpotifyRadioMode
-            | Self::YoutubeCrossfade
-            | Self::YoutubeRadioMode
-            | Self::YoutubeSponsorblock
-            | Self::YoutubeCookiesPath
-            | Self::YoutubeCookiesValidate => "config.group.integrations",
         }
     }
 }
@@ -232,6 +232,16 @@ pub fn settings_items(duck_enabled: bool, screensaver_active: bool) -> Vec<Setti
         SettingItem::Crossfade,
         SettingItem::VolumeStep,
         SettingItem::Prebuffer,
+        SettingItem::SpotifyRadioMode,
+        SettingItem::SpotifyStopOnQuit,
+        SettingItem::SpotifyStartOnSpotify,
+        SettingItem::SpotifyClientId,
+        SettingItem::SpotifyPlaybackMode,
+        SettingItem::YoutubeRadioMode,
+        SettingItem::YoutubeSponsorblock,
+        SettingItem::YoutubeCrossfade,
+        SettingItem::YoutubeCookiesPath,
+        SettingItem::YoutubeCookiesValidate,
         SettingItem::OverlayMode,
         SettingItem::OverlayStyle,
         SettingItem::OverlayAlpha,
@@ -265,16 +275,6 @@ pub fn settings_items(duck_enabled: bool, screensaver_active: bool) -> Vec<Setti
         SettingItem::OpenLogs,
         SettingItem::Language,
         SettingItem::Theme,
-        SettingItem::SpotifyStopOnQuit,
-        SettingItem::SpotifyStartOnSpotify,
-        SettingItem::SpotifyClientId,
-        SettingItem::SpotifyPlaybackMode,
-        SettingItem::SpotifyRadioMode,
-        SettingItem::YoutubeCrossfade,
-        SettingItem::YoutubeRadioMode,
-        SettingItem::YoutubeSponsorblock,
-        SettingItem::YoutubeCookiesPath,
-        SettingItem::YoutubeCookiesValidate,
     ]);
     items
 }

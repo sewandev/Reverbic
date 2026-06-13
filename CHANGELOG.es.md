@@ -12,6 +12,13 @@ Versionado: [Semantic Versioning](https://semver.org/)
 
 ### Cambiado
 - Se rediseñó el bloque de perfil de Spotify en el Modo Ambiente como un widget propio con texto centrado: el nombre destaca y una sola línea muestra Premium, país y cantidad de seguidores (ahora con separador de miles).
+- Se reorganizó el menú de Configuración en categorías más claras: Radio, Spotify y YouTube tienen su propia sección, separadas de Overlay, Ducking, Sistema y Apariencia.
+- Las secciones de configuración de Overlay y Ducking ahora indican "(solo Windows)" para dejar claro que no aplican en otras plataformas.
+- El panel de atajos ([?]) ahora agrupa las teclas por ámbito con encabezados de sección (Radio, Spotify, YouTube, Global) en lugar de mostrar una sola lista plana.
+
+### Corregido
+- El panel de atajos mostraba una acción incorrecta para [Tab] e ignoraba YouTube; ahora indica "Cambiar fuente" de forma coherente en todas las pestañas.
+- Se unificó la etiqueta del atajo "Abrir Configuración", que era inconsistente entre las vistas de Radio, Spotify y YouTube.
 
 ## [1.5.3] - 2026-06-13
 

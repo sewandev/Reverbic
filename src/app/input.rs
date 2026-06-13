@@ -3589,7 +3589,7 @@ mod tests {
     fn settings_visual_row_count_includes_headers() {
         let items = settings_items(false, false);
 
-        assert_eq!(settings_visual_row_count(&items), items.len() + 6);
+        assert_eq!(settings_visual_row_count(&items), items.len() + 7);
     }
 
     #[tokio::test]
