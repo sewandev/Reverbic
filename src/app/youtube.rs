@@ -478,7 +478,8 @@ impl App {
 
         let cookies_path_val = self.config.youtube.cookies_path.clone();
         let configured_cookies = cookies::configured_cookies_path(cookies_path_val.as_deref());
-        if !runtime_installed() || resolve::is_cached(&video.watch_url, configured_cookies.as_deref())
+        if !runtime_installed()
+            || resolve::is_cached(&video.watch_url, configured_cookies.as_deref())
         {
             return;
         }
