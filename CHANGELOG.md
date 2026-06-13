@@ -19,6 +19,7 @@ Versioning: [Semantic Versioning](https://semver.org/)
 ### Fixed
 - The shortcuts overlay showed the wrong action for [Tab] and ignored YouTube; it now reads "Switch source" consistently across every tab.
 - Unified the label of the "Open Settings" shortcut, which was inconsistent between the Radio, Spotify and YouTube views.
+- When the configured YouTube cookies file became invalid (removed, moved or unreadable), the Liked and Playlists tabs stayed silently empty; they now show a clear error and the same recovery guide as the unauthenticated state.
 
 ### Security
 - Removed the vulnerable `rustls-webpki 0.102.8` from the dependency tree (Dependabot alerts RUSTSEC-2026-0049, 0098, 0099 and 0104). It was pulled only by `hyper-proxy2` through the Spotify integration; the app now builds it against the patched rustls 0.23 / hyper-rustls 0.27 stack already used elsewhere, keeping the `ring` crypto backend.

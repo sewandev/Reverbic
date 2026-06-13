@@ -1406,6 +1406,7 @@ impl App {
                 if trimmed.is_empty() {
                     self.config.youtube.cookies_path = None;
                     self.youtube.session_health = None;
+                    self.youtube.cookies_invalid = false;
                     self.save_config();
                     self.cookies_path_input.clear();
                     self.cookies_path_error = None;
@@ -1419,6 +1420,7 @@ impl App {
                     Ok(path) => {
                         self.config.youtube.cookies_path = Some(path);
                         self.youtube.session_health = None;
+                        self.youtube.cookies_invalid = false;
                         self.save_config();
                         self.cookies_path_input.clear();
                         self.cookies_path_error = None;
@@ -1676,7 +1678,7 @@ impl App {
                 if matches!(
                     self.youtube.sub_tab,
                     YoutubeSubTab::Liked | YoutubeSubTab::Playlists
-                ) && self.config.youtube.cookies_path.is_none()
+                ) && (self.config.youtube.cookies_path.is_none() || self.youtube.cookies_invalid)
                     && youtube_auth_notice_at(self.terminal_area, col, row)
                 {
                     crate::shell::open_url(&t("modal.youtube.auth_notice.guide_url"));
@@ -3246,7 +3248,7 @@ impl App {
                 if matches!(
                     self.youtube.sub_tab,
                     YoutubeSubTab::Liked | YoutubeSubTab::Playlists
-                ) && self.config.youtube.cookies_path.is_none()
+                ) && (self.config.youtube.cookies_path.is_none() || self.youtube.cookies_invalid)
                     && matches!(key, KeyCode::Char('o') | KeyCode::Char('O'))
                 {
                     self.open_settings_at(SettingItem::YoutubeCookiesPath);
