@@ -10,6 +10,8 @@ Versionado: [Semantic Versioning](https://semver.org/)
 
 ## [Sin publicar]
 
+## [1.5.3] - 2026-06-13
+
 ### Agregado
 - Se agregaron configuraciones individuales en Ajustes > Modo Ambiente para alternar el visualizador, pistas recientes, barra de progreso y logo dentro del Modo Ambiente.
 - El Modo Ambiente ahora identifica la fuente de YouTube y muestra el capítulo actual del video en reproducción debajo del título.
@@ -17,6 +19,7 @@ Versionado: [Semantic Versioning](https://semver.org/)
 - Los detalles de la estación en el Modo Ambiente ahora son un widget dedicado y resaltado con color, que muestra país, región, idioma, códec y bitrate, etiquetas, popularidad (votos y reproducciones) y un sitio web clicable.
 - Se agregó un ajuste en Ajustes > Modo Ambiente para mostrar u ocultar los detalles de la estación.
 - Se agregó un ajuste en Ajustes > Modo Ambiente para mostrar u ocultar el bloque de reproducción actual (nombre de la fuente más artista, título y álbum).
+- El título de la ventana y la interfaz ahora muestran dinámicamente el estado de la actualización en curso (ej. "Downloading vX.Y.Z..." y "Update vX.Y.Z Ready") al detectar una nueva versión.
 
 ### Cambiado
 - Se refactorizó el renderizado del Modo Ambiente para usar widgets modulares para el reloj, visualizador, barra de progreso y logo.
@@ -27,6 +30,7 @@ Versionado: [Semantic Versioning](https://semver.org/)
 ### Corregido
 - El indicador de origen de reproducción (Radio / YouTube / Spotify) en el overlay de Windows era casi invisible en gris; ahora usa un color distinto por origen para que resalte.
 - El logo de Reverbic en el Modo Ambiente podía quedar fuera de pantalla cuando el panel crecía; ahora se reserva espacio para que siempre quede visible sobre el panel.
+- El script de instalación ahora sobrescribe y actualiza correctamente el binario persistido cuando se vuelve a ejecutar el instalador.
 
 ## [1.5.2] - 2026-06-12
 
@@ -241,7 +245,9 @@ Versionado: [Semantic Versioning](https://semver.org/)
 - Templates de issues (bug, feature, pregunta)
 - Logo y assets embebidos en el ejecutable (sin dependencias externas)
 
-[Sin publicar]: https://github.com/sewandev/Reverbic/compare/v1.5.1...HEAD
+[Sin publicar]: https://github.com/sewandev/Reverbic/compare/v1.5.3...HEAD
+[1.5.3]: https://github.com/sewandev/Reverbic/compare/v1.5.2...v1.5.3
+[1.5.2]: https://github.com/sewandev/Reverbic/compare/v1.5.1...v1.5.2
 [1.5.1]: https://github.com/sewandev/Reverbic/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/sewandev/Reverbic/compare/v1.4.2...v1.5.0
 [1.4.2]: https://github.com/sewandev/Reverbic/compare/v1.4.1...v1.4.2

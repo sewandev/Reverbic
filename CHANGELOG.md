@@ -10,6 +10,8 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ## [Unreleased]
 
+## [1.5.3] - 2026-06-13
+
 ### Added
 - Added individual settings in Settings > Ambient Mode to toggle visualizer, recent tracks, progress bar, and logo within the Ambient Mode.
 - Ambient Mode now labels the YouTube source and shows the current chapter of the playing video below the title.
@@ -17,6 +19,7 @@ Versioning: [Semantic Versioning](https://semver.org/)
 - The station details in Ambient Mode are now a dedicated, color-highlighted widget showing country, region, language, codec and bitrate, tags, popularity (votes and plays), and a clickable website.
 - Added a setting in Settings > Ambient Mode to toggle the station details on or off.
 - Added a setting in Settings > Ambient Mode to toggle the now playing block (source name plus current artist, title, and album) on or off.
+- The window title and UI overlays now dynamically display the version detection and download progress status (e.g. "Downloading vX.Y.Z..." and "Update vX.Y.Z Ready").
 
 ### Changed
 - Refactored Ambient Mode rendering to use modular widgets for clock, visualizer, progress bar, and logo.
@@ -27,6 +30,7 @@ Versioning: [Semantic Versioning](https://semver.org/)
 ### Fixed
 - The playback source indicator (Radio / YouTube / Spotify) in the Windows overlay was nearly invisible in gray; it now uses a distinct color per source so it stands out.
 - The Reverbic logo in Ambient Mode could be pushed off-screen when the panel grew tall; space is now reserved so it always stays visible above the panel.
+- The installation script now correctly overwrites and updates the persisted binary when the installer is re-run.
 
 ## [1.5.2] - 2026-06-12
 
@@ -241,7 +245,9 @@ Versioning: [Semantic Versioning](https://semver.org/)
 - Issue templates (bug, feature, question)
 - Logo and assets embedded in the executable (no external dependencies)
 
-[Unreleased]: https://github.com/sewandev/Reverbic/compare/v1.5.1...HEAD
+[Unreleased]: https://github.com/sewandev/Reverbic/compare/v1.5.3...HEAD
+[1.5.3]: https://github.com/sewandev/Reverbic/compare/v1.5.2...v1.5.3
+[1.5.2]: https://github.com/sewandev/Reverbic/compare/v1.5.1...v1.5.2
 [1.5.1]: https://github.com/sewandev/Reverbic/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/sewandev/Reverbic/compare/v1.4.2...v1.5.0
 [1.4.2]: https://github.com/sewandev/Reverbic/compare/v1.4.1...v1.4.2
