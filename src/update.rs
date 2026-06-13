@@ -481,12 +481,24 @@ fn replace_current_executable(new_exe: &Path) -> std::io::Result<()> {
     let Ok(current) = std::env::current_exe() else {
         return Ok(());
     };
-    let Some(file_name) = current.file_name() else {
+    if is_managed_macos_installation(&current) {
+        tracing::debug!(
+            current = %current.display(),
+            "Skipping self-update for managed macOS installation"
+        );
         return Ok(());
     };
 
+    replace_executable_at(&current, new_exe)
+}
+
+#[cfg(target_os = "macos")]
+fn replace_executable_at(current: &Path, new_exe: &Path) -> std::io::Result<()> {
+    let Some(file_name) = current.file_name() else {
+        return Ok(());
+    };
     use std::os::unix::fs::PermissionsExt;
-    let mut perms = std::fs::metadata(&current)
+    let mut perms = std::fs::metadata(current)
         .map(|m| m.permissions())
         .unwrap_or_else(|_| std::fs::Permissions::from_mode(0o755));
     perms.set_mode(perms.mode() | 0o111);
@@ -495,21 +507,41 @@ fn replace_current_executable(new_exe: &Path) -> std::io::Result<()> {
     let old_name = format!("{}.old", file_name.to_string_lossy());
     let old = current.with_file_name(old_name);
 
-    std::fs::rename(&current, &old)?;
-    let replace_result = std::fs::rename(new_exe, &current).or_else(|_| {
-        std::fs::copy(new_exe, &current)?;
+    remove_file_if_exists(&old)?;
+    std::fs::rename(current, &old)?;
+
+    let replace_result = std::fs::rename(new_exe, current).or_else(|_| {
+        std::fs::copy(new_exe, current)?;
         let _ = std::fs::remove_file(new_exe);
         Ok(())
     });
 
     if let Err(err) = replace_result {
-        let _ = std::fs::rename(&old, &current);
+        let _ = std::fs::remove_file(current);
+        let _ = std::fs::rename(&old, current);
         return Err(err);
     }
 
-    let _ = std::fs::set_permissions(&current, perms);
+    let _ = std::fs::set_permissions(current, perms);
     let _ = std::fs::remove_file(old);
     Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn is_managed_macos_installation(current: &Path) -> bool {
+    current.starts_with("/opt/homebrew/")
+        || current.starts_with("/usr/local/Cellar/")
+        || current.starts_with("/usr/local/Homebrew/")
+        || current.starts_with("/nix/store/")
+}
+
+#[cfg(target_os = "macos")]
+fn remove_file_if_exists(path: &Path) -> std::io::Result<()> {
+    match std::fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(err) => Err(err),
+    }
 }
 
 #[cfg(target_os = "windows")]
@@ -868,7 +900,10 @@ mod asset_selection_tests {
 
 #[cfg(all(test, target_os = "macos"))]
 mod macos_payload_tests {
-    use super::{prepare_macos_update_payload, safe_macos_archive_path};
+    use super::{
+        is_managed_macos_installation, prepare_macos_update_payload, replace_executable_at,
+        safe_macos_archive_path,
+    };
     use flate2::write::GzEncoder;
     use flate2::Compression;
     use std::path::{Path, PathBuf};
@@ -885,6 +920,12 @@ mod macos_payload_tests {
             std::process::id(),
             next_id()
         ))
+    }
+
+    fn test_dir(label: &str) -> PathBuf {
+        let path = test_path(label);
+        std::fs::create_dir(&path).expect("test directory should be created");
+        path
     }
 
     fn write_archive(path: &Path, entries: &[(&str, &[u8])]) {
@@ -966,6 +1007,85 @@ mod macos_payload_tests {
             .expect_err("parent directory path should be rejected");
 
         assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
+    }
+
+    #[test]
+    fn replace_executable_at_installs_candidate_and_cleans_backup() {
+        let dir = test_dir("replace-success");
+        let current = dir.join("reverbic");
+        let candidate = dir.join("candidate");
+        let backup = dir.join("reverbic.old");
+        std::fs::write(&current, b"old").expect("current binary should be written");
+        std::fs::write(&candidate, b"new").expect("candidate binary should be written");
+
+        replace_executable_at(&current, &candidate).expect("replacement should succeed");
+
+        assert_eq!(
+            std::fs::read(&current).expect("current binary should be readable"),
+            b"new"
+        );
+        assert!(!candidate.exists());
+        assert!(!backup.exists());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn replace_executable_at_removes_stale_backup_before_replace() {
+        let dir = test_dir("replace-stale-backup");
+        let current = dir.join("reverbic");
+        let candidate = dir.join("candidate");
+        let backup = dir.join("reverbic.old");
+        std::fs::write(&current, b"old").expect("current binary should be written");
+        std::fs::write(&candidate, b"new").expect("candidate binary should be written");
+        std::fs::write(&backup, b"stale").expect("stale backup should be written");
+
+        replace_executable_at(&current, &candidate)
+            .expect("replacement should remove stale backup and succeed");
+
+        assert_eq!(
+            std::fs::read(&current).expect("current binary should be readable"),
+            b"new"
+        );
+        assert!(!backup.exists());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn replace_executable_at_restores_backup_when_candidate_is_missing() {
+        let dir = test_dir("replace-rollback");
+        let current = dir.join("reverbic");
+        let candidate = dir.join("missing-candidate");
+        std::fs::write(&current, b"old").expect("current binary should be written");
+
+        let err = replace_executable_at(&current, &candidate)
+            .expect_err("missing candidate should fail replacement");
+
+        assert_eq!(err.kind(), std::io::ErrorKind::NotFound);
+        assert_eq!(
+            std::fs::read(&current).expect("current binary should be restored"),
+            b"old"
+        );
+        assert!(!dir.join("reverbic.old").exists());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn detects_managed_macos_installations() {
+        assert!(is_managed_macos_installation(Path::new(
+            "/opt/homebrew/bin/reverbic"
+        )));
+        assert!(is_managed_macos_installation(Path::new(
+            "/usr/local/Cellar/reverbic/1.0.0/bin/reverbic"
+        )));
+        assert!(is_managed_macos_installation(Path::new(
+            "/usr/local/Homebrew/bin/reverbic"
+        )));
+        assert!(is_managed_macos_installation(Path::new(
+            "/nix/store/hash-reverbic/bin/reverbic"
+        )));
+        assert!(!is_managed_macos_installation(Path::new(
+            "/Users/example/bin/reverbic"
+        )));
     }
 }
 
