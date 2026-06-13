@@ -10,6 +10,12 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ## [Unreleased]
 
+### Added
+- Added individual settings in Settings > Ambient Mode to toggle visualizer, recent tracks, progress bar, and logo within the Ambient Mode.
+
+### Changed
+- Refactored Ambient Mode rendering to use modular widgets for clock, visualizer, progress bar, and logo.
+
 ## [1.5.2] - 2026-06-12
 
 ### Added

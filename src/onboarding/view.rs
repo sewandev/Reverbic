@@ -7,7 +7,7 @@ use ratatui::{
 };
 
 use crate::i18n::t;
-use crate::ui::renderer::{render_logo_above, LOGO_W};
+
 use crate::ui::strings::{crossfade_display, screensaver_display, truncate};
 use crate::ui::theme::{self, Palette};
 
@@ -117,14 +117,11 @@ fn render_welcome(frame: &mut Frame, area: Rect, ctx: &ViewCtx<'_>) {
     let bg_style = Style::default().bg(bg);
 
     let logo_y = area.y + 2;
-    render_logo_above(
+    crate::ui::widgets::logo::LogoWidget::new(bg, ctx.border_tick, palette).render_centered(
         frame,
         area.x,
-        area.width.max(LOGO_W),
-        logo_y,
-        bg,
-        ctx.border_tick,
-        palette,
+        area.width,
+        logo_y.saturating_sub(2),
     );
 
     let text_y = logo_y + 3;

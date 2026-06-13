@@ -75,6 +75,10 @@ pub enum SettingItem {
     Language,
     Theme,
     ScreensaverClock,
+    ScreensaverLogo,
+    ScreensaverVisualizer,
+    ScreensaverRecentTracks,
+    ScreensaverProgressBar,
     SpotifyStopOnQuit,
     SpotifyStartOnSpotify,
     SpotifyClientId,
@@ -112,6 +116,10 @@ impl SettingItem {
             Self::Language => t("config.setting.language"),
             Self::Theme => t("config.setting.theme"),
             Self::ScreensaverClock => t("config.setting.screensaver_clock"),
+            Self::ScreensaverLogo => t("config.setting.screensaver_logo"),
+            Self::ScreensaverVisualizer => t("config.setting.screensaver_visualizer"),
+            Self::ScreensaverRecentTracks => t("config.setting.screensaver_recent_tracks"),
+            Self::ScreensaverProgressBar => t("config.setting.screensaver_progress_bar"),
             Self::SpotifyStopOnQuit => t("config.setting.spotify_stop_on_quit"),
             Self::SpotifyStartOnSpotify => t("config.setting.spotify_start_on_spotify"),
             Self::SpotifyClientId => t("config.setting.spotify_client_id"),
@@ -149,6 +157,10 @@ impl SettingItem {
             Self::Language => "config.tooltip.language",
             Self::Theme => "config.tooltip.theme",
             Self::ScreensaverClock => "config.tooltip.screensaver_clock",
+            Self::ScreensaverLogo => "config.tooltip.screensaver_logo",
+            Self::ScreensaverVisualizer => "config.tooltip.screensaver_visualizer",
+            Self::ScreensaverRecentTracks => "config.tooltip.screensaver_recent_tracks",
+            Self::ScreensaverProgressBar => "config.tooltip.screensaver_progress_bar",
             Self::SpotifyStopOnQuit => "config.tooltip.spotify_stop_on_quit",
             Self::SpotifyStartOnSpotify => "config.tooltip.spotify_start_on_spotify",
             Self::SpotifyClientId => "config.tooltip.spotify_client_id",
@@ -177,7 +189,11 @@ impl SettingItem {
             | Self::OverlayPosition
             | Self::OverlayStyle
             | Self::Screensaver
-            | Self::ScreensaverClock => "config.group.overlay",
+            | Self::ScreensaverClock
+            | Self::ScreensaverLogo
+            | Self::ScreensaverVisualizer
+            | Self::ScreensaverRecentTracks
+            | Self::ScreensaverProgressBar => "config.group.overlay",
             Self::DuckEnabled | Self::DuckVolume => "config.group.game",
             Self::MediaKeys
             | Self::TrayIcon
@@ -201,7 +217,7 @@ impl SettingItem {
     }
 }
 
-pub fn settings_items(duck_enabled: bool) -> Vec<SettingItem> {
+pub fn settings_items(duck_enabled: bool, screensaver_active: bool) -> Vec<SettingItem> {
     let mut items = vec![
         SettingItem::Autoplay,
         SettingItem::RestoreVolume,
@@ -213,9 +229,19 @@ pub fn settings_items(duck_enabled: bool) -> Vec<SettingItem> {
         SettingItem::OverlayAlpha,
         SettingItem::OverlayPosition,
         SettingItem::Screensaver,
-        SettingItem::ScreensaverClock,
-        SettingItem::DuckEnabled,
     ];
+
+    if screensaver_active {
+        items.extend([
+            SettingItem::ScreensaverClock,
+            SettingItem::ScreensaverLogo,
+            SettingItem::ScreensaverVisualizer,
+            SettingItem::ScreensaverRecentTracks,
+            SettingItem::ScreensaverProgressBar,
+        ]);
+    }
+
+    items.push(SettingItem::DuckEnabled);
     if duck_enabled {
         items.push(SettingItem::DuckVolume);
     }

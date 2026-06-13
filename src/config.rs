@@ -224,6 +224,14 @@ pub struct Config {
     #[serde(default = "default_true")]
     pub screensaver_clock: bool,
     #[serde(default = "default_true")]
+    pub screensaver_logo: bool,
+    #[serde(default = "default_true")]
+    pub screensaver_visualizer: bool,
+    #[serde(default = "default_true")]
+    pub screensaver_recent_tracks: bool,
+    #[serde(default = "default_true")]
+    pub screensaver_progress_bar: bool,
+    #[serde(default = "default_true")]
     pub auto_update: bool,
     #[serde(default)]
     pub discord_rpc: bool,
@@ -295,6 +303,10 @@ impl Default for Config {
             volume_step: 5,
             prebuffer_secs: 30,
             screensaver_clock: true,
+            screensaver_logo: true,
+            screensaver_visualizer: true,
+            screensaver_recent_tracks: true,
+            screensaver_progress_bar: true,
             auto_update: true,
             discord_rpc: false,
             onboarding_completed: false,

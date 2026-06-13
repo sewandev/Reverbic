@@ -216,7 +216,6 @@ pub struct StationDetails {
     pub language: String,
     pub tags: Vec<String>,
     pub codec: String,
-    pub bitrate: u32,
 }
 
 fn json_str(obj: &serde_json::Value, key: &str) -> String {
@@ -238,7 +237,6 @@ fn parse_details(s: &serde_json::Value) -> StationDetails {
         language: json_str(s, "language"),
         tags,
         codec: json_str(s, "codec"),
-        bitrate: s["bitrate"].as_u64().unwrap_or(0) as u32,
     }
 }
 
