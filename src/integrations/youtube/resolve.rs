@@ -22,6 +22,8 @@ struct CacheEntry {
     persist: bool,
     #[serde(default)]
     chapters: Vec<YoutubeChapter>,
+    #[serde(default)]
+    used_cookies_path: Option<PathBuf>,
 }
 
 fn get_url_cache() -> &'static Mutex<HashMap<String, CacheEntry>> {
@@ -106,16 +108,27 @@ pub async fn resolve_audio_url(
     deno_path: &Path,
 ) -> Result<ResolvedStream, YoutubeError> {
     if let Ok(mut cache) = get_url_cache().lock() {
+        let mut remove = false;
         if let Some(entry) = cache.get(watch_url) {
-            if entry.expires_at_unix > unix_now() {
+            let auth_matches = match &entry.used_cookies_path {
+                Some(cached_path) => {
+                    cookies_path.is_some_and(|current_path| current_path == cached_path)
+                }
+                None => true,
+            };
+
+            if auth_matches && entry.expires_at_unix > unix_now() {
                 return Ok((
                     entry.url.clone(),
                     entry.headers.clone(),
                     entry.chapters.clone(),
                 ));
             } else {
-                cache.remove(watch_url);
+                remove = true;
             }
+        }
+        if remove {
+            cache.remove(watch_url);
         }
     }
 
@@ -134,6 +147,12 @@ pub async fn resolve_audio_url(
     };
     let (resolved_url, headers, chapters) = resolved;
 
+    let used_cookies_path = if used_cookies {
+        cookies_path.map(|p| p.to_path_buf())
+    } else {
+        None
+    };
+
     let persist = !used_cookies && !contains_sensitive_header(&headers);
     if let Ok(mut cache) = get_url_cache().lock() {
         cache.insert(
@@ -144,6 +163,7 @@ pub async fn resolve_audio_url(
                 expires_at_unix: unix_now() + CACHE_TTL_SECS,
                 persist,
                 chapters: chapters.clone(),
+                used_cookies_path,
             },
         );
         if persist {
@@ -248,13 +268,19 @@ pub fn invalidate_cached_url(watch_url: &str) {
     }
 }
 
-pub fn is_cached(watch_url: &str) -> bool {
+pub fn is_cached(watch_url: &str, cookies_path: Option<&Path>) -> bool {
     get_url_cache()
         .lock()
         .map(|cache| {
-            cache
-                .get(watch_url)
-                .is_some_and(|entry| entry.expires_at_unix > unix_now())
+            cache.get(watch_url).is_some_and(|entry| {
+                let auth_matches = match &entry.used_cookies_path {
+                    Some(cached_path) => {
+                        cookies_path.is_some_and(|current_path| current_path == cached_path)
+                    }
+                    None => true,
+                };
+                auth_matches && entry.expires_at_unix > unix_now()
+            })
         })
         .unwrap_or(false)
 }
