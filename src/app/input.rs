@@ -3671,10 +3671,7 @@ mod tests {
         app.spotify.sub_tab = SpotifySubTab::Search;
         app.spotify.search_query = "boards of canada".to_string();
         app.search_query = "radio query".to_string();
-        assert_eq!(
-            app.active_copy_text(),
-            Some("boards of canada".to_string())
-        );
+        assert_eq!(app.active_copy_text(), Some("boards of canada".to_string()));
 
         app.editing_client_id = true;
         app.client_id_input = "client-id".to_string();
