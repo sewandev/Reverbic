@@ -171,15 +171,13 @@ pub(crate) fn render_ambient_mode(
     let py = area.y + area.height.saturating_sub(ph_clamped) / 2;
     let panel = Rect::new(px, py, pw, ph_clamped);
 
-    if config.screensaver_logo {
-        if py >= 2 {
-            crate::ui::widgets::logo::LogoWidget::new(overlay, border_tick, palette).render_centered(
-                frame,
-                area.x,
-                area.width,
-                py - 2,
-            );
-        }
+    if config.screensaver_logo && py >= 2 {
+        crate::ui::widgets::logo::LogoWidget::new(overlay, border_tick, palette).render_centered(
+            frame,
+            area.x,
+            area.width,
+            py - 2,
+        );
     }
 
     if let Some((ref name, ref genre)) = crate::game_detect::get() {
@@ -323,7 +321,6 @@ pub(crate) fn render_ambient_mode(
                 *country,
                 *followers,
                 *is_premium,
-                border_color,
             );
         }
     }
@@ -437,19 +434,17 @@ fn render_radio_info(
             );
             row += 1;
         }
-        if !et.album.is_empty() {
-            if row < ctx.inner.bottom() {
-                frame.render_widget(
-                    Paragraph::new(Span::styled(
-                        strings::truncate(&et.album, ctx.cw as usize),
-                        Style::default().fg(ctx.palette.dim),
-                    ))
-                    .alignment(Alignment::Center)
-                    .style(Style::default().bg(ctx.bg)),
-                    Rect::new(ctx.cx, row, ctx.cw, 1).intersection(ctx.inner),
-                );
-                row += 1;
-            }
+        if !et.album.is_empty() && row < ctx.inner.bottom() {
+            frame.render_widget(
+                Paragraph::new(Span::styled(
+                    strings::truncate(&et.album, ctx.cw as usize),
+                    Style::default().fg(ctx.palette.dim),
+                ))
+                .alignment(Alignment::Center)
+                .style(Style::default().bg(ctx.bg)),
+                Rect::new(ctx.cx, row, ctx.cw, 1).intersection(ctx.inner),
+            );
+            row += 1;
         }
     } else {
         if row < ctx.inner.bottom() {
@@ -631,6 +626,7 @@ fn render_radio_info(
     row
 }
 
+#[allow(clippy::too_many_arguments)]
 fn render_spotify_info(
     frame: &mut Frame,
     mut row: u16,
@@ -640,7 +636,6 @@ fn render_spotify_info(
     country: Option<&str>,
     followers: Option<u32>,
     is_premium: Option<bool>,
-    _border_color: ratatui::style::Color,
 ) -> u16 {
     if row >= ctx.inner.bottom() {
         return row;
