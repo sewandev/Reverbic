@@ -1,4 +1,5 @@
 use std::{
+    path::PathBuf,
     sync::mpsc,
     time::{Duration, Instant},
 };
@@ -633,6 +634,23 @@ impl App {
         }
     }
 
+    fn youtube_library_cookies_path(&mut self) -> Option<PathBuf> {
+        let path = self.config.youtube.cookies_path.clone()?;
+        match cookies::validate_cookies_path(&path) {
+            Ok(valid) => {
+                self.youtube.cookies_invalid = false;
+                Some(valid)
+            }
+            Err(err) => {
+                if !self.youtube.cookies_invalid {
+                    self.notify_error(format!("YouTube: {err}"));
+                }
+                self.youtube.cookies_invalid = true;
+                None
+            }
+        }
+    }
+
     pub fn fetch_youtube_liked(&mut self) {
         abort_task(&mut self.youtube.liked_task);
         self.youtube.liked_rx = None;
@@ -640,9 +658,7 @@ impl App {
         self.youtube.liked_selected = 0;
         self.youtube.liked_scroll_offset = 0;
 
-        let Some(cookies_path) =
-            cookies::configured_cookies_path(self.config.youtube.cookies_path.as_deref())
-        else {
+        let Some(cookies_path) = self.youtube_library_cookies_path() else {
             return;
         };
 
@@ -700,9 +716,7 @@ impl App {
         self.youtube.playlists_selected = 0;
         self.youtube.playlists_scroll_offset = 0;
 
-        let Some(cookies_path) =
-            cookies::configured_cookies_path(self.config.youtube.cookies_path.as_deref())
-        else {
+        let Some(cookies_path) = self.youtube_library_cookies_path() else {
             return;
         };
 

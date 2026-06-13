@@ -19,6 +19,7 @@ Versionado: [Semantic Versioning](https://semver.org/)
 ### Corregido
 - El panel de atajos mostraba una acción incorrecta para [Tab] e ignoraba YouTube; ahora indica "Cambiar fuente" de forma coherente en todas las pestañas.
 - Se unificó la etiqueta del atajo "Abrir Configuración", que era inconsistente entre las vistas de Radio, Spotify y YouTube.
+- Cuando el archivo de cookies de YouTube configurado dejaba de ser válido (eliminado, movido o ilegible), las pestañas Favoritos y Playlists quedaban vacías sin avisar; ahora muestran un error claro y la misma guía de recuperación que el estado no autenticado.
 
 ### Seguridad
 - Se eliminó la versión vulnerable `rustls-webpki 0.102.8` del árbol de dependencias (alertas de Dependabot RUSTSEC-2026-0049, 0098, 0099 y 0104). Solo la arrastraba `hyper-proxy2` a través de la integración de Spotify; ahora se compila contra la cadena ya parcheada (rustls 0.23 / hyper-rustls 0.27) que el resto de la app utiliza, conservando el backend de cripto `ring`.

@@ -338,7 +338,8 @@ impl<'a> SearchModalWidget<'a> {
             youtube_loading: yt.loading,
             youtube_selected: yt.selected,
             youtube_scroll_offset: yt.scroll_offset,
-            youtube_cookies_configured: app.config.youtube.cookies_path.is_some(),
+            youtube_cookies_configured: app.config.youtube.cookies_path.is_some()
+                && !yt.cookies_invalid,
             youtube_session_health: yt.session_health,
             youtube_validating: yt.validating(),
             youtube_sub_tab: yt.sub_tab,
