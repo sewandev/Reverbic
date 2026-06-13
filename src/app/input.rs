@@ -390,13 +390,15 @@ impl App {
                     return;
                 }
                 KeyCode::Char('c') | KeyCode::Char('C') => {
-                    if self.show_search_modal {
+                    if let Some(text) = self.active_copy_text() {
                         if let Ok(mut clipboard) = arboard::Clipboard::new() {
-                            let _ = clipboard.set_text(self.search_query.clone());
+                            let _ = clipboard.set_text(text);
                         }
                         return;
                     }
-                    self.should_quit = true;
+                    if event.modifiers.contains(KeyModifiers::CONTROL) {
+                        self.should_quit = true;
+                    }
                     return;
                 }
                 _ => {}
@@ -719,16 +721,61 @@ impl App {
         }
     }
 
-    pub fn on_paste(&mut self, text: String) {
-        if !self.show_search_modal {
-            return;
+    fn active_copy_text(&self) -> Option<String> {
+        if self.renaming_favorite.is_some() || self.renaming_playlist.is_some() {
+            return Some(self.rename_input.clone());
         }
+        if self.editing_client_id {
+            return Some(self.client_id_input.clone());
+        }
+        if self.editing_cookies_path {
+            return Some(self.cookies_path_input.clone());
+        }
+        if !self.show_search_modal {
+            return None;
+        }
+
+        match self.modal_mode {
+            SearchMode::Name if matches!(self.radio_sub_tab, RadioSubTab::Search) => {
+                Some(self.search_query.clone())
+            }
+            SearchMode::Genre => Some(self.genre_filter.clone()),
+            SearchMode::Country => Some(self.country_filter.clone()),
+            SearchMode::Spotify if matches!(self.spotify.sub_tab, SpotifySubTab::Search) => {
+                Some(self.spotify.search_query.clone())
+            }
+            SearchMode::Youtube if matches!(self.youtube.sub_tab, YoutubeSubTab::Search) => {
+                Some(self.youtube.query.clone())
+            }
+            _ => None,
+        }
+    }
+
+    pub fn on_paste(&mut self, text: String) {
         let filtered: String = text.chars().filter(|c| !c.is_control()).collect();
         if filtered.is_empty() {
             return;
         }
+
+        if self.renaming_favorite.is_some() || self.renaming_playlist.is_some() {
+            self.rename_input.push_str(&filtered);
+            return;
+        }
+        if self.editing_client_id {
+            self.client_id_input.push_str(&filtered);
+            return;
+        }
+        if self.editing_cookies_path {
+            self.cookies_path_input.push_str(&filtered);
+            self.cookies_path_error = None;
+            return;
+        }
+        if !self.show_search_modal {
+            return;
+        }
+
         match self.modal_mode {
-            SearchMode::Name => {
+            SearchMode::Name if matches!(self.radio_sub_tab, RadioSubTab::Search) => {
                 self.search_query.push_str(&filtered);
                 self.modal_selected = 0;
                 self.radio_search_scroll_offset = 0;
@@ -744,7 +791,13 @@ impl App {
                 self.country_selected = 0;
                 self.country_filter_scroll_offset = 0;
             }
-            SearchMode::Youtube => {
+            SearchMode::Spotify if matches!(self.spotify.sub_tab, SpotifySubTab::Search) => {
+                self.spotify.search_query.push_str(&filtered);
+                self.spotify.search_selected = 0;
+                self.spotify.search_scroll_offset = 0;
+                self.perform_spotify_search();
+            }
+            SearchMode::Youtube if matches!(self.youtube.sub_tab, YoutubeSubTab::Search) => {
                 self.youtube.query.push_str(&filtered);
                 self.youtube.selected = 0;
                 self.youtube.scroll_offset = 0;
@@ -3579,6 +3632,58 @@ mod tests {
         let items = settings_items(false);
 
         assert_eq!(settings_visual_row_count(&items), items.len() + 6);
+    }
+
+    #[tokio::test]
+    async fn paste_routes_to_active_text_input() {
+        let mut app = App::new().await;
+
+        app.editing_client_id = true;
+        app.on_paste("spotify-client\n".to_string());
+        assert_eq!(app.client_id_input, "spotify-client");
+
+        app.editing_client_id = false;
+        app.editing_cookies_path = true;
+        app.cookies_path_error = Some("old error".to_string());
+        app.on_paste("/tmp/cookies.txt\n".to_string());
+        assert_eq!(app.cookies_path_input, "/tmp/cookies.txt");
+        assert_eq!(app.cookies_path_error, None);
+
+        app.editing_cookies_path = false;
+        app.show_search_modal = true;
+        app.modal_mode = SearchMode::Spotify;
+        app.spotify.sub_tab = SpotifySubTab::Search;
+        app.on_paste("daft punk".to_string());
+        assert_eq!(app.spotify.search_query, "daft punk");
+
+        app.modal_mode = SearchMode::Youtube;
+        app.youtube.sub_tab = YoutubeSubTab::Search;
+        app.on_paste("lofi radio".to_string());
+        assert_eq!(app.youtube.query, "lofi radio");
+    }
+
+    #[tokio::test]
+    async fn active_copy_text_uses_visible_or_editing_input() {
+        let mut app = App::new().await;
+
+        app.show_search_modal = true;
+        app.modal_mode = SearchMode::Spotify;
+        app.spotify.sub_tab = SpotifySubTab::Search;
+        app.spotify.search_query = "boards of canada".to_string();
+        app.search_query = "radio query".to_string();
+        assert_eq!(
+            app.active_copy_text(),
+            Some("boards of canada".to_string())
+        );
+
+        app.editing_client_id = true;
+        app.client_id_input = "client-id".to_string();
+        assert_eq!(app.active_copy_text(), Some("client-id".to_string()));
+
+        app.editing_client_id = false;
+        app.modal_mode = SearchMode::Name;
+        app.radio_sub_tab = RadioSubTab::Favorites;
+        assert_eq!(app.active_copy_text(), None);
     }
 
     #[tokio::test]
