@@ -30,6 +30,7 @@ pub(crate) enum AmbientContent<'a> {
         details: Option<&'a StationDetails>,
         is_favorite: bool,
         enriched_track: Option<&'a crate::metadata::EnrichedTrack>,
+        recent_titles: &'a [String],
     },
     Spotify {
         playback: &'a crate::integrations::spotify::SpotifyPlaybackState,
@@ -37,6 +38,7 @@ pub(crate) enum AmbientContent<'a> {
         country: Option<&'a str>,
         followers: Option<u32>,
         is_premium: Option<bool>,
+        recent_titles: &'a [String],
     },
 }
 
@@ -47,36 +49,56 @@ impl<'a> AmbientContent<'a> {
                 state,
                 details,
                 enriched_track,
+                recent_titles,
                 ..
             } => {
-                let has_recent = !state.recent_titles.is_empty();
+                let has_recent = !recent_titles.is_empty();
 
-                let (has_meta, has_tags, has_url) = details
-                    .map(|d| {
-                        (
-                            !d.country.is_empty() || !d.language.is_empty() || !d.codec.is_empty(),
-                            !d.tags.is_empty(),
-                            !d.homepage.is_empty(),
-                        )
-                    })
-                    .unwrap_or((false, false, false));
-
-                let detail_rows: u16 =
-                    u16::from(has_meta) + u16::from(has_tags) + u16::from(has_url);
-                let title = state.title.as_deref().unwrap_or("—");
-                let title_rows: u16 = if title.chars().count() > cw_est as usize {
-                    2
+                let detail_rows: u16 = if config.screensaver_station_details {
+                    details
+                        .map(|d| {
+                            let c = crate::ui::widgets::station_details::StationDetailsWidget::content_rows(d);
+                            if c > 0 {
+                                c + 1
+                            } else {
+                                0
+                            }
+                        })
+                        .unwrap_or(0)
                 } else {
-                    1
+                    0
                 };
-                let title_block_h: u16 = if enriched_track.is_some() {
-                    3
+                let title = state.title.as_deref().unwrap_or("—");
+                let title_block_h: u16 = match enriched_track {
+                    Some(et) => {
+                        strings::wrapped_line_count(&et.artist, cw_est, 2)
+                            + strings::wrapped_line_count(&et.title, cw_est, 2)
+                            + if et.album.is_empty() {
+                                0
+                            } else {
+                                strings::wrapped_line_count(&et.album, cw_est, 2)
+                            }
+                    }
+                    None => strings::wrapped_line_count(title, cw_est, 2),
+                };
+                let chapter_rows: u16 = if is_youtube_state(state)
+                    && state
+                        .api_show
+                        .as_deref()
+                        .is_some_and(|show| show.contains(" · "))
+                {
+                    1
                 } else {
-                    title_rows
+                    0
                 };
                 let has_playback_progress = state.playback_pos_secs.is_some();
+                let now_playing_rows = if config.screensaver_now_playing {
+                    title_block_h + chapter_rows
+                } else {
+                    0
+                };
 
-                title_block_h
+                now_playing_rows
                     + if config.screensaver_progress_bar && has_playback_progress { 1 } else { 0 }
                     + 1 // gap
                     + if config.screensaver_visualizer { 1 } else { 0 }
@@ -85,27 +107,39 @@ impl<'a> AmbientContent<'a> {
                     + if config.screensaver_recent_tracks && has_recent { 1 + 6 } else { 0 }
             }
             AmbientContent::Spotify {
+                playback,
                 profile_name,
                 country,
                 followers,
                 is_premium,
-                ..
+                recent_titles,
             } => {
                 let has_name_row = profile_name.is_some() || country.is_some();
                 let has_plan_row =
                     is_premium.is_some_and(|is_premium| is_premium) || followers.is_some();
                 let profile_rows = u16::from(has_name_row) + u16::from(has_plan_row);
                 let has_profile = profile_rows > 0;
+                let has_recent = !recent_titles.is_empty();
 
-                1 // device
+                let device_rows = strings::wrapped_line_count(&playback.device_name, cw_est, 2);
+                let track_block = if config.screensaver_now_playing {
+                    strings::wrapped_line_count(&playback.artist, cw_est, 2)
+                        + strings::wrapped_line_count(&playback.track_name, cw_est, 2)
+                        + strings::wrapped_line_count(&playback.album, cw_est, 2)
+                } else {
+                    0
+                };
+
+                device_rows
                 + 1 // gap
-                + 3 // Artist, Track, Album
+                + track_block
                 + 1 // gap
                 + if config.screensaver_progress_bar { 2 } else { 0 }
                 + 1 // gap
                 + if config.screensaver_visualizer { 2 } else { 0 } // gap inside visualization
                 + 1 // gap
                 + if has_profile { 1 + profile_rows } else { 0 }
+                + if config.screensaver_recent_tracks && has_recent { 1 + 6 } else { 0 }
             }
         }
     }
@@ -121,6 +155,8 @@ pub(crate) fn render_ambient_mode(
 ) {
     let overlay = palette.overlay_color;
     let bg = palette.panel_bg;
+
+    register_url_hit(None);
 
     frame.render_widget(Clear, area);
     for y in area.top()..area.bottom() {
@@ -153,22 +189,25 @@ pub(crate) fn render_ambient_mode(
     let specific_rows = content.required_rows(cw_est, config);
 
     let clock_h: u16 = if config.screensaver_clock {
-        crate::ui::widgets::clock::ClockWidget::HEIGHT
+        crate::ui::widgets::clock::ClockWidget::HEIGHT + 1
     } else {
         0
     };
+    let name_h: u16 = if config.screensaver_now_playing { 1 } else { 0 };
     let ph = 2 // borders
         + 1 // top margin
         + clock_h
-        + 1 // station/spotify name
+        + name_h // station/spotify name
         + specific_rows
         + 1 // bottom gap
-        + 1; // bottom bar
+        + crate::ui::widgets::controls::ControlsWidget::HEIGHT; // shortcuts + volume
 
-    let ph_clamped = ph.min(area.height);
+    let logo_band: u16 = if config.screensaver_logo { 3 } else { 0 };
+    let avail_h = area.height.saturating_sub(logo_band);
+    let ph_clamped = ph.min(avail_h);
 
     let px = area.x + area.width.saturating_sub(pw) / 2;
-    let py = area.y + area.height.saturating_sub(ph_clamped) / 2;
+    let py = area.y + logo_band + avail_h.saturating_sub(ph_clamped) / 2;
     let panel = Rect::new(px, py, pw, ph_clamped);
 
     if config.screensaver_logo && py >= 2 {
@@ -237,30 +276,46 @@ pub(crate) fn render_ambient_mode(
         }
     }
 
-    if row < inner.bottom() {
+    if config.screensaver_now_playing && row < inner.bottom() {
         match &content {
             AmbientContent::Radio {
                 state, is_favorite, ..
             } => {
-                let raw_name = state
-                    .station
-                    .as_ref()
-                    .map(|s| s.name.as_str())
-                    .unwrap_or("—");
-                let prefix = if *is_favorite { "★  " } else { "" };
-                let station_str =
-                    strings::truncate(&format!("{prefix}{}", raw_name.to_uppercase()), cw as usize);
-                frame.render_widget(
-                    Paragraph::new(Line::from(Span::styled(
-                        station_str,
-                        Style::default()
-                            .fg(border_color)
-                            .add_modifier(Modifier::BOLD),
-                    )))
-                    .alignment(Alignment::Center)
-                    .style(Style::default().bg(bg)),
-                    Rect::new(cx, row, cw, 1).intersection(inner),
-                );
+                if is_youtube_state(state) {
+                    frame.render_widget(
+                        Paragraph::new(Span::styled(
+                            "YOUTUBE",
+                            Style::default()
+                                .fg(palette.youtube)
+                                .add_modifier(Modifier::BOLD),
+                        ))
+                        .alignment(Alignment::Center)
+                        .style(Style::default().bg(bg)),
+                        Rect::new(cx, row, cw, 1).intersection(inner),
+                    );
+                } else {
+                    let raw_name = state
+                        .station
+                        .as_ref()
+                        .map(|s| s.name.as_str())
+                        .unwrap_or("—");
+                    let prefix = if *is_favorite { "★  " } else { "" };
+                    let station_str = strings::truncate(
+                        &format!("{prefix}{}", raw_name.to_uppercase()),
+                        cw as usize,
+                    );
+                    frame.render_widget(
+                        Paragraph::new(Line::from(Span::styled(
+                            station_str,
+                            Style::default()
+                                .fg(border_color)
+                                .add_modifier(Modifier::BOLD),
+                        )))
+                        .alignment(Alignment::Center)
+                        .style(Style::default().bg(bg)),
+                        Rect::new(cx, row, cw, 1).intersection(inner),
+                    );
+                }
             }
             AmbientContent::Spotify { .. } => {
                 frame.render_widget(
@@ -293,6 +348,7 @@ pub(crate) fn render_ambient_mode(
             state,
             details,
             enriched_track,
+            recent_titles,
             ..
         } => {
             row = render_radio_info(
@@ -302,7 +358,7 @@ pub(crate) fn render_ambient_mode(
                 state,
                 *details,
                 *enriched_track,
-                border_color,
+                recent_titles,
             );
         }
         AmbientContent::Spotify {
@@ -311,6 +367,7 @@ pub(crate) fn render_ambient_mode(
             country,
             followers,
             is_premium,
+            recent_titles,
         } => {
             row = render_spotify_info(
                 frame,
@@ -321,6 +378,7 @@ pub(crate) fn render_ambient_mode(
                 *country,
                 *followers,
                 *is_premium,
+                recent_titles,
             );
         }
     }
@@ -328,7 +386,12 @@ pub(crate) fn render_ambient_mode(
     row += 1;
 
     if row < inner.bottom() {
-        let (vol_pct, vol_color, _is_playing, shortcuts) = match &content {
+        let pause = t("screensaver.action.pause");
+        let volume = t("screensaver.action.volume");
+        let exit = t("screensaver.action.exit");
+        let any_key = t("screensaver.action.any_key");
+
+        let (vol_pct, vol_color, shortcuts) = match &content {
             AmbientContent::Radio { state, .. } => {
                 let pct = (state.volume.clamp(0.0, 1.0) * 100.0).round() as u32;
                 let color = if state.volume > 0.85 {
@@ -336,12 +399,13 @@ pub(crate) fn render_ambient_mode(
                 } else {
                     palette.accent
                 };
-                (
-                    pct,
-                    color,
-                    matches!(state.status, PlayerStatus::Playing),
-                    "[Space] ⏸/▶  [+/-] Vol  [Alt+S] ■  [any] →",
-                )
+                let shortcuts = vec![
+                    ("Space".to_string(), pause),
+                    ("+/-".to_string(), volume),
+                    ("Alt+S".to_string(), t("screensaver.action.stop")),
+                    (any_key, exit),
+                ];
+                (pct, color, shortcuts)
             }
             AmbientContent::Spotify { playback, .. } => {
                 let color = if playback.volume_pct > 85 {
@@ -349,40 +413,27 @@ pub(crate) fn render_ambient_mode(
                 } else {
                     palette.playing
                 };
-                (
-                    playback.volume_pct as u32,
-                    color,
-                    playback.is_playing,
-                    "[Space] ⏸/▶  [+/-] Vol  [any] →",
-                )
+                let shortcuts = vec![
+                    ("Space".to_string(), pause),
+                    ("+/-".to_string(), volume),
+                    (any_key, exit),
+                ];
+                (playback.volume_pct as u32, color, shortcuts)
             }
         };
 
-        frame.render_widget(
-            Paragraph::new(Span::styled(shortcuts, Style::default().fg(palette.dim)))
-                .style(Style::default().bg(bg)),
-            Rect::new(cx, row, cw, 1).intersection(inner),
+        let controls = crate::ui::widgets::controls::ControlsWidget::new(
+            shortcuts, vol_pct, vol_color, bg, palette,
         );
-        row += 1;
-
-        let vol_w = cw.saturating_sub(12) as usize;
-        let progress_bar = crate::ui::widgets::progress::ProgressBarWidget::new(
-            vol_pct as f32 / 100.0,
-            vol_color,
-            palette.dim,
-            bg,
-        );
-
-        let mut spans = vec![Span::styled("VOL  ", Style::default().fg(palette.muted))];
-        spans.extend(progress_bar.into_spans(vol_w));
-        spans.push(Span::styled(
-            format!("  {vol_pct:3}%"),
-            Style::default().fg(palette.muted),
-        ));
-
         frame.render_widget(
-            Paragraph::new(Line::from(spans)).style(Style::default().bg(bg)),
-            Rect::new(cx, row, cw, 1).intersection(inner),
+            controls,
+            Rect::new(
+                cx,
+                row,
+                cw,
+                crate::ui::widgets::controls::ControlsWidget::HEIGHT,
+            )
+            .intersection(inner),
         );
     }
 }
@@ -394,60 +445,62 @@ fn render_radio_info(
     state: &PlayerState,
     details: Option<&StationDetails>,
     enriched_track: Option<&crate::metadata::EnrichedTrack>,
-    _border_color: ratatui::style::Color,
+    recent_titles: &[String],
 ) -> u16 {
     if row >= ctx.inner.bottom() {
         return row;
     }
 
     let title = state.title.as_deref().unwrap_or("—");
-    let title_rows: u16 = if title.chars().count() > ctx.cw as usize {
-        2
-    } else {
-        1
-    };
+    let title_rows = strings::wrapped_line_count(title, ctx.cw, 2);
 
-    if let Some(et) = enriched_track {
-        if row < ctx.inner.bottom() {
-            frame.render_widget(
-                Paragraph::new(Span::styled(
-                    strings::truncate(&et.artist, ctx.cw as usize),
-                    Style::default().fg(ctx.palette.muted),
-                ))
-                .alignment(Alignment::Center)
-                .style(Style::default().bg(ctx.bg)),
-                Rect::new(ctx.cx, row, ctx.cw, 1).intersection(ctx.inner),
-            );
-            row += 1;
-        }
-        if row < ctx.inner.bottom() {
-            frame.render_widget(
-                Paragraph::new(Span::styled(
-                    strings::truncate(&et.title, ctx.cw as usize),
-                    Style::default()
-                        .fg(ctx.palette.highlight)
-                        .add_modifier(Modifier::BOLD),
-                ))
-                .alignment(Alignment::Center)
-                .style(Style::default().bg(ctx.bg)),
-                Rect::new(ctx.cx, row, ctx.cw, 1).intersection(ctx.inner),
-            );
-            row += 1;
-        }
-        if !et.album.is_empty() && row < ctx.inner.bottom() {
-            frame.render_widget(
-                Paragraph::new(Span::styled(
-                    strings::truncate(&et.album, ctx.cw as usize),
-                    Style::default().fg(ctx.palette.dim),
-                ))
-                .alignment(Alignment::Center)
-                .style(Style::default().bg(ctx.bg)),
-                Rect::new(ctx.cx, row, ctx.cw, 1).intersection(ctx.inner),
-            );
-            row += 1;
-        }
-    } else {
-        if row < ctx.inner.bottom() {
+    if ctx.config.screensaver_now_playing {
+        if let Some(et) = enriched_track {
+            if row < ctx.inner.bottom() {
+                let artist_rows = strings::wrapped_line_count(&et.artist, ctx.cw, 2);
+                frame.render_widget(
+                    Paragraph::new(Span::styled(
+                        et.artist.clone(),
+                        Style::default().fg(ctx.palette.muted),
+                    ))
+                    .alignment(Alignment::Center)
+                    .wrap(Wrap { trim: true })
+                    .style(Style::default().bg(ctx.bg)),
+                    Rect::new(ctx.cx, row, ctx.cw, artist_rows).intersection(ctx.inner),
+                );
+                row += artist_rows;
+            }
+            if row < ctx.inner.bottom() {
+                let title_rows = strings::wrapped_line_count(&et.title, ctx.cw, 2);
+                frame.render_widget(
+                    Paragraph::new(Span::styled(
+                        et.title.clone(),
+                        Style::default()
+                            .fg(ctx.palette.highlight)
+                            .add_modifier(Modifier::BOLD),
+                    ))
+                    .alignment(Alignment::Center)
+                    .wrap(Wrap { trim: true })
+                    .style(Style::default().bg(ctx.bg)),
+                    Rect::new(ctx.cx, row, ctx.cw, title_rows).intersection(ctx.inner),
+                );
+                row += title_rows;
+            }
+            if !et.album.is_empty() && row < ctx.inner.bottom() {
+                let album_rows = strings::wrapped_line_count(&et.album, ctx.cw, 2);
+                frame.render_widget(
+                    Paragraph::new(Span::styled(
+                        et.album.clone(),
+                        Style::default().fg(ctx.palette.dim),
+                    ))
+                    .alignment(Alignment::Center)
+                    .wrap(Wrap { trim: true })
+                    .style(Style::default().bg(ctx.bg)),
+                    Rect::new(ctx.cx, row, ctx.cw, album_rows).intersection(ctx.inner),
+                );
+                row += album_rows;
+            }
+        } else if row < ctx.inner.bottom() {
             frame.render_widget(
                 Paragraph::new(Span::styled(
                     title.to_owned(),
@@ -459,6 +512,26 @@ fn render_radio_info(
                 Rect::new(ctx.cx, row, ctx.cw, title_rows).intersection(ctx.inner),
             );
             row += title_rows;
+        }
+
+        if is_youtube_state(state) && row < ctx.inner.bottom() {
+            if let Some(chapter) = state
+                .api_show
+                .as_deref()
+                .and_then(|show| show.split_once(" · "))
+                .map(|(_, chapter)| chapter)
+            {
+                frame.render_widget(
+                    Paragraph::new(Span::styled(
+                        strings::truncate(chapter, ctx.cw as usize),
+                        Style::default().fg(ctx.palette.accent),
+                    ))
+                    .alignment(Alignment::Center)
+                    .style(Style::default().bg(ctx.bg)),
+                    Rect::new(ctx.cx, row, ctx.cw, 1).intersection(ctx.inner),
+                );
+                row += 1;
+            }
         }
     }
 
@@ -512,90 +585,38 @@ fn render_radio_info(
     }
     row += 1;
 
-    let has_recent = !state.recent_titles.is_empty();
-    let (has_meta, has_tags, has_url) = details
-        .map(|d| {
-            (
-                !d.country.is_empty() || !d.language.is_empty() || !d.codec.is_empty(),
-                !d.tags.is_empty(),
-                !d.homepage.is_empty(),
-            )
-        })
-        .unwrap_or((false, false, false));
+    let has_recent = !recent_titles.is_empty();
+    let details = if ctx.config.screensaver_station_details {
+        details
+    } else {
+        None
+    };
+    let detail_content = details
+        .map(crate::ui::widgets::station_details::StationDetailsWidget::content_rows)
+        .unwrap_or(0);
 
-    if has_meta || has_tags || has_url {
-        let sep = "─".repeat(ctx.cw as usize);
-        frame.render_widget(
-            Paragraph::new(Line::from(Span::styled(
-                sep,
-                Style::default().fg(ctx.palette.dim),
-            )))
-            .style(Style::default().bg(ctx.bg)),
-            Rect::new(ctx.cx, row, ctx.cw, 1).intersection(ctx.inner),
-        );
-        row += 1;
+    if let Some(d) = details {
+        if detail_content > 0 && row < ctx.inner.bottom() {
+            let sep = "─".repeat(ctx.cw as usize);
+            frame.render_widget(
+                Paragraph::new(Line::from(Span::styled(
+                    sep,
+                    Style::default().fg(ctx.palette.dim),
+                )))
+                .style(Style::default().bg(ctx.bg)),
+                Rect::new(ctx.cx, row, ctx.cw, 1).intersection(ctx.inner),
+            );
+            row += 1;
 
-        if let Some(d) = details {
-            if has_meta && row < ctx.inner.bottom() {
-                let mut meta_spans = vec![];
-                if !d.country.is_empty() {
-                    meta_spans.push(Span::styled(
-                        format!("[o]  {}  ", d.country),
-                        Style::default().fg(ctx.palette.muted),
-                    ));
-                }
-                if !d.language.is_empty() {
-                    meta_spans.push(Span::styled(
-                        format!("[o]  {}  ", d.language),
-                        Style::default().fg(ctx.palette.muted),
-                    ));
-                }
-                if !d.codec.is_empty() {
-                    meta_spans.push(Span::styled(
-                        format!("[o]  {}", d.codec),
-                        Style::default().fg(ctx.palette.muted),
-                    ));
-                }
-                frame.render_widget(
-                    Paragraph::new(Line::from(meta_spans)).style(Style::default().bg(ctx.bg)),
-                    Rect::new(ctx.cx, row, ctx.cw, 1).intersection(ctx.inner),
-                );
-                row += 1;
-            }
-            if has_tags && row < ctx.inner.bottom() {
-                let tags_str =
-                    strings::truncate(&d.tags.join(", "), ctx.cw.saturating_sub(5) as usize);
-                frame.render_widget(
-                    Paragraph::new(Line::from(vec![
-                        Span::styled("[o]  ", Style::default().fg(ctx.palette.accent)),
-                        Span::styled(tags_str, Style::default().fg(ctx.palette.muted)),
-                    ]))
-                    .style(Style::default().bg(ctx.bg)),
-                    Rect::new(ctx.cx, row, ctx.cw, 1).intersection(ctx.inner),
-                );
-                row += 1;
-            }
-
-            if has_url && row < ctx.inner.bottom() {
-                let url = strings::truncate(
-                    d.homepage.trim_end_matches('/'),
-                    ctx.cw.saturating_sub(5) as usize,
-                );
-                frame.render_widget(
-                    Paragraph::new(Line::from(vec![
-                        Span::styled("[o]  ", Style::default().fg(ctx.palette.accent)),
-                        Span::styled(
-                            url,
-                            Style::default()
-                                .fg(ctx.palette.muted)
-                                .add_modifier(Modifier::UNDERLINED),
-                        ),
-                    ]))
-                    .style(Style::default().bg(ctx.bg)),
-                    Rect::new(ctx.cx, row, ctx.cw, 1).intersection(ctx.inner),
-                );
-                row += 1;
-            }
+            let area = Rect::new(ctx.cx, row, ctx.cw, detail_content).intersection(ctx.inner);
+            let widget = crate::ui::widgets::station_details::StationDetailsWidget::new(
+                d,
+                ctx.bg,
+                ctx.palette,
+            );
+            register_url_hit(widget.url_rect(area));
+            frame.render_widget(widget, area);
+            row += detail_content;
         }
     }
 
@@ -611,8 +632,10 @@ fn render_radio_info(
         );
         row += 1;
 
+        let badge = t("screensaver.now_playing");
         let recent_tracks = crate::ui::widgets::recent_tracks::RecentTracksWidget::new(
-            &state.recent_titles,
+            recent_titles,
+            &badge,
             ctx.bg,
             ctx.palette,
         );
@@ -636,6 +659,7 @@ fn render_spotify_info(
     country: Option<&str>,
     followers: Option<u32>,
     is_premium: Option<bool>,
+    recent_titles: &[String],
 ) -> u16 {
     if row >= ctx.inner.bottom() {
         return row;
@@ -643,59 +667,69 @@ fn render_spotify_info(
     let green = ctx.palette.playing;
 
     if row < ctx.inner.bottom() {
+        let device_rows = strings::wrapped_line_count(&playback.device_name, ctx.cw, 2);
         frame.render_widget(
             Paragraph::new(Span::styled(
-                strings::truncate(&playback.device_name, ctx.cw as usize),
+                playback.device_name.clone(),
                 Style::default().fg(ctx.palette.dim),
             ))
             .alignment(Alignment::Center)
+            .wrap(Wrap { trim: true })
             .style(Style::default().bg(ctx.bg)),
-            Rect::new(ctx.cx, row, ctx.cw, 1).intersection(ctx.inner),
+            Rect::new(ctx.cx, row, ctx.cw, device_rows).intersection(ctx.inner),
         );
-        row += 1;
+        row += device_rows;
     }
 
     row += 1; // gap
 
-    if row < ctx.inner.bottom() {
-        frame.render_widget(
-            Paragraph::new(Span::styled(
-                strings::truncate(&playback.artist, ctx.cw as usize),
-                Style::default().fg(ctx.palette.muted),
-            ))
-            .alignment(Alignment::Center)
-            .style(Style::default().bg(ctx.bg)),
-            Rect::new(ctx.cx, row, ctx.cw, 1).intersection(ctx.inner),
-        );
-        row += 1;
-    }
+    if ctx.config.screensaver_now_playing {
+        if row < ctx.inner.bottom() {
+            let artist_rows = strings::wrapped_line_count(&playback.artist, ctx.cw, 2);
+            frame.render_widget(
+                Paragraph::new(Span::styled(
+                    playback.artist.clone(),
+                    Style::default().fg(ctx.palette.muted),
+                ))
+                .alignment(Alignment::Center)
+                .wrap(Wrap { trim: true })
+                .style(Style::default().bg(ctx.bg)),
+                Rect::new(ctx.cx, row, ctx.cw, artist_rows).intersection(ctx.inner),
+            );
+            row += artist_rows;
+        }
 
-    if row < ctx.inner.bottom() {
-        frame.render_widget(
-            Paragraph::new(Span::styled(
-                strings::truncate(&playback.track_name, ctx.cw as usize),
-                Style::default()
-                    .fg(ctx.palette.highlight)
-                    .add_modifier(Modifier::BOLD),
-            ))
-            .alignment(Alignment::Center)
-            .style(Style::default().bg(ctx.bg)),
-            Rect::new(ctx.cx, row, ctx.cw, 1).intersection(ctx.inner),
-        );
-        row += 1;
-    }
+        if row < ctx.inner.bottom() {
+            let track_rows = strings::wrapped_line_count(&playback.track_name, ctx.cw, 2);
+            frame.render_widget(
+                Paragraph::new(Span::styled(
+                    playback.track_name.clone(),
+                    Style::default()
+                        .fg(ctx.palette.highlight)
+                        .add_modifier(Modifier::BOLD),
+                ))
+                .alignment(Alignment::Center)
+                .wrap(Wrap { trim: true })
+                .style(Style::default().bg(ctx.bg)),
+                Rect::new(ctx.cx, row, ctx.cw, track_rows).intersection(ctx.inner),
+            );
+            row += track_rows;
+        }
 
-    if row < ctx.inner.bottom() {
-        frame.render_widget(
-            Paragraph::new(Span::styled(
-                strings::truncate(&playback.album, ctx.cw as usize),
-                Style::default().fg(ctx.palette.dim),
-            ))
-            .alignment(Alignment::Center)
-            .style(Style::default().bg(ctx.bg)),
-            Rect::new(ctx.cx, row, ctx.cw, 1).intersection(ctx.inner),
-        );
-        row += 1;
+        if row < ctx.inner.bottom() {
+            let album_rows = strings::wrapped_line_count(&playback.album, ctx.cw, 2);
+            frame.render_widget(
+                Paragraph::new(Span::styled(
+                    playback.album.clone(),
+                    Style::default().fg(ctx.palette.dim),
+                ))
+                .alignment(Alignment::Center)
+                .wrap(Wrap { trim: true })
+                .style(Style::default().bg(ctx.bg)),
+                Rect::new(ctx.cx, row, ctx.cw, album_rows).intersection(ctx.inner),
+            );
+            row += album_rows;
+        }
     }
 
     row += 1; // gap
@@ -836,7 +870,65 @@ fn render_spotify_info(
         }
     }
 
+    if ctx.config.screensaver_recent_tracks && !recent_titles.is_empty() && row < ctx.inner.bottom()
+    {
+        let sep = "─".repeat(ctx.cw as usize);
+        frame.render_widget(
+            Paragraph::new(Span::styled(sep, Style::default().fg(ctx.palette.dim)))
+                .style(Style::default().bg(ctx.bg)),
+            Rect::new(ctx.cx, row, ctx.cw, 1).intersection(ctx.inner),
+        );
+        row += 1;
+
+        let badge = t("screensaver.now_playing");
+        let recent_tracks = crate::ui::widgets::recent_tracks::RecentTracksWidget::new(
+            recent_titles,
+            &badge,
+            ctx.bg,
+            ctx.palette,
+        );
+        frame.render_widget(
+            recent_tracks,
+            Rect::new(ctx.cx, row, ctx.cw, 6).intersection(ctx.inner),
+        );
+        row += 6;
+    }
+
     row
+}
+
+fn is_youtube_state(state: &PlayerState) -> bool {
+    state
+        .station
+        .as_ref()
+        .is_some_and(|s| s.key.starts_with("youtube:"))
+}
+
+static URL_HIT_RECT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+pub(crate) fn register_url_hit(rect: Option<Rect>) {
+    let packed = match rect {
+        Some(r) if r.width > 0 && r.height > 0 => {
+            ((r.x as u64) << 48)
+                | ((r.y as u64) << 32)
+                | ((r.width as u64) << 16)
+                | (r.height as u64)
+        }
+        _ => 0,
+    };
+    URL_HIT_RECT.store(packed, std::sync::atomic::Ordering::Relaxed);
+}
+
+pub(crate) fn url_hit_at(col: u16, row: u16) -> bool {
+    let packed = URL_HIT_RECT.load(std::sync::atomic::Ordering::Relaxed);
+    if packed == 0 {
+        return false;
+    }
+    let x = (packed >> 48) as u16;
+    let y = (packed >> 32) as u16;
+    let w = (packed >> 16) as u16;
+    let h = packed as u16;
+    col >= x && col < x.saturating_add(w) && row >= y && row < y.saturating_add(h)
 }
 
 fn fmt_ms(ms: u32) -> String {

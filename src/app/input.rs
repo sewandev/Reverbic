@@ -1576,6 +1576,13 @@ impl App {
         let screensaver_was_active = self.screensaver_active();
         self.last_activity = Instant::now();
         if screensaver_was_active {
+            if crate::ui::renderer::ambient::url_hit_at(col, row) {
+                if let Some(d) = self.station_details.as_ref() {
+                    if !d.homepage.is_empty() {
+                        crate::shell::open_url(&d.homepage);
+                    }
+                }
+            }
             return;
         }
 
@@ -2565,6 +2572,12 @@ impl App {
             }
             super::modal::SettingItem::ScreensaverProgressBar => {
                 self.config.screensaver_progress_bar = !self.config.screensaver_progress_bar
+            }
+            super::modal::SettingItem::ScreensaverStationDetails => {
+                self.config.screensaver_station_details = !self.config.screensaver_station_details
+            }
+            super::modal::SettingItem::ScreensaverNowPlaying => {
+                self.config.screensaver_now_playing = !self.config.screensaver_now_playing
             }
             super::modal::SettingItem::DuckEnabled => {
                 self.config.duck_enabled = !self.config.duck_enabled
@@ -3586,6 +3599,7 @@ mod tests {
         app.show_search_modal = true;
         app.modal_mode = SearchMode::Youtube;
         app.config.screensaver_secs = 1;
+        app.config.screensaver_clock = true;
         app.last_activity = Instant::now() - std::time::Duration::from_secs(2);
         app.youtube.results = vec![youtube_video("one"), youtube_video("two")];
         app.youtube.selected = 0;

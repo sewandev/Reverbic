@@ -224,6 +224,7 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
         app.poll_youtube_mix();
         app.poll_youtube_sponsorblock();
         app.poll_youtube_chapters();
+        app.update_session_recent_tracks();
         if app
             .notice_until
             .map(|t| std::time::Instant::now() >= t)

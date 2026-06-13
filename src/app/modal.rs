@@ -79,6 +79,8 @@ pub enum SettingItem {
     ScreensaverVisualizer,
     ScreensaverRecentTracks,
     ScreensaverProgressBar,
+    ScreensaverStationDetails,
+    ScreensaverNowPlaying,
     SpotifyStopOnQuit,
     SpotifyStartOnSpotify,
     SpotifyClientId,
@@ -120,6 +122,8 @@ impl SettingItem {
             Self::ScreensaverVisualizer => t("config.setting.screensaver_visualizer"),
             Self::ScreensaverRecentTracks => t("config.setting.screensaver_recent_tracks"),
             Self::ScreensaverProgressBar => t("config.setting.screensaver_progress_bar"),
+            Self::ScreensaverStationDetails => t("config.setting.screensaver_station_details"),
+            Self::ScreensaverNowPlaying => t("config.setting.screensaver_now_playing"),
             Self::SpotifyStopOnQuit => t("config.setting.spotify_stop_on_quit"),
             Self::SpotifyStartOnSpotify => t("config.setting.spotify_start_on_spotify"),
             Self::SpotifyClientId => t("config.setting.spotify_client_id"),
@@ -161,6 +165,8 @@ impl SettingItem {
             Self::ScreensaverVisualizer => "config.tooltip.screensaver_visualizer",
             Self::ScreensaverRecentTracks => "config.tooltip.screensaver_recent_tracks",
             Self::ScreensaverProgressBar => "config.tooltip.screensaver_progress_bar",
+            Self::ScreensaverStationDetails => "config.tooltip.screensaver_station_details",
+            Self::ScreensaverNowPlaying => "config.tooltip.screensaver_now_playing",
             Self::SpotifyStopOnQuit => "config.tooltip.spotify_stop_on_quit",
             Self::SpotifyStartOnSpotify => "config.tooltip.spotify_start_on_spotify",
             Self::SpotifyClientId => "config.tooltip.spotify_client_id",
@@ -193,7 +199,9 @@ impl SettingItem {
             | Self::ScreensaverLogo
             | Self::ScreensaverVisualizer
             | Self::ScreensaverRecentTracks
-            | Self::ScreensaverProgressBar => "config.group.overlay",
+            | Self::ScreensaverProgressBar
+            | Self::ScreensaverStationDetails
+            | Self::ScreensaverNowPlaying => "config.group.overlay",
             Self::DuckEnabled | Self::DuckVolume => "config.group.game",
             Self::MediaKeys
             | Self::TrayIcon
@@ -238,6 +246,8 @@ pub fn settings_items(duck_enabled: bool, screensaver_active: bool) -> Vec<Setti
             SettingItem::ScreensaverVisualizer,
             SettingItem::ScreensaverRecentTracks,
             SettingItem::ScreensaverProgressBar,
+            SettingItem::ScreensaverStationDetails,
+            SettingItem::ScreensaverNowPlaying,
         ]);
     }
 

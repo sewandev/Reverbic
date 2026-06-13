@@ -213,9 +213,13 @@ impl From<RadioBrowserStation> for DynamicStation {
 pub struct StationDetails {
     pub homepage: String,
     pub country: String,
+    pub state: String,
     pub language: String,
     pub tags: Vec<String>,
     pub codec: String,
+    pub bitrate: u32,
+    pub votes: u32,
+    pub clickcount: u32,
 }
 
 fn json_str(obj: &serde_json::Value, key: &str) -> String {
@@ -234,9 +238,13 @@ fn parse_details(s: &serde_json::Value) -> StationDetails {
     StationDetails {
         homepage: json_str(s, "homepage"),
         country: json_str(s, "country"),
+        state: json_str(s, "state"),
         language: json_str(s, "language"),
         tags,
         codec: json_str(s, "codec"),
+        bitrate: s["bitrate"].as_u64().unwrap_or(0) as u32,
+        votes: s["votes"].as_u64().unwrap_or(0) as u32,
+        clickcount: s["clickcount"].as_u64().unwrap_or(0) as u32,
     }
 }
 
