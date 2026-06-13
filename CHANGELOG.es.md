@@ -10,6 +10,12 @@ Versionado: [Semantic Versioning](https://semver.org/)
 
 ## [Sin publicar]
 
+### Agregado
+- Se agregaron configuraciones individuales en Ajustes > Modo Ambiente para alternar el visualizador, pistas recientes, barra de progreso y logo dentro del Modo Ambiente.
+
+### Cambiado
+- Se refactorizó el renderizado del Modo Ambiente para usar widgets modulares para el reloj, visualizador, barra de progreso y logo.
+
 ## [1.5.2] - 2026-06-12
 
 ### Agregado
