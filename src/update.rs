@@ -482,8 +482,10 @@ fn replace_current_executable(new_exe: &Path) -> std::io::Result<()> {
         return Ok(());
     };
     if is_managed_macos_installation(&current) {
+        let reason = managed_macos_installation_reason(&current).unwrap_or("managed");
         tracing::debug!(
             current = %current.display(),
+            reason,
             "Skipping self-update for managed macOS installation"
         );
         return Ok(());
@@ -529,10 +531,33 @@ fn replace_executable_at(current: &Path, new_exe: &Path) -> std::io::Result<()> 
 
 #[cfg(target_os = "macos")]
 fn is_managed_macos_installation(current: &Path) -> bool {
-    current.starts_with("/opt/homebrew/")
+    managed_macos_installation_reason(current).is_some()
+}
+
+#[cfg(target_os = "macos")]
+fn managed_macos_installation_reason(current: &Path) -> Option<&'static str> {
+    if current.starts_with("/opt/homebrew/")
         || current.starts_with("/usr/local/Cellar/")
         || current.starts_with("/usr/local/Homebrew/")
-        || current.starts_with("/nix/store/")
+    {
+        return Some("homebrew");
+    }
+
+    if current.starts_with("/nix/store/") {
+        return Some("nix");
+    }
+
+    if current.starts_with("/Applications/") && path_contains_app_bundle(current) {
+        return Some("application bundle");
+    }
+
+    None
+}
+
+#[cfg(target_os = "macos")]
+fn path_contains_app_bundle(path: &Path) -> bool {
+    path.components()
+        .any(|component| component.as_os_str().to_string_lossy().ends_with(".app"))
 }
 
 #[cfg(target_os = "macos")]
@@ -901,8 +926,8 @@ mod asset_selection_tests {
 #[cfg(all(test, target_os = "macos"))]
 mod macos_payload_tests {
     use super::{
-        is_managed_macos_installation, prepare_macos_update_payload, replace_executable_at,
-        safe_macos_archive_path,
+        is_managed_macos_installation, managed_macos_installation_reason,
+        prepare_macos_update_payload, replace_executable_at, safe_macos_archive_path,
     };
     use flate2::write::GzEncoder;
     use flate2::Compression;
@@ -1071,20 +1096,38 @@ mod macos_payload_tests {
 
     #[test]
     fn detects_managed_macos_installations() {
+        assert_eq!(
+            managed_macos_installation_reason(Path::new("/opt/homebrew/bin/reverbic")),
+            Some("homebrew")
+        );
+        assert_eq!(
+            managed_macos_installation_reason(Path::new(
+                "/usr/local/Cellar/reverbic/1.0.0/bin/reverbic"
+            )),
+            Some("homebrew")
+        );
+        assert_eq!(
+            managed_macos_installation_reason(Path::new("/usr/local/Homebrew/bin/reverbic")),
+            Some("homebrew")
+        );
+        assert_eq!(
+            managed_macos_installation_reason(Path::new("/nix/store/hash-reverbic/bin/reverbic")),
+            Some("nix")
+        );
+        assert_eq!(
+            managed_macos_installation_reason(Path::new(
+                "/Applications/Reverbic.app/Contents/MacOS/reverbic"
+            )),
+            Some("application bundle")
+        );
         assert!(is_managed_macos_installation(Path::new(
-            "/opt/homebrew/bin/reverbic"
-        )));
-        assert!(is_managed_macos_installation(Path::new(
-            "/usr/local/Cellar/reverbic/1.0.0/bin/reverbic"
-        )));
-        assert!(is_managed_macos_installation(Path::new(
-            "/usr/local/Homebrew/bin/reverbic"
-        )));
-        assert!(is_managed_macos_installation(Path::new(
-            "/nix/store/hash-reverbic/bin/reverbic"
+            "/Applications/Reverbic.app/Contents/MacOS/reverbic"
         )));
         assert!(!is_managed_macos_installation(Path::new(
             "/Users/example/bin/reverbic"
+        )));
+        assert!(!is_managed_macos_installation(Path::new(
+            "/Applications/reverbic"
         )));
     }
 }
