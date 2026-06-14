@@ -10,6 +10,9 @@ Versionado: [Semantic Versioning](https://semver.org/)
 
 ## [Sin publicar]
 
+### Changed
+- Reverbic ahora guarda sus archivos siguiendo las ubicaciones estándar de cada sistema operativo (configuración, datos y caché quedan separados) en lugar de una única carpeta `~/.reverbic`. Las instalaciones existentes se migran automáticamente en el primer arranque, así que no se pierde ninguna configuración.
+
 ## [1.5.4] - 2026-06-13
 
 ### Agregado

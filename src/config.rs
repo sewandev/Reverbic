@@ -492,7 +492,7 @@ impl Config {
     }
 
     fn path() -> PathBuf {
-        reverbic_dir().join("config.json")
+        crate::paths::config_file()
     }
 }
 
@@ -617,13 +617,6 @@ fn replace_file(src: &std::path::Path, dst: &std::path::Path) -> std::io::Result
     {
         std::fs::rename(src, dst)
     }
-}
-
-pub(crate) fn reverbic_dir() -> PathBuf {
-    let home = std::env::var("USERPROFILE")
-        .or_else(|_| std::env::var("HOME"))
-        .unwrap_or_else(|_| ".".to_string());
-    PathBuf::from(home).join(".reverbic")
 }
 
 #[cfg(test)]

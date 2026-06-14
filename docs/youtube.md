@@ -19,10 +19,10 @@ Reverbic streams YouTube audio through [yt-dlp](https://github.com/yt-dlp/yt-dlp
 
 ## How caching works
 
-- **Resolved URLs** are cached for **4 hours** in `~/.reverbic/youtube_url_cache.json`, so replaying a recent video starts almost instantly — even after restarting Reverbic. The 4-hour limit comes from YouTube: its stream URLs self-expire after ~6 hours, so caching longer is not possible.
+- **Resolved URLs** are cached for **4 hours** in `youtube_url_cache.json` inside the cache directory (`~/.cache/reverbic/`, or `%LOCALAPPDATA%\Reverbic\cache\` on Windows), so replaying a recent video starts almost instantly — even after restarting Reverbic. The 4-hour limit comes from YouTube: its stream URLs self-expire after ~6 hours, so caching longer is not possible.
 - Only **anonymous** resolutions are persisted. Anything resolved with your cookies stays in memory and never touches disk.
 - URLs are **tied to your IP**: if you switch networks or enable a VPN, a cached URL may stop working — Reverbic detects this, discards it, and re-resolves automatically on the next play.
-- The **downloaded audio** (`~/.reverbic/cache/youtube/*.m4a`) is temporary: it is wiped every time Reverbic starts, so no YouTube media accumulates on disk.
+- The **downloaded audio** (`youtube/*.m4a` inside the cache directory) is temporary: it is wiped every time Reverbic starts, so no YouTube media accumulates on disk.
 
 ## Cookies setup (optional)
 
@@ -56,7 +56,7 @@ Privacy: Reverbic only passes the file path to yt-dlp — cookies are never tran
 Reverbic logs every resolution and playback event:
 
 ```powershell
-Get-Content "$env:USERPROFILE\.reverbic\logs\reverbic.log" | Select-String "yt-dlp|youtube:|track finished|ended early"
+Get-Content "$env:LOCALAPPDATA\Reverbic\cache\logs\reverbic.log" | Select-String "yt-dlp|youtube:|track finished|ended early"
 ```
 
 A healthy resolution logs `resolved YouTube audio format` with `format_id=140` (audio-only AAC). If you open an issue, include the relevant log lines.

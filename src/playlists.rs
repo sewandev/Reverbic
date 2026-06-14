@@ -1,7 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-use crate::config::reverbic_dir;
 use crate::favorites::FavoriteStation;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -29,5 +28,5 @@ pub fn save(playlists: &[RadioPlaylist]) {
 }
 
 fn path() -> PathBuf {
-    reverbic_dir().join("playlists.json")
+    crate::paths::playlists_file()
 }

@@ -92,20 +92,7 @@ fn open_cache() -> Option<Cache> {
 }
 
 fn cache_dir() -> std::path::PathBuf {
-    #[cfg(target_os = "windows")]
-    {
-        std::env::var("APPDATA")
-            .map(|p| {
-                std::path::PathBuf::from(p)
-                    .join(".reverbic")
-                    .join("librespot")
-            })
-            .unwrap_or_else(|_| crate::config::reverbic_dir().join("librespot"))
-    }
-    #[cfg(not(target_os = "windows"))]
-    {
-        crate::config::reverbic_dir().join("librespot")
-    }
+    crate::paths::librespot_cache_dir()
 }
 
 struct NativePlayer {

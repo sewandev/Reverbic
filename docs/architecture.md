@@ -36,17 +36,22 @@ Shared, read-only UI state is exposed through `Arc<Mutex<T>>` and `OnceLock` glo
 
 ## Persistence and Configuration Ownership
 
-Configuration is owned by the `Config` struct and persisted to disk under the
-Reverbic data directory (`reverbic_dir()`), at `config.json`. Other persisted
-state lives alongside it in the same directory:
+Path resolution is centralized in the `paths` module, which follows the XDG Base
+Directory specification (and the equivalent conventions on Windows and macOS via
+the `directories` crate) to split state across three category directories:
+config, data, and cache. On the first startup after upgrading, `migrate_legacy()`
+moves any pre-existing `~/.reverbic` layout into these directories.
 
-- `config.json` — application settings
-- `favorites.json` — favorite stations
-- `playlists.json` — radio playlists
-- `youtube_bookmarks.json` — YouTube bookmarks
-- `youtube_url_cache.json` and `cache/youtube/` — resolved YouTube stream cache
-- `games.json` — user game-detection database
-- `logs/reverbic.log` — application log
+Configuration is owned by the `Config` struct and persisted to `config.json` in
+the config directory. Other persisted state is grouped by category:
+
+- Config: `config.json` — application settings
+- Data: `favorites.json`, `playlists.json`, `youtube_bookmarks.json` — saved content
+- Data: `games.json` — user game-detection database
+- Data: `library/`, `bin/` — track history and managed binaries (yt-dlp, Deno)
+- Cache: `youtube_url_cache.json`, `youtube/` — resolved YouTube stream cache
+- Cache: `librespot/` — native Spotify playback working directory
+- Cache: `logs/reverbic.log` — application log
 
 The `App` owns the in-memory `Config`; UI components read settings from the
 central `App` state rather than the disk. Changes made in the settings modal

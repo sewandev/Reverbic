@@ -188,7 +188,7 @@ const DOWNLOAD_RETRY_PAUSE: std::time::Duration = std::time::Duration::from_secs
 const FILE_READ_STARVATION_SECS: u64 = 60;
 
 pub fn youtube_cache_dir() -> std::path::PathBuf {
-    crate::config::reverbic_dir().join("cache").join("youtube")
+    crate::paths::youtube_media_cache_dir()
 }
 
 pub fn clear_youtube_cache() {

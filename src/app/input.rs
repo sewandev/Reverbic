@@ -1411,7 +1411,7 @@ impl App {
                 self.validate_youtube_cookies();
             }
             SettingItem::OpenLogs => {
-                crate::shell::open_folder(&crate::config::reverbic_dir().join("logs"));
+                crate::shell::open_folder(&crate::paths::logs_dir());
             }
             _ => self.apply_settings_toggle(self.settings_selected),
         }

@@ -1,7 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-use crate::config::reverbic_dir;
 use crate::integrations::youtube::YoutubeVideo;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -67,5 +66,5 @@ pub fn toggle(bookmarks: &mut Vec<YoutubeVideo>, video: YoutubeVideo) -> bool {
 }
 
 fn path() -> PathBuf {
-    reverbic_dir().join("youtube_bookmarks.json")
+    crate::paths::youtube_bookmarks_file()
 }

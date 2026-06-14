@@ -10,6 +10,9 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ## [Unreleased]
 
+### Changed
+- Reverbic now stores its files following each operating system's standard locations (configuration, data, and cache are kept separate) instead of a single `~/.reverbic` folder. Existing installs are migrated automatically on first launch, so no settings are lost.
+
 ## [1.5.4] - 2026-06-13
 
 ### Added

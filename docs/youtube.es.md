@@ -19,10 +19,10 @@ Reverbic reproduce audio de YouTube a través de [yt-dlp](https://github.com/yt-
 
 ## Cómo funciona el caché
 
-- **Las URLs resueltas** se guardan por **4 horas** en `~/.reverbic/youtube_url_cache.json`, así que volver a reproducir un video reciente arranca casi al instante — incluso tras reiniciar Reverbic. El límite de 4 horas lo impone YouTube: sus URLs de stream se auto-expiran a las ~6 horas, así que no es posible cachear más tiempo.
+- **Las URLs resueltas** se guardan por **4 horas** en `youtube_url_cache.json` dentro del directorio de caché (`~/.cache/reverbic/`, o `%LOCALAPPDATA%\Reverbic\cache\` en Windows), así que volver a reproducir un video reciente arranca casi al instante — incluso tras reiniciar Reverbic. El límite de 4 horas lo impone YouTube: sus URLs de stream se auto-expiran a las ~6 horas, así que no es posible cachear más tiempo.
 - Solo se persisten las resoluciones **anónimas**. Todo lo resuelto con tus cookies queda en memoria y nunca toca el disco.
 - Las URLs están **atadas a tu IP**: si cambias de red o activas una VPN, una URL cacheada puede dejar de funcionar — Reverbic lo detecta, la descarta y re-resuelve automáticamente en la siguiente reproducción.
-- **El audio descargado** (`~/.reverbic/cache/youtube/*.m4a`) es temporal: se borra cada vez que Reverbic arranca, así que no se acumula media de YouTube en el disco.
+- **El audio descargado** (`youtube/*.m4a` dentro del directorio de caché) es temporal: se borra cada vez que Reverbic arranca, así que no se acumula media de YouTube en el disco.
 
 ## Configuración de cookies (opcional)
 
@@ -56,7 +56,7 @@ Privacidad: Reverbic solo le pasa la ruta del archivo a yt-dlp — las cookies n
 Reverbic registra cada resolución y evento de reproducción:
 
 ```powershell
-Get-Content "$env:USERPROFILE\.reverbic\logs\reverbic.log" | Select-String "yt-dlp|youtube:|track finished|ended early"
+Get-Content "$env:LOCALAPPDATA\Reverbic\cache\logs\reverbic.log" | Select-String "yt-dlp|youtube:|track finished|ended early"
 ```
 
 Una resolución sana registra `resolved YouTube audio format` con `format_id=140` (audio puro AAC). Si abres un issue, incluye las líneas relevantes del log.

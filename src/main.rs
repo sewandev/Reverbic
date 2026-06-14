@@ -24,6 +24,7 @@ mod metadata;
 mod onboarding;
 #[cfg(target_os = "windows")]
 mod overlay;
+mod paths;
 mod playlists;
 mod preview;
 mod schedule;
@@ -62,6 +63,7 @@ async fn main() -> Result<()> {
     }));
     install::maybe_self_install();
     update::cleanup_stale();
+    paths::migrate_legacy();
     let _log_guard = init_logging();
     i18n::init(config::Config::load().language);
     game_detect::init_game_db();
@@ -80,7 +82,7 @@ async fn main() -> Result<()> {
     result
 }
 fn log_file_path() -> PathBuf {
-    config::reverbic_dir().join("logs").join("reverbic.log")
+    paths::logs_dir().join("reverbic.log")
 }
 
 fn init_logging() -> Option<tracing_appender::non_blocking::WorkerGuard> {
@@ -395,11 +397,8 @@ mod tests {
     use ratatui::layout::Rect;
 
     #[test]
-    fn log_file_path_uses_reverbic_dir() {
-        assert_eq!(
-            log_file_path(),
-            config::reverbic_dir().join("logs").join("reverbic.log")
-        );
+    fn log_file_path_uses_logs_dir() {
+        assert_eq!(log_file_path(), paths::logs_dir().join("reverbic.log"));
     }
 
     #[test]
