@@ -64,6 +64,9 @@ cargo build --release
 - **Protector de pantalla** — reloj, información de la estación y metadatos de la canción cuando está inactivo
 
 > [!NOTE]
+> Actualmente, las funciones de **Overlay flotante**, **Audio ducking**, **Teclas multimedia**, **Bandeja del sistema (Tray)**, **Notificaciones** y **Discord RPC** son exclusivas de Windows. ¡Estamos buscando colaboradores para portarlas a macOS y Linux!
+
+> [!NOTE]
 > Los cambios de política de Spotify en 2026 podrían restringir la reproducción nativa (librespot) en cualquier momento. El modo de Control Remoto (búsqueda y control de reproducción vía la API oficial de Spotify) no depende de librespot y es un respaldo razonable para ese riesgo, aunque tiene sus propios requisitos (tu propia cuenta Premium de Spotify y app de Developer). Ver [LEGAL.md](LEGAL.md) para más detalles (en inglés).
 
 ---
