@@ -141,7 +141,12 @@ pub fn render(frame: &mut Frame, app: &App) {
 
     if modal.y >= game_h + 2 {
         crate::ui::widgets::logo::LogoWidget::new(palette.overlay_color, app.border_tick, palette)
-            .render_centered(frame, modal.x, modal.width, modal.y.saturating_sub(game_h + 2));
+            .render_centered(
+                frame,
+                modal.x,
+                modal.width,
+                modal.y.saturating_sub(game_h + 2),
+            );
     }
 
     if let Some((ref name, ref genre)) = game_info {
