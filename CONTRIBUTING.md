@@ -12,7 +12,7 @@ Right now, our main focus is on **security hardening** (specially around the aut
 - Please **do not open Pull Requests against `main`**. `main` is strictly reserved for production releases.
 - **CI is Mandatory**: We do not bypass GitHub Actions. Your PR will not be merged until the `cargo fmt` and `cargo clippy` checks are perfectly green.
 - **Merge Conflicts**: If your PR has merge conflicts, please resolve them locally, verify compilation with `cargo check` and `cargo fmt`, and push the fix. If you can't, the maintainer will push the resolution directly to your branch — no "PR Bridges" will be created, to keep the history clean and your authorship intact.
-- PRs are merged using **squash and merge**.
+- PRs against `develop` are merged using **squash and merge**. (`main` only ever receives release merges from `develop`, and always as a merge commit.)
 
 ## Issues
 

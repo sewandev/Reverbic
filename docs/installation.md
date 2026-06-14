@@ -1,6 +1,6 @@
 # Installation
 
-Reverbic is a terminal player for Windows, macOS, and Linux. Released binaries are published for Windows x86_64 only; the other platforms are supported by building from source.
+Reverbic is a terminal player for Windows, macOS, and Linux. Prebuilt binaries are published for Windows (x86_64), macOS (Intel and Apple Silicon), and Linux (x86_64). You can also build from source on any platform with a Rust toolchain.
 
 ## Windows quick install (recommended)
 
@@ -20,6 +20,14 @@ The script:
 On first run, Reverbic copies itself to `%LOCALAPPDATA%\Programs\reverbic\reverbic.exe` and adds that folder to your user `PATH`, so you can type `reverbic` from any terminal afterward.
 
 To include pre-release versions, set `REVERBIC_PRERELEASE` to any non-empty value before running the script.
+
+## macOS quick install (Homebrew)
+
+```sh
+brew install sewandev/reverbic/reverbic
+```
+
+This installs the prebuilt binary for your Mac (Intel or Apple Silicon) from the [Homebrew tap](https://github.com/sewandev/homebrew-reverbic).
 
 ## Scoop
 
@@ -60,7 +68,15 @@ The resulting binary is `target/release/reverbic` (`target/release/reverbic.exe`
 
 ## Release assets
 
-The release workflow runs on `windows-latest` and builds a single executable for the `x86_64-pc-windows-msvc` target, published as `reverbic-vX.Y.Z-x86_64-windows.exe` together with its SHA256 hash. macOS and Linux are not distributed as prebuilt binaries; use the build-from-source instructions above. The in-app auto-updater only applies to Windows x86_64.
+Each release publishes prebuilt binaries for all three platforms, built by `.github/workflows/release.yml`:
+
+- `reverbic-vX.Y.Z-x86_64-windows.exe` — Windows x86_64
+- `reverbic-vX.Y.Z-x86_64-macos.tar.gz` — macOS Intel
+- `reverbic-vX.Y.Z-aarch64-macos.tar.gz` — macOS Apple Silicon
+- `reverbic-vX.Y.Z-x86_64-linux.tar.gz` — Linux x86_64
+- `checksums.txt` — SHA-256 digests for every artifact
+
+The in-app auto-updater applies to Windows, macOS, and Linux.
 
 ## Windows notes
 
