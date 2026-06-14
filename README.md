@@ -26,9 +26,12 @@
 
 ## Installation
 
-```powershell
+```bash
 # Quick install (Windows)
 irm https://raw.githubusercontent.com/sewandev/Reverbic/main/install.ps1 | iex
+
+# Quick install (macOS / Linux)
+brew install sewandev/reverbic/reverbic
 
 # Package managers
 scoop bucket add reverbic https://github.com/sewandev/scoop-reverbic; scoop install reverbic   # Windows (Scoop)
@@ -38,7 +41,7 @@ cargo install --git https://github.com/sewandev/Reverbic.git --locked           
 git clone https://github.com/sewandev/Reverbic.git
 cd Reverbic
 cargo build --release
-.\target\release\reverbic.exe
+./target/release/reverbic
 ```
 
 > [!TIP]
