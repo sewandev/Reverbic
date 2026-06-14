@@ -309,6 +309,7 @@ impl App {
         if has_audio_token || has_cached_credentials {
             let (evt_tx, evt_rx) = std::sync::mpsc::sync_channel(32);
             let handle = crate::integrations::spotify::player::spawn_player(audio_token, evt_tx);
+            handle.set_crossfade(self.effective_spotify_crossfade());
             self.spotify.player_tx = Some(handle);
             self.spotify.player_rx = Some(evt_rx);
             self.spotify.native_available = true;
@@ -412,6 +413,27 @@ impl App {
                         self.spotify.playback_queue.len()
                     );
                     self.advance_playback_queue();
+                }
+                SpotifyPlayerEvent::TrackNearEnd => {
+                    if self.spotify.active_backend != Some(SpotifyPlaybackBackend::Native) {
+                        continue;
+                    }
+                    if self.effective_spotify_crossfade() == 0 {
+                        continue;
+                    }
+                    let Some(next) = self.spotify.playback_queue.pop_front() else {
+                        continue;
+                    };
+                    if let Some(handle) = &self.spotify.player_tx {
+                        tracing::debug!(
+                            "spotify event: TrackNearEnd, crossfading to '{}'",
+                            next.name
+                        );
+                        handle.crossfade_to(next.uri.clone());
+                        self.spotify.now_playing = Some(next);
+                    } else {
+                        self.spotify.playback_queue.push_front(next);
+                    }
                 }
                 SpotifyPlayerEvent::Error(e) => {
                     tracing::warn!("spotify native playback error: {e}");

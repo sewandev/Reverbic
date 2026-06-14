@@ -61,6 +61,19 @@ pub fn crossfade_display(secs: u8) -> String {
     }
 }
 
+pub fn spotify_crossfade_display(secs: u8) -> String {
+    use crate::i18n::t;
+    match secs {
+        0 => t("crossfade.off"),
+        1 => t("crossfade.1s"),
+        3 => t("crossfade.3s"),
+        5 => t("crossfade.5s"),
+        7 => t("crossfade.7s"),
+        10 => t("crossfade.10s"),
+        _ => t("crossfade.12s"),
+    }
+}
+
 pub fn group_thousands(n: u32) -> String {
     let digits = n.to_string();
     let bytes = digits.as_bytes();

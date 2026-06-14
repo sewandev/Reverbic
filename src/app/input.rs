@@ -2699,6 +2699,13 @@ impl App {
             super::modal::SettingItem::SpotifyPlaybackMode => {
                 self.set_spotify_playback_mode(self.config.spotify.playback_mode.next());
             }
+            super::modal::SettingItem::SpotifyCrossfade => {
+                if self.config.spotify.playback_mode != crate::config::SpotifyPlaybackMode::Native {
+                    return;
+                }
+                self.config.spotify_crossfade_next();
+                self.sync_native_crossfade();
+            }
             super::modal::SettingItem::SpotifyRadioMode => {
                 self.config.spotify.radio_enabled = !self.config.spotify.radio_enabled;
             }

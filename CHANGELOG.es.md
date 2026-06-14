@@ -11,6 +11,7 @@ Versionado: [Semantic Versioning](https://semver.org/)
 ## [Sin publicar]
 
 ### Agregado
+- Se agregó el ajuste "Crossfade (Spotify)" (hasta 12 segundos) que funde el final de cada canción con el inicio de la siguiente al usar el modo de reproducción Nativo; el ajuste aparece deshabilitado hasta seleccionar el modo Nativo.
 - La pestaña de búsqueda de YouTube ahora muestra una pista de que puedes presionar Ctrl+R sobre un video para iniciar una radio infinita.
 - Reverbic ahora se actualiza solo en Linux (x86_64), igual que en Windows y macOS: se publica un binario de Linux por release y la app descarga, verifica e instala la nueva versión automáticamente.
 
