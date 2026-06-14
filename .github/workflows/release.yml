@@ -100,12 +100,63 @@ jobs:
           path: dist/*.tar.gz
           if-no-files-found: error
 
+  build-linux:
+    name: Build Linux release (x86_64)
+    # Pinned to 22.04 to link against glibc 2.35 for broad distro compatibility.
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libasound2-dev
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-gnu
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-x86_64-unknown-linux-gnu
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: Build release binary
+        run: cargo build --release --target x86_64-unknown-linux-gnu
+
+      - name: Package release artifact
+        run: |
+          set -euo pipefail
+          version="${{ github.ref_name }}"
+          archive="reverbic-${version}-x86_64-linux.tar.gz"
+          staging="dist/staging/x86_64-unknown-linux-gnu"
+
+          mkdir -p "$staging" dist
+          cp "target/x86_64-unknown-linux-gnu/release/reverbic" "$staging/reverbic"
+          chmod 755 "$staging/reverbic"
+          tar -C "$staging" -czf "dist/$archive" reverbic
+
+      - name: Upload Linux artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-linux-x86_64
+          path: dist/*.tar.gz
+          if-no-files-found: error
+
   publish:
     name: Publish GitHub Release
     runs-on: ubuntu-latest
     needs:
       - build-windows
       - build-macos
+      - build-linux
 
     steps:
       - name: Download release artifacts
@@ -145,6 +196,7 @@ jobs:
             dist/reverbic-${{ github.ref_name }}-x86_64-windows.exe
             dist/reverbic-${{ github.ref_name }}-x86_64-macos.tar.gz
             dist/reverbic-${{ github.ref_name }}-aarch64-macos.tar.gz
+            dist/reverbic-${{ github.ref_name }}-x86_64-linux.tar.gz
             dist/checksums.txt
           draft: false
           prerelease: ${{ contains(github.ref_name, '-') }}

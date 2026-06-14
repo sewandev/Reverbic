@@ -223,6 +223,22 @@ impl SettingItem {
             Self::Language | Self::Theme => "config.group.appearance",
         }
     }
+
+    fn is_windows_only(self) -> bool {
+        matches!(
+            self,
+            Self::OverlayMode
+                | Self::OverlayAlpha
+                | Self::OverlayPosition
+                | Self::OverlayStyle
+                | Self::DuckEnabled
+                | Self::DuckVolume
+                | Self::MediaKeys
+                | Self::TrayIcon
+                | Self::Notifications
+                | Self::DiscordRpc
+        )
+    }
 }
 
 pub fn settings_items(duck_enabled: bool, screensaver_active: bool) -> Vec<SettingItem> {
@@ -276,6 +292,11 @@ pub fn settings_items(duck_enabled: bool, screensaver_active: bool) -> Vec<Setti
         SettingItem::Language,
         SettingItem::Theme,
     ]);
+
+    if !cfg!(target_os = "windows") {
+        items.retain(|item| !item.is_windows_only());
+    }
+
     items
 }
 
