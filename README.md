@@ -64,6 +64,9 @@ cargo build --release
 - **Screensaver mode** — clock, station info, and track metadata when idle
 
 > [!NOTE]
+> Currently, the **Floating overlay**, **Audio ducking**, **Media Keys**, **System Tray**, **Notifications**, and **Discord RPC** features are exclusive to Windows. We are actively looking for contributors to help port them to macOS and Linux!
+
+> [!NOTE]
 > Spotify's 2026 policy changes could restrict native playback (librespot) at any time. Remote Control mode (search and playback control via the official Spotify API) does not depend on librespot and is a reasonable fallback for that risk, though it has its own requirements (your own Spotify Premium account and Developer app). See [LEGAL.md](LEGAL.md) for details.
 
 ---
