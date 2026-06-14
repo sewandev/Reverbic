@@ -241,6 +241,14 @@ impl App {
             self.ensure_youtube_ready();
             return;
         }
+        if cookies::configured_cookies_path(self.config.youtube.cookies_path.as_deref()).is_none() {
+            self.show_notice(
+                crate::app::NoticeSeverity::Warning,
+                crate::i18n::t("modal.youtube.mix_requires_cookies"),
+                8,
+            );
+            return;
+        }
         tracing::info!(video_id = %seed.id, title = %seed.title, "youtube: starting mix");
         self.show_notice(
             crate::app::NoticeSeverity::Info,
@@ -611,6 +619,17 @@ impl App {
                 let seed = self.youtube_context_list(&ctx).get(index).cloned();
                 self.youtube.playback_context = None;
                 if let Some(seed) = seed {
+                    if cookies::configured_cookies_path(self.config.youtube.cookies_path.as_deref())
+                        .is_none()
+                    {
+                        tracing::info!("youtube: radio mode skipped, no cookies configured");
+                        self.show_notice(
+                            crate::app::NoticeSeverity::Warning,
+                            crate::i18n::t("modal.youtube.mix_requires_cookies"),
+                            8,
+                        );
+                        return;
+                    }
                     tracing::info!(
                         seed = %seed.id,
                         "youtube: list ended, radio mode continuing with a mix"

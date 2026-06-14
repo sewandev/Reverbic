@@ -171,18 +171,8 @@ impl<'a> SearchModalWidget<'a> {
             return;
         }
 
-        let [list_area, hint_area] = ratatui::layout::Layout::vertical([
-            ratatui::layout::Constraint::Fill(1),
-            ratatui::layout::Constraint::Length(if self.youtube_results.is_empty() {
-                0
-            } else {
-                2
-            }),
-        ])
-        .areas(layout.list);
-
         self.render_video_list(
-            list_area,
+            layout.list,
             text_x,
             text_w,
             buf,
@@ -196,7 +186,7 @@ impl<'a> SearchModalWidget<'a> {
         );
 
         if !self.youtube_results.is_empty() {
-            let mut text_area = hint_area;
+            let mut text_area = layout.hint;
             text_area.y = text_area.y.saturating_add(1); // top padding
             text_area.height = text_area.height.saturating_sub(1);
             Paragraph::new(Span::styled(

@@ -10,13 +10,18 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ## [Unreleased]
 
+### Added
+- The YouTube search tab now shows a hint that you can press Ctrl+R on a video to start an infinite radio.
+
 ### Changed
+- The "YouTube Radio" setting tooltip now states that it requires a configured cookies.txt, since YouTube blocks mixes for unauthenticated requests.
 - Redesigned the Spotify profile block in Ambient Mode as a dedicated widget with centered text: the display name stands out and a single line shows Premium, country, and follower count (now formatted with thousands separators).
 - Reorganized the Settings menu into clearer categories: Radio, Spotify and YouTube each get their own section, separate from Overlay, Ducking, System and Appearance.
 - The Overlay and Ducking settings sections are now labeled "(Windows only)" so it is clear they do not apply on other platforms.
 - The shortcuts overlay ([?]) now groups keys by scope with section headers (Radio, Spotify, YouTube, Global) instead of showing one flat list.
 
 ### Fixed
+- Starting a YouTube radio (Ctrl+R or when a list ends with YouTube Radio enabled) without a configured cookies.txt now shows a clear message instead of announcing the mix and then failing silently.
 - The shortcuts overlay showed the wrong action for [Tab] and ignored YouTube; it now reads "Switch source" consistently across every tab.
 - Unified the label of the "Open Settings" shortcut, which was inconsistent between the Radio, Spotify and YouTube views.
 - When the configured YouTube cookies file became invalid (removed, moved or unreadable), the Liked and Playlists tabs stayed silently empty; they now show a clear error and the same recovery guide as the unauthenticated state.
