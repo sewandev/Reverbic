@@ -295,6 +295,26 @@ pub fn apply_update(new_exe: &Path) {
     {
         apply_macos_update(new_exe);
     }
+
+    #[cfg(target_os = "linux")]
+    {
+        apply_update_in_place(new_exe);
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn apply_update_in_place(new_exe: &Path) {
+    let Ok(current) = std::env::current_exe() else {
+        return;
+    };
+    let Some(file_name) = current.file_name() else {
+        return;
+    };
+    let old_name = format!("{}.old", file_name.to_string_lossy());
+    let old = current.with_file_name(old_name);
+    if std::fs::rename(&current, &old).is_ok() && std::fs::copy(new_exe, &current).is_err() {
+        let _ = std::fs::rename(&old, &current);
+    }
 }
 
 #[cfg(target_os = "macos")]
