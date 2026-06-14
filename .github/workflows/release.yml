@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 jobs:
-  build:
+  build-windows:
     name: Build Windows release
     runs-on: windows-latest
 
@@ -28,29 +28,100 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-x86_64-pc-windows-msvc
           restore-keys: ${{ runner.os }}-cargo-
 
       - name: Build release binary
         run: cargo build --release --target x86_64-pc-windows-msvc
 
-      - name: Rename binary
+      - name: Prepare release artifact
+        shell: pwsh
         run: |
           $version = "${{ github.ref_name }}"
-          $src = "target\x86_64-pc-windows-msvc\release\reverbic.exe"
-          $dst = "reverbic-$version-x86_64-windows.exe"
-          Copy-Item $src $dst
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Copy-Item "target\x86_64-pc-windows-msvc\release\reverbic.exe" "dist\reverbic-$version-x86_64-windows.exe"
 
-      - name: Compute SHA256
-        id: sha256
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-windows
+          path: dist/*
+          if-no-files-found: error
+
+  build-macos:
+    name: Build macOS release (${{ matrix.target }})
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-apple-darwin
+            asset_arch: x86_64
+          - target: aarch64-apple-darwin
+            asset_arch: aarch64
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-${{ matrix.target }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: Build release binary
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Package release artifact
         run: |
-          $version = "${{ github.ref_name }}"
-          $file = "reverbic-$version-x86_64-windows.exe"
-          $hash = (Get-FileHash $file -Algorithm SHA256).Hash.ToLower()
-          echo "hash=$hash" >> $env:GITHUB_OUTPUT
-          echo "SHA256: $hash"
+          set -euo pipefail
+          version="${{ github.ref_name }}"
+          archive="reverbic-${version}-${{ matrix.asset_arch }}-macos.tar.gz"
+          staging="dist/staging/${{ matrix.target }}"
 
-      - name: Create GitHub Release
+          mkdir -p "$staging" dist
+          cp "target/${{ matrix.target }}/release/reverbic" "$staging/reverbic"
+          chmod 755 "$staging/reverbic"
+          tar -C "$staging" -czf "dist/$archive" reverbic
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-macos-${{ matrix.target }}
+          path: dist/*.tar.gz
+          if-no-files-found: error
+
+  publish:
+    name: Publish GitHub Release
+    runs-on: ubuntu-latest
+    needs:
+      - build-windows
+      - build-macos
+
+    steps:
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Generate checksums
+        run: |
+          set -euo pipefail
+          cd dist
+          sha256sum reverbic-${{ github.ref_name }}-* > checksums.txt
+          cat checksums.txt
+
+      - name: Publish GitHub Release
         uses: softprops/action-gh-release@v3
         with:
           name: Reverbic ${{ github.ref_name }}
@@ -66,12 +137,14 @@ jobs:
             ```
 
             **Direct download**
-            Download `reverbic-${{ github.ref_name }}-x86_64-windows.exe`, place it in a folder on your PATH, and run it from a terminal.
-
-            **SHA256:** `${{ steps.sha256.outputs.hash }}`
+            Download the artifact for your platform from this release. SHA256 hashes are published in `checksums.txt`.
 
             ---
             See the [README](https://github.com/sewandev/Reverbic#readme) for Spotify setup instructions.
-          files: reverbic-${{ github.ref_name }}-x86_64-windows.exe
+          files: |
+            dist/reverbic-${{ github.ref_name }}-x86_64-windows.exe
+            dist/reverbic-${{ github.ref_name }}-x86_64-macos.tar.gz
+            dist/reverbic-${{ github.ref_name }}-aarch64-macos.tar.gz
+            dist/checksums.txt
           draft: false
           prerelease: ${{ contains(github.ref_name, '-') }}
