@@ -29,10 +29,36 @@ impl Step {
             .position(|step| *step == self)
             .expect("Step::ALL must list every Step variant")
     }
+
+    pub fn is_enabled(self) -> bool {
+        match self {
+            Step::OverlayPreferences => cfg!(target_os = "windows"),
+            _ => true,
+        }
+    }
+
+    pub fn enabled_count() -> usize {
+        Self::ALL.iter().filter(|step| step.is_enabled()).count()
+    }
+
+    pub fn enabled_position(self) -> usize {
+        Self::ALL
+            .iter()
+            .filter(|step| step.is_enabled())
+            .position(|step| *step == self)
+            .unwrap_or(0)
+    }
+
     pub fn option_count(self) -> usize {
         match self {
             Step::Welcome | Step::Summary => 0,
-            Step::Appearance => 3,
+            Step::Appearance => {
+                if cfg!(target_os = "windows") {
+                    3
+                } else {
+                    2
+                }
+            }
             Step::OverlayPreferences => 3,
             Step::PlaybackPreferences => 5,
             Step::SpotifyPreferences => 4,

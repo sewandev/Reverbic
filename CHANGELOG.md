@@ -10,7 +10,11 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ## [Unreleased]
 
+### Added
+- Reverbic now self-updates on Linux (x86_64), just like on Windows and macOS: a Linux binary is published with every release and the app downloads, verifies, and installs the new version automatically.
+
 ### Changed
+- On macOS and Linux, the options that only work on Windows (overlay, ducking, media keys, tray icon, notifications, and Discord Rich Presence) no longer appear in Settings or in the first-run wizard.
 - Redesigned the Spotify profile block in Ambient Mode as a dedicated widget with centered text: the display name stands out and a single line shows Premium, country, and follower count (now formatted with thousands separators).
 - Reorganized the Settings menu into clearer categories: Radio, Spotify and YouTube each get their own section, separate from Overlay, Ducking, System and Appearance.
 - The Overlay and Ducking settings sections are now labeled "(Windows only)" so it is clear they do not apply on other platforms.

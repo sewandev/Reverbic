@@ -42,6 +42,7 @@ impl GitHubAsset {
 enum UpdateOs {
     Windows,
     MacOs,
+    Linux,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -71,6 +72,7 @@ impl UpdateTarget {
         let os = match os {
             "windows" => UpdateOs::Windows,
             "macos" | "darwin" => UpdateOs::MacOs,
+            "linux" => UpdateOs::Linux,
             _ => return Err(AssetSelectionError::UnsupportedPlatform),
         };
 
@@ -82,6 +84,7 @@ impl UpdateTarget {
 
         match (os, arch) {
             (UpdateOs::Windows, UpdateArch::X86_64) => Ok(Self { os, arch }),
+            (UpdateOs::Linux, UpdateArch::X86_64) => Ok(Self { os, arch }),
             (UpdateOs::MacOs, _) => Ok(Self { os, arch }),
             _ => Err(AssetSelectionError::NoCompatibleAsset),
         }
@@ -97,6 +100,9 @@ impl UpdateTarget {
             }
             (UpdateOs::MacOs, UpdateArch::Aarch64) => {
                 format!("reverbic-v{version}-aarch64-macos.tar.gz")
+            }
+            (UpdateOs::Linux, UpdateArch::X86_64) => {
+                format!("reverbic-v{version}-x86_64-linux.tar.gz")
             }
             _ => unreachable!(),
         }
@@ -291,70 +297,50 @@ pub fn apply_update(new_exe: &Path) {
         }
     }
 
-    #[cfg(target_os = "macos")]
+    #[cfg(unix)]
     {
-        apply_macos_update(new_exe);
-    }
-
-    #[cfg(target_os = "linux")]
-    {
-        apply_update_in_place(new_exe);
+        apply_unix_update(new_exe);
     }
 }
 
-#[cfg(target_os = "linux")]
-fn apply_update_in_place(new_exe: &Path) {
-    let Ok(current) = std::env::current_exe() else {
-        return;
-    };
-    let Some(file_name) = current.file_name() else {
-        return;
-    };
-    let old_name = format!("{}.old", file_name.to_string_lossy());
-    let old = current.with_file_name(old_name);
-    if std::fs::rename(&current, &old).is_ok() && std::fs::copy(new_exe, &current).is_err() {
-        let _ = std::fs::rename(&old, &current);
-    }
-}
-
-#[cfg(target_os = "macos")]
-fn apply_macos_update(update_payload: &Path) {
-    let prepared = prepare_macos_update_payload(update_payload);
+#[cfg(unix)]
+fn apply_unix_update(update_payload: &Path) {
+    let prepared = prepare_unix_update_payload(update_payload);
     let _ = std::fs::remove_file(update_payload);
 
     match prepared {
         Ok(candidate) => {
             if let Err(err) = replace_current_executable(&candidate.binary_path) {
-                tracing::error!("Failed to apply macOS update: {err}");
+                tracing::error!("Failed to apply update: {err}");
             }
             if let Err(err) = std::fs::remove_dir_all(&candidate.extract_dir) {
-                tracing::debug!(?err, "Failed to clean macOS update extraction directory");
+                tracing::debug!(?err, "Failed to clean update extraction directory");
             }
         }
         Err(err) => {
             tracing::debug!(
                 ?err,
                 payload = %update_payload.display(),
-                "Could not prepare macOS update payload"
+                "Could not prepare update payload"
             );
         }
     }
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(unix)]
 #[derive(Debug)]
-struct PreparedMacosUpdate {
+struct PreparedUnixUpdate {
     binary_path: PathBuf,
     extract_dir: PathBuf,
 }
 
-#[cfg(target_os = "macos")]
-fn prepare_macos_update_payload(update_payload: &Path) -> std::io::Result<PreparedMacosUpdate> {
-    let extract_dir = unique_macos_extract_dir(update_payload);
+#[cfg(unix)]
+fn prepare_unix_update_payload(update_payload: &Path) -> std::io::Result<PreparedUnixUpdate> {
+    let extract_dir = unique_unix_extract_dir(update_payload);
     std::fs::create_dir(&extract_dir)?;
 
-    match extract_macos_update_archive(update_payload, &extract_dir) {
-        Ok(binary_path) => Ok(PreparedMacosUpdate {
+    match extract_unix_update_archive(update_payload, &extract_dir) {
+        Ok(binary_path) => Ok(PreparedUnixUpdate {
             binary_path,
             extract_dir,
         }),
@@ -365,8 +351,8 @@ fn prepare_macos_update_payload(update_payload: &Path) -> std::io::Result<Prepar
     }
 }
 
-#[cfg(target_os = "macos")]
-fn unique_macos_extract_dir(update_payload: &Path) -> PathBuf {
+#[cfg(unix)]
+fn unique_unix_extract_dir(update_payload: &Path) -> PathBuf {
     let payload_name = update_payload
         .file_name()
         .map(|name| name.to_string_lossy())
@@ -375,8 +361,8 @@ fn unique_macos_extract_dir(update_payload: &Path) -> PathBuf {
     unique_part_path(&base)
 }
 
-#[cfg(target_os = "macos")]
-fn extract_macos_update_archive(
+#[cfg(unix)]
+fn extract_unix_update_archive(
     update_payload: &Path,
     extract_dir: &Path,
 ) -> std::io::Result<PathBuf> {
@@ -392,7 +378,7 @@ fn extract_macos_update_archive(
 
     for entry_result in archive.entries()? {
         let mut entry = entry_result?;
-        let entry_path = safe_macos_archive_path(entry.path()?.as_ref())?;
+        let entry_path = safe_unix_archive_path(entry.path()?.as_ref())?;
         let entry_type = entry.header().entry_type();
 
         if entry_type == EntryType::Directory {
@@ -421,7 +407,7 @@ fn extract_macos_update_archive(
         {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
-                "macOS update archive contains multiple reverbic binaries",
+                "update archive contains multiple reverbic binaries",
             ));
         }
     }
@@ -429,15 +415,15 @@ fn extract_macos_update_archive(
     let candidate = candidate.ok_or_else(|| {
         io::Error::new(
             io::ErrorKind::NotFound,
-            "macOS update archive does not contain a reverbic binary",
+            "update archive does not contain a reverbic binary",
         )
     })?;
-    prepare_macos_update_binary(&candidate)?;
+    prepare_unix_update_binary(&candidate)?;
     Ok(candidate)
 }
 
-#[cfg(target_os = "macos")]
-fn safe_macos_archive_path(path: &Path) -> std::io::Result<PathBuf> {
+#[cfg(unix)]
+fn safe_unix_archive_path(path: &Path) -> std::io::Result<PathBuf> {
     use std::path::Component;
 
     let mut safe_path = PathBuf::new();
@@ -469,15 +455,15 @@ fn safe_macos_archive_path(path: &Path) -> std::io::Result<PathBuf> {
     Ok(safe_path)
 }
 
-#[cfg(target_os = "macos")]
-fn prepare_macos_update_binary(candidate: &Path) -> std::io::Result<()> {
+#[cfg(unix)]
+fn prepare_unix_update_binary(candidate: &Path) -> std::io::Result<()> {
     use std::os::unix::fs::PermissionsExt;
 
     let metadata = std::fs::symlink_metadata(candidate)?;
     if !metadata.file_type().is_file() {
         return Err(std::io::Error::new(
             std::io::ErrorKind::InvalidData,
-            "macOS update candidate is not a regular file",
+            "update candidate is not a regular file",
         ));
     }
 
@@ -489,24 +475,23 @@ fn prepare_macos_update_binary(candidate: &Path) -> std::io::Result<()> {
     if mode & 0o111 == 0 {
         return Err(std::io::Error::new(
             std::io::ErrorKind::PermissionDenied,
-            "macOS update candidate is not executable",
+            "update candidate is not executable",
         ));
     }
 
     Ok(())
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(unix)]
 fn replace_current_executable(new_exe: &Path) -> std::io::Result<()> {
     let Ok(current) = std::env::current_exe() else {
         return Ok(());
     };
-    if is_managed_macos_installation(&current) {
-        let reason = managed_macos_installation_reason(&current).unwrap_or("managed");
+    if let Some(reason) = managed_unix_installation_reason(&current) {
         tracing::debug!(
             current = %current.display(),
             reason,
-            "Skipping self-update for managed macOS installation"
+            "Skipping self-update for managed installation"
         );
         return Ok(());
     };
@@ -514,7 +499,7 @@ fn replace_current_executable(new_exe: &Path) -> std::io::Result<()> {
     replace_executable_at(&current, new_exe)
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(unix)]
 fn replace_executable_at(current: &Path, new_exe: &Path) -> std::io::Result<()> {
     let Some(file_name) = current.file_name() else {
         return Ok(());
@@ -549,9 +534,21 @@ fn replace_executable_at(current: &Path, new_exe: &Path) -> std::io::Result<()> 
     Ok(())
 }
 
-#[cfg(target_os = "macos")]
-fn is_managed_macos_installation(current: &Path) -> bool {
-    managed_macos_installation_reason(current).is_some()
+#[cfg(unix)]
+fn managed_unix_installation_reason(current: &Path) -> Option<&'static str> {
+    #[cfg(target_os = "macos")]
+    {
+        managed_macos_installation_reason(current)
+    }
+    #[cfg(target_os = "linux")]
+    {
+        managed_linux_installation_reason(current)
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+    {
+        let _ = current;
+        None
+    }
 }
 
 #[cfg(target_os = "macos")]
@@ -580,7 +577,28 @@ fn path_contains_app_bundle(path: &Path) -> bool {
         .any(|component| component.as_os_str().to_string_lossy().ends_with(".app"))
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(target_os = "linux")]
+fn managed_linux_installation_reason(current: &Path) -> Option<&'static str> {
+    if current.starts_with("/nix/store/") {
+        return Some("nix");
+    }
+
+    if current.starts_with("/snap/") {
+        return Some("snap");
+    }
+
+    if current.starts_with("/var/lib/flatpak/") || current.starts_with("/app/") {
+        return Some("flatpak");
+    }
+
+    if current.starts_with("/usr/") {
+        return Some("system package");
+    }
+
+    None
+}
+
+#[cfg(unix)]
 fn remove_file_if_exists(path: &Path) -> std::io::Result<()> {
     match std::fs::remove_file(path) {
         Ok(()) => Ok(()),
@@ -921,9 +939,34 @@ mod asset_selection_tests {
     }
 
     #[test]
-    fn rejects_update_asset_for_linux() {
-        let err = UpdateTarget::from_parts("linux", "x86_64")
-            .expect_err("linux update target should be unsupported");
+    fn selects_update_asset_for_linux_x86_64() {
+        let target = UpdateTarget::from_parts("linux", "x86_64")
+            .expect("linux x86_64 should be a supported update target");
+        let selected = select_compatible_asset(
+            vec![
+                asset("reverbic-v2.0.0-x86_64-linux.tar.gz"),
+                asset("reverbic-v2.0.0-x86_64-windows.exe"),
+            ],
+            "2.0.0",
+            target,
+        )
+        .expect("linux release asset should be selected");
+
+        assert_eq!(selected.name, "reverbic-v2.0.0-x86_64-linux.tar.gz");
+    }
+
+    #[test]
+    fn rejects_update_asset_for_linux_aarch64() {
+        let err = UpdateTarget::from_parts("linux", "aarch64")
+            .expect_err("linux aarch64 has no published artifact");
+
+        assert_eq!(err, AssetSelectionError::NoCompatibleAsset);
+    }
+
+    #[test]
+    fn rejects_update_asset_for_unknown_os() {
+        let err = UpdateTarget::from_parts("freebsd", "x86_64")
+            .expect_err("unknown os should be unsupported");
 
         assert_eq!(err, AssetSelectionError::UnsupportedPlatform);
     }
@@ -943,12 +986,13 @@ mod asset_selection_tests {
     }
 }
 
-#[cfg(all(test, target_os = "macos"))]
-mod macos_payload_tests {
-    use super::{
-        is_managed_macos_installation, managed_macos_installation_reason,
-        prepare_macos_update_payload, replace_executable_at, safe_macos_archive_path,
-    };
+#[cfg(all(test, unix))]
+mod unix_payload_tests {
+    #[cfg(target_os = "linux")]
+    use super::managed_linux_installation_reason;
+    #[cfg(target_os = "macos")]
+    use super::managed_macos_installation_reason;
+    use super::{prepare_unix_update_payload, replace_executable_at, safe_unix_archive_path};
     use flate2::write::GzEncoder;
     use flate2::Compression;
     use std::path::{Path, PathBuf};
@@ -992,12 +1036,12 @@ mod macos_payload_tests {
     }
 
     #[test]
-    fn prepares_valid_macos_archive_candidate() {
+    fn prepares_valid_archive_candidate() {
         let archive_path = test_path("valid.tar.gz");
         write_archive(&archive_path, &[("reverbic", b"#!/bin/sh\n")]);
 
-        let prepared = prepare_macos_update_payload(&archive_path)
-            .expect("valid macOS archive should produce a candidate");
+        let prepared = prepare_unix_update_payload(&archive_path)
+            .expect("valid archive should produce a candidate");
         let metadata =
             std::fs::metadata(&prepared.binary_path).expect("candidate should have metadata");
 
@@ -1024,7 +1068,7 @@ mod macos_payload_tests {
         let archive_path = test_path("missing.tar.gz");
         write_archive(&archive_path, &[("README.txt", b"not the binary")]);
 
-        let err = prepare_macos_update_payload(&archive_path)
+        let err = prepare_unix_update_payload(&archive_path)
             .expect_err("archive without reverbic should be rejected");
 
         assert_eq!(err.kind(), std::io::ErrorKind::NotFound);
@@ -1039,7 +1083,7 @@ mod macos_payload_tests {
             &[("reverbic", b"one"), ("nested/reverbic", b"two")],
         );
 
-        let err = prepare_macos_update_payload(&archive_path)
+        let err = prepare_unix_update_payload(&archive_path)
             .expect_err("archive with duplicate reverbic binaries should be rejected");
 
         assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
@@ -1048,7 +1092,7 @@ mod macos_payload_tests {
 
     #[test]
     fn rejects_suspicious_archive_paths() {
-        let err = safe_macos_archive_path(Path::new("../reverbic"))
+        let err = safe_unix_archive_path(Path::new("../reverbic"))
             .expect_err("parent directory path should be rejected");
 
         assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
@@ -1114,6 +1158,7 @@ mod macos_payload_tests {
         let _ = std::fs::remove_dir_all(dir);
     }
 
+    #[cfg(target_os = "macos")]
     #[test]
     fn detects_managed_macos_installations() {
         assert_eq!(
@@ -1140,15 +1185,39 @@ mod macos_payload_tests {
             )),
             Some("application bundle")
         );
-        assert!(is_managed_macos_installation(Path::new(
-            "/Applications/Reverbic.app/Contents/MacOS/reverbic"
-        )));
-        assert!(!is_managed_macos_installation(Path::new(
-            "/Users/example/bin/reverbic"
-        )));
-        assert!(!is_managed_macos_installation(Path::new(
-            "/Applications/reverbic"
-        )));
+        assert_eq!(
+            managed_macos_installation_reason(Path::new("/Users/example/bin/reverbic")),
+            None
+        );
+        assert_eq!(
+            managed_macos_installation_reason(Path::new("/Applications/reverbic")),
+            None
+        );
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn detects_managed_linux_installations() {
+        assert_eq!(
+            managed_linux_installation_reason(Path::new("/nix/store/hash-reverbic/bin/reverbic")),
+            Some("nix")
+        );
+        assert_eq!(
+            managed_linux_installation_reason(Path::new("/snap/reverbic/current/bin/reverbic")),
+            Some("snap")
+        );
+        assert_eq!(
+            managed_linux_installation_reason(Path::new("/var/lib/flatpak/app/reverbic/reverbic")),
+            Some("flatpak")
+        );
+        assert_eq!(
+            managed_linux_installation_reason(Path::new("/usr/bin/reverbic")),
+            Some("system package")
+        );
+        assert_eq!(
+            managed_linux_installation_reason(Path::new("/home/example/.local/bin/reverbic")),
+            None
+        );
     }
 }
 
