@@ -4,18 +4,18 @@ This guide covers common failures and how to diagnose them. Most issues can be t
 
 ## Logs
 
-Reverbic writes a rolling log to:
+Reverbic writes a rolling log to its cache directory:
 
 ```
-~/.reverbic/logs/reverbic.log
+~/.cache/reverbic/logs/reverbic.log
 ```
 
-On Windows this resolves to `%USERPROFILE%\.reverbic\logs\reverbic.log`. The Settings menu also exposes an "Open logs folder" action that opens this directory without using the terminal. Each session logs the app version and the active Spotify playback mode at startup.
+On Windows this resolves to `%LOCALAPPDATA%\Reverbic\cache\logs\reverbic.log`. The Settings menu also exposes an "Open logs folder" action that opens this directory without using the terminal. Each session logs the app version and the active Spotify playback mode at startup.
 
 To read the log and filter for a specific topic:
 
 ```powershell
-Get-Content "$env:USERPROFILE\.reverbic\logs\reverbic.log" | Select-String "your_filter"
+Get-Content "$env:LOCALAPPDATA\Reverbic\cache\logs\reverbic.log" | Select-String "your_filter"
 ```
 
 When reporting a bug, include the relevant log lines.
@@ -31,7 +31,7 @@ When reporting a bug, include the relevant log lines.
 YouTube playback resolves audio through `yt-dlp`. If tracks fail to resolve or end early, filter the log for the resolution pipeline:
 
 ```powershell
-Get-Content "$env:USERPROFILE\.reverbic\logs\reverbic.log" | Select-String "yt-dlp|youtube:|track finished|ended early"
+Get-Content "$env:LOCALAPPDATA\Reverbic\cache\logs\reverbic.log" | Select-String "yt-dlp|youtube:|track finished|ended early"
 ```
 
 A healthy resolution logs `resolved YouTube audio format` with `format_id=140` (audio-only AAC). Failures usually mean `yt-dlp` is outdated or a video requires authentication. For age- or login-restricted videos, configure a cookies file (see [YouTube Integration](youtube.md)); public videos are always resolved without cookies.

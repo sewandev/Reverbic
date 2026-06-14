@@ -50,12 +50,7 @@ pub fn strip_version_info(title: &str) -> String {
 
 fn log_deezer_not_found(raw: &str, query: &str) {
     use std::io::Write;
-    let home = std::env::var("USERPROFILE")
-        .or_else(|_| std::env::var("HOME"))
-        .unwrap_or_else(|_| ".".to_string());
-    let path = std::path::PathBuf::from(home)
-        .join(".reverbic")
-        .join("deezer_not_found.log");
+    let path = crate::paths::deezer_not_found_log();
 
     if let Some(dir) = path.parent() {
         let _ = std::fs::create_dir_all(dir);

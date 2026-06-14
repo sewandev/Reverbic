@@ -1,7 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-use crate::config::reverbic_dir;
 use crate::station::{enrich, find_enrichment, Station};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -78,5 +77,5 @@ pub fn move_down(favorites: &mut [FavoriteStation], i: usize) {
 }
 
 fn path() -> PathBuf {
-    reverbic_dir().join("favorites.json")
+    crate::paths::favorites_file()
 }
