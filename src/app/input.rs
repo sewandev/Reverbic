@@ -3669,8 +3669,13 @@ mod tests {
     #[test]
     fn settings_visual_row_count_includes_headers() {
         let items = settings_items(false, false);
+        let mut groups: Vec<&str> = items.iter().map(|item| item.group_key()).collect();
+        groups.dedup();
 
-        assert_eq!(settings_visual_row_count(&items), items.len() + 7);
+        assert_eq!(
+            settings_visual_row_count(&items),
+            items.len() + groups.len()
+        );
     }
 
     #[tokio::test]

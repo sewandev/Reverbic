@@ -48,7 +48,11 @@ pub fn render(frame: &mut Frame, area: Rect, state: &OnboardingState, ctx: &View
 
     render_maximize_hint(frame, panel, palette);
 
-    let title = format!(" {}/{} ", state.step.position() + 1, Step::ALL.len());
+    let title = format!(
+        " {}/{} ",
+        state.step.enabled_position() + 1,
+        Step::enabled_count()
+    );
     let block = Block::default()
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
@@ -168,7 +172,7 @@ fn render_appearance_step(
     state: &OnboardingState,
     palette: &Palette,
 ) {
-    let rows = [
+    let mut rows = vec![
         (
             t("onboarding.appearance.language"),
             state.language.display(),
@@ -179,12 +183,14 @@ fn render_appearance_step(
             state.theme.display(),
             t("config.tooltip.theme"),
         ),
-        (
+    ];
+    if cfg!(target_os = "windows") {
+        rows.push((
             t("config.setting.overlay_style"),
             state.overlay_style.display(),
             t("config.tooltip.overlay_style"),
-        ),
-    ];
+        ));
+    }
     render_option_step(
         frame,
         area,
@@ -510,25 +516,31 @@ fn render_summary(frame: &mut Frame, area: Rect, state: &OnboardingState, palett
 }
 
 fn summary_rows(state: &OnboardingState) -> Vec<(String, String)> {
-    vec![
+    let mut rows = vec![
         (
             t("onboarding.appearance.language"),
             state.language.display(),
         ),
         (t("onboarding.appearance.theme"), state.theme.display()),
-        (
-            t("config.setting.overlay_style"),
-            state.overlay_style.display(),
-        ),
-        (t("onboarding.overlay.mode"), state.overlay_mode.display()),
-        (
-            t("onboarding.overlay.position"),
-            state.overlay_position.display(),
-        ),
-        (
-            t("onboarding.overlay.alpha"),
-            format!("{}%", state.overlay_alpha),
-        ),
+    ];
+    if cfg!(target_os = "windows") {
+        rows.extend([
+            (
+                t("config.setting.overlay_style"),
+                state.overlay_style.display(),
+            ),
+            (t("onboarding.overlay.mode"), state.overlay_mode.display()),
+            (
+                t("onboarding.overlay.position"),
+                state.overlay_position.display(),
+            ),
+            (
+                t("onboarding.overlay.alpha"),
+                format!("{}%", state.overlay_alpha),
+            ),
+        ]);
+    }
+    rows.extend([
         (
             t("onboarding.playback.autoplay"),
             on_off_label(state.autoplay_last),
@@ -565,7 +577,8 @@ fn summary_rows(state: &OnboardingState) -> Vec<(String, String)> {
             t("config.setting.spotify_radio_mode"),
             on_off_label(state.spotify_radio_enabled),
         ),
-    ]
+    ]);
+    rows
 }
 
 fn hint(palette: &Palette, key: &str, label: String) -> [Span<'static>; 2] {
@@ -675,10 +688,12 @@ mod tests {
         let labels: Vec<_> = rows.iter().map(|(label, _)| label.as_str()).collect();
 
         assert!(labels.contains(&t("onboarding.appearance.theme").as_str()));
-        assert!(labels.contains(&t("config.setting.overlay_style").as_str()));
-        assert!(labels.contains(&t("onboarding.overlay.mode").as_str()));
-        assert!(labels.contains(&t("onboarding.overlay.position").as_str()));
-        assert!(labels.contains(&t("onboarding.overlay.alpha").as_str()));
+        if cfg!(target_os = "windows") {
+            assert!(labels.contains(&t("config.setting.overlay_style").as_str()));
+            assert!(labels.contains(&t("onboarding.overlay.mode").as_str()));
+            assert!(labels.contains(&t("onboarding.overlay.position").as_str()));
+            assert!(labels.contains(&t("onboarding.overlay.alpha").as_str()));
+        }
         assert!(labels.contains(&t("onboarding.playback.autoplay").as_str()));
         assert!(labels.contains(&t("onboarding.playback.restore_volume").as_str()));
         assert!(labels.contains(&t("onboarding.playback.crossfade").as_str()));

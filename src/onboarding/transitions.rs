@@ -1,24 +1,30 @@
 use super::state::{OnboardingState, Step};
 
 pub fn next(state: &mut OnboardingState) -> bool {
-    match Step::ALL.get(state.step.position() + 1) {
-        Some(step) => {
+    let mut index = state.step.position() + 1;
+    while let Some(step) = Step::ALL.get(index) {
+        if step.is_enabled() {
             state.step = *step;
             state.focused_option = 0;
-            true
+            return true;
         }
-        None => false,
+        index += 1;
     }
+    false
 }
 
 pub fn back(state: &mut OnboardingState) -> bool {
-    let position = state.step.position();
-    if position == 0 {
-        return false;
+    let mut position = state.step.position();
+    while position > 0 {
+        position -= 1;
+        let step = Step::ALL[position];
+        if step.is_enabled() {
+            state.step = step;
+            state.focused_option = 0;
+            return true;
+        }
     }
-    state.step = Step::ALL[position - 1];
-    state.focused_option = 0;
-    true
+    false
 }
 
 pub fn focus_next_option(state: &mut OnboardingState) {
@@ -133,7 +139,7 @@ mod tests {
     #[test]
     fn next_advances_through_every_step_and_stops_at_summary() {
         let mut state = state();
-        for _ in 1..Step::ALL.len() {
+        for _ in 1..Step::enabled_count() {
             assert!(next(&mut state));
         }
         assert_eq!(state.step, Step::Summary);
