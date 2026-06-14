@@ -54,6 +54,7 @@
   "modal.youtube.no_results": "No YouTube results",
   "modal.youtube.retry_hint": "Type again or press Enter to retry.",
   "modal.youtube.subtab.search": "[ Search ]",
+  "modal.youtube.search.mix_hint": "Press Ctrl+R on a video to start an infinite radio",
   "modal.youtube.subtab.bookmarks": "[ Bookmarks ]",
   "modal.youtube.subtab.liked": "[ Liked ]",
   "modal.youtube.subtab.playlists": "[ Playlists ]",
