@@ -10,6 +10,8 @@ Versionado: [Semantic Versioning](https://semver.org/)
 
 ## [Sin publicar]
 
+## [1.5.5] - 2026-06-14
+
 ### Added
 - Nuevo modo headless por línea de comandos para la radio en Windows: `reverbic play <estación>` inicia la reproducción en segundo plano y devuelve la terminal, y `reverbic stop`, `reverbic status`, `reverbic volume <0-100>` y `reverbic toggle` controlan el reproductor en curso; la reproducción continúa aunque se cierre la terminal. La estación se busca primero entre tus favoritos y luego mediante una búsqueda en línea; `reverbic play` sin nombre reanuda la última estación. Ejecutar `reverbic` sin argumentos sigue abriendo la interfaz completa.
 

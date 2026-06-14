@@ -3367,7 +3367,7 @@ dependencies = [
 
 [[package]]
 name = "reverbic"
-version = "1.5.4"
+version = "1.5.5"
 dependencies = [
  "arboard",
  "base64 0.21.7",

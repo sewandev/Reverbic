@@ -1,6 +1,6 @@
 [package]
 name        = "reverbic"
-version     = "1.5.4"
+version     = "1.5.5"
 edition     = "2021"
 description = "Terminal player for radio, Spotify and YouTube with gaming overlay and Discord Rich Presence"
 repository  = "https://github.com/sewandev/Reverbic"
