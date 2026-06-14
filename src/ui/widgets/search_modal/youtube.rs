@@ -184,6 +184,18 @@ impl<'a> SearchModalWidget<'a> {
                 empty_message: &t("modal.youtube.no_results"),
             },
         );
+
+        if !self.youtube_results.is_empty() {
+            let mut text_area = layout.hint;
+            text_area.y = text_area.y.saturating_add(1); // top padding
+            text_area.height = text_area.height.saturating_sub(1);
+            Paragraph::new(Span::styled(
+                t("modal.youtube.search.mix_hint"),
+                Style::default().fg(ratatui::style::Color::DarkGray),
+            ))
+            .alignment(Alignment::Center)
+            .render(text_area, buf);
+        }
     }
 
     fn render_youtube_bookmarks_body(

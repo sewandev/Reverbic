@@ -11,9 +11,11 @@ Versionado: [Semantic Versioning](https://semver.org/)
 ## [Sin publicar]
 
 ### Agregado
+- La pestaña de búsqueda de YouTube ahora muestra una pista de que puedes presionar Ctrl+R sobre un video para iniciar una radio infinita.
 - Reverbic ahora se actualiza solo en Linux (x86_64), igual que en Windows y macOS: se publica un binario de Linux por release y la app descarga, verifica e instala la nueva versión automáticamente.
 
 ### Cambiado
+- El tooltip de la opción "YouTube Radio" ahora indica que requiere un cookies.txt configurado, ya que YouTube bloquea los mixes en solicitudes sin autenticar.
 - En macOS y Linux, las opciones que solo funcionan en Windows (overlay, ducking, teclas multimedia, ícono en la bandeja, notificaciones y Discord Rich Presence) ya no aparecen en Configuración ni en el asistente de primera ejecución.
 - Se rediseñó el bloque de perfil de Spotify en el Modo Ambiente como un widget propio con texto centrado: el nombre destaca y una sola línea muestra Premium, país y cantidad de seguidores (ahora con separador de miles).
 - Se reorganizó el menú de Configuración en categorías más claras: Radio, Spotify y YouTube tienen su propia sección, separadas de Overlay, Ducking, Sistema y Apariencia.
@@ -21,6 +23,7 @@ Versionado: [Semantic Versioning](https://semver.org/)
 - El panel de atajos ([?]) ahora agrupa las teclas por ámbito con encabezados de sección (Radio, Spotify, YouTube, Global) en lugar de mostrar una sola lista plana.
 
 ### Corregido
+- Iniciar una radio de YouTube (Ctrl+R o al terminar una lista con YouTube Radio activo) sin un cookies.txt configurado ahora muestra un mensaje claro en lugar de anunciar el mix y fallar en silencio.
 - El panel de atajos mostraba una acción incorrecta para [Tab] e ignoraba YouTube; ahora indica "Cambiar fuente" de forma coherente en todas las pestañas.
 - Se unificó la etiqueta del atajo "Abrir Configuración", que era inconsistente entre las vistas de Radio, Spotify y YouTube.
 - Cuando el archivo de cookies de YouTube configurado dejaba de ser válido (eliminado, movido o ilegible), las pestañas Favoritos y Playlists quedaban vacías sin avisar; ahora muestran un error claro y la misma guía de recuperación que el estado no autenticado.
