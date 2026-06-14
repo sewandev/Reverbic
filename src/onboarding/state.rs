@@ -30,11 +30,14 @@ impl Step {
             .expect("Step::ALL must list every Step variant")
     }
 
+    #[cfg(target_os = "windows")]
     pub fn is_enabled(self) -> bool {
-        match self {
-            Step::OverlayPreferences => cfg!(target_os = "windows"),
-            _ => true,
-        }
+        true
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    pub fn is_enabled(self) -> bool {
+        !matches!(self, Step::OverlayPreferences)
     }
 
     pub fn enabled_count() -> usize {
