@@ -202,24 +202,28 @@ pub(crate) fn render_ambient_mode(
         + 1 // bottom gap
         + crate::ui::widgets::controls::ControlsWidget::HEIGHT; // shortcuts + volume
 
+    let game_info = crate::game_detect::get();
+    let game_band: u16 = if game_info.is_some() { 3 } else { 0 };
     let logo_band: u16 = if config.screensaver_logo { 3 } else { 0 };
-    let avail_h = area.height.saturating_sub(logo_band);
+    let total_band = logo_band + game_band;
+
+    let avail_h = area.height.saturating_sub(total_band);
     let ph_clamped = ph.min(avail_h);
 
     let px = area.x + area.width.saturating_sub(pw) / 2;
-    let py = area.y + logo_band + avail_h.saturating_sub(ph_clamped) / 2;
+    let py = area.y + total_band + avail_h.saturating_sub(ph_clamped) / 2;
     let panel = Rect::new(px, py, pw, ph_clamped);
 
-    if config.screensaver_logo && py >= 2 {
+    if config.screensaver_logo && py >= game_band + 2 {
         crate::ui::widgets::logo::LogoWidget::new(overlay, border_tick, palette).render_centered(
             frame,
             area.x,
             area.width,
-            py - 2,
+            py - game_band - 2,
         );
     }
 
-    if let Some((ref name, ref genre)) = crate::game_detect::get() {
+    if let Some((ref name, ref genre)) = game_info {
         if py >= 3 {
             let panel_h: u16 = 3;
             super::overlays::render_game_strip(
