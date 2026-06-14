@@ -123,6 +123,12 @@ Consulta [CHANGELOG.es.md](CHANGELOG.es.md) para conocer las novedades de cada v
 
 ---
 
+## Sobre este proyecto e IA
+
+Reverbic es un proyecto serio, pero al mismo tiempo un *side project* creado para divertirme en mis tiempos libres fuera de mi horario laboral. Para que esto sea posible teniendo poco tiempo, el código y desarrollo están fuertemente apoyados por herramientas de IA. Sin embargo, todas las decisiones arquitectónicas, diseño, pruebas y revisiones de código se realizan de forma enteramente manual. Este flujo de trabajo me permite enfocarme en agregar nuevas funcionalidades para la comunidad. ¡Cualquier contribución o feedback siempre es bienvenido!
+
+---
+
 ## Contribuidores
 
 <a href="https://github.com/sewandev/Reverbic/graphs/contributors">
