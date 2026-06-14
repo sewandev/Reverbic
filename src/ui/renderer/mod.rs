@@ -136,12 +136,20 @@ pub fn render(frame: &mut Frame, app: &App) {
 
     let modal = crate::ui::widgets::search_modal::modal_rect(full_area);
 
-    if modal.y >= 3 {
+    let game_info = crate::game_detect::get();
+    let game_h: u16 = if game_info.is_some() { 3 } else { 0 };
+
+    if modal.y >= game_h + 2 {
         crate::ui::widgets::logo::LogoWidget::new(palette.overlay_color, app.border_tick, palette)
-            .render_centered(frame, modal.x, modal.width, modal.y.saturating_sub(2));
+            .render_centered(
+                frame,
+                modal.x,
+                modal.width,
+                modal.y.saturating_sub(game_h + 2),
+            );
     }
 
-    if let Some((ref name, ref genre)) = crate::game_detect::get() {
+    if let Some((ref name, ref genre)) = game_info {
         let panel_h: u16 = 3;
         let game_y = modal.y.saturating_sub(panel_h);
         render_game_strip(
