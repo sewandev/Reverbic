@@ -10,6 +10,14 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ## [Unreleased]
 
+## [1.5.5] - 2026-06-14
+
+### Added
+- New headless command-line mode for radio on Windows: `reverbic play <station>` starts playback in the background and returns the terminal, `reverbic stop`, `reverbic status`, `reverbic volume <0-100>` and `reverbic toggle` control the running player, and playback keeps going after the terminal is closed. The station is matched first against your favorites and then via an online search; `reverbic play` with no name resumes the last station. Running `reverbic` with no arguments still opens the full interface.
+
+### Changed
+- Reverbic now stores its files following each operating system's standard locations (configuration, data, and cache are kept separate) instead of a single `~/.reverbic` folder. Existing installs are migrated automatically on first launch, so no settings are lost.
+
 ## [1.5.4] - 2026-06-13
 
 ### Added

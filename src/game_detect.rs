@@ -31,7 +31,7 @@ pub fn init_game_db() {
         .into_iter()
         .filter_map(|(k, v)| serde_json::from_value::<GameInfo>(v).ok().map(|i| (k, i)))
         .collect();
-    let user_path = crate::config::reverbic_dir().join("games.json");
+    let user_path = crate::paths::games_file();
     if let Ok(data) = std::fs::read_to_string(&user_path) {
         if let Ok(raw_user) = serde_json::from_str::<HashMap<String, serde_json::Value>>(&data) {
             for (k, v) in raw_user {

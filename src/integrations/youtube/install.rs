@@ -8,21 +8,15 @@ const YT_DLP_RELEASES_URL: &str = "https://api.github.com/repos/yt-dlp/yt-dlp/re
 const UPDATE_CHECK_INTERVAL_SECS: u64 = 24 * 3600;
 
 pub fn managed_binary_path() -> PathBuf {
-    crate::config::reverbic_dir()
-        .join("bin")
-        .join(binary_name())
+    crate::paths::bin_dir().join(binary_name())
 }
 
 fn version_file_path() -> PathBuf {
-    crate::config::reverbic_dir()
-        .join("bin")
-        .join("yt-dlp.version")
+    crate::paths::bin_dir().join("yt-dlp.version")
 }
 
 fn last_check_file_path() -> PathBuf {
-    crate::config::reverbic_dir()
-        .join("bin")
-        .join("yt-dlp.last-check")
+    crate::paths::bin_dir().join("yt-dlp.last-check")
 }
 
 pub fn is_installed() -> bool {
@@ -222,11 +216,11 @@ mod tests {
     use super::{managed_binary_path, YT_DLP_RELEASES_URL};
 
     #[test]
-    fn managed_binary_path_uses_reverbic_bin_directory() {
+    fn managed_binary_path_uses_bin_directory() {
         let path = managed_binary_path();
         let rendered = path.to_string_lossy();
-        assert!(rendered.contains(".reverbic"));
         assert!(rendered.contains("bin"));
+        assert!(path.starts_with(crate::paths::bin_dir()));
         assert!(path.file_name().is_some());
     }
 

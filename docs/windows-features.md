@@ -11,7 +11,7 @@ Currently, the following features are supported on **Windows only**:
 - **System Notifications**: Native tray balloon notifications on track changes. These require both notifications and the tray icon to be enabled.
 - **Media Keys Support**: Opt-in support for the physical play/pause and stop media keys via a low-level keyboard hook.
 - **Audio Ducking**: Automatically lowers Reverbic's volume while another application is producing audio, and restores it after a short quiet period.
-- **Game Detection**: Inspects active audio sessions and running processes against the embedded `assets/games.json` (and an optional user `~/.reverbic/games.json`) to identify the foreground game.
+- **Game Detection**: Inspects active audio sessions and running processes against the embedded `assets/games.json` (and an optional user `games.json` in the data directory, `%LOCALAPPDATA%\Reverbic\data\games.json`) to identify the foreground game.
 - **Dota 2 Game State Integration**: A local GSI server (`127.0.0.1:7836`) that receives match phase, player stats, and hero data. See [Troubleshooting](troubleshooting.md) for setup.
 
 ## Overlay

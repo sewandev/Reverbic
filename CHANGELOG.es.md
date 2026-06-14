@@ -10,6 +10,14 @@ Versionado: [Semantic Versioning](https://semver.org/)
 
 ## [Sin publicar]
 
+## [1.5.5] - 2026-06-14
+
+### Added
+- Nuevo modo headless por línea de comandos para la radio en Windows: `reverbic play <estación>` inicia la reproducción en segundo plano y devuelve la terminal, y `reverbic stop`, `reverbic status`, `reverbic volume <0-100>` y `reverbic toggle` controlan el reproductor en curso; la reproducción continúa aunque se cierre la terminal. La estación se busca primero entre tus favoritos y luego mediante una búsqueda en línea; `reverbic play` sin nombre reanuda la última estación. Ejecutar `reverbic` sin argumentos sigue abriendo la interfaz completa.
+
+### Changed
+- Reverbic ahora guarda sus archivos siguiendo las ubicaciones estándar de cada sistema operativo (configuración, datos y caché quedan separados) en lugar de una única carpeta `~/.reverbic`. Las instalaciones existentes se migran automáticamente en el primer arranque, así que no se pierde ninguna configuración.
+
 ## [1.5.4] - 2026-06-13
 
 ### Agregado

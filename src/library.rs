@@ -2,8 +2,6 @@ use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::PathBuf;
 
-use crate::config::reverbic_dir;
-
 pub enum SaveResult {
     Saved,
     AlreadySaved,
@@ -59,9 +57,7 @@ pub fn load_saved_tracks(station_key: &str) -> Vec<String> {
 }
 
 fn library_path(station_key: &str) -> PathBuf {
-    reverbic_dir()
-        .join("library")
-        .join(format!("{}.txt", library_filename_stem(station_key)))
+    crate::paths::library_dir().join(format!("{}.txt", library_filename_stem(station_key)))
 }
 
 fn library_filename_stem(station_key: &str) -> String {

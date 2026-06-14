@@ -26,9 +26,12 @@
 
 ## Installation
 
-```powershell
+```bash
 # Quick install (Windows)
 irm https://raw.githubusercontent.com/sewandev/Reverbic/main/install.ps1 | iex
+
+# Quick install (macOS / Linux)
+brew install sewandev/reverbic/reverbic
 
 # Package managers
 scoop bucket add reverbic https://github.com/sewandev/scoop-reverbic; scoop install reverbic   # Windows (Scoop)
@@ -38,7 +41,7 @@ cargo install --git https://github.com/sewandev/Reverbic.git --locked           
 git clone https://github.com/sewandev/Reverbic.git
 cd Reverbic
 cargo build --release
-.\target\release\reverbic.exe
+./target/release/reverbic
 ```
 
 > [!TIP]
@@ -59,9 +62,32 @@ cargo build --release
 - **Discord Rich Presence** — shows your current station and track on your profile
 - **Favorites & crossfade** — save your favorite stations with smooth crossfade between them
 - **Screensaver mode** — clock, station info, and track metadata when idle
+- **Headless CLI** — control radio playback from the command line; it keeps running in the background after you close the terminal
+
+> [!NOTE]
+> Currently, the **Floating overlay**, **Audio ducking**, **Media Keys**, **System Tray**, **Notifications**, **Discord RPC**, and **Headless CLI** features are exclusive to Windows. We are actively looking for contributors to help port them to macOS and Linux!
 
 > [!NOTE]
 > Spotify's 2026 policy changes could restrict native playback (librespot) at any time. Remote Control mode (search and playback control via the official Spotify API) does not depend on librespot and is a reasonable fallback for that risk, though it has its own requirements (your own Spotify Premium account and Developer app). See [LEGAL.md](LEGAL.md) for details.
+
+---
+
+## Command-line control (headless)
+
+> [!NOTE]
+> Windows only for now. Radio only — Spotify and YouTube are out of scope.
+
+Control radio playback without keeping the interface open. After installing, run `reverbic` followed by a command; playback runs in a background process that survives closing the terminal.
+
+```bash
+reverbic play <station>   # start radio in the background (matches favorites first, then searches online)
+reverbic play             # resume the last played station
+reverbic status           # show the current station, track, and playback state
+reverbic volume <0-100>   # set the volume
+reverbic toggle           # play / pause
+reverbic stop             # stop and shut down the background player
+reverbic                  # no arguments: open the full interface
+```
 
 ---
 
@@ -114,6 +140,12 @@ cargo build --release
 ## Changelog
 
 See [CHANGELOG.md](CHANGELOG.md) for release notes and version history. ([Español](CHANGELOG.es.md))
+
+---
+
+## About this project & AI
+
+Reverbic is built in my spare time outside of work. To move fast with limited time, I lean on AI tools throughout development — but the architecture, design choices, and the final review of what ships are mine. Contributions and feedback are always welcome.
 
 ---
 

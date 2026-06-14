@@ -63,8 +63,9 @@ acceptable substitute for a real translation. See
 
 ## Logging
 
-The application writes a log file to `~/.reverbic/logs/reverbic.log` via the
-`tracing` ecosystem. Adding `tracing::info!` / `tracing::warn!` calls is the
+The application writes a log file to the cache directory
+(`~/.cache/reverbic/logs/reverbic.log`, or `%LOCALAPPDATA%\Reverbic\cache\logs\reverbic.log`
+on Windows) via the `tracing` ecosystem. Adding `tracing::info!` / `tracing::warn!` calls is the
 preferred way to diagnose hard-to-reproduce bugs.
 
 ---

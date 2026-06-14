@@ -7,7 +7,7 @@ Reverbic can detect running games and react to live match state. Game detection 
 On startup Reverbic loads a game database that maps process executable names (lowercase, without the `.exe` suffix) to a display name and a genre. The database has two layers:
 
 1. An embedded `assets/games.json` shipped with the binary (Dota 2, CS2, CS:GO, League of Legends, Apex Legends, Valorant, Fortnite, Overwatch 2, Hearthstone, StarCraft II, and more).
-2. An optional user override file at `~/.reverbic/games.json`.
+2. An optional user override file named `games.json` in the data directory (`~/.local/share/reverbic/games.json`, or `%LOCALAPPDATA%\Reverbic\data\games.json` on Windows).
 
 If the user file exists, its entries are merged on top of the embedded database, so you can add games or override existing entries without losing your changes when Reverbic updates. The key is the process name as it appears in Task Manager (Image Name column), in lowercase and without `.exe`. Each entry has the form:
 

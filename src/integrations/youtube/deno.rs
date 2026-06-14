@@ -9,9 +9,7 @@ use super::YoutubeError;
 const DENO_RELEASES_URL: &str = "https://api.github.com/repos/denoland/deno/releases/latest";
 
 pub fn managed_binary_path() -> PathBuf {
-    crate::config::reverbic_dir()
-        .join("bin")
-        .join(binary_name())
+    crate::paths::bin_dir().join(binary_name())
 }
 
 pub fn is_installed() -> bool {
@@ -156,11 +154,11 @@ mod tests {
     use super::{asset_name, binary_name, managed_binary_path};
 
     #[test]
-    fn managed_binary_path_uses_reverbic_bin_directory() {
+    fn managed_binary_path_uses_bin_directory() {
         let path = managed_binary_path();
         let rendered = path.to_string_lossy();
-        assert!(rendered.contains(".reverbic"));
         assert!(rendered.contains("bin"));
+        assert!(path.starts_with(crate::paths::bin_dir()));
         assert_eq!(path.file_name().expect("file name"), binary_name());
     }
 

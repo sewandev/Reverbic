@@ -1,6 +1,6 @@
 [package]
 name        = "reverbic"
-version     = "1.5.4"
+version     = "1.5.5"
 edition     = "2021"
 description = "Terminal player for radio, Spotify and YouTube with gaming overlay and Discord Rich Presence"
 repository  = "https://github.com/sewandev/Reverbic"
@@ -41,6 +41,8 @@ librespot-metadata = { version = "0.8", default-features = false, features = ["r
 nucleo-matcher     = "0.3"
 keyring            = { version = "3", features = ["apple-native", "windows-native"] }
 arboard            = { version = "3.6.1", default-features = false }
+directories        = "6"
+clap               = { version = "4", features = ["derive"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows-core = "0.58"

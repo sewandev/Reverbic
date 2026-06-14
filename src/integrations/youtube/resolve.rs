@@ -32,7 +32,7 @@ fn get_url_cache() -> &'static Mutex<HashMap<String, CacheEntry>> {
 }
 
 fn cache_file_path() -> PathBuf {
-    crate::config::reverbic_dir().join("youtube_url_cache.json")
+    crate::paths::youtube_url_cache_file()
 }
 
 fn unix_now() -> u64 {

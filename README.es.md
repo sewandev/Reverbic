@@ -26,9 +26,12 @@
 
 ## Instalación
 
-```powershell
+```bash
 # Instalación rápida (Windows)
 irm https://raw.githubusercontent.com/sewandev/Reverbic/main/install.ps1 | iex
+
+# Instalación rápida (macOS / Linux)
+brew install sewandev/reverbic/reverbic
 
 # Gestores de paquetes
 scoop bucket add reverbic https://github.com/sewandev/scoop-reverbic; scoop install reverbic   # Windows (Scoop)
@@ -38,7 +41,7 @@ cargo install --git https://github.com/sewandev/Reverbic.git --locked           
 git clone https://github.com/sewandev/Reverbic.git
 cd Reverbic
 cargo build --release
-.\target\release\reverbic.exe
+./target/release/reverbic
 ```
 
 > [!TIP]
@@ -59,9 +62,32 @@ cargo build --release
 - **Discord Rich Presence** — muestra tu estación y canción actual en tu perfil
 - **Favoritas y crossfade** — guarda tus estaciones favoritas con crossfade suave entre ellas
 - **Protector de pantalla** — reloj, información de la estación y metadatos de la canción cuando está inactivo
+- **CLI headless** — controla la reproducción de radio desde la línea de comandos; sigue sonando en segundo plano aunque cierres la terminal
+
+> [!NOTE]
+> Actualmente, las funciones de **Overlay flotante**, **Audio ducking**, **Teclas multimedia**, **Bandeja del sistema (Tray)**, **Notificaciones**, **Discord RPC** y **CLI headless** son exclusivas de Windows. ¡Estamos buscando colaboradores para portarlas a macOS y Linux!
 
 > [!NOTE]
 > Los cambios de política de Spotify en 2026 podrían restringir la reproducción nativa (librespot) en cualquier momento. El modo de Control Remoto (búsqueda y control de reproducción vía la API oficial de Spotify) no depende de librespot y es un respaldo razonable para ese riesgo, aunque tiene sus propios requisitos (tu propia cuenta Premium de Spotify y app de Developer). Ver [LEGAL.md](LEGAL.md) para más detalles (en inglés).
+
+---
+
+## Control por línea de comandos (headless)
+
+> [!NOTE]
+> Por ahora solo en Windows. Solo radio — Spotify y YouTube quedan fuera de alcance.
+
+Controla la reproducción de radio sin mantener la interfaz abierta. Tras instalar, ejecuta `reverbic` seguido de un comando; la reproducción corre en un proceso de fondo que sobrevive al cierre de la terminal.
+
+```bash
+reverbic play <estación>   # inicia la radio en segundo plano (busca primero en favoritos, luego en línea)
+reverbic play              # reanuda la última estación reproducida
+reverbic status            # muestra la estación, la canción y el estado actual
+reverbic volume <0-100>    # ajusta el volumen
+reverbic toggle            # reproducir / pausar
+reverbic stop              # detiene y apaga el reproductor de fondo
+reverbic                   # sin argumentos: abre la interfaz completa
+```
 
 ---
 
@@ -114,6 +140,12 @@ cargo build --release
 ## Changelog
 
 Consulta [CHANGELOG.es.md](CHANGELOG.es.md) para conocer las novedades de cada versión. ([English](CHANGELOG.md))
+
+---
+
+## Sobre este proyecto e IA
+
+Desarrollo Reverbic en mi tiempo libre, fuera del trabajo. Para avanzar rápido con poco tiempo, me apoyo en herramientas de IA a lo largo del desarrollo, pero la arquitectura, las decisiones de diseño y la revisión final de lo que se publica son mías. Cualquier contribución o feedback siempre es bienvenido.
 
 ---
 
