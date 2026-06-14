@@ -63,6 +63,48 @@ impl<'a> SearchModalWidget<'a> {
                     off
                 }
             }
+            SettingItem::ScreensaverLogo => {
+                if self.screensaver_logo {
+                    on
+                } else {
+                    off
+                }
+            }
+            SettingItem::ScreensaverVisualizer => {
+                if self.screensaver_visualizer {
+                    on
+                } else {
+                    off
+                }
+            }
+            SettingItem::ScreensaverRecentTracks => {
+                if self.screensaver_recent_tracks {
+                    on
+                } else {
+                    off
+                }
+            }
+            SettingItem::ScreensaverProgressBar => {
+                if self.screensaver_progress_bar {
+                    on
+                } else {
+                    off
+                }
+            }
+            SettingItem::ScreensaverStationDetails => {
+                if self.screensaver_station_details {
+                    on
+                } else {
+                    off
+                }
+            }
+            SettingItem::ScreensaverNowPlaying => {
+                if self.screensaver_now_playing {
+                    on
+                } else {
+                    off
+                }
+            }
             SettingItem::DuckEnabled => {
                 if self.duck_enabled {
                     on
@@ -181,7 +223,7 @@ impl<'a> SearchModalWidget<'a> {
     ) {
         let mut rows: Vec<(String, Option<String>)> = Vec::new();
         let mut last_group = "";
-        for item in settings_items(self.duck_enabled) {
+        for item in settings_items(self.duck_enabled, self.screensaver_secs > 0) {
             let gk = item.group_key();
             if gk != last_group {
                 rows.push((t(gk), None));
@@ -300,7 +342,7 @@ impl<'a> SearchModalWidget<'a> {
         Paragraph::new(Span::styled(sep, Style::default().fg(self.palette.dim)))
             .render(Rect::new(content_x, tooltip_area.y, content_w, 1), buf);
 
-        let tooltip = settings_items(self.duck_enabled)
+        let tooltip = settings_items(self.duck_enabled, self.screensaver_secs > 0)
             .get(self.settings_selected)
             .map(|item| t(item.tooltip_key()))
             .unwrap_or_default();

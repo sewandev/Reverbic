@@ -239,7 +239,11 @@ impl App {
     fn settings_selected_row(&self) -> usize {
         let mut row = 0usize;
         let mut last_group = "";
-        for (item_idx, item) in settings_items(self.config.duck_enabled).iter().enumerate() {
+        for (item_idx, item) in
+            settings_items(self.config.duck_enabled, self.config.screensaver_secs > 0)
+                .iter()
+                .enumerate()
+        {
             let group = item.group_key();
             if group != last_group {
                 row += 1;
@@ -376,6 +380,34 @@ impl App {
 
     pub async fn on_key_event(&mut self, event: crossterm::event::KeyEvent) {
         use crossterm::event::KeyModifiers;
+
+        if event.modifiers.contains(KeyModifiers::CONTROL)
+            || event.modifiers.contains(KeyModifiers::SUPER)
+        {
+            match event.code {
+                KeyCode::Char('v') | KeyCode::Char('V') => {
+                    if let Ok(mut clipboard) = arboard::Clipboard::new() {
+                        if let Ok(text) = clipboard.get_text() {
+                            self.on_paste(text);
+                        }
+                    }
+                    return;
+                }
+                KeyCode::Char('c') | KeyCode::Char('C') => {
+                    if let Some(text) = self.active_copy_text() {
+                        if let Ok(mut clipboard) = arboard::Clipboard::new() {
+                            let _ = clipboard.set_text(text);
+                        }
+                        return;
+                    }
+                    if event.modifiers.contains(KeyModifiers::CONTROL) {
+                        self.should_quit = true;
+                    }
+                    return;
+                }
+                _ => {}
+            }
+        }
 
         if event.modifiers.contains(KeyModifiers::SHIFT)
             && !self.show_search_modal
@@ -693,16 +725,61 @@ impl App {
         }
     }
 
-    pub fn on_paste(&mut self, text: String) {
-        if !self.show_search_modal {
-            return;
+    fn active_copy_text(&self) -> Option<String> {
+        if self.renaming_favorite.is_some() || self.renaming_playlist.is_some() {
+            return Some(self.rename_input.clone());
         }
+        if self.editing_client_id {
+            return Some(self.client_id_input.clone());
+        }
+        if self.editing_cookies_path {
+            return Some(self.cookies_path_input.clone());
+        }
+        if !self.show_search_modal {
+            return None;
+        }
+
+        match self.modal_mode {
+            SearchMode::Name if matches!(self.radio_sub_tab, RadioSubTab::Search) => {
+                Some(self.search_query.clone())
+            }
+            SearchMode::Genre => Some(self.genre_filter.clone()),
+            SearchMode::Country => Some(self.country_filter.clone()),
+            SearchMode::Spotify if matches!(self.spotify.sub_tab, SpotifySubTab::Search) => {
+                Some(self.spotify.search_query.clone())
+            }
+            SearchMode::Youtube if matches!(self.youtube.sub_tab, YoutubeSubTab::Search) => {
+                Some(self.youtube.query.clone())
+            }
+            _ => None,
+        }
+    }
+
+    pub fn on_paste(&mut self, text: String) {
         let filtered: String = text.chars().filter(|c| !c.is_control()).collect();
         if filtered.is_empty() {
             return;
         }
+
+        if self.renaming_favorite.is_some() || self.renaming_playlist.is_some() {
+            self.rename_input.push_str(&filtered);
+            return;
+        }
+        if self.editing_client_id {
+            self.client_id_input.push_str(&filtered);
+            return;
+        }
+        if self.editing_cookies_path {
+            self.cookies_path_input.push_str(&filtered);
+            self.cookies_path_error = None;
+            return;
+        }
+        if !self.show_search_modal {
+            return;
+        }
+
         match self.modal_mode {
-            SearchMode::Name => {
+            SearchMode::Name if matches!(self.radio_sub_tab, RadioSubTab::Search) => {
                 self.search_query.push_str(&filtered);
                 self.modal_selected = 0;
                 self.radio_search_scroll_offset = 0;
@@ -718,7 +795,13 @@ impl App {
                 self.country_selected = 0;
                 self.country_filter_scroll_offset = 0;
             }
-            SearchMode::Youtube => {
+            SearchMode::Spotify if matches!(self.spotify.sub_tab, SpotifySubTab::Search) => {
+                self.spotify.search_query.push_str(&filtered);
+                self.spotify.search_selected = 0;
+                self.spotify.search_scroll_offset = 0;
+                self.perform_spotify_search();
+            }
+            SearchMode::Youtube if matches!(self.youtube.sub_tab, YoutubeSubTab::Search) => {
                 self.youtube.query.push_str(&filtered);
                 self.youtube.selected = 0;
                 self.youtube.scroll_offset = 0;
@@ -1227,7 +1310,8 @@ impl App {
     }
 
     fn on_key_modal_settings(&mut self, key: KeyCode) {
-        let count = settings_items(self.config.duck_enabled).len();
+        let count =
+            settings_items(self.config.duck_enabled, self.config.screensaver_secs > 0).len();
         match key {
             KeyCode::Esc => {
                 self.show_help = false;
@@ -1290,7 +1374,7 @@ impl App {
     }
 
     fn activate_setting_selected(&mut self) {
-        let items = settings_items(self.config.duck_enabled);
+        let items = settings_items(self.config.duck_enabled, self.config.screensaver_secs > 0);
         if let Some(item) = items.get(self.settings_selected).copied() {
             self.activate_setting_item(item);
             if matches!(self.modal_mode, SearchMode::Settings) {
@@ -1401,6 +1485,7 @@ impl App {
                 if trimmed.is_empty() {
                     self.config.youtube.cookies_path = None;
                     self.youtube.session_health = None;
+                    self.youtube.cookies_invalid = false;
                     self.save_config();
                     self.cookies_path_input.clear();
                     self.cookies_path_error = None;
@@ -1414,6 +1499,7 @@ impl App {
                     Ok(path) => {
                         self.config.youtube.cookies_path = Some(path);
                         self.youtube.session_health = None;
+                        self.youtube.cookies_invalid = false;
                         self.save_config();
                         self.cookies_path_input.clear();
                         self.cookies_path_error = None;
@@ -1571,6 +1657,13 @@ impl App {
         let screensaver_was_active = self.screensaver_active();
         self.last_activity = Instant::now();
         if screensaver_was_active {
+            if crate::ui::renderer::ambient::url_hit_at(col, row) {
+                if let Some(d) = self.station_details.as_ref() {
+                    if !d.homepage.is_empty() {
+                        crate::shell::open_url(&d.homepage);
+                    }
+                }
+            }
             return;
         }
 
@@ -1664,7 +1757,7 @@ impl App {
                 if matches!(
                     self.youtube.sub_tab,
                     YoutubeSubTab::Liked | YoutubeSubTab::Playlists
-                ) && self.config.youtube.cookies_path.is_none()
+                ) && (self.config.youtube.cookies_path.is_none() || self.youtube.cookies_invalid)
                     && youtube_auth_notice_at(self.terminal_area, col, row)
                 {
                     crate::shell::open_url(&t("modal.youtube.auth_notice.guide_url"));
@@ -1840,7 +1933,7 @@ impl App {
     }
 
     fn on_click_settings(&mut self, col: u16, row: u16) {
-        let items = settings_items(self.config.duck_enabled);
+        let items = settings_items(self.config.duck_enabled, self.config.screensaver_secs > 0);
         let visual_row_count = settings_visual_row_count(&items);
         let Some(visual_row) = one_line_list_index_at(
             settings_items_area(self.terminal_area),
@@ -2353,7 +2446,11 @@ impl App {
                             }
                         }
                         SearchMode::Settings => {
-                            let len = settings_items(self.config.duck_enabled).len();
+                            let len = settings_items(
+                                self.config.duck_enabled,
+                                self.config.screensaver_secs > 0,
+                            )
+                            .len();
                             if len > 0 {
                                 self.settings_selected =
                                     scroll_by(self.settings_selected, delta, len);
@@ -2498,7 +2595,9 @@ impl App {
 
     fn apply_settings_toggle(&mut self, idx: usize) {
         use crate::i18n;
-        let Some(&item) = settings_items(self.config.duck_enabled).get(idx) else {
+        let Some(&item) =
+            settings_items(self.config.duck_enabled, self.config.screensaver_secs > 0).get(idx)
+        else {
             return;
         };
         match item {
@@ -2542,6 +2641,24 @@ impl App {
             super::modal::SettingItem::Screensaver => self.config.screensaver_next(),
             super::modal::SettingItem::ScreensaverClock => {
                 self.config.screensaver_clock = !self.config.screensaver_clock
+            }
+            super::modal::SettingItem::ScreensaverLogo => {
+                self.config.screensaver_logo = !self.config.screensaver_logo
+            }
+            super::modal::SettingItem::ScreensaverVisualizer => {
+                self.config.screensaver_visualizer = !self.config.screensaver_visualizer
+            }
+            super::modal::SettingItem::ScreensaverRecentTracks => {
+                self.config.screensaver_recent_tracks = !self.config.screensaver_recent_tracks
+            }
+            super::modal::SettingItem::ScreensaverProgressBar => {
+                self.config.screensaver_progress_bar = !self.config.screensaver_progress_bar
+            }
+            super::modal::SettingItem::ScreensaverStationDetails => {
+                self.config.screensaver_station_details = !self.config.screensaver_station_details
+            }
+            super::modal::SettingItem::ScreensaverNowPlaying => {
+                self.config.screensaver_now_playing = !self.config.screensaver_now_playing
             }
             super::modal::SettingItem::DuckEnabled => {
                 self.config.duck_enabled = !self.config.duck_enabled
@@ -2761,10 +2878,11 @@ impl App {
     fn open_settings_at(&mut self, item: SettingItem) {
         self.show_search_modal = true;
         self.modal_mode = SearchMode::Settings;
-        self.settings_selected = settings_items(self.config.duck_enabled)
-            .iter()
-            .position(|candidate| *candidate == item)
-            .unwrap_or(0);
+        self.settings_selected =
+            settings_items(self.config.duck_enabled, self.config.screensaver_secs > 0)
+                .iter()
+                .position(|candidate| *candidate == item)
+                .unwrap_or(0);
         self.settings_scroll_offset = 0;
         self.keep_settings_visible();
     }
@@ -3209,7 +3327,7 @@ impl App {
                 if matches!(
                     self.youtube.sub_tab,
                     YoutubeSubTab::Liked | YoutubeSubTab::Playlists
-                ) && self.config.youtube.cookies_path.is_none()
+                ) && (self.config.youtube.cookies_path.is_none() || self.youtube.cookies_invalid)
                     && matches!(key, KeyCode::Char('o') | KeyCode::Char('O'))
                 {
                     self.open_settings_at(SettingItem::YoutubeCookiesPath);
@@ -3534,7 +3652,7 @@ mod tests {
 
     #[test]
     fn setting_index_at_visual_row_ignores_headers() {
-        let items = settings_items(false);
+        let items = settings_items(false, false);
 
         assert_eq!(setting_index_at_visual_row(&items, 0), None);
         assert_eq!(setting_index_at_visual_row(&items, 6), None);
@@ -3542,7 +3660,7 @@ mod tests {
 
     #[test]
     fn setting_index_at_visual_row_returns_item_index() {
-        let items = settings_items(false);
+        let items = settings_items(false, false);
 
         assert_eq!(setting_index_at_visual_row(&items, 1), Some(0));
         assert_eq!(setting_index_at_visual_row(&items, 7), Some(5));
@@ -3550,9 +3668,58 @@ mod tests {
 
     #[test]
     fn settings_visual_row_count_includes_headers() {
-        let items = settings_items(false);
+        let items = settings_items(false, false);
 
-        assert_eq!(settings_visual_row_count(&items), items.len() + 6);
+        assert_eq!(settings_visual_row_count(&items), items.len() + 7);
+    }
+
+    #[tokio::test]
+    async fn paste_routes_to_active_text_input() {
+        let mut app = App::new().await;
+
+        app.editing_client_id = true;
+        app.on_paste("spotify-client\n".to_string());
+        assert_eq!(app.client_id_input, "spotify-client");
+
+        app.editing_client_id = false;
+        app.editing_cookies_path = true;
+        app.cookies_path_error = Some("old error".to_string());
+        app.on_paste("/tmp/cookies.txt\n".to_string());
+        assert_eq!(app.cookies_path_input, "/tmp/cookies.txt");
+        assert_eq!(app.cookies_path_error, None);
+
+        app.editing_cookies_path = false;
+        app.show_search_modal = true;
+        app.modal_mode = SearchMode::Spotify;
+        app.spotify.sub_tab = SpotifySubTab::Search;
+        app.on_paste("daft punk".to_string());
+        assert_eq!(app.spotify.search_query, "daft punk");
+
+        app.modal_mode = SearchMode::Youtube;
+        app.youtube.sub_tab = YoutubeSubTab::Search;
+        app.on_paste("lofi radio".to_string());
+        assert_eq!(app.youtube.query, "lofi radio");
+    }
+
+    #[tokio::test]
+    async fn active_copy_text_uses_visible_or_editing_input() {
+        let mut app = App::new().await;
+
+        app.show_search_modal = true;
+        app.modal_mode = SearchMode::Spotify;
+        app.spotify.sub_tab = SpotifySubTab::Search;
+        app.spotify.search_query = "boards of canada".to_string();
+        app.search_query = "radio query".to_string();
+        assert_eq!(app.active_copy_text(), Some("boards of canada".to_string()));
+
+        app.editing_client_id = true;
+        app.client_id_input = "client-id".to_string();
+        assert_eq!(app.active_copy_text(), Some("client-id".to_string()));
+
+        app.editing_client_id = false;
+        app.modal_mode = SearchMode::Name;
+        app.radio_sub_tab = RadioSubTab::Favorites;
+        assert_eq!(app.active_copy_text(), None);
     }
 
     #[tokio::test]
@@ -3562,6 +3729,7 @@ mod tests {
         app.show_search_modal = true;
         app.modal_mode = SearchMode::Youtube;
         app.config.screensaver_secs = 1;
+        app.config.screensaver_clock = true;
         app.last_activity = Instant::now() - std::time::Duration::from_secs(2);
         app.youtube.results = vec![youtube_video("one"), youtube_video("two")];
         app.youtube.selected = 0;

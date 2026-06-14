@@ -1,0 +1,71 @@
+# Installation
+
+Reverbic is a terminal player for Windows, macOS, and Linux. Released binaries are published for Windows x86_64 only; the other platforms are supported by building from source.
+
+## Windows quick install (recommended)
+
+Run the installer script in PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/sewandev/Reverbic/main/install.ps1 | iex
+```
+
+The script:
+
+1. Queries the latest GitHub release of `sewandev/Reverbic`.
+2. Downloads the Windows executable for your architecture. On AMD64 it picks the `x86_64-windows` asset; on ARM64 it uses the same x86_64 binary via emulation.
+3. Verifies the asset's SHA256 digest. If the release provides no digest, installation aborts unless you explicitly set `REVERBIC_SKIP_VERIFY=1`.
+4. Removes the "downloaded from the internet" mark (`Unblock-File`) to avoid the SmartScreen prompt, then launches Reverbic in the same terminal.
+
+On first run, Reverbic copies itself to `%LOCALAPPDATA%\Programs\reverbic\reverbic.exe` and adds that folder to your user `PATH`, so you can type `reverbic` from any terminal afterward.
+
+To include pre-release versions, set `REVERBIC_PRERELEASE` to any non-empty value before running the script.
+
+## Scoop
+
+```powershell
+scoop bucket add reverbic https://github.com/sewandev/scoop-reverbic
+scoop install reverbic
+```
+
+## Direct binary download
+
+Download the Windows executable from the [releases page](https://github.com/sewandev/Reverbic/releases/latest). The asset is named:
+
+```
+reverbic-vX.Y.Z-x86_64-windows.exe
+```
+
+Place it in a folder on your `PATH` and run it from a terminal. When you launch the binary, Reverbic self-installs to `%LOCALAPPDATA%\Programs\reverbic\reverbic.exe` and registers itself on the user `PATH`.
+
+## Build from source
+
+Any operating system with a Rust toolchain can build Reverbic.
+
+Install the latest published version with Cargo:
+
+```sh
+cargo install --git https://github.com/sewandev/Reverbic.git --locked
+```
+
+Or clone and build a release binary:
+
+```sh
+git clone https://github.com/sewandev/Reverbic.git
+cd Reverbic
+cargo build --release
+```
+
+The resulting binary is `target/release/reverbic` (`target/release/reverbic.exe` on Windows). Source builds are validated in CI on Windows, macOS, and Linux.
+
+## Release assets
+
+The release workflow runs on `windows-latest` and builds a single executable for the `x86_64-pc-windows-msvc` target, published as `reverbic-vX.Y.Z-x86_64-windows.exe` together with its SHA256 hash. macOS and Linux are not distributed as prebuilt binaries; use the build-from-source instructions above. The in-app auto-updater only applies to Windows x86_64.
+
+## Windows notes
+
+- **SmartScreen:** the binaries are unsigned, so Windows SmartScreen may warn the first time you run a manually downloaded executable. Choose "More info" then "Run anyway". The installer script clears this mark automatically.
+- **Terminal:** for the best visual experience, run Reverbic in [Windows Terminal](https://apps.microsoft.com/detail/9n0dx20hk701) with [PowerShell 7+](https://apps.microsoft.com/detail/9mz1snwt0n5d).
+
+---
+[Back to documentation index](README.md)
