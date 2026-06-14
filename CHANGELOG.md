@@ -10,10 +10,13 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ## [Unreleased]
 
+## [1.5.4] - 2026-06-13
+
 ### Added
 - Added a "Spotify Crossfade" setting (up to 12 seconds) that blends the end of each track into the start of the next when using the Native playback mode; the setting appears disabled until Native mode is selected.
 - The YouTube search tab now shows a hint that you can press Ctrl+R on a video to start an infinite radio.
 - Reverbic now self-updates on Linux (x86_64), just like on Windows and macOS: a Linux binary is published with every release and the app downloads, verifies, and installs the new version automatically.
+- Reverbic now publishes macOS builds (Intel and Apple Silicon) and self-updates on macOS, matching the existing Windows auto-updater.
 
 ### Changed
 - The "YouTube Radio" setting tooltip now states that it requires a configured cookies.txt, since YouTube blocks mixes for unauthenticated requests.
@@ -28,6 +31,8 @@ Versioning: [Semantic Versioning](https://semver.org/)
 - The shortcuts overlay showed the wrong action for [Tab] and ignored YouTube; it now reads "Switch source" consistently across every tab.
 - Unified the label of the "Open Settings" shortcut, which was inconsistent between the Radio, Spotify and YouTube views.
 - When the configured YouTube cookies file became invalid (removed, moved or unreadable), the Liked and Playlists tabs stayed silently empty; they now show a clear error and the same recovery guide as the unauthenticated state.
+- On macOS, pasting text (for example into the search box or the cookies path field) now works correctly through the system clipboard.
+- The Reverbic logo could overlap the game strip; the layout now reserves space so both stay visible.
 
 ### Security
 - Disabling or removing the YouTube cookies file now immediately stops playback of cookie-backed restricted videos within the same session; the in-memory resolved-URL cache no longer serves a cookie-backed result once credentials are gone.
