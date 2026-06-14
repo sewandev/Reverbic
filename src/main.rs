@@ -15,6 +15,7 @@ mod config;
 mod error;
 mod favorites;
 mod game_detect;
+mod headless;
 mod http;
 mod i18n;
 mod install;
@@ -56,6 +57,11 @@ unsafe extern "system" fn console_ctrl_handler(ctrl_type: u32) -> windows::Win32
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    use clap::Parser;
+    if let Some(command) = headless::Cli::parse().command {
+        return headless::run(command).await;
+    }
+
     let original_hook = panic::take_hook();
     panic::set_hook(Box::new(move |info| {
         terminal::restore();
@@ -163,22 +169,9 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
     }
     if app.config.autoplay_last {
         if let Some(saved) = app.config.last_station.clone() {
-            use crate::station::{enrich, find_enrichment, Station};
-            let mut station = Station {
-                key: saved.key.clone(),
-                name: saved.name.clone(),
-                url: saved.url.clone(),
-                metadata_api_url: None,
-                history_api_url: None,
-                schedule_url: None,
-                show_countdown: false,
-                bitrate_kbps: saved.bitrate_kbps,
-                custom_headers: None,
-            };
-            if let Some(enrichment) = find_enrichment(&saved.name) {
-                enrich(&mut station, enrichment);
-            }
-            app.player.send(PlayerCommand::Play(station)).await;
+            app.player
+                .send(PlayerCommand::Play(saved.to_station()))
+                .await;
         }
     }
     let mut ticker = tokio::time::interval(Duration::from_millis(50));
