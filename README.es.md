@@ -125,7 +125,7 @@ Consulta [CHANGELOG.es.md](CHANGELOG.es.md) para conocer las novedades de cada v
 
 ## Sobre este proyecto e IA
 
-Reverbic es un proyecto serio, pero al mismo tiempo un *side project* creado para divertirme en mis tiempos libres fuera de mi horario laboral. Para que esto sea posible teniendo poco tiempo, el código y desarrollo están fuertemente apoyados por herramientas de IA. Sin embargo, todas las decisiones arquitectónicas, diseño, pruebas y revisiones de código se realizan de forma enteramente manual. Este flujo de trabajo me permite enfocarme en agregar nuevas funcionalidades para la comunidad. ¡Cualquier contribución o feedback siempre es bienvenido!
+Desarrollo Reverbic en mi tiempo libre, fuera del trabajo. Para avanzar rápido con poco tiempo, me apoyo en herramientas de IA a lo largo del desarrollo, pero la arquitectura, las decisiones de diseño y la revisión final de lo que se publica son mías. Cualquier contribución o feedback siempre es bienvenido.
 
 ---
 

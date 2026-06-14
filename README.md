@@ -125,7 +125,7 @@ See [CHANGELOG.md](CHANGELOG.md) for release notes and version history. ([Españ
 
 ## About this project & AI
 
-Reverbic is a serious passion project, but ultimately a side project built for fun in my free time outside of regular work hours. To make this possible with limited time, the development and codebase are heavily assisted by AI tools. However, all architectural decisions, design, testing, and code reviews are done entirely manually. This workflow allows me to focus on adding new features for the community. Code contributions and feedback are always welcome!
+Reverbic is built in my spare time outside of work. To move fast with limited time, I lean on AI tools throughout development — but the architecture, design choices, and the final review of what ships are mine. Contributions and feedback are always welcome.
 
 ---
 
