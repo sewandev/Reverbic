@@ -21,6 +21,8 @@ struct CacheEntry {
     #[serde(default)]
     persist: bool,
     #[serde(default)]
+    used_cookies: bool,
+    #[serde(default)]
     chapters: Vec<YoutubeChapter>,
 }
 
@@ -107,14 +109,15 @@ pub async fn resolve_audio_url(
 ) -> Result<ResolvedStream, YoutubeError> {
     if let Ok(mut cache) = get_url_cache().lock() {
         if let Some(entry) = cache.get(watch_url) {
-            if entry.expires_at_unix > unix_now() {
+            let cookies_revoked = entry.used_cookies && cookies_path.is_none();
+            if cookies_revoked || entry.expires_at_unix <= unix_now() {
+                cache.remove(watch_url);
+            } else {
                 return Ok((
                     entry.url.clone(),
                     entry.headers.clone(),
                     entry.chapters.clone(),
                 ));
-            } else {
-                cache.remove(watch_url);
             }
         }
     }
@@ -143,6 +146,7 @@ pub async fn resolve_audio_url(
                 headers: headers.clone(),
                 expires_at_unix: unix_now() + CACHE_TTL_SECS,
                 persist,
+                used_cookies,
                 chapters: chapters.clone(),
             },
         );
@@ -248,13 +252,14 @@ pub fn invalidate_cached_url(watch_url: &str) {
     }
 }
 
-pub fn is_cached(watch_url: &str) -> bool {
+pub fn is_cached(watch_url: &str, cookies_path: Option<&Path>) -> bool {
     get_url_cache()
         .lock()
         .map(|cache| {
-            cache
-                .get(watch_url)
-                .is_some_and(|entry| entry.expires_at_unix > unix_now())
+            cache.get(watch_url).is_some_and(|entry| {
+                let cookies_revoked = entry.used_cookies && cookies_path.is_none();
+                !cookies_revoked && entry.expires_at_unix > unix_now()
+            })
         })
         .unwrap_or(false)
 }

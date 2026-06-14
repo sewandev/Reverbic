@@ -41,11 +41,14 @@ impl GitHubAsset {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum UpdateOs {
     Windows,
+    MacOs,
+    Linux,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum UpdateArch {
     X86_64,
+    Aarch64,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -68,16 +71,22 @@ impl UpdateTarget {
     fn from_parts(os: &str, arch: &str) -> Result<Self, AssetSelectionError> {
         let os = match os {
             "windows" => UpdateOs::Windows,
+            "macos" | "darwin" => UpdateOs::MacOs,
+            "linux" => UpdateOs::Linux,
             _ => return Err(AssetSelectionError::UnsupportedPlatform),
         };
 
         let arch = match arch {
             "x86_64" => UpdateArch::X86_64,
+            "aarch64" => UpdateArch::Aarch64,
             _ => return Err(AssetSelectionError::NoCompatibleAsset),
         };
 
         match (os, arch) {
             (UpdateOs::Windows, UpdateArch::X86_64) => Ok(Self { os, arch }),
+            (UpdateOs::Linux, UpdateArch::X86_64) => Ok(Self { os, arch }),
+            (UpdateOs::MacOs, _) => Ok(Self { os, arch }),
+            _ => Err(AssetSelectionError::NoCompatibleAsset),
         }
     }
 
@@ -86,6 +95,16 @@ impl UpdateTarget {
             (UpdateOs::Windows, UpdateArch::X86_64) => {
                 format!("reverbic-v{version}-x86_64-windows.exe")
             }
+            (UpdateOs::MacOs, UpdateArch::X86_64) => {
+                format!("reverbic-v{version}-x86_64-macos.tar.gz")
+            }
+            (UpdateOs::MacOs, UpdateArch::Aarch64) => {
+                format!("reverbic-v{version}-aarch64-macos.tar.gz")
+            }
+            (UpdateOs::Linux, UpdateArch::X86_64) => {
+                format!("reverbic-v{version}-x86_64-linux.tar.gz")
+            }
+            _ => unreachable!(),
         }
     }
 }
@@ -278,24 +297,313 @@ pub fn apply_update(new_exe: &Path) {
         }
     }
 
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(unix)]
     {
-        apply_update_in_place(new_exe);
+        apply_unix_update(new_exe);
     }
 }
 
-#[cfg(not(target_os = "windows"))]
-fn apply_update_in_place(new_exe: &Path) {
+#[cfg(unix)]
+fn apply_unix_update(update_payload: &Path) {
+    let prepared = prepare_unix_update_payload(update_payload);
+    let _ = std::fs::remove_file(update_payload);
+
+    match prepared {
+        Ok(candidate) => {
+            if let Err(err) = replace_current_executable(&candidate.binary_path) {
+                tracing::error!("Failed to apply update: {err}");
+            }
+            if let Err(err) = std::fs::remove_dir_all(&candidate.extract_dir) {
+                tracing::debug!(?err, "Failed to clean update extraction directory");
+            }
+        }
+        Err(err) => {
+            tracing::debug!(
+                ?err,
+                payload = %update_payload.display(),
+                "Could not prepare update payload"
+            );
+        }
+    }
+}
+
+#[cfg(unix)]
+#[derive(Debug)]
+struct PreparedUnixUpdate {
+    binary_path: PathBuf,
+    extract_dir: PathBuf,
+}
+
+#[cfg(unix)]
+fn prepare_unix_update_payload(update_payload: &Path) -> std::io::Result<PreparedUnixUpdate> {
+    let extract_dir = unique_unix_extract_dir(update_payload);
+    std::fs::create_dir(&extract_dir)?;
+
+    match extract_unix_update_archive(update_payload, &extract_dir) {
+        Ok(binary_path) => Ok(PreparedUnixUpdate {
+            binary_path,
+            extract_dir,
+        }),
+        Err(err) => {
+            let _ = std::fs::remove_dir_all(&extract_dir);
+            Err(err)
+        }
+    }
+}
+
+#[cfg(unix)]
+fn unique_unix_extract_dir(update_payload: &Path) -> PathBuf {
+    let payload_name = update_payload
+        .file_name()
+        .map(|name| name.to_string_lossy())
+        .unwrap_or_else(|| "reverbic-update".into());
+    let base = std::env::temp_dir().join(format!("{payload_name}.{}.extract", std::process::id()));
+    unique_part_path(&base)
+}
+
+#[cfg(unix)]
+fn extract_unix_update_archive(
+    update_payload: &Path,
+    extract_dir: &Path,
+) -> std::io::Result<PathBuf> {
+    use flate2::read::GzDecoder;
+    use std::ffi::OsStr;
+    use std::io;
+    use tar::EntryType;
+
+    let archive_file = std::fs::File::open(update_payload)?;
+    let decoder = GzDecoder::new(archive_file);
+    let mut archive = tar::Archive::new(decoder);
+    let mut candidate = None;
+
+    for entry_result in archive.entries()? {
+        let mut entry = entry_result?;
+        let entry_path = safe_unix_archive_path(entry.path()?.as_ref())?;
+        let entry_type = entry.header().entry_type();
+
+        if entry_type == EntryType::Directory {
+            std::fs::create_dir_all(extract_dir.join(&entry_path))?;
+            continue;
+        }
+
+        if !entry_type.is_file() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!(
+                    "unsupported archive entry type for {}",
+                    entry_path.display()
+                ),
+            ));
+        }
+
+        let destination = extract_dir.join(&entry_path);
+        if let Some(parent) = destination.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        entry.unpack(&destination)?;
+
+        if entry_path.file_name() == Some(OsStr::new("reverbic"))
+            && candidate.replace(destination).is_some()
+        {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "update archive contains multiple reverbic binaries",
+            ));
+        }
+    }
+
+    let candidate = candidate.ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::NotFound,
+            "update archive does not contain a reverbic binary",
+        )
+    })?;
+    prepare_unix_update_binary(&candidate)?;
+    Ok(candidate)
+}
+
+#[cfg(unix)]
+fn safe_unix_archive_path(path: &Path) -> std::io::Result<PathBuf> {
+    use std::path::Component;
+
+    let mut safe_path = PathBuf::new();
+    let mut has_component = false;
+
+    for component in path.components() {
+        match component {
+            Component::Normal(part) => {
+                safe_path.push(part);
+                has_component = true;
+            }
+            Component::CurDir => {}
+            _ => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!("unsafe archive path {}", path.display()),
+                ));
+            }
+        }
+    }
+
+    if !has_component {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "empty archive path",
+        ));
+    }
+
+    Ok(safe_path)
+}
+
+#[cfg(unix)]
+fn prepare_unix_update_binary(candidate: &Path) -> std::io::Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+
+    let metadata = std::fs::symlink_metadata(candidate)?;
+    if !metadata.file_type().is_file() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "update candidate is not a regular file",
+        ));
+    }
+
+    let mut permissions = metadata.permissions();
+    permissions.set_mode(permissions.mode() | 0o111);
+    std::fs::set_permissions(candidate, permissions)?;
+
+    let mode = std::fs::metadata(candidate)?.permissions().mode();
+    if mode & 0o111 == 0 {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::PermissionDenied,
+            "update candidate is not executable",
+        ));
+    }
+
+    Ok(())
+}
+
+#[cfg(unix)]
+fn replace_current_executable(new_exe: &Path) -> std::io::Result<()> {
     let Ok(current) = std::env::current_exe() else {
-        return;
+        return Ok(());
     };
+    if let Some(reason) = managed_unix_installation_reason(&current) {
+        tracing::debug!(
+            current = %current.display(),
+            reason,
+            "Skipping self-update for managed installation"
+        );
+        return Ok(());
+    };
+
+    replace_executable_at(&current, new_exe)
+}
+
+#[cfg(unix)]
+fn replace_executable_at(current: &Path, new_exe: &Path) -> std::io::Result<()> {
     let Some(file_name) = current.file_name() else {
-        return;
+        return Ok(());
     };
+    use std::os::unix::fs::PermissionsExt;
+    let mut perms = std::fs::metadata(current)
+        .map(|m| m.permissions())
+        .unwrap_or_else(|_| std::fs::Permissions::from_mode(0o755));
+    perms.set_mode(perms.mode() | 0o111);
+    let _ = std::fs::set_permissions(new_exe, perms.clone());
+
     let old_name = format!("{}.old", file_name.to_string_lossy());
     let old = current.with_file_name(old_name);
-    if std::fs::rename(&current, &old).is_ok() && std::fs::copy(new_exe, &current).is_err() {
-        let _ = std::fs::rename(&old, &current);
+
+    remove_file_if_exists(&old)?;
+    std::fs::rename(current, &old)?;
+
+    let replace_result = std::fs::rename(new_exe, current).or_else(|_| {
+        std::fs::copy(new_exe, current)?;
+        let _ = std::fs::remove_file(new_exe);
+        Ok(())
+    });
+
+    if let Err(err) = replace_result {
+        let _ = std::fs::remove_file(current);
+        let _ = std::fs::rename(&old, current);
+        return Err(err);
+    }
+
+    let _ = std::fs::set_permissions(current, perms);
+    let _ = std::fs::remove_file(old);
+    Ok(())
+}
+
+#[cfg(unix)]
+fn managed_unix_installation_reason(current: &Path) -> Option<&'static str> {
+    #[cfg(target_os = "macos")]
+    {
+        managed_macos_installation_reason(current)
+    }
+    #[cfg(target_os = "linux")]
+    {
+        managed_linux_installation_reason(current)
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+    {
+        let _ = current;
+        None
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn managed_macos_installation_reason(current: &Path) -> Option<&'static str> {
+    if current.starts_with("/opt/homebrew/")
+        || current.starts_with("/usr/local/Cellar/")
+        || current.starts_with("/usr/local/Homebrew/")
+    {
+        return Some("homebrew");
+    }
+
+    if current.starts_with("/nix/store/") {
+        return Some("nix");
+    }
+
+    if current.starts_with("/Applications/") && path_contains_app_bundle(current) {
+        return Some("application bundle");
+    }
+
+    None
+}
+
+#[cfg(target_os = "macos")]
+fn path_contains_app_bundle(path: &Path) -> bool {
+    path.components()
+        .any(|component| component.as_os_str().to_string_lossy().ends_with(".app"))
+}
+
+#[cfg(target_os = "linux")]
+fn managed_linux_installation_reason(current: &Path) -> Option<&'static str> {
+    if current.starts_with("/nix/store/") {
+        return Some("nix");
+    }
+
+    if current.starts_with("/snap/") {
+        return Some("snap");
+    }
+
+    if current.starts_with("/var/lib/flatpak/") || current.starts_with("/app/") {
+        return Some("flatpak");
+    }
+
+    if current.starts_with("/usr/") {
+        return Some("system package");
+    }
+
+    None
+}
+
+#[cfg(unix)]
+fn remove_file_if_exists(path: &Path) -> std::io::Result<()> {
+    match std::fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(err) => Err(err),
     }
 }
 
@@ -597,17 +905,68 @@ mod asset_selection_tests {
     }
 
     #[test]
-    fn rejects_update_asset_for_linux() {
-        let err = UpdateTarget::from_parts("linux", "x86_64")
-            .expect_err("linux update target should be unsupported");
+    fn selects_update_asset_for_macos_x86_64() {
+        let target = UpdateTarget::from_parts("macos", "x86_64")
+            .expect("macos x86_64 should be a supported update target");
+        let selected = select_compatible_asset(
+            vec![
+                asset("reverbic-v2.0.0-x86_64-macos.tar.gz"),
+                asset("reverbic-v2.0.0-x86_64-windows.exe"),
+            ],
+            "2.0.0",
+            target,
+        )
+        .expect("macos release asset should be selected");
 
-        assert_eq!(err, AssetSelectionError::UnsupportedPlatform);
+        assert_eq!(selected.name, "reverbic-v2.0.0-x86_64-macos.tar.gz");
     }
 
     #[test]
-    fn rejects_update_asset_for_macos_until_archives_are_installable() {
-        let err = UpdateTarget::from_parts("macos", "aarch64")
-            .expect_err("macos update target should be unsupported until archives are installable");
+    fn selects_update_asset_for_macos_aarch64() {
+        let target = UpdateTarget::from_parts("macos", "aarch64")
+            .expect("macos aarch64 should be a supported update target");
+        let selected = select_compatible_asset(
+            vec![
+                asset("reverbic-v2.0.0-aarch64-macos.tar.gz"),
+                asset("reverbic-v2.0.0-x86_64-windows.exe"),
+            ],
+            "2.0.0",
+            target,
+        )
+        .expect("macos release asset should be selected");
+
+        assert_eq!(selected.name, "reverbic-v2.0.0-aarch64-macos.tar.gz");
+    }
+
+    #[test]
+    fn selects_update_asset_for_linux_x86_64() {
+        let target = UpdateTarget::from_parts("linux", "x86_64")
+            .expect("linux x86_64 should be a supported update target");
+        let selected = select_compatible_asset(
+            vec![
+                asset("reverbic-v2.0.0-x86_64-linux.tar.gz"),
+                asset("reverbic-v2.0.0-x86_64-windows.exe"),
+            ],
+            "2.0.0",
+            target,
+        )
+        .expect("linux release asset should be selected");
+
+        assert_eq!(selected.name, "reverbic-v2.0.0-x86_64-linux.tar.gz");
+    }
+
+    #[test]
+    fn rejects_update_asset_for_linux_aarch64() {
+        let err = UpdateTarget::from_parts("linux", "aarch64")
+            .expect_err("linux aarch64 has no published artifact");
+
+        assert_eq!(err, AssetSelectionError::NoCompatibleAsset);
+    }
+
+    #[test]
+    fn rejects_update_asset_for_unknown_os() {
+        let err = UpdateTarget::from_parts("freebsd", "x86_64")
+            .expect_err("unknown os should be unsupported");
 
         assert_eq!(err, AssetSelectionError::UnsupportedPlatform);
     }
@@ -624,6 +983,241 @@ mod asset_selection_tests {
         .expect_err("missing compatible asset should be rejected");
 
         assert_eq!(err, AssetSelectionError::NoCompatibleAsset);
+    }
+}
+
+#[cfg(all(test, unix))]
+mod unix_payload_tests {
+    #[cfg(target_os = "linux")]
+    use super::managed_linux_installation_reason;
+    #[cfg(target_os = "macos")]
+    use super::managed_macos_installation_reason;
+    use super::{prepare_unix_update_payload, replace_executable_at, safe_unix_archive_path};
+    use flate2::write::GzEncoder;
+    use flate2::Compression;
+    use std::path::{Path, PathBuf};
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    fn next_id() -> u64 {
+        static COUNTER: AtomicU64 = AtomicU64::new(0);
+        COUNTER.fetch_add(1, Ordering::Relaxed)
+    }
+
+    fn test_path(label: &str) -> PathBuf {
+        std::env::temp_dir().join(format!(
+            "reverbic-macos-update-test-{}-{}-{label}",
+            std::process::id(),
+            next_id()
+        ))
+    }
+
+    fn test_dir(label: &str) -> PathBuf {
+        let path = test_path(label);
+        std::fs::create_dir(&path).expect("test directory should be created");
+        path
+    }
+
+    fn write_archive(path: &Path, entries: &[(&str, &[u8])]) {
+        let file = std::fs::File::create(path).expect("test archive should be created");
+        let encoder = GzEncoder::new(file, Compression::default());
+        let mut builder = tar::Builder::new(encoder);
+
+        for (entry_path, content) in entries {
+            let mut header = tar::Header::new_gnu();
+            header.set_size(content.len() as u64);
+            header.set_mode(0o644);
+            header.set_cksum();
+            builder
+                .append_data(&mut header, entry_path, *content)
+                .expect("test archive entry should be appended");
+        }
+
+        builder.finish().expect("test archive should be finalized");
+    }
+
+    #[test]
+    fn prepares_valid_archive_candidate() {
+        let archive_path = test_path("valid.tar.gz");
+        write_archive(&archive_path, &[("reverbic", b"#!/bin/sh\n")]);
+
+        let prepared = prepare_unix_update_payload(&archive_path)
+            .expect("valid archive should produce a candidate");
+        let metadata =
+            std::fs::metadata(&prepared.binary_path).expect("candidate should have metadata");
+
+        assert!(metadata.is_file());
+        assert_eq!(
+            prepared
+                .binary_path
+                .file_name()
+                .expect("candidate should include a file name"),
+            "reverbic"
+        );
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_ne!(metadata.permissions().mode() & 0o111, 0);
+        }
+
+        let _ = std::fs::remove_dir_all(prepared.extract_dir);
+        let _ = std::fs::remove_file(archive_path);
+    }
+
+    #[test]
+    fn rejects_archive_without_reverbic_binary() {
+        let archive_path = test_path("missing.tar.gz");
+        write_archive(&archive_path, &[("README.txt", b"not the binary")]);
+
+        let err = prepare_unix_update_payload(&archive_path)
+            .expect_err("archive without reverbic should be rejected");
+
+        assert_eq!(err.kind(), std::io::ErrorKind::NotFound);
+        let _ = std::fs::remove_file(archive_path);
+    }
+
+    #[test]
+    fn rejects_archive_with_multiple_reverbic_binaries() {
+        let archive_path = test_path("duplicate.tar.gz");
+        write_archive(
+            &archive_path,
+            &[("reverbic", b"one"), ("nested/reverbic", b"two")],
+        );
+
+        let err = prepare_unix_update_payload(&archive_path)
+            .expect_err("archive with duplicate reverbic binaries should be rejected");
+
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
+        let _ = std::fs::remove_file(archive_path);
+    }
+
+    #[test]
+    fn rejects_suspicious_archive_paths() {
+        let err = safe_unix_archive_path(Path::new("../reverbic"))
+            .expect_err("parent directory path should be rejected");
+
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
+    }
+
+    #[test]
+    fn replace_executable_at_installs_candidate_and_cleans_backup() {
+        let dir = test_dir("replace-success");
+        let current = dir.join("reverbic");
+        let candidate = dir.join("candidate");
+        let backup = dir.join("reverbic.old");
+        std::fs::write(&current, b"old").expect("current binary should be written");
+        std::fs::write(&candidate, b"new").expect("candidate binary should be written");
+
+        replace_executable_at(&current, &candidate).expect("replacement should succeed");
+
+        assert_eq!(
+            std::fs::read(&current).expect("current binary should be readable"),
+            b"new"
+        );
+        assert!(!candidate.exists());
+        assert!(!backup.exists());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn replace_executable_at_removes_stale_backup_before_replace() {
+        let dir = test_dir("replace-stale-backup");
+        let current = dir.join("reverbic");
+        let candidate = dir.join("candidate");
+        let backup = dir.join("reverbic.old");
+        std::fs::write(&current, b"old").expect("current binary should be written");
+        std::fs::write(&candidate, b"new").expect("candidate binary should be written");
+        std::fs::write(&backup, b"stale").expect("stale backup should be written");
+
+        replace_executable_at(&current, &candidate)
+            .expect("replacement should remove stale backup and succeed");
+
+        assert_eq!(
+            std::fs::read(&current).expect("current binary should be readable"),
+            b"new"
+        );
+        assert!(!backup.exists());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn replace_executable_at_restores_backup_when_candidate_is_missing() {
+        let dir = test_dir("replace-rollback");
+        let current = dir.join("reverbic");
+        let candidate = dir.join("missing-candidate");
+        std::fs::write(&current, b"old").expect("current binary should be written");
+
+        let err = replace_executable_at(&current, &candidate)
+            .expect_err("missing candidate should fail replacement");
+
+        assert_eq!(err.kind(), std::io::ErrorKind::NotFound);
+        assert_eq!(
+            std::fs::read(&current).expect("current binary should be restored"),
+            b"old"
+        );
+        assert!(!dir.join("reverbic.old").exists());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn detects_managed_macos_installations() {
+        assert_eq!(
+            managed_macos_installation_reason(Path::new("/opt/homebrew/bin/reverbic")),
+            Some("homebrew")
+        );
+        assert_eq!(
+            managed_macos_installation_reason(Path::new(
+                "/usr/local/Cellar/reverbic/1.0.0/bin/reverbic"
+            )),
+            Some("homebrew")
+        );
+        assert_eq!(
+            managed_macos_installation_reason(Path::new("/usr/local/Homebrew/bin/reverbic")),
+            Some("homebrew")
+        );
+        assert_eq!(
+            managed_macos_installation_reason(Path::new("/nix/store/hash-reverbic/bin/reverbic")),
+            Some("nix")
+        );
+        assert_eq!(
+            managed_macos_installation_reason(Path::new(
+                "/Applications/Reverbic.app/Contents/MacOS/reverbic"
+            )),
+            Some("application bundle")
+        );
+        assert_eq!(
+            managed_macos_installation_reason(Path::new("/Users/example/bin/reverbic")),
+            None
+        );
+        assert_eq!(
+            managed_macos_installation_reason(Path::new("/Applications/reverbic")),
+            None
+        );
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn detects_managed_linux_installations() {
+        assert_eq!(
+            managed_linux_installation_reason(Path::new("/nix/store/hash-reverbic/bin/reverbic")),
+            Some("nix")
+        );
+        assert_eq!(
+            managed_linux_installation_reason(Path::new("/snap/reverbic/current/bin/reverbic")),
+            Some("snap")
+        );
+        assert_eq!(
+            managed_linux_installation_reason(Path::new("/var/lib/flatpak/app/reverbic/reverbic")),
+            Some("flatpak")
+        );
+        assert_eq!(
+            managed_linux_installation_reason(Path::new("/usr/bin/reverbic")),
+            Some("system package")
+        );
+        assert_eq!(
+            managed_linux_installation_reason(Path::new("/home/example/.local/bin/reverbic")),
+            None
+        );
     }
 }
 

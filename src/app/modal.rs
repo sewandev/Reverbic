@@ -75,6 +75,12 @@ pub enum SettingItem {
     Language,
     Theme,
     ScreensaverClock,
+    ScreensaverLogo,
+    ScreensaverVisualizer,
+    ScreensaverRecentTracks,
+    ScreensaverProgressBar,
+    ScreensaverStationDetails,
+    ScreensaverNowPlaying,
     SpotifyStopOnQuit,
     SpotifyStartOnSpotify,
     SpotifyClientId,
@@ -113,6 +119,12 @@ impl SettingItem {
             Self::Language => t("config.setting.language"),
             Self::Theme => t("config.setting.theme"),
             Self::ScreensaverClock => t("config.setting.screensaver_clock"),
+            Self::ScreensaverLogo => t("config.setting.screensaver_logo"),
+            Self::ScreensaverVisualizer => t("config.setting.screensaver_visualizer"),
+            Self::ScreensaverRecentTracks => t("config.setting.screensaver_recent_tracks"),
+            Self::ScreensaverProgressBar => t("config.setting.screensaver_progress_bar"),
+            Self::ScreensaverStationDetails => t("config.setting.screensaver_station_details"),
+            Self::ScreensaverNowPlaying => t("config.setting.screensaver_now_playing"),
             Self::SpotifyStopOnQuit => t("config.setting.spotify_stop_on_quit"),
             Self::SpotifyStartOnSpotify => t("config.setting.spotify_start_on_spotify"),
             Self::SpotifyClientId => t("config.setting.spotify_client_id"),
@@ -151,6 +163,12 @@ impl SettingItem {
             Self::Language => "config.tooltip.language",
             Self::Theme => "config.tooltip.theme",
             Self::ScreensaverClock => "config.tooltip.screensaver_clock",
+            Self::ScreensaverLogo => "config.tooltip.screensaver_logo",
+            Self::ScreensaverVisualizer => "config.tooltip.screensaver_visualizer",
+            Self::ScreensaverRecentTracks => "config.tooltip.screensaver_recent_tracks",
+            Self::ScreensaverProgressBar => "config.tooltip.screensaver_progress_bar",
+            Self::ScreensaverStationDetails => "config.tooltip.screensaver_station_details",
+            Self::ScreensaverNowPlaying => "config.tooltip.screensaver_now_playing",
             Self::SpotifyStopOnQuit => "config.tooltip.spotify_stop_on_quit",
             Self::SpotifyStartOnSpotify => "config.tooltip.spotify_start_on_spotify",
             Self::SpotifyClientId => "config.tooltip.spotify_client_id",
@@ -174,13 +192,30 @@ impl SettingItem {
             | Self::RestoreVolume
             | Self::Crossfade
             | Self::VolumeStep
-            | Self::Prebuffer => "config.group.playback",
+            | Self::Prebuffer => "config.group.radio",
+            Self::SpotifyRadioMode
+            | Self::SpotifyStopOnQuit
+            | Self::SpotifyStartOnSpotify
+            | Self::SpotifyClientId
+            | Self::SpotifyPlaybackMode
+            | Self::SpotifyCrossfade => "config.group.spotify",
+            Self::YoutubeRadioMode
+            | Self::YoutubeSponsorblock
+            | Self::YoutubeCrossfade
+            | Self::YoutubeCookiesPath
+            | Self::YoutubeCookiesValidate => "config.group.youtube",
             Self::OverlayMode
             | Self::OverlayAlpha
             | Self::OverlayPosition
             | Self::OverlayStyle
             | Self::Screensaver
-            | Self::ScreensaverClock => "config.group.overlay",
+            | Self::ScreensaverClock
+            | Self::ScreensaverLogo
+            | Self::ScreensaverVisualizer
+            | Self::ScreensaverRecentTracks
+            | Self::ScreensaverProgressBar
+            | Self::ScreensaverStationDetails
+            | Self::ScreensaverNowPlaying => "config.group.overlay",
             Self::DuckEnabled | Self::DuckVolume => "config.group.game",
             Self::MediaKeys
             | Self::TrayIcon
@@ -190,36 +225,64 @@ impl SettingItem {
             | Self::ReplayOnboarding
             | Self::OpenLogs => "config.group.system",
             Self::Language | Self::Theme => "config.group.appearance",
-            Self::SpotifyStopOnQuit
-            | Self::SpotifyStartOnSpotify
-            | Self::SpotifyClientId
-            | Self::SpotifyPlaybackMode
-            | Self::SpotifyCrossfade
-            | Self::SpotifyRadioMode
-            | Self::YoutubeCrossfade
-            | Self::YoutubeRadioMode
-            | Self::YoutubeSponsorblock
-            | Self::YoutubeCookiesPath
-            | Self::YoutubeCookiesValidate => "config.group.integrations",
         }
+    }
+
+    fn is_windows_only(self) -> bool {
+        matches!(
+            self,
+            Self::OverlayMode
+                | Self::OverlayAlpha
+                | Self::OverlayPosition
+                | Self::OverlayStyle
+                | Self::DuckEnabled
+                | Self::DuckVolume
+                | Self::MediaKeys
+                | Self::TrayIcon
+                | Self::Notifications
+                | Self::DiscordRpc
+        )
     }
 }
 
-pub fn settings_items(duck_enabled: bool) -> Vec<SettingItem> {
+pub fn settings_items(duck_enabled: bool, screensaver_active: bool) -> Vec<SettingItem> {
     let mut items = vec![
         SettingItem::Autoplay,
         SettingItem::RestoreVolume,
         SettingItem::Crossfade,
         SettingItem::VolumeStep,
         SettingItem::Prebuffer,
+        SettingItem::SpotifyRadioMode,
+        SettingItem::SpotifyStopOnQuit,
+        SettingItem::SpotifyStartOnSpotify,
+        SettingItem::SpotifyClientId,
+        SettingItem::SpotifyPlaybackMode,
+        SettingItem::SpotifyCrossfade,
+        SettingItem::YoutubeRadioMode,
+        SettingItem::YoutubeSponsorblock,
+        SettingItem::YoutubeCrossfade,
+        SettingItem::YoutubeCookiesPath,
+        SettingItem::YoutubeCookiesValidate,
         SettingItem::OverlayMode,
         SettingItem::OverlayStyle,
         SettingItem::OverlayAlpha,
         SettingItem::OverlayPosition,
         SettingItem::Screensaver,
-        SettingItem::ScreensaverClock,
-        SettingItem::DuckEnabled,
     ];
+
+    if screensaver_active {
+        items.extend([
+            SettingItem::ScreensaverClock,
+            SettingItem::ScreensaverLogo,
+            SettingItem::ScreensaverVisualizer,
+            SettingItem::ScreensaverRecentTracks,
+            SettingItem::ScreensaverProgressBar,
+            SettingItem::ScreensaverStationDetails,
+            SettingItem::ScreensaverNowPlaying,
+        ]);
+    }
+
+    items.push(SettingItem::DuckEnabled);
     if duck_enabled {
         items.push(SettingItem::DuckVolume);
     }
@@ -233,18 +296,12 @@ pub fn settings_items(duck_enabled: bool) -> Vec<SettingItem> {
         SettingItem::OpenLogs,
         SettingItem::Language,
         SettingItem::Theme,
-        SettingItem::SpotifyStopOnQuit,
-        SettingItem::SpotifyStartOnSpotify,
-        SettingItem::SpotifyClientId,
-        SettingItem::SpotifyPlaybackMode,
-        SettingItem::SpotifyCrossfade,
-        SettingItem::SpotifyRadioMode,
-        SettingItem::YoutubeCrossfade,
-        SettingItem::YoutubeRadioMode,
-        SettingItem::YoutubeSponsorblock,
-        SettingItem::YoutubeCookiesPath,
-        SettingItem::YoutubeCookiesValidate,
     ]);
+
+    if !cfg!(target_os = "windows") {
+        items.retain(|item| !item.is_windows_only());
+    }
+
     items
 }
 

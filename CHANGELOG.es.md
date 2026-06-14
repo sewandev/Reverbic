@@ -11,7 +11,49 @@ Versionado: [Semantic Versioning](https://semver.org/)
 ## [Sin publicar]
 
 ### Agregado
-- Se agregó el ajuste "Crossfade (Spotify)" (hasta 12 segundos) que funde el final de cada canción con el inicio de la siguiente al usar el modo de reproducción Nativo; el ajuste aparece deshabilitado hasta seleccionar el modo Nativo
+- Se agregó el ajuste "Crossfade (Spotify)" (hasta 12 segundos) que funde el final de cada canción con el inicio de la siguiente al usar el modo de reproducción Nativo; el ajuste aparece deshabilitado hasta seleccionar el modo Nativo.
+- La pestaña de búsqueda de YouTube ahora muestra una pista de que puedes presionar Ctrl+R sobre un video para iniciar una radio infinita.
+- Reverbic ahora se actualiza solo en Linux (x86_64), igual que en Windows y macOS: se publica un binario de Linux por release y la app descarga, verifica e instala la nueva versión automáticamente.
+
+### Cambiado
+- El tooltip de la opción "YouTube Radio" ahora indica que requiere un cookies.txt configurado, ya que YouTube bloquea los mixes en solicitudes sin autenticar.
+- En macOS y Linux, las opciones que solo funcionan en Windows (overlay, ducking, teclas multimedia, ícono en la bandeja, notificaciones y Discord Rich Presence) ya no aparecen en Configuración ni en el asistente de primera ejecución.
+- Se rediseñó el bloque de perfil de Spotify en el Modo Ambiente como un widget propio con texto centrado: el nombre destaca y una sola línea muestra Premium, país y cantidad de seguidores (ahora con separador de miles).
+- Se reorganizó el menú de Configuración en categorías más claras: Radio, Spotify y YouTube tienen su propia sección, separadas de Overlay, Ducking, Sistema y Apariencia.
+- Las secciones de configuración de Overlay y Ducking ahora indican "(solo Windows)" para dejar claro que no aplican en otras plataformas.
+- El panel de atajos ([?]) ahora agrupa las teclas por ámbito con encabezados de sección (Radio, Spotify, YouTube, Global) en lugar de mostrar una sola lista plana.
+
+### Corregido
+- Iniciar una radio de YouTube (Ctrl+R o al terminar una lista con YouTube Radio activo) sin un cookies.txt configurado ahora muestra un mensaje claro en lugar de anunciar el mix y fallar en silencio.
+- El panel de atajos mostraba una acción incorrecta para [Tab] e ignoraba YouTube; ahora indica "Cambiar fuente" de forma coherente en todas las pestañas.
+- Se unificó la etiqueta del atajo "Abrir Configuración", que era inconsistente entre las vistas de Radio, Spotify y YouTube.
+- Cuando el archivo de cookies de YouTube configurado dejaba de ser válido (eliminado, movido o ilegible), las pestañas Favoritos y Playlists quedaban vacías sin avisar; ahora muestran un error claro y la misma guía de recuperación que el estado no autenticado.
+
+### Seguridad
+- Deshabilitar o eliminar el archivo de cookies de YouTube ahora detiene de inmediato la reproducción de videos restringidos respaldados por cookies dentro de la misma sesión; la caché en memoria de URLs resueltas ya no entrega un resultado obtenido con cookies una vez que las credenciales desaparecen.
+- Se eliminó la versión vulnerable `rustls-webpki 0.102.8` del árbol de dependencias (alertas de Dependabot RUSTSEC-2026-0049, 0098, 0099 y 0104). Solo la arrastraba `hyper-proxy2` a través de la integración de Spotify; ahora se compila contra la cadena ya parcheada (rustls 0.23 / hyper-rustls 0.27) que el resto de la app utiliza, conservando el backend de cripto `ring`.
+
+## [1.5.3] - 2026-06-13
+
+### Agregado
+- Se agregaron configuraciones individuales en Ajustes > Modo Ambiente para alternar el visualizador, pistas recientes, barra de progreso y logo dentro del Modo Ambiente.
+- El Modo Ambiente ahora identifica la fuente de YouTube y muestra el capítulo actual del video en reproducción debajo del título.
+- La lista de pistas recientes del Modo Ambiente ahora funciona en todas las fuentes (radio, YouTube y Spotify), conservando las últimas 5 pistas reproducidas durante la sesión.
+- Los detalles de la estación en el Modo Ambiente ahora son un widget dedicado y resaltado con color, que muestra país, región, idioma, códec y bitrate, etiquetas, popularidad (votos y reproducciones) y un sitio web clicable.
+- Se agregó un ajuste en Ajustes > Modo Ambiente para mostrar u ocultar los detalles de la estación.
+- Se agregó un ajuste en Ajustes > Modo Ambiente para mostrar u ocultar el bloque de reproducción actual (nombre de la fuente más artista, título y álbum).
+- El título de la ventana y la interfaz ahora muestran dinámicamente el estado de la actualización en curso (ej. "Downloading vX.Y.Z..." y "Update vX.Y.Z Ready") al detectar una nueva versión.
+
+### Cambiado
+- Se refactorizó el renderizado del Modo Ambiente para usar widgets modulares para el reloj, visualizador, barra de progreso y logo.
+- Se rediseñó la barra de atajos del Modo Ambiente: sin emojis, centrada y con las teclas resaltadas (ej. Space Pausa · +/- Volumen · Alt+S Detener · Tecla Salir).
+- Los títulos, artistas y nombres de álbum largos en el Modo Ambiente ahora se ajustan a una segunda línea en lugar de cortarse con puntos suspensivos.
+- El Modo Ambiente ya no se activa cuando todos sus widgets (reloj, logo, visualizador, barra de progreso, pistas recientes) están desactivados.
+
+### Corregido
+- El indicador de origen de reproducción (Radio / YouTube / Spotify) en el overlay de Windows era casi invisible en gris; ahora usa un color distinto por origen para que resalte.
+- El logo de Reverbic en el Modo Ambiente podía quedar fuera de pantalla cuando el panel crecía; ahora se reserva espacio para que siempre quede visible sobre el panel.
+- El script de instalación ahora sobrescribe y actualiza correctamente el binario persistido cuando se vuelve a ejecutar el instalador.
 
 ## [1.5.2] - 2026-06-12
 
@@ -226,7 +268,9 @@ Versionado: [Semantic Versioning](https://semver.org/)
 - Templates de issues (bug, feature, pregunta)
 - Logo y assets embebidos en el ejecutable (sin dependencias externas)
 
-[Sin publicar]: https://github.com/sewandev/Reverbic/compare/v1.5.1...HEAD
+[Sin publicar]: https://github.com/sewandev/Reverbic/compare/v1.5.3...HEAD
+[1.5.3]: https://github.com/sewandev/Reverbic/compare/v1.5.2...v1.5.3
+[1.5.2]: https://github.com/sewandev/Reverbic/compare/v1.5.1...v1.5.2
 [1.5.1]: https://github.com/sewandev/Reverbic/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/sewandev/Reverbic/compare/v1.4.2...v1.5.0
 [1.4.2]: https://github.com/sewandev/Reverbic/compare/v1.4.1...v1.4.2

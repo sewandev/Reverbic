@@ -1,45 +1,17 @@
+pub(crate) mod ambient;
 mod overlays;
-mod screensaver;
 
 use ratatui::{layout::Rect, Frame};
 
-const UNICODE_VISUALIZER_GLYPHS: [char; 8] = [
-    '\u{2581}', '\u{2582}', '\u{2583}', '\u{2584}', '\u{2585}', '\u{2586}', '\u{2587}', '\u{2588}',
-];
-const ASCII_VISUALIZER_GLYPHS: [char; 8] = ['.', ':', '-', '=', '+', '*', '#', '@'];
-
-fn visualizer_glyphs() -> &'static [char; 8] {
-    visualizer_glyphs_for_legacy_console(uses_legacy_windows_console())
-}
-
-fn visualizer_glyphs_for_legacy_console(legacy_console: bool) -> &'static [char; 8] {
-    if legacy_console {
-        &ASCII_VISUALIZER_GLYPHS
-    } else {
-        &UNICODE_VISUALIZER_GLYPHS
-    }
-}
-
-fn uses_legacy_windows_console() -> bool {
-    cfg!(windows)
-        && std::env::var_os("WT_SESSION").is_none()
-        && std::env::var_os("TERM_PROGRAM").is_none()
-        && std::env::var_os("TERM").is_none()
-        && std::env::var_os("ConEmuANSI").is_none()
-        && std::env::var_os("ANSICON").is_none()
-}
-
 use crate::app::App;
 use crate::ui::theme;
+use ambient::{render_ambient_mode, AmbientContent};
 use overlays::{
     render_client_id_overlay, render_cookies_path_overlay, render_device_picker_overlay,
     render_game_strip, render_help_overlay, render_modal_np_strip, render_modal_spotify_strip,
     render_playlist_picker_overlay, render_rename_overlay, render_theme_picker_overlay,
     render_update_toast,
 };
-use screensaver::{render_screensaver, render_spotify_screensaver, ScreensaverCtx};
-
-pub(crate) use screensaver::{render_logo_above, LOGO_W};
 
 pub fn render(frame: &mut Frame, app: &App) {
     let area = frame.area();
@@ -87,15 +59,18 @@ pub fn render(frame: &mut Frame, app: &App) {
             };
 
             if let Some(playback) = app.spotify.playback.as_ref().or(native_playback.as_ref()) {
-                render_spotify_screensaver(
+                render_ambient_mode(
                     frame,
                     area,
-                    playback,
-                    app.config.spotify.display_name.as_deref(),
-                    app.config.spotify.country.as_deref(),
-                    app.config.spotify.followers,
-                    app.spotify.is_premium,
-                    app.config.screensaver_clock,
+                    AmbientContent::Spotify {
+                        playback,
+                        profile_name: app.config.spotify.display_name.as_deref(),
+                        country: app.config.spotify.country.as_deref(),
+                        followers: app.config.spotify.followers,
+                        is_premium: app.spotify.is_premium,
+                        recent_titles: &app.session_recent_tracks,
+                    },
+                    &app.config,
                     app.border_tick,
                     palette,
                 );
@@ -105,6 +80,7 @@ pub fn render(frame: &mut Frame, app: &App) {
                         version,
                         app.update_path.is_some(),
                         app.show_search_modal,
+                        app.border_tick,
                         area,
                         palette,
                     );
@@ -117,20 +93,28 @@ pub fn render(frame: &mut Frame, app: &App) {
             .as_ref()
             .map(|s| app.favorites.iter().any(|f| f.url == s.url))
             .unwrap_or(false);
-        render_screensaver(
+        let is_youtube = player_state
+            .station
+            .as_ref()
+            .is_some_and(|s| s.key.starts_with("youtube:"));
+        let recent_titles: &[String] = if is_youtube {
+            &app.session_recent_tracks
+        } else {
+            &player_state.recent_titles
+        };
+        render_ambient_mode(
             frame,
             area,
-            ScreensaverCtx {
-                palette,
+            AmbientContent::Radio {
                 state: &player_state,
                 details: app.station_details.as_ref(),
                 is_favorite: is_fav,
-                spotify_name: app.config.spotify.display_name.as_deref(),
-                spotify_premium: app.spotify.is_premium,
                 enriched_track: app.radio_enriched_track.as_ref(),
-                show_clock: app.config.screensaver_clock,
-                border_tick: app.border_tick,
+                recent_titles,
             },
+            &app.config,
+            app.border_tick,
+            palette,
         );
         if let Some(ref version) = app.update_available {
             render_update_toast(
@@ -138,6 +122,7 @@ pub fn render(frame: &mut Frame, app: &App) {
                 version,
                 app.update_path.is_some(),
                 app.show_search_modal,
+                app.border_tick,
                 area,
                 palette,
             );
@@ -151,19 +136,20 @@ pub fn render(frame: &mut Frame, app: &App) {
 
     let modal = crate::ui::widgets::search_modal::modal_rect(full_area);
 
-    if modal.y >= 3 {
-        render_logo_above(
-            frame,
-            modal.x,
-            modal.width.max(LOGO_W),
-            modal.y - 1,
-            palette.overlay_color,
-            app.border_tick,
-            palette,
-        );
+    let game_info = crate::game_detect::get();
+    let game_h: u16 = if game_info.is_some() { 3 } else { 0 };
+
+    if modal.y >= game_h + 2 {
+        crate::ui::widgets::logo::LogoWidget::new(palette.overlay_color, app.border_tick, palette)
+            .render_centered(
+                frame,
+                modal.x,
+                modal.width,
+                modal.y.saturating_sub(game_h + 2),
+            );
     }
 
-    if let Some((ref name, ref genre)) = crate::game_detect::get() {
+    if let Some((ref name, ref genre)) = game_info {
         let panel_h: u16 = 3;
         let game_y = modal.y.saturating_sub(panel_h);
         render_game_strip(
@@ -252,6 +238,7 @@ pub fn render(frame: &mut Frame, app: &App) {
             version,
             app.update_path.is_some(),
             app.show_search_modal,
+            app.border_tick,
             full_area,
             palette,
         );
@@ -269,30 +256,6 @@ pub fn render(frame: &mut Frame, app: &App) {
             spotify_can_cycle_device,
             app.update_available.as_deref(),
             palette,
-        );
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::visualizer_glyphs_for_legacy_console;
-
-    #[test]
-    fn legacy_console_visualizer_uses_ascii_fallback() {
-        assert_eq!(
-            visualizer_glyphs_for_legacy_console(true),
-            &['.', ':', '-', '=', '+', '*', '#', '@']
-        );
-    }
-
-    #[test]
-    fn modern_terminal_visualizer_uses_unicode_blocks() {
-        assert_eq!(
-            visualizer_glyphs_for_legacy_console(false),
-            &[
-                '\u{2581}', '\u{2582}', '\u{2583}', '\u{2584}', '\u{2585}', '\u{2586}', '\u{2587}',
-                '\u{2588}'
-            ]
         );
     }
 }

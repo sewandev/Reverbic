@@ -13,6 +13,7 @@ const MODAL_TABS_ROWS: u16 = 1;
 const SEARCH_TOP_GAP_ROWS: u16 = 1;
 const SEARCH_INPUT_ROWS: u16 = 1;
 const SEARCH_CAP_ROWS: u16 = 1;
+const YOUTUBE_SEARCH_HINT_ROWS: u16 = 2;
 const LIST_HEADER_ROWS: u16 = 1;
 const RADIO_TOP_GAP_ROWS: u16 = 1;
 const RADIO_SUBTAB_ROWS: u16 = 1;
@@ -83,6 +84,13 @@ pub(crate) struct SpotifySearchLayout {
 pub(crate) struct YoutubeLayout {
     pub subtab: Rect,
     pub body: Rect,
+}
+
+pub(crate) struct YoutubeSearchLayout {
+    pub input: Rect,
+    pub cap: Rect,
+    pub list: Rect,
+    pub hint: Rect,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -596,15 +604,21 @@ pub(crate) fn spotify_no_device_notice_at(area: Rect, col: u16, row: u16) -> boo
     auth_notice_box(spotify_layout(body).body).is_some_and(|notice| contains(notice, col, row))
 }
 
-pub(crate) fn youtube_search_layout(area: Rect) -> SpotifySearchLayout {
-    let [input, cap, list] = Layout::vertical([
+pub(crate) fn youtube_search_layout(area: Rect) -> YoutubeSearchLayout {
+    let [input, cap, list, hint] = Layout::vertical([
         Constraint::Length(SEARCH_INPUT_ROWS),
         Constraint::Length(SEARCH_CAP_ROWS),
         Constraint::Fill(1),
+        Constraint::Length(YOUTUBE_SEARCH_HINT_ROWS),
     ])
     .areas(area);
 
-    SpotifySearchLayout { input, cap, list }
+    YoutubeSearchLayout {
+        input,
+        cap,
+        list,
+        hint,
+    }
 }
 
 pub(crate) fn spotify_titled_track_list_layout(area: Rect) -> Rect {
@@ -935,7 +949,7 @@ mod tests {
         let input_list = youtube_search_list_area(terminal);
 
         assert_eq!(input_list, Some(rendered_search.list));
-        assert_eq!(visible_items(input_list, ListItemHeight::TwoLines), 11);
+        assert_eq!(visible_items(input_list, ListItemHeight::TwoLines), 10);
     }
 
     #[test]

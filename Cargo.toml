@@ -1,6 +1,6 @@
 [package]
 name        = "reverbic"
-version     = "1.5.2"
+version     = "1.5.3"
 edition     = "2021"
 description = "Terminal player for radio, Spotify and YouTube with gaming overlay and Discord Rich Presence"
 repository  = "https://github.com/sewandev/Reverbic"
@@ -22,11 +22,13 @@ tracing            = "0.1"
 tracing-appender   = "0.2"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "chrono"] }
 futures-util       = "0.3"
+flate2             = "1"
 image              = { version = "0.25", default-features = false, features = ["gif"] }
 serde              = { version = "1", features = ["derive"] }
 serde_json         = "1"
 chrono             = "0.4"
 sha2               = "0.11"
+tar                = "0.4"
 rand               = { version = "0.9", default-features = false, features = ["std", "std_rng"] }
 base64             = "0.21"
 dunce              = "1"
@@ -38,6 +40,7 @@ librespot-connect  = { version = "0.8", default-features = false, features = ["r
 librespot-metadata = { version = "0.8", default-features = false, features = ["rustls-tls-native-roots"] }
 nucleo-matcher     = "0.3"
 keyring            = { version = "3", features = ["apple-native", "windows-native"] }
+arboard            = { version = "3.6.1", default-features = false }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows-core = "0.58"
@@ -61,6 +64,11 @@ windows = { version = "0.58", features = [
 
 [build-dependencies]
 embed-resource = "2"
+
+# Vendored TLS-patched fork of hyper-proxy2 to drop the vulnerable rustls-webpki
+# 0.102.8 instance pulled transitively through librespot-core. See issue #169.
+[patch.crates-io]
+hyper-proxy2 = { path = "third_party/hyper-proxy2" }
 
 [profile.release]
 opt-level     = 3

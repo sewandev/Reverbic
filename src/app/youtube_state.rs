@@ -73,6 +73,7 @@ pub struct YoutubeState {
     pub(super) validate_rx: Option<VideosRx>,
     pub(super) validate_silent: bool,
     pub session_health: Option<bool>,
+    pub cookies_invalid: bool,
 
     pub(super) preresolve_last_id: Option<String>,
     pub(super) preresolve_deadline: Option<std::time::Instant>,
@@ -174,6 +175,7 @@ impl Default for YoutubeState {
             validate_rx: None,
             validate_silent: false,
             session_health: None,
+            cookies_invalid: false,
             preresolve_last_id: None,
             preresolve_deadline: None,
             preresolve_video: None,

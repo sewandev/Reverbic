@@ -1,4 +1,5 @@
 use std::{
+    path::PathBuf,
     sync::mpsc,
     time::{Duration, Instant},
 };
@@ -240,6 +241,14 @@ impl App {
             self.ensure_youtube_ready();
             return;
         }
+        if cookies::configured_cookies_path(self.config.youtube.cookies_path.as_deref()).is_none() {
+            self.show_notice(
+                crate::app::NoticeSeverity::Warning,
+                crate::i18n::t("modal.youtube.mix_requires_cookies"),
+                8,
+            );
+            return;
+        }
         tracing::info!(video_id = %seed.id, title = %seed.title, "youtube: starting mix");
         self.show_notice(
             crate::app::NoticeSeverity::Info,
@@ -475,7 +484,11 @@ impl App {
             return;
         };
 
-        if !runtime_installed() || resolve::is_cached(&video.watch_url) {
+        let cookies_path_val = self.config.youtube.cookies_path.clone();
+        let configured_cookies = cookies::configured_cookies_path(cookies_path_val.as_deref());
+        if !runtime_installed()
+            || resolve::is_cached(&video.watch_url, configured_cookies.as_deref())
+        {
             return;
         }
 
@@ -483,13 +496,11 @@ impl App {
         abort_task(&mut self.youtube.preresolve_task);
         let binary = install::managed_binary_path();
         let deno_path = deno::managed_binary_path();
-        let cookies_path_val = self.config.youtube.cookies_path.clone();
         self.youtube.preresolve_task = Some(tokio::spawn(async move {
-            let cookies_path = cookies::configured_cookies_path(cookies_path_val.as_deref());
             if let Err(e) = resolve::resolve_audio_url(
                 &binary,
                 &video.watch_url,
-                cookies_path.as_deref(),
+                configured_cookies.as_deref(),
                 &deno_path,
             )
             .await
@@ -608,6 +619,17 @@ impl App {
                 let seed = self.youtube_context_list(&ctx).get(index).cloned();
                 self.youtube.playback_context = None;
                 if let Some(seed) = seed {
+                    if cookies::configured_cookies_path(self.config.youtube.cookies_path.as_deref())
+                        .is_none()
+                    {
+                        tracing::info!("youtube: radio mode skipped, no cookies configured");
+                        self.show_notice(
+                            crate::app::NoticeSeverity::Warning,
+                            crate::i18n::t("modal.youtube.mix_requires_cookies"),
+                            8,
+                        );
+                        return;
+                    }
                     tracing::info!(
                         seed = %seed.id,
                         "youtube: list ended, radio mode continuing with a mix"
@@ -633,6 +655,23 @@ impl App {
         }
     }
 
+    fn youtube_library_cookies_path(&mut self) -> Option<PathBuf> {
+        let path = self.config.youtube.cookies_path.clone()?;
+        match cookies::validate_cookies_path(&path) {
+            Ok(valid) => {
+                self.youtube.cookies_invalid = false;
+                Some(valid)
+            }
+            Err(err) => {
+                if !self.youtube.cookies_invalid {
+                    self.notify_error(format!("YouTube: {err}"));
+                }
+                self.youtube.cookies_invalid = true;
+                None
+            }
+        }
+    }
+
     pub fn fetch_youtube_liked(&mut self) {
         abort_task(&mut self.youtube.liked_task);
         self.youtube.liked_rx = None;
@@ -640,9 +679,7 @@ impl App {
         self.youtube.liked_selected = 0;
         self.youtube.liked_scroll_offset = 0;
 
-        let Some(cookies_path) =
-            cookies::configured_cookies_path(self.config.youtube.cookies_path.as_deref())
-        else {
+        let Some(cookies_path) = self.youtube_library_cookies_path() else {
             return;
         };
 
@@ -700,9 +737,7 @@ impl App {
         self.youtube.playlists_selected = 0;
         self.youtube.playlists_scroll_offset = 0;
 
-        let Some(cookies_path) =
-            cookies::configured_cookies_path(self.config.youtube.cookies_path.as_deref())
-        else {
+        let Some(cookies_path) = self.youtube_library_cookies_path() else {
             return;
         };
 
