@@ -180,6 +180,27 @@ pub struct DynamicStation {
     pub homepage: String,
 }
 
+impl DynamicStation {
+    pub fn to_station(&self) -> crate::station::Station {
+        use crate::station::{enrich, find_enrichment, Station};
+        let mut station = Station {
+            key: self.key.clone(),
+            name: self.name.clone(),
+            url: self.url.clone(),
+            metadata_api_url: None,
+            history_api_url: None,
+            schedule_url: None,
+            show_countdown: false,
+            bitrate_kbps: self.bitrate_kbps,
+            custom_headers: None,
+        };
+        if let Some(enrichment) = find_enrichment(&station.name) {
+            enrich(&mut station, enrichment);
+        }
+        station
+    }
+}
+
 impl From<RadioBrowserStation> for DynamicStation {
     fn from(rb: RadioBrowserStation) -> Self {
         let tags = rb

@@ -12,6 +12,36 @@ pub struct LastStation {
     pub bitrate_kbps: Option<u16>,
 }
 
+impl LastStation {
+    pub fn from_station(station: &crate::station::Station) -> Self {
+        Self {
+            key: station.key.clone(),
+            name: station.name.clone(),
+            url: station.url.clone(),
+            bitrate_kbps: station.bitrate_kbps,
+        }
+    }
+
+    pub fn to_station(&self) -> crate::station::Station {
+        use crate::station::{enrich, find_enrichment, Station};
+        let mut station = Station {
+            key: self.key.clone(),
+            name: self.name.clone(),
+            url: self.url.clone(),
+            metadata_api_url: None,
+            history_api_url: None,
+            schedule_url: None,
+            show_countdown: false,
+            bitrate_kbps: self.bitrate_kbps,
+            custom_headers: None,
+        };
+        if let Some(enrichment) = find_enrichment(&self.name) {
+            enrich(&mut station, enrichment);
+        }
+        station
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum OverlayMode {

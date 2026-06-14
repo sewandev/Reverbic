@@ -1,7 +1,7 @@
 use crate::audio::{PlayerCommand, PlayerStatus};
 use crate::config::LastStation;
 use crate::library;
-use crate::station::{enrich, find_enrichment, Station};
+use crate::station::Station;
 
 use super::App;
 
@@ -41,12 +41,7 @@ impl App {
         self.pause_spotify_for_radio().await;
         self.stop_playback_polling();
         if persist_last {
-            self.config.last_station = Some(LastStation {
-                key: station.key.clone(),
-                name: station.name.clone(),
-                url: station.url.clone(),
-                bitrate_kbps: station.bitrate_kbps,
-            });
+            self.config.last_station = Some(LastStation::from_station(&station));
             self.save_config();
         }
         self.stop_metadata_polling();
@@ -106,24 +101,8 @@ impl App {
         if index >= self.search_results.len() {
             return;
         }
-        let ds = &self.search_results[index];
-
-        let mut station = Station {
-            key: ds.key.clone(),
-            name: ds.name.clone(),
-            url: ds.url.clone(),
-            metadata_api_url: None,
-            history_api_url: None,
-            schedule_url: None,
-            show_countdown: false,
-            bitrate_kbps: ds.bitrate_kbps,
-            custom_headers: None,
-        };
-
-        if let Some(enrichment) = find_enrichment(&station.name) {
-            enrich(&mut station, enrichment);
-            tracing::info!("Enrichment enabled for '{}'", station.name);
-        }
+        let station = self.search_results[index].to_station();
+        tracing::info!("Resolved dynamic station '{}'", station.name);
 
         self.active_playlist = None;
         self.play_station(station).await;

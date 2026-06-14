@@ -1004,7 +1004,7 @@ pub(super) fn render_help_overlay(
 ) {
     let rows = help_rows(mode, spotify_logged_in, spotify_can_cycle_device);
 
-    const CREDITS: &[&str] = &["Esteban Jaramillo — Chile", "github.com/sewandev/Reverbic"];
+    const CREDITS: &[&str] = &["github.com/sewandev/Reverbic"];
 
     let area = frame.area();
     let w = 46u16.min(area.width);
