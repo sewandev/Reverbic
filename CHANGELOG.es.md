@@ -10,10 +10,13 @@ Versionado: [Semantic Versioning](https://semver.org/)
 
 ## [Sin publicar]
 
+## [1.5.4] - 2026-06-13
+
 ### Agregado
 - Se agregó el ajuste "Crossfade (Spotify)" (hasta 12 segundos) que funde el final de cada canción con el inicio de la siguiente al usar el modo de reproducción Nativo; el ajuste aparece deshabilitado hasta seleccionar el modo Nativo.
 - La pestaña de búsqueda de YouTube ahora muestra una pista de que puedes presionar Ctrl+R sobre un video para iniciar una radio infinita.
 - Reverbic ahora se actualiza solo en Linux (x86_64), igual que en Windows y macOS: se publica un binario de Linux por release y la app descarga, verifica e instala la nueva versión automáticamente.
+- Reverbic ahora publica compilaciones para macOS (Intel y Apple Silicon) y se actualiza solo en macOS, igual que el auto-actualizador de Windows.
 
 ### Cambiado
 - El tooltip de la opción "YouTube Radio" ahora indica que requiere un cookies.txt configurado, ya que YouTube bloquea los mixes en solicitudes sin autenticar.
@@ -28,6 +31,8 @@ Versionado: [Semantic Versioning](https://semver.org/)
 - El panel de atajos mostraba una acción incorrecta para [Tab] e ignoraba YouTube; ahora indica "Cambiar fuente" de forma coherente en todas las pestañas.
 - Se unificó la etiqueta del atajo "Abrir Configuración", que era inconsistente entre las vistas de Radio, Spotify y YouTube.
 - Cuando el archivo de cookies de YouTube configurado dejaba de ser válido (eliminado, movido o ilegible), las pestañas Favoritos y Playlists quedaban vacías sin avisar; ahora muestran un error claro y la misma guía de recuperación que el estado no autenticado.
+- En macOS, pegar texto (por ejemplo en el buscador o en la ruta del archivo de cookies) ahora funciona correctamente a través del portapapeles del sistema.
+- El logo de Reverbic podía superponerse con la franja de juego; ahora el diseño reserva espacio para que ambos queden visibles.
 
 ### Seguridad
 - Deshabilitar o eliminar el archivo de cookies de YouTube ahora detiene de inmediato la reproducción de videos restringidos respaldados por cookies dentro de la misma sesión; la caché en memoria de URLs resueltas ya no entrega un resultado obtenido con cookies una vez que las credenciales desaparecen.
