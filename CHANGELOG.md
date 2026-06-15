@@ -10,6 +10,9 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ## [Unreleased]
 
+### Security
+- Update downloads now use a per-user private directory instead of the shared system temp folder, closing a theoretical local symlink-hijack vector during self-update on multi-user systems.
+
 ## [1.5.5] - 2026-06-14
 
 ### Added

@@ -65,6 +65,14 @@ pub(crate) fn logs_dir() -> PathBuf {
     cache_dir().join("logs")
 }
 
+/// Per-user, app-private scratch directory for update downloads. Unlike the
+/// global `std::env::temp_dir()` (`/tmp` on Unix), this lives under the user's
+/// own cache directory, so a local attacker cannot pre-create a symlink there to
+/// hijack an update write.
+pub(crate) fn updates_dir() -> PathBuf {
+    cache_dir().join("updates")
+}
+
 pub(crate) fn youtube_media_cache_dir() -> PathBuf {
     cache_dir().join("youtube")
 }
