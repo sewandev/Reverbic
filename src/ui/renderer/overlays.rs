@@ -1,6 +1,6 @@
 use ratatui::{
     layout::{Alignment, Rect},
-    style::{Modifier, Style},
+    style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, BorderType, Borders, Clear, Paragraph},
     Frame,
@@ -447,11 +447,57 @@ pub(super) fn render_theme_picker_overlay(
             Style::default().fg(palette.highlight)
         };
         let label = format!(" {marker} {current_marker} {}", theme.display());
+        let content_width = inner.width.saturating_sub(2);
         frame.render_widget(
-            Paragraph::new(Span::styled(label, style)).style(Style::default().bg(palette.panel_bg)),
-            Rect::new(inner.x + 1, y, inner.width.saturating_sub(2), 1),
+            Paragraph::new(theme_picker_row(
+                label,
+                style,
+                theme::definition(theme).preview,
+                content_width,
+                palette.panel_bg,
+            ))
+            .style(Style::default().bg(palette.panel_bg)),
+            Rect::new(inner.x + 1, y, content_width, 1),
         );
     }
+}
+
+fn theme_picker_row(
+    label: String,
+    label_style: Style,
+    preview: [Color; 3],
+    content_width: u16,
+    panel_bg: Color,
+) -> Line<'static> {
+    const SWATCH_WIDTH: usize = 2;
+    const SWATCH_GAP: usize = 1;
+    const PREVIEW_WIDTH: usize = SWATCH_WIDTH * 3 + SWATCH_GAP * 2;
+    const PREVIEW_SPACING: usize = 1;
+
+    let content_width = content_width as usize;
+    let label_style = label_style.bg(panel_bg);
+    if content_width < label.len() + PREVIEW_SPACING + PREVIEW_WIDTH {
+        return Line::from(Span::styled(label, label_style));
+    }
+
+    let spacer = " ".repeat(content_width - label.len() - PREVIEW_WIDTH);
+    let mut spans = vec![
+        Span::styled(label, label_style),
+        Span::styled(spacer, Style::default().bg(panel_bg)),
+    ];
+    for (i, color) in preview.into_iter().enumerate() {
+        if i > 0 {
+            spans.push(Span::styled(
+                " ".repeat(SWATCH_GAP),
+                Style::default().bg(panel_bg),
+            ));
+        }
+        spans.push(Span::styled(
+            " ".repeat(SWATCH_WIDTH),
+            Style::default().bg(color),
+        ));
+    }
+    Line::from(spans)
 }
 
 pub(super) fn render_game_strip(

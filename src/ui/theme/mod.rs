@@ -58,7 +58,6 @@ pub struct ThemeDefinition {
     pub id: ThemeId,
     pub label_key: &'static str,
     pub palette: &'static Palette,
-    #[allow(dead_code)]
     pub preview: [Color; 3],
 }
 
