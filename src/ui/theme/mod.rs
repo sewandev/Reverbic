@@ -1,7 +1,6 @@
 use ratatui::style::{Color, Modifier, Style};
 use serde::{Deserialize, Deserializer, Serialize};
 
-#[allow(dead_code)]
 mod palettes;
 mod reverbic;
 
@@ -10,6 +9,11 @@ mod reverbic;
 pub enum ThemeId {
     #[default]
     Reverbic,
+    Ocean,
+    Forest,
+    Rose,
+    Amber,
+    Lavender,
 }
 
 impl<'de> Deserialize<'de> for ThemeId {
@@ -20,6 +24,11 @@ impl<'de> Deserialize<'de> for ThemeId {
         let value = String::deserialize(deserializer)?;
         Ok(match value.as_str() {
             "reverbic" => Self::Reverbic,
+            "ocean" => Self::Ocean,
+            "forest" => Self::Forest,
+            "rose" => Self::Rose,
+            "amber" => Self::Amber,
+            "lavender" => Self::Lavender,
             _ => Self::Reverbic,
         })
     }
@@ -76,16 +85,68 @@ pub struct ThemeDefinition {
     pub preview: [Color; 3],
 }
 
-const THEME_DEFINITIONS: &[ThemeDefinition] = &[ThemeDefinition {
-    id: ThemeId::Reverbic,
-    label_key: "theme.reverbic",
-    palette: &reverbic::PALETTE,
-    preview: [
-        Color::Rgb(0, 240, 255),
-        Color::Rgb(112, 0, 255),
-        Color::Rgb(255, 0, 85),
-    ],
-}];
+const THEME_DEFINITIONS: &[ThemeDefinition] = &[
+    ThemeDefinition {
+        id: ThemeId::Reverbic,
+        label_key: "theme.reverbic",
+        palette: &reverbic::PALETTE,
+        preview: [
+            Color::Rgb(0, 240, 255),
+            Color::Rgb(112, 0, 255),
+            Color::Rgb(255, 0, 85),
+        ],
+    },
+    ThemeDefinition {
+        id: ThemeId::Ocean,
+        label_key: "theme.ocean",
+        palette: &palettes::OCEAN,
+        preview: [
+            Color::Rgb(56, 189, 248),
+            Color::Rgb(59, 130, 246),
+            Color::Rgb(129, 140, 248),
+        ],
+    },
+    ThemeDefinition {
+        id: ThemeId::Forest,
+        label_key: "theme.forest",
+        palette: &palettes::FOREST,
+        preview: [
+            Color::Rgb(52, 211, 153),
+            Color::Rgb(45, 212, 191),
+            Color::Rgb(163, 230, 53),
+        ],
+    },
+    ThemeDefinition {
+        id: ThemeId::Rose,
+        label_key: "theme.rose",
+        palette: &palettes::ROSE,
+        preview: [
+            Color::Rgb(251, 113, 133),
+            Color::Rgb(244, 114, 182),
+            Color::Rgb(225, 29, 72),
+        ],
+    },
+    ThemeDefinition {
+        id: ThemeId::Amber,
+        label_key: "theme.amber",
+        palette: &palettes::AMBER,
+        preview: [
+            Color::Rgb(245, 158, 11),
+            Color::Rgb(251, 191, 36),
+            Color::Rgb(249, 115, 22),
+        ],
+    },
+    ThemeDefinition {
+        id: ThemeId::Lavender,
+        label_key: "theme.lavender",
+        palette: &palettes::LAVENDER,
+        preview: [
+            Color::Rgb(167, 139, 250),
+            Color::Rgb(192, 132, 252),
+            Color::Rgb(129, 140, 248),
+        ],
+    },
+];
 
 pub fn definitions() -> &'static [ThemeDefinition] {
     THEME_DEFINITIONS
@@ -169,7 +230,6 @@ mod tests {
     fn theme_registry_keeps_reverbic_as_default_first_theme() {
         let theme_definition = definition(ThemeId::Reverbic);
 
-        assert_eq!(ThemeId::all().collect::<Vec<_>>(), vec![ThemeId::Reverbic]);
         assert_eq!(ThemeId::all().next(), Some(ThemeId::default()));
         assert_eq!(theme_definition.id, ThemeId::Reverbic);
         assert_eq!(theme_definition.label_key, "theme.reverbic");
