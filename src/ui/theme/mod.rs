@@ -84,3 +84,41 @@ pub fn playing_style(palette: &Palette) -> Style {
         .fg(palette.playing)
         .add_modifier(Modifier::BOLD)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reverbic_palette_keeps_core_surface_colors() {
+        let palette = palette(ThemeId::Reverbic);
+
+        assert_eq!(palette.accent, Color::Rgb(0, 240, 255));
+        assert_eq!(palette.panel_bg, Color::Rgb(13, 13, 13));
+        assert_eq!(palette.overlay_color, Color::Rgb(5, 5, 5));
+    }
+
+    #[test]
+    fn reverbic_palette_keeps_animated_color_sets() {
+        let palette = palette(ThemeId::Reverbic);
+
+        assert_eq!(
+            palette.border_cycle,
+            [(0, 240, 255), (112, 0, 255), (255, 0, 85)]
+        );
+        assert_eq!(
+            palette.spectrum,
+            [
+                Color::Rgb(0, 240, 255),
+                Color::Rgb(40, 160, 255),
+                Color::Rgb(75, 80, 255),
+                Color::Rgb(112, 0, 255),
+                Color::Rgb(160, 0, 200),
+                Color::Rgb(200, 0, 140),
+                Color::Rgb(235, 0, 100),
+                Color::Rgb(255, 0, 85),
+            ]
+        );
+        assert_eq!(palette.logo_letters, palette.spectrum);
+    }
+}
