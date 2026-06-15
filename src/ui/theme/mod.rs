@@ -1,13 +1,26 @@
 use ratatui::style::{Color, Modifier, Style};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 mod reverbic;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum ThemeId {
     #[default]
     Reverbic,
+}
+
+impl<'de> Deserialize<'de> for ThemeId {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        Ok(match value.as_str() {
+            "reverbic" => Self::Reverbic,
+            _ => Self::Reverbic,
+        })
+    }
 }
 
 impl ThemeId {
