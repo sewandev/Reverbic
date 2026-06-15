@@ -1,6 +1,8 @@
 use ratatui::style::{Color, Modifier, Style};
 use serde::{Deserialize, Deserializer, Serialize};
 
+#[allow(dead_code)]
+mod palettes;
 mod reverbic;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Default)]
