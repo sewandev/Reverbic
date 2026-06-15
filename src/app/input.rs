@@ -20,6 +20,7 @@ use crate::ui::widgets::{
         youtube_playlist_videos_list_area, youtube_playlists_list_area, youtube_search_list_area,
         youtube_subtab_at, ListItemHeight,
     },
+    theme_picker,
 };
 
 use super::modal::{settings_items, SettingItem};
@@ -1421,7 +1422,18 @@ impl App {
         self.theme_picker_selected = crate::ui::theme::ThemeId::all()
             .position(|theme| theme == self.config.theme)
             .unwrap_or(0);
+        self.keep_theme_picker_visible();
         self.theme_picker_open = true;
+    }
+
+    fn keep_theme_picker_visible(&mut self) {
+        let visible =
+            theme_picker::visible_rows(self.terminal_area, crate::ui::theme::ThemeId::all().len());
+        keep_selected_visible(
+            &mut self.theme_picker_scroll_offset,
+            self.theme_picker_selected,
+            visible,
+        );
     }
 
     fn on_key_theme_picker(&mut self, key: KeyCode) {
@@ -1432,9 +1444,11 @@ impl App {
             }
             KeyCode::Up | KeyCode::Char('k') => {
                 self.theme_picker_selected = cycle_prev(self.theme_picker_selected, theme_count);
+                self.keep_theme_picker_visible();
             }
             KeyCode::Down | KeyCode::Char('j') => {
                 self.theme_picker_selected = cycle_next(self.theme_picker_selected, theme_count);
+                self.keep_theme_picker_visible();
             }
             KeyCode::Enter => {
                 if let Some(theme) =

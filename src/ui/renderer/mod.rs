@@ -229,7 +229,13 @@ pub fn render(frame: &mut Frame, app: &App) {
     }
 
     if app.theme_picker_open {
-        render_theme_picker_overlay(frame, app.config.theme, app.theme_picker_selected, palette);
+        render_theme_picker_overlay(
+            frame,
+            app.config.theme,
+            app.theme_picker_selected,
+            app.theme_picker_scroll_offset,
+            palette,
+        );
     }
 
     if let Some(ref version) = app.update_available {

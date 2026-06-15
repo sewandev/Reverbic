@@ -9,6 +9,7 @@ use ratatui::{
 use crate::audio::{PlayerState, PlayerStatus};
 use crate::i18n::t;
 use crate::ui::theme::{self, Palette, ThemeId};
+use crate::ui::widgets::theme_picker;
 
 pub(super) fn render_rename_overlay(
     frame: &mut Frame,
@@ -391,15 +392,14 @@ pub(super) fn render_theme_picker_overlay(
     frame: &mut Frame,
     current: ThemeId,
     selected: usize,
+    scroll_offset: usize,
     palette: &Palette,
 ) {
     let theme_count = ThemeId::all().len();
     let area = frame.area();
-    let w = area.width.clamp(34, 46);
-    let h = (theme_count as u16 + 4).clamp(5, area.height);
-    let x = area.width.saturating_sub(w) / 2;
-    let y = area.height.saturating_sub(h) / 2;
-    let panel = Rect::new(x, y, w, h);
+    let visible_rows = theme_picker::visible_rows(area, theme_count);
+    let scroll_offset = scroll_offset.min(theme_count.saturating_sub(visible_rows));
+    let panel = theme_picker::panel(area, theme_count);
 
     frame.render_widget(Clear, panel);
 
@@ -428,8 +428,13 @@ pub(super) fn render_theme_picker_overlay(
     let inner = block.inner(panel);
     frame.render_widget(block, panel);
 
-    for (i, theme) in ThemeId::all().enumerate() {
-        let y = inner.y + 1 + i as u16;
+    for (visible_i, theme) in ThemeId::all()
+        .skip(scroll_offset)
+        .take(visible_rows)
+        .enumerate()
+    {
+        let i = scroll_offset + visible_i;
+        let y = inner.y + 1 + visible_i as u16;
         if y >= inner.bottom() {
             break;
         }
