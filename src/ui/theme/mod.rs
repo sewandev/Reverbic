@@ -14,6 +14,11 @@ pub enum ThemeId {
     Rose,
     Amber,
     Lavender,
+    Nord,
+    Sunset,
+    Catppuccin,
+    Solarized,
+    TokyoNight,
 }
 
 impl<'de> Deserialize<'de> for ThemeId {
@@ -29,6 +34,11 @@ impl<'de> Deserialize<'de> for ThemeId {
             "rose" => Self::Rose,
             "amber" => Self::Amber,
             "lavender" => Self::Lavender,
+            "nord" => Self::Nord,
+            "sunset" => Self::Sunset,
+            "catppuccin" => Self::Catppuccin,
+            "solarized" => Self::Solarized,
+            "tokyo_night" => Self::TokyoNight,
             _ => Self::Reverbic,
         })
     }
@@ -144,6 +154,56 @@ const THEME_DEFINITIONS: &[ThemeDefinition] = &[
             Color::Rgb(167, 139, 250),
             Color::Rgb(192, 132, 252),
             Color::Rgb(129, 140, 248),
+        ],
+    },
+    ThemeDefinition {
+        id: ThemeId::Nord,
+        label_key: "theme.nord",
+        palette: &palettes::NORD,
+        preview: [
+            Color::Rgb(136, 192, 208),
+            Color::Rgb(129, 161, 193),
+            Color::Rgb(180, 142, 173),
+        ],
+    },
+    ThemeDefinition {
+        id: ThemeId::Sunset,
+        label_key: "theme.sunset",
+        palette: &palettes::SUNSET,
+        preview: [
+            Color::Rgb(251, 146, 60),
+            Color::Rgb(244, 114, 182),
+            Color::Rgb(248, 113, 113),
+        ],
+    },
+    ThemeDefinition {
+        id: ThemeId::Catppuccin,
+        label_key: "theme.catppuccin",
+        palette: &palettes::CATPPUCCIN,
+        preview: [
+            Color::Rgb(203, 166, 247),
+            Color::Rgb(137, 180, 250),
+            Color::Rgb(245, 194, 231),
+        ],
+    },
+    ThemeDefinition {
+        id: ThemeId::Solarized,
+        label_key: "theme.solarized",
+        palette: &palettes::SOLARIZED,
+        preview: [
+            Color::Rgb(42, 161, 152),
+            Color::Rgb(38, 139, 210),
+            Color::Rgb(181, 137, 0),
+        ],
+    },
+    ThemeDefinition {
+        id: ThemeId::TokyoNight,
+        label_key: "theme.tokyo_night",
+        palette: &palettes::TOKYO_NIGHT,
+        preview: [
+            Color::Rgb(122, 162, 247),
+            Color::Rgb(187, 154, 247),
+            Color::Rgb(125, 207, 255),
         ],
     },
 ];
