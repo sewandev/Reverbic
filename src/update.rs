@@ -158,6 +158,9 @@ fn select_compatible_asset(
 
 pub async fn download_update(asset: &UpdateAsset) -> Option<PathBuf> {
     let path = update_download_path(asset);
+    if let Some(parent) = path.parent() {
+        let _ = tokio::fs::create_dir_all(parent).await;
+    }
     let part_path = unique_part_path(&path);
     tracing::debug!(
         asset = %asset.name,
@@ -198,7 +201,7 @@ pub async fn download_update(asset: &UpdateAsset) -> Option<PathBuf> {
 }
 
 fn update_download_path(asset: &UpdateAsset) -> PathBuf {
-    std::env::temp_dir().join(format!("reverbic-update-{}", asset.name))
+    crate::paths::updates_dir().join(format!("reverbic-update-{}", asset.name))
 }
 
 fn unique_part_path(path: &Path) -> PathBuf {
@@ -337,7 +340,7 @@ struct PreparedUnixUpdate {
 #[cfg(unix)]
 fn prepare_unix_update_payload(update_payload: &Path) -> std::io::Result<PreparedUnixUpdate> {
     let extract_dir = unique_unix_extract_dir(update_payload);
-    std::fs::create_dir(&extract_dir)?;
+    std::fs::create_dir_all(&extract_dir)?;
 
     match extract_unix_update_archive(update_payload, &extract_dir) {
         Ok(binary_path) => Ok(PreparedUnixUpdate {
@@ -357,7 +360,8 @@ fn unique_unix_extract_dir(update_payload: &Path) -> PathBuf {
         .file_name()
         .map(|name| name.to_string_lossy())
         .unwrap_or_else(|| "reverbic-update".into());
-    let base = std::env::temp_dir().join(format!("{payload_name}.{}.extract", std::process::id()));
+    let base =
+        crate::paths::updates_dir().join(format!("{payload_name}.{}.extract", std::process::id()));
     unique_part_path(&base)
 }
 
@@ -615,6 +619,9 @@ fn spawn_windows_update_helper(new_exe: &Path) -> std::io::Result<()> {
 
     let current = std::env::current_exe()?;
     let script_path = helper_script_path();
+    if let Some(parent) = script_path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
     let script = build_update_script(
         new_exe,
         &current,
@@ -638,7 +645,7 @@ fn spawn_windows_update_helper(new_exe: &Path) -> std::io::Result<()> {
 
 #[cfg(target_os = "windows")]
 fn helper_script_path() -> PathBuf {
-    std::env::temp_dir().join(format!("reverbic-update-{}.cmd", std::process::id()))
+    crate::paths::updates_dir().join(format!("reverbic-update-{}.cmd", std::process::id()))
 }
 
 #[cfg(target_os = "windows")]
@@ -813,6 +820,9 @@ mod payload_validation_tests {
             ),
         );
         let path = update_download_path(&asset);
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).expect("updates dir should be creatable");
+        }
         let file = std::fs::File::create(&path).expect("stale test payload should be created");
         file.set_len(1_000_001)
             .expect("stale test payload size should be set");
