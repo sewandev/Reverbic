@@ -6,6 +6,7 @@ pub mod recent_tracks;
 pub mod search_modal;
 pub mod spotify_profile;
 pub mod station_details;
+pub mod theme_picker;
 pub mod visualizer;
 
 pub(crate) fn keep_selected_visible(scroll_offset: &mut usize, selected: usize, visible: usize) {

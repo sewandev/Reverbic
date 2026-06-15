@@ -834,6 +834,20 @@ mod tests {
     }
 
     #[test]
+    fn theme_falls_back_for_unknown_config_values() {
+        let config_with_unknown_theme = json!({
+            "volume": 0.75,
+            "last_selected": 3,
+            "theme": "valor_invalido"
+        });
+
+        let config: Config = serde_json::from_value(config_with_unknown_theme)
+            .expect("config with unknown theme should load");
+
+        assert_eq!(config.theme, ThemeId::Reverbic);
+    }
+
+    #[test]
     fn spotify_playback_mode_defaults_for_old_configs_and_serializes_for_persistence() {
         let old_config = json!({
             "volume": 0.75,

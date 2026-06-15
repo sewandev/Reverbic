@@ -15,23 +15,23 @@ use overlays::{
 
 pub fn render(frame: &mut Frame, app: &App) {
     let area = frame.area();
+    let palette = theme::palette(app.config.theme);
     if area.width < crate::ui::widgets::search_modal::MODAL_MIN_WIDTH
         || area.height < crate::ui::widgets::search_modal::MODAL_MIN_HEIGHT
     {
         use ratatui::{
-            style::{Color, Style},
+            style::Style,
             text::{Line, Span},
             widgets::Paragraph,
         };
         let msg = Paragraph::new(Line::from(Span::styled(
             "[ terminal too small ]",
-            Style::default().fg(Color::DarkGray),
+            Style::default().fg(palette.muted),
         )));
         frame.render_widget(msg, area);
         return;
     }
 
-    let palette = theme::palette(app.config.theme);
     let player_state = app.player_state();
 
     if app.screensaver_active() {
@@ -229,7 +229,13 @@ pub fn render(frame: &mut Frame, app: &App) {
     }
 
     if app.theme_picker_open {
-        render_theme_picker_overlay(frame, app.config.theme, app.theme_picker_selected, palette);
+        render_theme_picker_overlay(
+            frame,
+            app.config.theme,
+            app.theme_picker_selected,
+            app.theme_picker_scroll_offset,
+            palette,
+        );
     }
 
     if let Some(ref version) = app.update_available {

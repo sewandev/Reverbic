@@ -191,7 +191,7 @@ impl<'a> SearchModalWidget<'a> {
             text_area.height = text_area.height.saturating_sub(1);
             Paragraph::new(Span::styled(
                 t("modal.youtube.search.mix_hint"),
-                Style::default().fg(ratatui::style::Color::DarkGray),
+                Style::default().fg(self.palette.muted),
             ))
             .alignment(Alignment::Center)
             .render(text_area, buf);
