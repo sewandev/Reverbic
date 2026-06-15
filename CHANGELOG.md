@@ -10,6 +10,9 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ## [Unreleased]
 
+### Added
+- New opt-in **anonymous online counter** (Settings → Privacy). When you enable it, Reverbic sends an anonymous "I'm online" heartbeat every couple of minutes so the author can estimate how many people use it at the same time. It is off by default, can be turned off again at any time, and sends only a random per-session id (regenerated every launch) plus the app version — no IP, no location, no tracking. See [PRIVACY.md](PRIVACY.md); the receiver is open source under [`telemetry/`](telemetry/).
+
 ## [1.5.5] - 2026-06-14
 
 ### Added

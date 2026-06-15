@@ -1,0 +1,11 @@
+name = "reverbic-presence"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+
+# Create with: wrangler kv namespace create PRESENCE
+# then paste the returned id here.
+[[kv_namespaces]]
+binding = "PRESENCE"
+id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"
+
+# READ_TOKEN is a secret, set it with: wrangler secret put READ_TOKEN

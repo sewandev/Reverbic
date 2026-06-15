@@ -96,6 +96,7 @@ reverbic                  # no arguments: open the full interface
 - **[Spotify guide](docs/spotify.md)** — playback modes, Client ID setup, shortcuts, and known limitations
 - **[YouTube guide](docs/youtube.md)** — features (Mix, chapters, SponsorBlock), cookies setup, and known limitations
 - **[Legal notes](LEGAL.md)** — third-party services, terms of service, and risk disclosures
+- **[Privacy](PRIVACY.md)** — Reverbic does not track you; the only optional data is an anonymous, opt-in online counter (off by default)
 
 > [!WARNING]
 > If you configure YouTube cookies, **use a secondary ("burner") account** — never your main Google account. Full instructions in the [YouTube guide](docs/youtube.md).

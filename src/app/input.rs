@@ -2725,6 +2725,11 @@ impl App {
             super::modal::SettingItem::DiscordRpc => {
                 self.config.discord_rpc = !self.config.discord_rpc
             }
+            super::modal::SettingItem::Telemetry => {
+                self.config.telemetry_enabled = !self.config.telemetry_enabled;
+                self.config.telemetry_prompted = true;
+                crate::telemetry::set_enabled(self.config.telemetry_enabled);
+            }
         }
         self.save_config();
         if let Some(ref tx) = self.windows_tx {

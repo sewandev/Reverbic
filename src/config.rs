@@ -273,6 +273,10 @@ pub struct Config {
     pub discord_rpc: bool,
     #[serde(default)]
     pub onboarding_completed: bool,
+    #[serde(default)]
+    pub telemetry_enabled: bool,
+    #[serde(default)]
+    pub telemetry_prompted: bool,
 }
 
 fn default_true() -> bool {
@@ -349,6 +353,8 @@ impl Default for Config {
             auto_update: true,
             discord_rpc: false,
             onboarding_completed: false,
+            telemetry_enabled: false,
+            telemetry_prompted: false,
         }
     }
 }

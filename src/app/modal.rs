@@ -93,6 +93,7 @@ pub enum SettingItem {
     YoutubeCookiesValidate,
     AutoUpdate,
     DiscordRpc,
+    Telemetry,
     ReplayOnboarding,
     OpenLogs,
 }
@@ -132,6 +133,7 @@ impl SettingItem {
             Self::SpotifyCrossfade => t("config.setting.spotify_crossfade"),
             Self::AutoUpdate => t("config.setting.auto_update"),
             Self::DiscordRpc => t("config.setting.discord_rpc"),
+            Self::Telemetry => t("config.setting.telemetry"),
             Self::ReplayOnboarding => t("config.setting.replay_onboarding"),
             Self::OpenLogs => t("config.setting.open_logs"),
             Self::SpotifyRadioMode => t("config.setting.spotify_radio_mode"),
@@ -176,6 +178,7 @@ impl SettingItem {
             Self::SpotifyCrossfade => "config.tooltip.spotify_crossfade",
             Self::AutoUpdate => "config.tooltip.auto_update",
             Self::DiscordRpc => "config.tooltip.discord_rpc",
+            Self::Telemetry => "config.tooltip.telemetry",
             Self::ReplayOnboarding => "config.tooltip.replay_onboarding",
             Self::OpenLogs => "config.tooltip.open_logs",
             Self::SpotifyRadioMode => "config.tooltip.spotify_radio_mode",
@@ -224,6 +227,7 @@ impl SettingItem {
             | Self::DiscordRpc
             | Self::ReplayOnboarding
             | Self::OpenLogs => "config.group.system",
+            Self::Telemetry => "config.group.privacy",
             Self::Language | Self::Theme => "config.group.appearance",
         }
     }
@@ -294,6 +298,7 @@ pub fn settings_items(duck_enabled: bool, screensaver_active: bool) -> Vec<Setti
         SettingItem::DiscordRpc,
         SettingItem::ReplayOnboarding,
         SettingItem::OpenLogs,
+        SettingItem::Telemetry,
         SettingItem::Language,
         SettingItem::Theme,
     ]);

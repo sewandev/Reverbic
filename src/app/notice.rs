@@ -52,6 +52,22 @@ impl App {
         }
     }
 
+    /// Shows the one-time, non-blocking telemetry opt-in hint. It only ever
+    /// appears once (guarded by `telemetry_prompted`) and never when telemetry is
+    /// already enabled; the user opts in from Settings, never from here.
+    pub fn prompt_telemetry_consent(&mut self) {
+        if self.config.telemetry_enabled || self.config.telemetry_prompted {
+            return;
+        }
+        self.notify(
+            NoticeSeverity::Info,
+            crate::i18n::t("telemetry.consent_notice"),
+            12,
+        );
+        self.config.telemetry_prompted = true;
+        self.save_config();
+    }
+
     pub fn clear_notices(&mut self) {
         self.save_notice = None;
         self.notice_until = None;

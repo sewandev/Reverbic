@@ -184,6 +184,13 @@ impl<'a> SearchModalWidget<'a> {
                     off
                 }
             }
+            SettingItem::Telemetry => {
+                if self.telemetry_enabled {
+                    on
+                } else {
+                    off
+                }
+            }
             SettingItem::ReplayOnboarding => t("hint.open"),
             SettingItem::OpenLogs => t("hint.open"),
             SettingItem::YoutubeCookiesPath => {

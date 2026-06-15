@@ -96,6 +96,7 @@ reverbic                   # sin argumentos: abre la interfaz completa
 - **[Guía de Spotify](docs/spotify.es.md)** — modos de reproducción, configuración del Client ID, atajos y limitaciones conocidas
 - **[Guía de YouTube](docs/youtube.es.md)** — funcionalidades (Mix, capítulos, SponsorBlock), configuración de cookies y limitaciones conocidas
 - **[Notas legales](LEGAL.md)** — servicios de terceros, términos de servicio y declaración de riesgos (en inglés)
+- **[Privacidad](PRIVACY.md)** — Reverbic no te rastrea; el único dato opcional es un contador anónimo de usuarios en línea, opt-in y desactivado por defecto (en inglés)
 
 > [!WARNING]
 > Si configuras cookies de YouTube, **usa una cuenta secundaria ("burner")** — nunca tu cuenta principal de Google. Instrucciones completas en la [guía de YouTube](docs/youtube.es.md).

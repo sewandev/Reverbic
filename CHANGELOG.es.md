@@ -10,6 +10,9 @@ Versionado: [Semantic Versioning](https://semver.org/)
 
 ## [Sin publicar]
 
+### Added
+- Nuevo **contador anónimo de usuarios en línea** opcional (Settings → Privacidad). Al activarlo, Reverbic envía un "estoy en línea" anónimo cada par de minutos para que el autor pueda estimar cuánta gente lo usa a la vez. Viene desactivado por defecto, se puede desactivar de nuevo cuando quieras, y solo envía un id aleatorio por sesión (se regenera en cada arranque) más la versión de la app — sin IP, sin ubicación, sin rastreo. Ver [PRIVACY.md](PRIVACY.md); el receptor es open source en [`telemetry/`](telemetry/).
+
 ## [1.5.5] - 2026-06-14
 
 ### Added

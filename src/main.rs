@@ -31,6 +31,7 @@ mod preview;
 mod schedule;
 mod shell;
 mod station;
+mod telemetry;
 mod terminal;
 mod ui;
 mod update;
@@ -146,6 +147,7 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
         );
     }
 
+    telemetry::spawn(app.config.telemetry_enabled);
     app.init_integrations();
     app.start_update_check();
     app.start_youtube_session_health_check();
@@ -178,6 +180,11 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
     ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     let mut events = EventStream::new();
     let mut double_clicks = DoubleClickTracker::default();
+
+    const TELEMETRY_CONSENT_DELAY: Duration = Duration::from_secs(15 * 60);
+    let telemetry_consent_at = Instant::now() + TELEMETRY_CONSENT_DELAY;
+    let mut telemetry_consent_pending =
+        !app.config.telemetry_prompted && !app.config.telemetry_enabled;
 
     loop {
         app.poll_dead_url();
@@ -238,6 +245,10 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
             if app.radio_enriched_for.as_deref() != Some(title.as_str()) {
                 app.trigger_track_enrichment(title);
             }
+        }
+        if telemetry_consent_pending && Instant::now() >= telemetry_consent_at {
+            app.prompt_telemetry_consent();
+            telemetry_consent_pending = false;
         }
         let mut last_area = app.terminal_area;
         tui.draw(|frame| {
