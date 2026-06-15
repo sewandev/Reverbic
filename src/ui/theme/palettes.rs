@@ -182,6 +182,66 @@ const ROSE_PINE_SPECTRUM: [Color; 8] = [
     Color::Rgb(224, 222, 244),
 ];
 
+const KANAGAWA_BORDER: [(u8, u8, u8); 3] = [(126, 156, 216), (152, 187, 108), (255, 160, 102)];
+const KANAGAWA_SPECTRUM: [Color; 8] = [
+    Color::Rgb(126, 156, 216),
+    Color::Rgb(127, 180, 202),
+    Color::Rgb(152, 187, 108),
+    Color::Rgb(230, 195, 132),
+    Color::Rgb(255, 160, 102),
+    Color::Rgb(195, 64, 67),
+    Color::Rgb(149, 127, 184),
+    Color::Rgb(220, 215, 186),
+];
+
+const EVERFOREST_BORDER: [(u8, u8, u8); 3] = [(167, 192, 128), (131, 192, 146), (127, 187, 179)];
+const EVERFOREST_SPECTRUM: [Color; 8] = [
+    Color::Rgb(167, 192, 128),
+    Color::Rgb(131, 192, 146),
+    Color::Rgb(127, 187, 179),
+    Color::Rgb(131, 165, 152),
+    Color::Rgb(219, 188, 127),
+    Color::Rgb(230, 126, 128),
+    Color::Rgb(211, 198, 170),
+    Color::Rgb(157, 169, 160),
+];
+
+const SYNTHWAVE84_BORDER: [(u8, u8, u8); 3] = [(255, 126, 219), (54, 209, 220), (255, 231, 117)];
+const SYNTHWAVE84_SPECTRUM: [Color; 8] = [
+    Color::Rgb(255, 126, 219),
+    Color::Rgb(255, 83, 112),
+    Color::Rgb(255, 143, 112),
+    Color::Rgb(255, 231, 117),
+    Color::Rgb(54, 209, 220),
+    Color::Rgb(114, 239, 221),
+    Color::Rgb(159, 122, 234),
+    Color::Rgb(241, 245, 249),
+];
+
+const CLAY_BORDER: [(u8, u8, u8); 3] = [(217, 119, 87), (225, 164, 120), (138, 154, 91)];
+const CLAY_SPECTRUM: [Color; 8] = [
+    Color::Rgb(217, 119, 87),
+    Color::Rgb(225, 164, 120),
+    Color::Rgb(204, 139, 101),
+    Color::Rgb(138, 154, 91),
+    Color::Rgb(111, 139, 133),
+    Color::Rgb(166, 132, 104),
+    Color::Rgb(232, 210, 184),
+    Color::Rgb(196, 173, 145),
+];
+
+const TERMINAL_GREEN_BORDER: [(u8, u8, u8); 3] = [(16, 163, 127), (52, 211, 153), (22, 199, 132)];
+const TERMINAL_GREEN_SPECTRUM: [Color; 8] = [
+    Color::Rgb(16, 163, 127),
+    Color::Rgb(22, 199, 132),
+    Color::Rgb(52, 211, 153),
+    Color::Rgb(45, 212, 191),
+    Color::Rgb(74, 222, 128),
+    Color::Rgb(132, 204, 22),
+    Color::Rgb(187, 247, 208),
+    Color::Rgb(209, 250, 229),
+];
+
 pub const OCEAN: Palette = Palette {
     accent: Color::Rgb(56, 189, 248),
     radio_accent: Color::Rgb(14, 165, 233),
@@ -497,6 +557,111 @@ pub const ROSE_PINE: Palette = Palette {
     logo_letters: ROSE_PINE_SPECTRUM,
 };
 
+pub const KANAGAWA: Palette = Palette {
+    accent: Color::Rgb(126, 156, 216),
+    radio_accent: Color::Rgb(127, 180, 202),
+    playing: Color::Rgb(126, 156, 216),
+    muted: Color::Rgb(114, 113, 105),
+    dim: Color::Rgb(165, 162, 148),
+    highlight: Color::Rgb(220, 215, 186),
+    danger: Color::Rgb(195, 64, 67),
+    warning: Color::Rgb(230, 195, 132),
+    buffering: Color::Rgb(47, 47, 59),
+    spotify: Color::Rgb(30, 215, 96),
+    youtube: Color::Rgb(255, 0, 0),
+    status_ok: Color::Rgb(152, 187, 108),
+    caution: Color::Rgb(255, 160, 102),
+    panel_bg: Color::Rgb(31, 31, 40),
+    overlay_color: Color::Rgb(18, 18, 24),
+    border_cycle: KANAGAWA_BORDER,
+    spectrum: KANAGAWA_SPECTRUM,
+    logo_letters: KANAGAWA_SPECTRUM,
+};
+
+pub const EVERFOREST: Palette = Palette {
+    accent: Color::Rgb(167, 192, 128),
+    radio_accent: Color::Rgb(127, 187, 179),
+    playing: Color::Rgb(167, 192, 128),
+    muted: Color::Rgb(123, 131, 123),
+    dim: Color::Rgb(157, 169, 160),
+    highlight: Color::Rgb(211, 198, 170),
+    danger: Color::Rgb(230, 126, 128),
+    warning: Color::Rgb(219, 188, 127),
+    buffering: Color::Rgb(62, 76, 80),
+    spotify: Color::Rgb(30, 215, 96),
+    youtube: Color::Rgb(255, 0, 0),
+    status_ok: Color::Rgb(167, 192, 128),
+    caution: Color::Rgb(231, 152, 117),
+    panel_bg: Color::Rgb(45, 53, 59),
+    overlay_color: Color::Rgb(30, 36, 40),
+    border_cycle: EVERFOREST_BORDER,
+    spectrum: EVERFOREST_SPECTRUM,
+    logo_letters: EVERFOREST_SPECTRUM,
+};
+
+pub const SYNTHWAVE84: Palette = Palette {
+    accent: Color::Rgb(255, 126, 219),
+    radio_accent: Color::Rgb(54, 209, 220),
+    playing: Color::Rgb(255, 126, 219),
+    muted: Color::Rgb(132, 117, 166),
+    dim: Color::Rgb(191, 178, 220),
+    highlight: Color::Rgb(241, 245, 249),
+    danger: Color::Rgb(255, 83, 112),
+    warning: Color::Rgb(255, 231, 117),
+    buffering: Color::Rgb(58, 52, 82),
+    spotify: Color::Rgb(30, 215, 96),
+    youtube: Color::Rgb(255, 0, 0),
+    status_ok: Color::Rgb(114, 239, 221),
+    caution: Color::Rgb(255, 143, 112),
+    panel_bg: Color::Rgb(38, 35, 53),
+    overlay_color: Color::Rgb(22, 18, 36),
+    border_cycle: SYNTHWAVE84_BORDER,
+    spectrum: SYNTHWAVE84_SPECTRUM,
+    logo_letters: SYNTHWAVE84_SPECTRUM,
+};
+
+pub const CLAY: Palette = Palette {
+    accent: Color::Rgb(217, 119, 87),
+    radio_accent: Color::Rgb(225, 164, 120),
+    playing: Color::Rgb(217, 119, 87),
+    muted: Color::Rgb(126, 113, 96),
+    dim: Color::Rgb(196, 173, 145),
+    highlight: Color::Rgb(232, 210, 184),
+    danger: Color::Rgb(220, 92, 75),
+    warning: Color::Rgb(225, 164, 120),
+    buffering: Color::Rgb(54, 48, 42),
+    spotify: Color::Rgb(30, 215, 96),
+    youtube: Color::Rgb(255, 0, 0),
+    status_ok: Color::Rgb(138, 154, 91),
+    caution: Color::Rgb(204, 139, 101),
+    panel_bg: Color::Rgb(26, 25, 23),
+    overlay_color: Color::Rgb(12, 11, 10),
+    border_cycle: CLAY_BORDER,
+    spectrum: CLAY_SPECTRUM,
+    logo_letters: CLAY_SPECTRUM,
+};
+
+pub const TERMINAL_GREEN: Palette = Palette {
+    accent: Color::Rgb(16, 163, 127),
+    radio_accent: Color::Rgb(52, 211, 153),
+    playing: Color::Rgb(16, 163, 127),
+    muted: Color::Rgb(104, 120, 115),
+    dim: Color::Rgb(161, 181, 176),
+    highlight: Color::Rgb(229, 231, 235),
+    danger: Color::Rgb(248, 113, 113),
+    warning: Color::Rgb(250, 204, 21),
+    buffering: Color::Rgb(44, 50, 48),
+    spotify: Color::Rgb(30, 215, 96),
+    youtube: Color::Rgb(255, 0, 0),
+    status_ok: Color::Rgb(52, 211, 153),
+    caution: Color::Rgb(132, 204, 22),
+    panel_bg: Color::Rgb(30, 30, 32),
+    overlay_color: Color::Rgb(14, 15, 16),
+    border_cycle: TERMINAL_GREEN_BORDER,
+    spectrum: TERMINAL_GREEN_SPECTRUM,
+    logo_letters: TERMINAL_GREEN_SPECTRUM,
+};
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -519,6 +684,11 @@ mod tests {
             &NIGHT_OWL,
             &VESPER,
             &ROSE_PINE,
+            &KANAGAWA,
+            &EVERFOREST,
+            &SYNTHWAVE84,
+            &CLAY,
+            &TERMINAL_GREEN,
         ] {
             assert_eq!(palette.border_cycle.len(), 3);
             assert_eq!(palette.spectrum.len(), 8);

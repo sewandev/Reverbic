@@ -24,6 +24,11 @@ pub enum ThemeId {
     NightOwl,
     Vesper,
     RosePine,
+    Kanagawa,
+    Everforest,
+    Synthwave84,
+    Clay,
+    TerminalGreen,
 }
 
 impl<'de> Deserialize<'de> for ThemeId {
@@ -49,6 +54,11 @@ impl<'de> Deserialize<'de> for ThemeId {
             "night_owl" => Self::NightOwl,
             "vesper" => Self::Vesper,
             "rose_pine" => Self::RosePine,
+            "kanagawa" => Self::Kanagawa,
+            "everforest" => Self::Everforest,
+            "synthwave84" => Self::Synthwave84,
+            "clay" => Self::Clay,
+            "terminal_green" => Self::TerminalGreen,
             _ => Self::Reverbic,
         })
     }
@@ -264,6 +274,56 @@ const THEME_DEFINITIONS: &[ThemeDefinition] = &[
             Color::Rgb(235, 188, 186),
             Color::Rgb(196, 167, 231),
             Color::Rgb(156, 207, 216),
+        ],
+    },
+    ThemeDefinition {
+        id: ThemeId::Kanagawa,
+        label_key: "theme.kanagawa",
+        palette: &palettes::KANAGAWA,
+        preview: [
+            Color::Rgb(126, 156, 216),
+            Color::Rgb(152, 187, 108),
+            Color::Rgb(255, 160, 102),
+        ],
+    },
+    ThemeDefinition {
+        id: ThemeId::Everforest,
+        label_key: "theme.everforest",
+        palette: &palettes::EVERFOREST,
+        preview: [
+            Color::Rgb(167, 192, 128),
+            Color::Rgb(131, 192, 146),
+            Color::Rgb(127, 187, 179),
+        ],
+    },
+    ThemeDefinition {
+        id: ThemeId::Synthwave84,
+        label_key: "theme.synthwave84",
+        palette: &palettes::SYNTHWAVE84,
+        preview: [
+            Color::Rgb(255, 126, 219),
+            Color::Rgb(54, 209, 220),
+            Color::Rgb(255, 231, 117),
+        ],
+    },
+    ThemeDefinition {
+        id: ThemeId::Clay,
+        label_key: "theme.clay",
+        palette: &palettes::CLAY,
+        preview: [
+            Color::Rgb(217, 119, 87),
+            Color::Rgb(225, 164, 120),
+            Color::Rgb(138, 154, 91),
+        ],
+    },
+    ThemeDefinition {
+        id: ThemeId::TerminalGreen,
+        label_key: "theme.terminal_green",
+        palette: &palettes::TERMINAL_GREEN,
+        preview: [
+            Color::Rgb(16, 163, 127),
+            Color::Rgb(52, 211, 153),
+            Color::Rgb(22, 199, 132),
         ],
     },
 ];
