@@ -1419,26 +1419,27 @@ impl App {
 
     fn open_theme_picker(&mut self) {
         self.theme_picker_selected = crate::ui::theme::ThemeId::all()
-            .iter()
-            .position(|theme| *theme == self.config.theme)
+            .position(|theme| theme == self.config.theme)
             .unwrap_or(0);
         self.theme_picker_open = true;
     }
 
     fn on_key_theme_picker(&mut self, key: KeyCode) {
-        let themes = crate::ui::theme::ThemeId::all();
+        let theme_count = crate::ui::theme::ThemeId::all().len();
         match key {
             KeyCode::Esc | KeyCode::Left => {
                 self.theme_picker_open = false;
             }
             KeyCode::Up | KeyCode::Char('k') => {
-                self.theme_picker_selected = cycle_prev(self.theme_picker_selected, themes.len());
+                self.theme_picker_selected = cycle_prev(self.theme_picker_selected, theme_count);
             }
             KeyCode::Down | KeyCode::Char('j') => {
-                self.theme_picker_selected = cycle_next(self.theme_picker_selected, themes.len());
+                self.theme_picker_selected = cycle_next(self.theme_picker_selected, theme_count);
             }
             KeyCode::Enter => {
-                if let Some(theme) = themes.get(self.theme_picker_selected).copied() {
+                if let Some(theme) =
+                    crate::ui::theme::ThemeId::all().nth(self.theme_picker_selected)
+                {
                     self.config.theme = theme;
                     self.save_config();
                     if let Some(ref tx) = self.windows_tx {

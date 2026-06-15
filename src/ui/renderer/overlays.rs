@@ -393,10 +393,10 @@ pub(super) fn render_theme_picker_overlay(
     selected: usize,
     palette: &Palette,
 ) {
-    let themes = ThemeId::all();
+    let theme_count = ThemeId::all().len();
     let area = frame.area();
     let w = area.width.clamp(34, 46);
-    let h = (themes.len() as u16 + 4).clamp(5, area.height);
+    let h = (theme_count as u16 + 4).clamp(5, area.height);
     let x = area.width.saturating_sub(w) / 2;
     let y = area.height.saturating_sub(h) / 2;
     let panel = Rect::new(x, y, w, h);
@@ -428,7 +428,7 @@ pub(super) fn render_theme_picker_overlay(
     let inner = block.inner(panel);
     frame.render_widget(block, panel);
 
-    for (i, theme) in themes.iter().copied().enumerate() {
+    for (i, theme) in ThemeId::all().enumerate() {
         let y = inner.y + 1 + i as u16;
         if y >= inner.bottom() {
             break;

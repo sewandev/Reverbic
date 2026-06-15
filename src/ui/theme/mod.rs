@@ -11,23 +11,23 @@ pub enum ThemeId {
 }
 
 impl ThemeId {
-    const ALL: &'static [Self] = &[Self::Reverbic];
-
-    pub fn all() -> &'static [Self] {
-        Self::ALL
+    pub fn all() -> impl ExactSizeIterator<Item = Self> + DoubleEndedIterator {
+        definitions().iter().map(|definition| definition.id)
     }
 
     pub fn display(self) -> String {
         use crate::i18n::t;
-        match self {
-            Self::Reverbic => t("theme.reverbic"),
-        }
+
+        t(definition(self).label_key)
     }
 
     pub fn next(self) -> Self {
-        match self {
-            Self::Reverbic => Self::Reverbic,
-        }
+        let themes = definitions();
+        let position = themes
+            .iter()
+            .position(|definition| definition.id == self)
+            .unwrap_or(0);
+        themes[(position + 1) % themes.len()].id
     }
 }
 
@@ -53,10 +53,39 @@ pub struct Palette {
     pub logo_letters: [Color; 8],
 }
 
+#[derive(Debug)]
+pub struct ThemeDefinition {
+    pub id: ThemeId,
+    pub label_key: &'static str,
+    pub palette: &'static Palette,
+    #[allow(dead_code)]
+    pub preview: [Color; 3],
+}
+
+const THEME_DEFINITIONS: &[ThemeDefinition] = &[ThemeDefinition {
+    id: ThemeId::Reverbic,
+    label_key: "theme.reverbic",
+    palette: &reverbic::PALETTE,
+    preview: [
+        Color::Rgb(0, 240, 255),
+        Color::Rgb(112, 0, 255),
+        Color::Rgb(255, 0, 85),
+    ],
+}];
+
+pub fn definitions() -> &'static [ThemeDefinition] {
+    THEME_DEFINITIONS
+}
+
+pub fn definition(theme_id: ThemeId) -> &'static ThemeDefinition {
+    definitions()
+        .iter()
+        .find(|definition| definition.id == theme_id)
+        .unwrap_or(&THEME_DEFINITIONS[0])
+}
+
 pub fn palette(theme_id: ThemeId) -> &'static Palette {
-    match theme_id {
-        ThemeId::Reverbic => &reverbic::PALETTE,
-    }
+    definition(theme_id).palette
 }
 
 pub fn border_color_for(palette: &Palette, tick: u32) -> Color {
@@ -120,5 +149,27 @@ mod tests {
             ]
         );
         assert_eq!(palette.logo_letters, palette.spectrum);
+    }
+
+    #[test]
+    fn theme_registry_keeps_reverbic_as_default_first_theme() {
+        let theme_definition = definition(ThemeId::Reverbic);
+
+        assert_eq!(ThemeId::all().collect::<Vec<_>>(), vec![ThemeId::Reverbic]);
+        assert_eq!(ThemeId::all().next(), Some(ThemeId::default()));
+        assert_eq!(theme_definition.id, ThemeId::Reverbic);
+        assert_eq!(theme_definition.label_key, "theme.reverbic");
+        assert!(std::ptr::eq(
+            theme_definition.palette,
+            palette(ThemeId::Reverbic)
+        ));
+        assert_eq!(
+            theme_definition.preview,
+            [
+                Color::Rgb(0, 240, 255),
+                Color::Rgb(112, 0, 255),
+                Color::Rgb(255, 0, 85),
+            ]
+        );
     }
 }
