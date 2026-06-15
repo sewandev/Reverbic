@@ -19,6 +19,11 @@ pub enum ThemeId {
     Catppuccin,
     Solarized,
     TokyoNight,
+    Gruvbox,
+    Ayu,
+    NightOwl,
+    Vesper,
+    RosePine,
 }
 
 impl<'de> Deserialize<'de> for ThemeId {
@@ -39,6 +44,11 @@ impl<'de> Deserialize<'de> for ThemeId {
             "catppuccin" => Self::Catppuccin,
             "solarized" => Self::Solarized,
             "tokyo_night" => Self::TokyoNight,
+            "gruvbox" => Self::Gruvbox,
+            "ayu" => Self::Ayu,
+            "night_owl" => Self::NightOwl,
+            "vesper" => Self::Vesper,
+            "rose_pine" => Self::RosePine,
             _ => Self::Reverbic,
         })
     }
@@ -204,6 +214,56 @@ const THEME_DEFINITIONS: &[ThemeDefinition] = &[
             Color::Rgb(122, 162, 247),
             Color::Rgb(187, 154, 247),
             Color::Rgb(125, 207, 255),
+        ],
+    },
+    ThemeDefinition {
+        id: ThemeId::Gruvbox,
+        label_key: "theme.gruvbox",
+        palette: &palettes::GRUVBOX,
+        preview: [
+            Color::Rgb(142, 192, 124),
+            Color::Rgb(250, 189, 47),
+            Color::Rgb(211, 134, 155),
+        ],
+    },
+    ThemeDefinition {
+        id: ThemeId::Ayu,
+        label_key: "theme.ayu",
+        palette: &palettes::AYU,
+        preview: [
+            Color::Rgb(230, 180, 80),
+            Color::Rgb(95, 180, 180),
+            Color::Rgb(255, 120, 120),
+        ],
+    },
+    ThemeDefinition {
+        id: ThemeId::NightOwl,
+        label_key: "theme.night_owl",
+        palette: &palettes::NIGHT_OWL,
+        preview: [
+            Color::Rgb(130, 170, 255),
+            Color::Rgb(127, 219, 202),
+            Color::Rgb(199, 146, 234),
+        ],
+    },
+    ThemeDefinition {
+        id: ThemeId::Vesper,
+        label_key: "theme.vesper",
+        palette: &palettes::VESPER,
+        preview: [
+            Color::Rgb(255, 199, 153),
+            Color::Rgb(153, 204, 204),
+            Color::Rgb(255, 128, 128),
+        ],
+    },
+    ThemeDefinition {
+        id: ThemeId::RosePine,
+        label_key: "theme.rose_pine",
+        palette: &palettes::ROSE_PINE,
+        preview: [
+            Color::Rgb(235, 188, 186),
+            Color::Rgb(196, 167, 231),
+            Color::Rgb(156, 207, 216),
         ],
     },
 ];

@@ -122,6 +122,66 @@ const TOKYO_NIGHT_SPECTRUM: [Color; 8] = [
     Color::Rgb(169, 177, 214),
 ];
 
+const GRUVBOX_BORDER: [(u8, u8, u8); 3] = [(142, 192, 124), (250, 189, 47), (211, 134, 155)];
+const GRUVBOX_SPECTRUM: [Color; 8] = [
+    Color::Rgb(142, 192, 124),
+    Color::Rgb(184, 187, 38),
+    Color::Rgb(250, 189, 47),
+    Color::Rgb(254, 128, 25),
+    Color::Rgb(251, 73, 52),
+    Color::Rgb(211, 134, 155),
+    Color::Rgb(131, 165, 152),
+    Color::Rgb(235, 219, 178),
+];
+
+const AYU_BORDER: [(u8, u8, u8); 3] = [(230, 180, 80), (95, 180, 180), (255, 120, 120)];
+const AYU_SPECTRUM: [Color; 8] = [
+    Color::Rgb(230, 180, 80),
+    Color::Rgb(255, 180, 84),
+    Color::Rgb(255, 120, 120),
+    Color::Rgb(214, 112, 214),
+    Color::Rgb(95, 180, 180),
+    Color::Rgb(89, 174, 255),
+    Color::Rgb(180, 190, 110),
+    Color::Rgb(230, 225, 207),
+];
+
+const NIGHT_OWL_BORDER: [(u8, u8, u8); 3] = [(130, 170, 255), (127, 219, 202), (199, 146, 234)];
+const NIGHT_OWL_SPECTRUM: [Color; 8] = [
+    Color::Rgb(130, 170, 255),
+    Color::Rgb(127, 219, 202),
+    Color::Rgb(173, 219, 103),
+    Color::Rgb(255, 203, 107),
+    Color::Rgb(247, 140, 108),
+    Color::Rgb(199, 146, 234),
+    Color::Rgb(137, 221, 255),
+    Color::Rgb(214, 222, 235),
+];
+
+const VESPER_BORDER: [(u8, u8, u8); 3] = [(255, 199, 153), (153, 204, 204), (255, 128, 128)];
+const VESPER_SPECTRUM: [Color; 8] = [
+    Color::Rgb(255, 199, 153),
+    Color::Rgb(255, 179, 128),
+    Color::Rgb(255, 128, 128),
+    Color::Rgb(204, 153, 204),
+    Color::Rgb(153, 204, 204),
+    Color::Rgb(128, 170, 255),
+    Color::Rgb(204, 204, 153),
+    Color::Rgb(238, 238, 238),
+];
+
+const ROSE_PINE_BORDER: [(u8, u8, u8); 3] = [(235, 188, 186), (196, 167, 231), (156, 207, 216)];
+const ROSE_PINE_SPECTRUM: [Color; 8] = [
+    Color::Rgb(235, 188, 186),
+    Color::Rgb(235, 111, 146),
+    Color::Rgb(246, 193, 119),
+    Color::Rgb(156, 207, 216),
+    Color::Rgb(49, 116, 143),
+    Color::Rgb(196, 167, 231),
+    Color::Rgb(144, 122, 169),
+    Color::Rgb(224, 222, 244),
+];
+
 pub const OCEAN: Palette = Palette {
     accent: Color::Rgb(56, 189, 248),
     radio_accent: Color::Rgb(14, 165, 233),
@@ -332,6 +392,111 @@ pub const TOKYO_NIGHT: Palette = Palette {
     logo_letters: TOKYO_NIGHT_SPECTRUM,
 };
 
+pub const GRUVBOX: Palette = Palette {
+    accent: Color::Rgb(142, 192, 124),
+    radio_accent: Color::Rgb(131, 165, 152),
+    playing: Color::Rgb(142, 192, 124),
+    muted: Color::Rgb(146, 131, 116),
+    dim: Color::Rgb(168, 153, 132),
+    highlight: Color::Rgb(235, 219, 178),
+    danger: Color::Rgb(251, 73, 52),
+    warning: Color::Rgb(250, 189, 47),
+    buffering: Color::Rgb(60, 56, 54),
+    spotify: Color::Rgb(30, 215, 96),
+    youtube: Color::Rgb(255, 0, 0),
+    status_ok: Color::Rgb(184, 187, 38),
+    caution: Color::Rgb(254, 128, 25),
+    panel_bg: Color::Rgb(40, 40, 40),
+    overlay_color: Color::Rgb(29, 32, 33),
+    border_cycle: GRUVBOX_BORDER,
+    spectrum: GRUVBOX_SPECTRUM,
+    logo_letters: GRUVBOX_SPECTRUM,
+};
+
+pub const AYU: Palette = Palette {
+    accent: Color::Rgb(230, 180, 80),
+    radio_accent: Color::Rgb(95, 180, 180),
+    playing: Color::Rgb(230, 180, 80),
+    muted: Color::Rgb(92, 103, 121),
+    dim: Color::Rgb(171, 183, 199),
+    highlight: Color::Rgb(230, 225, 207),
+    danger: Color::Rgb(255, 120, 120),
+    warning: Color::Rgb(230, 180, 80),
+    buffering: Color::Rgb(42, 51, 64),
+    spotify: Color::Rgb(30, 215, 96),
+    youtube: Color::Rgb(255, 0, 0),
+    status_ok: Color::Rgb(180, 190, 110),
+    caution: Color::Rgb(255, 180, 84),
+    panel_bg: Color::Rgb(16, 20, 28),
+    overlay_color: Color::Rgb(9, 12, 18),
+    border_cycle: AYU_BORDER,
+    spectrum: AYU_SPECTRUM,
+    logo_letters: AYU_SPECTRUM,
+};
+
+pub const NIGHT_OWL: Palette = Palette {
+    accent: Color::Rgb(130, 170, 255),
+    radio_accent: Color::Rgb(127, 219, 202),
+    playing: Color::Rgb(130, 170, 255),
+    muted: Color::Rgb(99, 119, 148),
+    dim: Color::Rgb(150, 164, 190),
+    highlight: Color::Rgb(214, 222, 235),
+    danger: Color::Rgb(239, 83, 80),
+    warning: Color::Rgb(255, 203, 107),
+    buffering: Color::Rgb(13, 50, 79),
+    spotify: Color::Rgb(30, 215, 96),
+    youtube: Color::Rgb(255, 0, 0),
+    status_ok: Color::Rgb(173, 219, 103),
+    caution: Color::Rgb(247, 140, 108),
+    panel_bg: Color::Rgb(1, 22, 39),
+    overlay_color: Color::Rgb(1, 13, 24),
+    border_cycle: NIGHT_OWL_BORDER,
+    spectrum: NIGHT_OWL_SPECTRUM,
+    logo_letters: NIGHT_OWL_SPECTRUM,
+};
+
+pub const VESPER: Palette = Palette {
+    accent: Color::Rgb(255, 199, 153),
+    radio_accent: Color::Rgb(153, 204, 204),
+    playing: Color::Rgb(255, 199, 153),
+    muted: Color::Rgb(112, 112, 112),
+    dim: Color::Rgb(176, 176, 176),
+    highlight: Color::Rgb(238, 238, 238),
+    danger: Color::Rgb(255, 128, 128),
+    warning: Color::Rgb(255, 199, 153),
+    buffering: Color::Rgb(42, 42, 42),
+    spotify: Color::Rgb(30, 215, 96),
+    youtube: Color::Rgb(255, 0, 0),
+    status_ok: Color::Rgb(153, 204, 153),
+    caution: Color::Rgb(255, 179, 128),
+    panel_bg: Color::Rgb(16, 16, 16),
+    overlay_color: Color::Rgb(8, 8, 8),
+    border_cycle: VESPER_BORDER,
+    spectrum: VESPER_SPECTRUM,
+    logo_letters: VESPER_SPECTRUM,
+};
+
+pub const ROSE_PINE: Palette = Palette {
+    accent: Color::Rgb(235, 188, 186),
+    radio_accent: Color::Rgb(156, 207, 216),
+    playing: Color::Rgb(235, 188, 186),
+    muted: Color::Rgb(110, 106, 134),
+    dim: Color::Rgb(144, 140, 170),
+    highlight: Color::Rgb(224, 222, 244),
+    danger: Color::Rgb(235, 111, 146),
+    warning: Color::Rgb(246, 193, 119),
+    buffering: Color::Rgb(38, 35, 58),
+    spotify: Color::Rgb(30, 215, 96),
+    youtube: Color::Rgb(255, 0, 0),
+    status_ok: Color::Rgb(156, 207, 216),
+    caution: Color::Rgb(234, 154, 151),
+    panel_bg: Color::Rgb(25, 23, 36),
+    overlay_color: Color::Rgb(12, 10, 18),
+    border_cycle: ROSE_PINE_BORDER,
+    spectrum: ROSE_PINE_SPECTRUM,
+    logo_letters: ROSE_PINE_SPECTRUM,
+};
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -349,6 +514,11 @@ mod tests {
             &CATPPUCCIN,
             &SOLARIZED,
             &TOKYO_NIGHT,
+            &GRUVBOX,
+            &AYU,
+            &NIGHT_OWL,
+            &VESPER,
+            &ROSE_PINE,
         ] {
             assert_eq!(palette.border_cycle.len(), 3);
             assert_eq!(palette.spectrum.len(), 8);
