@@ -17,6 +17,7 @@ Welcome to the Reverbic documentation! This directory contains comprehensive gui
 - [Development Setup](development.md)
 - [Architecture Overview](architecture.md)
 - [Internationalization (i18n)](i18n.md)
+- [Theme System](theme-system.md)
 - [Data Sources](data-sources.md)
 
 ## Release & Operations
