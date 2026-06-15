@@ -213,7 +213,7 @@ impl<'a> SearchModalWidget<'a> {
 
         let footer_area = Rect::new(text_x, layout.footer.y, text_w, 1);
         let mode_style = Style::default()
-            .fg(ratatui::style::Color::Yellow)
+            .fg(self.palette.warning)
             .add_modifier(Modifier::BOLD);
         let badge_style = Style::default()
             .fg(self.palette.spotify)
