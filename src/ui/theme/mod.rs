@@ -4,7 +4,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 mod palettes;
 mod reverbic;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum ThemeId {
     #[default]
@@ -372,6 +372,7 @@ pub fn playing_style(palette: &Palette) -> Style {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashSet;
 
     #[test]
     fn reverbic_palette_keeps_core_surface_colors() {
@@ -411,6 +412,10 @@ mod tests {
         let theme_definition = definition(ThemeId::Reverbic);
 
         assert_eq!(ThemeId::all().next(), Some(ThemeId::default()));
+        assert_eq!(
+            definitions().first().map(|definition| definition.id),
+            Some(ThemeId::Reverbic)
+        );
         assert_eq!(theme_definition.id, ThemeId::Reverbic);
         assert_eq!(theme_definition.label_key, "theme.reverbic");
         assert!(std::ptr::eq(
@@ -425,5 +430,37 @@ mod tests {
                 Color::Rgb(255, 0, 85),
             ]
         );
+    }
+
+    #[test]
+    fn theme_registry_has_no_duplicate_theme_ids() {
+        let mut seen = HashSet::new();
+
+        for theme in ThemeId::all() {
+            assert!(seen.insert(theme), "duplicate theme id: {theme:?}");
+        }
+
+        assert_eq!(seen.len(), definitions().len());
+    }
+
+    #[test]
+    fn every_theme_id_has_a_definition_and_palette() {
+        for theme in ThemeId::all() {
+            let theme_definition = definition(theme);
+
+            assert_eq!(theme_definition.id, theme);
+            assert!(std::ptr::eq(theme_definition.palette, palette(theme)));
+            assert!(theme_definition.label_key.starts_with("theme."));
+        }
+    }
+
+    #[test]
+    fn every_theme_definition_has_complete_preview_and_motion_sets() {
+        for theme_definition in definitions() {
+            assert_eq!(theme_definition.preview.len(), 3);
+            assert_eq!(theme_definition.palette.border_cycle.len(), 3);
+            assert_eq!(theme_definition.palette.spectrum.len(), 8);
+            assert_eq!(theme_definition.palette.logo_letters.len(), 8);
+        }
     }
 }
