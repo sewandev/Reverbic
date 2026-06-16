@@ -20,6 +20,7 @@ Versioning: [Semantic Versioning](https://semver.org/)
 - Improved YouTube audio reliability so more videos resolve to a clean audio-only stream instead of falling back to a lower-quality combined format.
 
 ### Security
+- YouTube playlist identifiers are now validated before being used to build a request URL, matching the existing check on video identifiers (defense in depth).
 - Update downloads now use a per-user private directory instead of the shared system temp folder, closing a theoretical local symlink-hijack vector during self-update on multi-user systems.
 
 ## [1.5.5] - 2026-06-14

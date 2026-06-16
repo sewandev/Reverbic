@@ -120,6 +120,14 @@ fn is_valid_video_id(id: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
 }
 
+fn is_valid_playlist_id(id: &str) -> bool {
+    !id.is_empty()
+        && id.len() <= 64
+        && id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+}
+
 pub async fn fetch_playlist_videos(
     binary: &Path,
     cookies_path: Option<&Path>,
@@ -127,6 +135,11 @@ pub async fn fetch_playlist_videos(
     playlist_id: &str,
     limit: usize,
 ) -> Result<Vec<YoutubeVideo>, YoutubeError> {
+    if !is_valid_playlist_id(playlist_id) {
+        return Err(YoutubeError::Library(crate::i18n::t(
+            "modal.youtube.library_failed",
+        )));
+    }
     let url = format!("https://www.youtube.com/playlist?list={playlist_id}");
     let bytes = run_flat_playlist(binary, &url, limit, cookies_path, deno_path).await?;
     parse_video_entries(&bytes)

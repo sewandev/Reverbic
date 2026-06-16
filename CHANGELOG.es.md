@@ -20,6 +20,7 @@ Versionado: [Semantic Versioning](https://semver.org/)
 - Se mejoró la fiabilidad del audio de YouTube para que más videos se resuelvan a una pista de solo audio limpia en lugar de caer a un formato combinado de menor calidad.
 
 ### Security
+- Los identificadores de playlists de YouTube ahora se validan antes de usarse para construir la URL de la solicitud, igual que la verificación ya existente para los identificadores de video (defensa en profundidad).
 - Las descargas de actualizaciones ahora usan un directorio privado del usuario en lugar de la carpeta temporal compartida del sistema, cerrando un vector teórico de secuestro por symlink local durante la auto-actualización en sistemas multiusuario.
 
 ## [1.5.5] - 2026-06-14
