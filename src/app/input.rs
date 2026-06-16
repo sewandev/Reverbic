@@ -540,6 +540,11 @@ impl App {
             return;
         }
 
+        if self.overlay_picker_open {
+            self.on_key_overlay_picker(event.code);
+            return;
+        }
+
         if event.modifiers.contains(KeyModifiers::CONTROL)
             && event.modifiers.contains(KeyModifiers::SHIFT)
         {
@@ -1419,6 +1424,7 @@ impl App {
             }
             SettingItem::Theme => self.open_theme_picker(),
             SettingItem::Screensaver => self.open_ambient_picker(),
+            SettingItem::OverlayMode => self.open_overlay_picker(),
             SettingItem::ReplayOnboarding => {
                 self.replay_onboarding = true;
                 self.show_search_modal = true;
@@ -1490,7 +1496,7 @@ impl App {
     }
 
     fn keep_ambient_picker_visible(&mut self) {
-        let visible = crate::ui::widgets::ambient_picker::visible_rows(
+        let visible = crate::ui::widgets::picker::visible_rows(
             self.terminal_area,
             super::ambient_items().len(),
         );
@@ -1553,6 +1559,75 @@ impl App {
             }
             SettingItem::ScreensaverNowPlaying => {
                 self.config.screensaver_now_playing = !self.config.screensaver_now_playing
+            }
+            _ => {}
+        }
+    }
+
+    fn open_overlay_picker(&mut self) {
+        self.overlay_picker_selected = 0;
+        self.keep_overlay_picker_visible();
+        self.overlay_picker_open = true;
+    }
+
+    fn keep_overlay_picker_visible(&mut self) {
+        let visible = crate::ui::widgets::picker::visible_rows(
+            self.terminal_area,
+            super::overlay_items().len(),
+        );
+        keep_selected_visible(
+            &mut self.overlay_picker_scroll_offset,
+            self.overlay_picker_selected,
+            visible,
+        );
+    }
+
+    fn on_key_overlay_picker(&mut self, key: KeyCode) {
+        let items = super::overlay_items();
+        match key {
+            KeyCode::Esc | KeyCode::Left => {
+                self.overlay_picker_open = false;
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                self.overlay_picker_selected =
+                    cycle_prev(self.overlay_picker_selected, items.len());
+                self.keep_overlay_picker_visible();
+            }
+            KeyCode::Down | KeyCode::Char('j') => {
+                self.overlay_picker_selected =
+                    cycle_next(self.overlay_picker_selected, items.len());
+                self.keep_overlay_picker_visible();
+            }
+            KeyCode::Enter | KeyCode::Char(' ') | KeyCode::Right => {
+                if let Some(&item) = items.get(self.overlay_picker_selected) {
+                    self.toggle_overlay_item(item);
+                    self.save_config();
+                    if let Some(ref tx) = self.windows_tx {
+                        let _ = tx.send(self.config.clone());
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn toggle_overlay_item(&mut self, item: SettingItem) {
+        match item {
+            SettingItem::OverlayMode => self.config.overlay_mode = self.config.overlay_mode.next(),
+            SettingItem::OverlayStyle => {
+                self.config.overlay_style = self.config.overlay_style.next()
+            }
+            SettingItem::OverlayAlpha => {
+                self.config.overlay_alpha = match self.config.overlay_alpha {
+                    v if v < 30 => 30,
+                    v if v < 50 => 50,
+                    v if v < 70 => 70,
+                    v if v < 90 => 90,
+                    _ => 20,
+                };
+            }
+            SettingItem::OverlayPosition => {
+                self.config.overlay_position = self.config.overlay_position.next()
             }
             _ => {}
         }
@@ -2761,24 +2836,10 @@ impl App {
                         .await;
                 });
             }
-            super::modal::SettingItem::OverlayMode => {
-                self.config.overlay_mode = self.config.overlay_mode.next()
-            }
-            super::modal::SettingItem::OverlayAlpha => {
-                self.config.overlay_alpha = match self.config.overlay_alpha {
-                    v if v < 30 => 30,
-                    v if v < 50 => 50,
-                    v if v < 70 => 70,
-                    v if v < 90 => 90,
-                    _ => 20,
-                };
-            }
-            super::modal::SettingItem::OverlayPosition => {
-                self.config.overlay_position = self.config.overlay_position.next()
-            }
-            super::modal::SettingItem::OverlayStyle => {
-                self.config.overlay_style = self.config.overlay_style.next()
-            }
+            super::modal::SettingItem::OverlayMode
+            | super::modal::SettingItem::OverlayAlpha
+            | super::modal::SettingItem::OverlayPosition
+            | super::modal::SettingItem::OverlayStyle => self.toggle_overlay_item(item),
             super::modal::SettingItem::Screensaver
             | super::modal::SettingItem::ScreensaverClock
             | super::modal::SettingItem::ScreensaverLogo

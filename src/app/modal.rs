@@ -205,18 +205,17 @@ impl SettingItem {
             | Self::YoutubeCrossfade
             | Self::YoutubeCookiesPath
             | Self::YoutubeCookiesValidate => "config.group.youtube",
-            Self::OverlayMode
-            | Self::OverlayAlpha
-            | Self::OverlayPosition
-            | Self::OverlayStyle
-            | Self::Screensaver
+            Self::OverlayMode | Self::OverlayAlpha | Self::OverlayPosition | Self::OverlayStyle => {
+                "config.group.overlay"
+            }
+            Self::Screensaver
             | Self::ScreensaverClock
             | Self::ScreensaverLogo
             | Self::ScreensaverVisualizer
             | Self::ScreensaverRecentTracks
             | Self::ScreensaverProgressBar
             | Self::ScreensaverStationDetails
-            | Self::ScreensaverNowPlaying => "config.group.overlay",
+            | Self::ScreensaverNowPlaying => "config.group.ambient",
             Self::DuckEnabled | Self::DuckVolume => "config.group.game",
             Self::MediaKeys
             | Self::TrayIcon
@@ -265,9 +264,6 @@ pub fn settings_items(duck_enabled: bool) -> Vec<SettingItem> {
         SettingItem::YoutubeCookiesPath,
         SettingItem::YoutubeCookiesValidate,
         SettingItem::OverlayMode,
-        SettingItem::OverlayStyle,
-        SettingItem::OverlayAlpha,
-        SettingItem::OverlayPosition,
         SettingItem::Screensaver,
     ];
 
@@ -304,6 +300,15 @@ pub fn ambient_items() -> Vec<SettingItem> {
         SettingItem::ScreensaverProgressBar,
         SettingItem::ScreensaverStationDetails,
         SettingItem::ScreensaverNowPlaying,
+    ]
+}
+
+pub fn overlay_items() -> Vec<SettingItem> {
+    vec![
+        SettingItem::OverlayMode,
+        SettingItem::OverlayStyle,
+        SettingItem::OverlayAlpha,
+        SettingItem::OverlayPosition,
     ]
 }
 

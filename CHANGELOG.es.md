@@ -16,6 +16,7 @@ Versionado: [Semantic Versioning](https://semver.org/)
 
 ### Changed
 - La configuración del Modo Ambiente ahora se abre en una ventana emergente propia (como el selector de temas) en lugar de expandirse en la lista de ajustes. Al elegir "Modo Ambiente" se abre un modal pequeño donde se ajusta el tiempo de activación y se activan o desactivan todos los widgets (reloj, logo, visualizador, pistas recientes, barra de progreso, detalles de la estación, reproducción actual).
+- La configuración del Overlay también se abre ahora en una ventana emergente propia: al elegir "Overlay" se abre un modal pequeño con el modo de visualización, el estilo, la transparencia y la posición. El Modo Ambiente y el Overlay ahora son secciones separadas en Configuración en lugar de estar agrupados juntos.
 
 ### Fixed
 - La reproducción de audio ya no corre el riesgo de un fallo en cascada si un bloqueo interno del stream queda en estado inconsistente; el reproductor ahora se recupera en lugar de cerrarse abruptamente.

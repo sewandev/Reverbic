@@ -16,6 +16,7 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ### Changed
 - The Ambient Mode settings now open in a dedicated pop-up (like the theme picker) instead of expanding inline in the settings list. Selecting "Ambient Mode" opens a small modal where you set the activation time and toggle every widget (clock, logo, visualizer, recent tracks, progress bar, station details, now playing).
+- The Overlay settings now also open in a dedicated pop-up: selecting "Overlay" opens a small modal with the display mode, style, transparency and position. Ambient Mode and Overlay are now separate sections in Settings instead of being grouped together.
 
 ### Fixed
 - Audio playback no longer risks a cascading crash if an internal stream lock is left in a poisoned state; the player now recovers instead of panicking.
