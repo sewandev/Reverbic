@@ -6,12 +6,12 @@ use ratatui::{
     Frame,
 };
 
-use crate::app::{ambient_items, SettingItem};
+use crate::app::{ambient_items, overlay_items, SettingItem};
 use crate::audio::{PlayerState, PlayerStatus};
 use crate::i18n::t;
 use crate::ui::strings::screensaver_display;
 use crate::ui::theme::{self, Palette, ThemeId};
-use crate::ui::widgets::{ambient_picker, theme_picker};
+use crate::ui::widgets::{picker, theme_picker};
 
 pub(super) fn render_rename_overlay(
     frame: &mut Frame,
@@ -514,19 +514,60 @@ pub(super) fn render_ambient_picker_overlay(
     scroll_offset: usize,
     palette: &Palette,
 ) {
-    let items = ambient_items();
+    render_list_picker(
+        frame,
+        &ambient_items(),
+        &t("ambient.picker.title"),
+        &t("ambient.picker.hint"),
+        selected,
+        scroll_offset,
+        palette,
+        |item| ambient_item_value(config, item),
+    );
+}
+
+pub(super) fn render_overlay_picker_overlay(
+    frame: &mut Frame,
+    config: &crate::config::Config,
+    selected: usize,
+    scroll_offset: usize,
+    palette: &Palette,
+) {
+    render_list_picker(
+        frame,
+        &overlay_items(),
+        &t("overlay.picker.title"),
+        &t("overlay.picker.hint"),
+        selected,
+        scroll_offset,
+        palette,
+        |item| overlay_item_value(config, item),
+    );
+}
+
+#[allow(clippy::too_many_arguments)]
+fn render_list_picker(
+    frame: &mut Frame,
+    items: &[SettingItem],
+    title: &str,
+    hint: &str,
+    selected: usize,
+    scroll_offset: usize,
+    palette: &Palette,
+    value_of: impl Fn(SettingItem) -> String,
+) {
     let item_count = items.len();
     let area = frame.area();
-    let visible_rows = ambient_picker::visible_rows(area, item_count);
+    let visible_rows = picker::visible_rows(area, item_count);
     let scroll_offset = scroll_offset.min(item_count.saturating_sub(visible_rows));
-    let panel = ambient_picker::panel(area, item_count);
+    let panel = picker::panel(area, item_count);
 
     frame.render_widget(Clear, panel);
 
     let block = Block::default()
         .title_top(
             Line::from(Span::styled(
-                t("ambient.picker.title"),
+                title,
                 Style::default()
                     .fg(palette.highlight)
                     .add_modifier(Modifier::BOLD),
@@ -534,11 +575,8 @@ pub(super) fn render_ambient_picker_overlay(
             .alignment(Alignment::Center),
         )
         .title_bottom(
-            Line::from(Span::styled(
-                t("ambient.picker.hint"),
-                Style::default().fg(palette.muted),
-            ))
-            .alignment(Alignment::Center),
+            Line::from(Span::styled(hint, Style::default().fg(palette.muted)))
+                .alignment(Alignment::Center),
         )
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
@@ -565,7 +603,7 @@ pub(super) fn render_ambient_picker_overlay(
         let active = i == selected;
         let marker = if active { ">" } else { " " };
         let label = item.label();
-        let value = ambient_item_value(config, *item);
+        let value = value_of(*item);
 
         let label_style = if active {
             Style::default()
@@ -618,6 +656,16 @@ fn ambient_item_value(config: &crate::config::Config, item: SettingItem) -> Stri
         SettingItem::ScreensaverProgressBar => flag(config.screensaver_progress_bar),
         SettingItem::ScreensaverStationDetails => flag(config.screensaver_station_details),
         SettingItem::ScreensaverNowPlaying => flag(config.screensaver_now_playing),
+        _ => String::new(),
+    }
+}
+
+fn overlay_item_value(config: &crate::config::Config, item: SettingItem) -> String {
+    match item {
+        SettingItem::OverlayMode => config.overlay_mode.display(),
+        SettingItem::OverlayStyle => config.overlay_style.display(),
+        SettingItem::OverlayAlpha => format!("{}%", config.overlay_alpha),
+        SettingItem::OverlayPosition => config.overlay_position.display(),
         _ => String::new(),
     }
 }

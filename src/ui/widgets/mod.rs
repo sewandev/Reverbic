@@ -1,7 +1,7 @@
-pub mod ambient_picker;
 pub mod clock;
 pub mod controls;
 pub mod logo;
+pub mod picker;
 pub mod progress;
 pub mod recent_tracks;
 pub mod search_modal;

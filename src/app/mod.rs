@@ -14,7 +14,7 @@ mod youtube;
 mod youtube_state;
 
 pub use modal::{
-    ambient_items, settings_items, AppFocus, RadioSubTab, SearchMode, SettingItem,
+    ambient_items, overlay_items, settings_items, AppFocus, RadioSubTab, SearchMode, SettingItem,
     SpotifyAuthStatus, SpotifyPlayerStatus, SpotifySubTab, YoutubeSubTab,
 };
 use notice::NoticeQueue;
@@ -207,6 +207,9 @@ pub struct App {
     pub ambient_picker_open: bool,
     pub ambient_picker_selected: usize,
     pub ambient_picker_scroll_offset: usize,
+    pub overlay_picker_open: bool,
+    pub overlay_picker_selected: usize,
+    pub overlay_picker_scroll_offset: usize,
     pub click_flash: Option<(usize, Instant)>,
     pub last_activity: Instant,
     pub border_tick: u32,
@@ -330,6 +333,9 @@ impl App {
             ambient_picker_open: false,
             ambient_picker_selected: 0,
             ambient_picker_scroll_offset: 0,
+            overlay_picker_open: false,
+            overlay_picker_selected: 0,
+            overlay_picker_scroll_offset: 0,
             click_flash: None,
             last_activity: Instant::now(),
             border_tick: 0,
@@ -895,6 +901,9 @@ mod tests {
             ambient_picker_open: false,
             ambient_picker_selected: 0,
             ambient_picker_scroll_offset: 0,
+            overlay_picker_open: false,
+            overlay_picker_selected: 0,
+            overlay_picker_scroll_offset: 0,
             click_flash: None,
             last_activity: Instant::now(),
             border_tick: 0,
