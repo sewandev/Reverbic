@@ -88,7 +88,9 @@ async fn installed_version(binary: &Path) -> Option<String> {
     if version.is_empty() {
         return None;
     }
-    let _ = tokio::fs::write(version_file_path(), &version).await;
+    if let Err(e) = tokio::fs::write(version_file_path(), &version).await {
+        tracing::debug!("yt-dlp: could not persist resolved version: {e}");
+    }
     Some(version)
 }
 
