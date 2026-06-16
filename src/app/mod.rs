@@ -744,9 +744,9 @@ impl App {
         self.config.volume = self.player.state().volume;
         let config = self.config.clone();
         tokio::spawn(async move {
-            tokio::task::spawn_blocking(move || config.save())
-                .await
-                .ok();
+            if let Err(e) = tokio::task::spawn_blocking(move || config.save()).await {
+                tracing::warn!("config save task did not complete: {e}");
+            }
         });
     }
 
