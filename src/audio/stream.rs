@@ -109,7 +109,7 @@ impl StreamReader {
     }
     pub fn pre_buffer(&mut self, target_bytes: usize, mut progress: impl FnMut(f32)) {
         while self.buffered < target_bytes {
-            let rx = self.rx.lock().expect("StreamReader mutex poisoned");
+            let rx = self.rx.lock().unwrap_or_else(|e| e.into_inner());
             let result = rx.recv_timeout(std::time::Duration::from_millis(100));
             drop(rx);
             match result {
@@ -132,7 +132,7 @@ impl Read for StreamReader {
             return Ok(0);
         }
         if self.buffered == 0 {
-            let rx = self.rx.lock().expect("StreamReader mutex poisoned");
+            let rx = self.rx.lock().unwrap_or_else(|e| e.into_inner());
             match rx.recv() {
                 Ok(chunk) => {
                     drop(rx);
@@ -144,7 +144,7 @@ impl Read for StreamReader {
         {
             let mut pending: Vec<Bytes> = Vec::new();
             {
-                let rx = self.rx.lock().expect("StreamReader mutex poisoned");
+                let rx = self.rx.lock().unwrap_or_else(|e| e.into_inner());
                 while let Ok(chunk) = rx.try_recv() {
                     pending.push(chunk);
                 }

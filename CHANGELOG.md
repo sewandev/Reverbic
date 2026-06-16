@@ -15,6 +15,7 @@ Versioning: [Semantic Versioning](https://semver.org/)
 - New "Public playlists" sub-tab in YouTube, right next to "Search", that searches public playlists by name (for example, typing "nier automata" lists matching playlists). Like "Search", it works without signing in; open a playlist to browse and play its videos.
 
 ### Fixed
+- Audio playback no longer risks a cascading crash if an internal stream lock is left in a poisoned state; the player now recovers instead of panicking.
 - YouTube no longer stops working on long-standing installs: the bundled Deno runtime is now kept up to date automatically (like yt-dlp), so playback keeps resolving after a yt-dlp update that requires a newer Deno.
 - Improved YouTube audio reliability so more videos resolve to a clean audio-only stream instead of falling back to a lower-quality combined format.
 
