@@ -132,9 +132,9 @@ pub struct TabDots {
 
 impl TabDots {
     pub fn active_source(&self) -> Option<&'static str> {
-        if self.spotify == Some(TabDot::Playing) || self.spotify == Some(TabDot::Warning) {
+        if self.spotify == Some(TabDot::Playing) {
             Some("Spotify")
-        } else if self.youtube == Some(TabDot::Playing) || self.youtube == Some(TabDot::Danger) {
+        } else if self.youtube == Some(TabDot::Playing) {
             Some("YouTube")
         } else if self.radio == Some(TabDot::Playing) {
             Some("Radio")
