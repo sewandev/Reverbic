@@ -730,6 +730,20 @@ impl App {
         }
     }
 
+    pub(super) fn youtube_jump(&mut self, delta: i32) {
+        if delta >= 0 {
+            self.advance_youtube_playback();
+            return;
+        }
+        let Some((ctx, index)) = self.youtube.playback_context.clone() else {
+            return;
+        };
+        if index == 0 {
+            return;
+        }
+        self.play_youtube_from_context(ctx, index - 1);
+    }
+
     fn advance_youtube_playback(&mut self) {
         let Some((ctx, index)) = self.youtube.playback_context.clone() else {
             tracing::debug!("youtube: track ended without playback context, nothing to advance");
