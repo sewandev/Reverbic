@@ -536,7 +536,8 @@ async fn download_to_file(
         loop {
             match tokio::time::timeout(std::time::Duration::from_secs(5), stream.next()).await {
                 Ok(Some(Ok(bytes))) => {
-                    if file.write_all(&bytes).is_err() {
+                    if let Err(e) = file.write_all(&bytes) {
+                        tracing::error!("File download: disk write failed: {e}");
                         disk_error = true;
                         break;
                     }
@@ -566,7 +567,6 @@ async fn download_to_file(
         }
 
         if disk_error {
-            tracing::error!("File download: disk write failed, aborting");
             break;
         }
 
@@ -591,7 +591,9 @@ async fn download_to_file(
         break;
     }
 
-    let _ = file.flush();
+    if let Err(e) = file.flush() {
+        tracing::warn!("File download: final flush failed, file may be incomplete: {e}");
+    }
     tracing::info!("File download ended at {current_offset} bytes");
     download_done.store(true, Ordering::Release);
     Ok(())

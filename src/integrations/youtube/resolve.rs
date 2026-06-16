@@ -120,6 +120,8 @@ pub async fn resolve_audio_url(
                 ));
             }
         }
+    } else {
+        tracing::warn!("youtube url cache lock poisoned during lookup, skipping cache");
     }
 
     let (resolved, used_cookies) = match run_yt_dlp_resolve(binary, watch_url, None, deno_path)
@@ -153,6 +155,8 @@ pub async fn resolve_audio_url(
         if persist {
             save_cache_to_disk(&cache);
         }
+    } else {
+        tracing::warn!("youtube url cache lock poisoned during insert, result not cached");
     }
 
     Ok((resolved_url, headers, chapters))
@@ -234,13 +238,25 @@ async fn probe_live_status(
     args.push("-j".to_string());
     args.push(watch_url.to_string());
 
-    let output = Command::new(binary).args(args).output().await.ok()?;
+    let output = match Command::new(binary).args(args).output().await {
+        Ok(output) => output,
+        Err(e) => {
+            tracing::debug!(watch_url, "live status probe failed to spawn: {e}");
+            return None;
+        }
+    };
     if !output.status.success() {
         tracing::debug!(watch_url, "live status probe failed");
         return None;
     }
     let json: serde_json::Value =
-        serde_json::from_str(String::from_utf8_lossy(&output.stdout).trim()).ok()?;
+        match serde_json::from_str(String::from_utf8_lossy(&output.stdout).trim()) {
+            Ok(json) => json,
+            Err(e) => {
+                tracing::debug!(watch_url, "live status probe returned invalid json: {e}");
+                return None;
+            }
+        };
     json["live_status"].as_str().map(str::to_string)
 }
 
