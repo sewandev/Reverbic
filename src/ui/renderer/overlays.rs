@@ -6,7 +6,9 @@ use ratatui::{
     Frame,
 };
 
-use crate::app::{ambient_items, overlay_items, SettingItem};
+use crate::app::{
+    ambient_item_disabled, ambient_items, overlay_item_disabled, overlay_items, SettingItem,
+};
 use crate::audio::{PlayerState, PlayerStatus};
 use crate::i18n::t;
 use crate::ui::strings::screensaver_display;
@@ -523,6 +525,7 @@ pub(super) fn render_ambient_picker_overlay(
         scroll_offset,
         palette,
         |item| ambient_item_value(config, item),
+        |item| ambient_item_disabled(config, item),
     );
 }
 
@@ -542,6 +545,7 @@ pub(super) fn render_overlay_picker_overlay(
         scroll_offset,
         palette,
         |item| overlay_item_value(config, item),
+        |item| overlay_item_disabled(config, item),
     );
 }
 
@@ -555,6 +559,7 @@ fn render_list_picker(
     scroll_offset: usize,
     palette: &Palette,
     value_of: impl Fn(SettingItem) -> String,
+    disabled_of: impl Fn(SettingItem) -> bool,
 ) {
     let item_count = items.len();
     let area = frame.area();
@@ -601,18 +606,23 @@ fn render_list_picker(
             break;
         }
         let active = i == selected;
+        let disabled = disabled_of(*item);
         let marker = if active { ">" } else { " " };
         let label = item.label();
         let value = value_of(*item);
 
-        let label_style = if active {
+        let label_style = if disabled {
+            Style::default().fg(palette.dim)
+        } else if active {
             Style::default()
                 .fg(palette.playing)
                 .add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(palette.highlight)
         };
-        let value_style = if active {
+        let value_style = if disabled {
+            Style::default().fg(palette.dim)
+        } else if active {
             Style::default()
                 .fg(palette.playing)
                 .add_modifier(Modifier::BOLD)

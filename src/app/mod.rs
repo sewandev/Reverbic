@@ -15,8 +15,9 @@ mod youtube;
 mod youtube_state;
 
 pub use modal::{
-    ambient_items, overlay_items, settings_items, AppFocus, RadioSubTab, SearchMode, SettingItem,
-    SpotifyAuthStatus, SpotifyPlayerStatus, SpotifySubTab, YoutubeSubTab,
+    ambient_item_disabled, ambient_items, overlay_item_disabled, overlay_items, settings_items,
+    AppFocus, RadioSubTab, SearchMode, SettingItem, SpotifyAuthStatus, SpotifyPlayerStatus,
+    SpotifySubTab, YoutubeSubTab,
 };
 use notice::NoticeQueue;
 pub use notice::NoticeSeverity;

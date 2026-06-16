@@ -137,6 +137,7 @@ pub struct SearchModalWidget<'a> {
     pub youtube_selected: usize,
     pub youtube_scroll_offset: usize,
     pub youtube_cookies_configured: bool,
+    pub youtube_cookies_present: bool,
     pub youtube_session_health: Option<bool>,
     pub youtube_validating: bool,
     pub youtube_sub_tab: crate::app::YoutubeSubTab,
@@ -347,6 +348,7 @@ impl<'a> SearchModalWidget<'a> {
             youtube_scroll_offset: yt.scroll_offset,
             youtube_cookies_configured: app.config.youtube.cookies_path.is_some()
                 && !yt.cookies_invalid,
+            youtube_cookies_present: app.config.youtube.cookies_path.is_some(),
             youtube_session_health: yt.session_health,
             youtube_validating: yt.validating(),
             youtube_sub_tab: yt.sub_tab,

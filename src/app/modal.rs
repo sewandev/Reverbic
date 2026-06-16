@@ -245,17 +245,17 @@ impl SettingItem {
     }
 }
 
-pub fn settings_items(duck_enabled: bool) -> Vec<SettingItem> {
+pub fn settings_items() -> Vec<SettingItem> {
     let mut items = vec![
         SettingItem::Autoplay,
         SettingItem::RestoreVolume,
         SettingItem::Crossfade,
         SettingItem::VolumeStep,
         SettingItem::Prebuffer,
+        SettingItem::SpotifyClientId,
         SettingItem::SpotifyRadioMode,
         SettingItem::SpotifyStopOnQuit,
         SettingItem::SpotifyStartOnSpotify,
-        SettingItem::SpotifyClientId,
         SettingItem::SpotifyPlaybackMode,
         SettingItem::SpotifyCrossfade,
         SettingItem::YoutubeRadioMode,
@@ -265,13 +265,8 @@ pub fn settings_items(duck_enabled: bool) -> Vec<SettingItem> {
         SettingItem::YoutubeCookiesValidate,
         SettingItem::OverlayMode,
         SettingItem::Screensaver,
-    ];
-
-    items.push(SettingItem::DuckEnabled);
-    if duck_enabled {
-        items.push(SettingItem::DuckVolume);
-    }
-    items.extend([
+        SettingItem::DuckEnabled,
+        SettingItem::DuckVolume,
         SettingItem::MediaKeys,
         SettingItem::TrayIcon,
         SettingItem::Notifications,
@@ -281,7 +276,7 @@ pub fn settings_items(duck_enabled: bool) -> Vec<SettingItem> {
         SettingItem::OpenLogs,
         SettingItem::Language,
         SettingItem::Theme,
-    ]);
+    ];
 
     if !cfg!(target_os = "windows") {
         items.retain(|item| !item.is_windows_only());
@@ -310,6 +305,17 @@ pub fn overlay_items() -> Vec<SettingItem> {
         SettingItem::OverlayAlpha,
         SettingItem::OverlayPosition,
     ]
+}
+
+pub fn ambient_item_disabled(config: &crate::config::Config, item: SettingItem) -> bool {
+    !matches!(item, SettingItem::Screensaver) && config.screensaver_secs == 0
+}
+
+pub fn overlay_item_disabled(config: &crate::config::Config, item: SettingItem) -> bool {
+    matches!(
+        item,
+        SettingItem::OverlayAlpha | SettingItem::OverlayPosition | SettingItem::OverlayStyle
+    ) && config.overlay_mode == crate::config::OverlayMode::Hidden
 }
 
 pub enum AppFocus {
