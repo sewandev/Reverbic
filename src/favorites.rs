@@ -52,7 +52,9 @@ pub fn load() -> Vec<FavoriteStation> {
 }
 
 pub fn save(favorites: &[FavoriteStation]) {
-    let _ = crate::config::save_json_atomic(&path(), favorites);
+    if let Err(e) = crate::config::save_json_atomic(&path(), favorites) {
+        tracing::error!("failed to save favorites: {e}");
+    }
 }
 pub fn toggle(favorites: &mut Vec<FavoriteStation>, fav: FavoriteStation) -> bool {
     if let Some(i) = favorites.iter().position(|f| f.url == fav.url) {

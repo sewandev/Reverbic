@@ -52,7 +52,9 @@ pub fn load() -> Vec<YoutubeVideo> {
 
 pub fn save(bookmarks: &[YoutubeVideo]) {
     let entries: Vec<YoutubeBookmark> = bookmarks.iter().map(YoutubeBookmark::from_video).collect();
-    let _ = crate::config::save_json_atomic(&path(), &entries);
+    if let Err(e) = crate::config::save_json_atomic(&path(), &entries) {
+        tracing::error!("failed to save youtube bookmarks: {e}");
+    }
 }
 
 pub fn toggle(bookmarks: &mut Vec<YoutubeVideo>, video: YoutubeVideo) -> bool {
