@@ -10,12 +10,15 @@ Versionado: [Semantic Versioning](https://semver.org/)
 
 ## [Sin publicar]
 
+## [1.5.6] - 2026-06-16
+
 ### Added
 - Controles de pista siguiente/anterior (Ctrl+Derecha / Ctrl+Izquierda) para la reproducción de YouTube, que recorren el contexto actual (resultados de búsqueda, playlist, me gusta, favoritos o mix). El anterior se detiene en el primer elemento; el siguiente extiende el mix o continúa con YouTube Radio al final de una lista, igual que el avance automático.
 - Siguiente/anterior (Ctrl+Derecha / Ctrl+Izquierda) también funcionan en la radio: recorren la lista desde la que se reprodujo la estación (Favoritos o resultados de Búsqueda), o avanzan dentro de la playlist activa. Aparece un aviso breve al inicio/fin de la lista, o cuando no hay nada en reproducción para navegar.
 - Siguiente/anterior (Ctrl+Derecha / Ctrl+Izquierda) también funcionan en Spotify: en modo nativo recorren la cola local y un historial de sesión para el anterior; en modo remoto saltan de pista en el dispositivo activo mediante la Web API de Spotify. El atajo Ctrl+Izquierda/Derecha ahora aparece en la barra de controles del Modo Ambiente y en el panel de ayuda.
 - El título de la ventana de la terminal ahora refleja lo que se está reproduciendo (por ejemplo, "Reverbic v1.5.5 Radio", "Reverbic v1.5.5 YouTube" o "Reverbic v1.5.5 Spotify"), y vuelve a mostrar solo la versión cuando no hay nada sonando.
 - Nueva subpestaña "Playlists públicas" en YouTube, justo al lado de "Buscar", que busca listas de reproducción públicas por nombre (por ejemplo, escribir "nier automata" lista las playlists que coinciden). Al igual que "Buscar", funciona sin iniciar sesión; abre una playlist para explorar y reproducir sus videos.
+- 20 temas oscuros adicionales, seleccionables desde el selector de temas, que ahora permite desplazamiento y muestra una vista previa de color (muestra) por cada tema. La apariencia por defecto de Reverbic no cambia.
 
 ### Changed
 - La configuración es más consistente: las opciones que dependen de otro ajuste ahora aparecen deshabilitadas (atenuadas y no editables) en lugar de aparecer y desaparecer. El volumen del Ducking se deshabilita mientras el ducking está apagado, y "YouTube Radio" y "Validar cookies" se deshabilitan hasta configurar un archivo de cookies. Dentro de las ventanas emergentes de Overlay y Modo Ambiente ocurre lo mismo: poner el Overlay en Oculto deshabilita transparencia/posición/estilo, y apagar el Modo Ambiente deshabilita sus widgets. El Client ID de Spotify ahora va primero en la sección de Spotify, por ser el requisito previo para lo demás.

@@ -10,12 +10,15 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ## [Unreleased]
 
+## [1.5.6] - 2026-06-16
+
 ### Added
 - Next/previous track controls (Ctrl+Right / Ctrl+Left) for YouTube playback, moving through the current context (search results, playlist, liked, bookmarks or mix). Previous stops at the first item; next extends the mix or follows YouTube Radio at the end of a list, just like auto-advance.
 - Next/previous (Ctrl+Right / Ctrl+Left) also work for radio: they move through the list the station was played from (Favorites or Search results), or within the active playlist. A short notice appears at the start/end of the list, or when there is nothing playing to navigate.
 - Next/previous (Ctrl+Right / Ctrl+Left) also work for Spotify: in native mode they walk the local queue and a session history for previous; in remote mode they skip on the active device via the Spotify Web API. The Ctrl+Left/Right shortcut now shows in the Ambient Mode controls bar and the help overlay.
 - The terminal window title now reflects what is currently playing (for example, "Reverbic v1.5.5 Radio", "Reverbic v1.5.5 YouTube" or "Reverbic v1.5.5 Spotify"), and goes back to just the version when nothing is playing.
 - New "Public playlists" sub-tab in YouTube, right next to "Search", that searches public playlists by name (for example, typing "nier automata" lists matching playlists). Like "Search", it works without signing in; open a playlist to browse and play its videos.
+- 20 additional dark themes, selectable from the theme picker, which now scrolls and shows a color preview (swatch) for each theme. Reverbic's default look is unchanged.
 
 ### Changed
 - Settings are more consistent: options that depend on another setting now appear disabled (greyed out and non-editable) instead of appearing and disappearing. The Ducking volume is disabled while ducking is off, and "YouTube Radio" and "Validate cookies" are disabled until a cookies file is configured. Inside the Overlay and Ambient Mode pop-ups the same applies: setting the Overlay to Hidden disables transparency/position/style, and turning Ambient Mode off disables its widgets. The Spotify Client ID now comes first in the Spotify section, since it is the prerequisite for everything else.
