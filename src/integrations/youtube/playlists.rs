@@ -10,6 +10,72 @@ use super::{YoutubeError, YoutubePlaylist, YoutubeVideo};
 const LIKED_VIDEOS_URL: &str = "https://www.youtube.com/playlist?list=LL";
 const PLAYLISTS_URL: &str = "https://www.youtube.com/feed/playlists";
 
+// YouTube `sp` filter that restricts search results to playlists only.
+// It is the percent-encoded base64 token YouTube uses internally; isolated here
+// because it is opaque and may need updating if YouTube changes the encoding.
+const SEARCH_PLAYLISTS_FILTER: &str = "EgIQAw%3D%3D";
+
+pub async fn search_playlists(
+    binary: &Path,
+    query: &str,
+    cookies_path: Option<&Path>,
+    deno_path: &Path,
+    limit: usize,
+) -> Result<Vec<YoutubePlaylist>, YoutubeError> {
+    let url = format!(
+        "https://www.youtube.com/results?search_query={}&sp={SEARCH_PLAYLISTS_FILTER}",
+        encode_query(query)
+    );
+
+    let output = Command::new(binary)
+        .args(build_flat_playlist_args(
+            &url,
+            limit,
+            cookies_path,
+            deno_path,
+        ))
+        .output()
+        .await
+        .map_err(|e| {
+            YoutubeError::Search(format!(
+                "{}: {e}",
+                crate::i18n::t("modal.youtube.search_failed")
+            ))
+        })?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let raw = if !stderr.trim().is_empty() {
+            stderr.trim().to_string()
+        } else {
+            stdout.trim().to_string()
+        };
+        tracing::error!(query, "yt-dlp playlist search failed: {raw}");
+        return Err(YoutubeError::Search(format!(
+            "{}: {}",
+            crate::i18n::t("modal.youtube.search_failed"),
+            super::summarize_ytdlp_error(&raw)
+        )));
+    }
+
+    parse_playlists_output(&output.stdout)
+}
+
+fn encode_query(query: &str) -> String {
+    let mut out = String::with_capacity(query.len());
+    for byte in query.bytes() {
+        match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                out.push(byte as char)
+            }
+            b' ' => out.push('+'),
+            _ => out.push_str(&format!("%{byte:02X}")),
+        }
+    }
+    out
+}
+
 pub async fn fetch_liked_videos(
     binary: &Path,
     cookies_path: Option<&Path>,

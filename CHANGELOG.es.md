@@ -10,6 +10,9 @@ Versionado: [Semantic Versioning](https://semver.org/)
 
 ## [Sin publicar]
 
+### Added
+- Nueva subpestaña "Playlists públicas" en YouTube, justo al lado de "Buscar", que busca listas de reproducción públicas por nombre (por ejemplo, escribir "nier automata" lista las playlists que coinciden). Al igual que "Buscar", funciona sin iniciar sesión; abre una playlist para explorar y reproducir sus videos.
+
 ### Security
 - Las descargas de actualizaciones ahora usan un directorio privado del usuario en lugar de la carpeta temporal compartida del sistema, cerrando un vector teórico de secuestro por symlink local durante la auto-actualización en sistemas multiusuario.
 

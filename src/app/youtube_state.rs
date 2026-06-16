@@ -43,6 +43,15 @@ pub struct YoutubeState {
 
     pub sub_tab: YoutubeSubTab,
 
+    pub public_query: String,
+    pub public_results: Vec<YoutubePlaylist>,
+    pub public_selected: usize,
+    pub public_scroll_offset: usize,
+    pub public_loading: bool,
+    pub(super) public_search_pending_until: Option<std::time::Instant>,
+    pub(super) public_search_task: Option<tokio::task::JoinHandle<()>>,
+    pub(super) public_search_rx: Option<PlaylistsRx>,
+
     pub bookmarks: Vec<YoutubeVideo>,
     pub bookmarks_selected: usize,
     pub bookmarks_scroll_offset: usize,
@@ -119,6 +128,7 @@ impl YoutubeState {
 
         abort(&mut self.install_task);
         abort(&mut self.search_task);
+        abort(&mut self.public_search_task);
         abort(&mut self.resolve_task);
         abort(&mut self.liked_task);
         abort(&mut self.playlists_task);
@@ -149,6 +159,14 @@ impl Default for YoutubeState {
             resolve_task: None,
             resolve_rx: None,
             sub_tab: YoutubeSubTab::default(),
+            public_query: String::new(),
+            public_results: Vec::new(),
+            public_selected: 0,
+            public_scroll_offset: 0,
+            public_loading: false,
+            public_search_pending_until: None,
+            public_search_task: None,
+            public_search_rx: None,
             bookmarks: Vec::new(),
             bookmarks_selected: 0,
             bookmarks_scroll_offset: 0,

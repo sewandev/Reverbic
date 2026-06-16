@@ -49,6 +49,7 @@ pub enum RadioSubTab {
 pub enum YoutubeSubTab {
     #[default]
     Search,
+    PublicPlaylists,
     Bookmarks,
     Liked,
     Playlists,
