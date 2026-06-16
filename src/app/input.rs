@@ -256,7 +256,7 @@ impl App {
     fn settings_selected_row(&self) -> usize {
         let mut row = 0usize;
         let mut last_group = "";
-        for (item_idx, item) in settings_items(self.config.duck_enabled).iter().enumerate() {
+        for (item_idx, item) in settings_items().iter().enumerate() {
             let group = item.group_key();
             if group != last_group {
                 row += 1;
@@ -1344,7 +1344,7 @@ impl App {
     }
 
     fn on_key_modal_settings(&mut self, key: KeyCode) {
-        let count = settings_items(self.config.duck_enabled).len();
+        let count = settings_items().len();
         match key {
             KeyCode::Esc => {
                 self.show_help = false;
@@ -1407,12 +1407,29 @@ impl App {
     }
 
     fn activate_setting_selected(&mut self) {
-        let items = settings_items(self.config.duck_enabled);
+        let items = settings_items();
         if let Some(item) = items.get(self.settings_selected).copied() {
+            if self.setting_disabled(item) {
+                return;
+            }
             self.activate_setting_item(item);
             if matches!(self.modal_mode, SearchMode::Settings) {
                 self.keep_settings_visible();
             }
+        }
+    }
+
+    pub(super) fn setting_disabled(&self, item: SettingItem) -> bool {
+        use crate::config::SpotifyPlaybackMode;
+        match item {
+            SettingItem::SpotifyCrossfade => {
+                self.config.spotify.playback_mode != SpotifyPlaybackMode::Native
+            }
+            SettingItem::DuckVolume => !self.config.duck_enabled,
+            SettingItem::YoutubeCookiesValidate | SettingItem::YoutubeRadioMode => {
+                self.config.youtube.cookies_path.is_none()
+            }
+            _ => false,
         }
     }
 
@@ -2126,7 +2143,7 @@ impl App {
     }
 
     fn on_click_settings(&mut self, col: u16, row: u16) {
-        let items = settings_items(self.config.duck_enabled);
+        let items = settings_items();
         let visual_row_count = settings_visual_row_count(&items);
         let Some(visual_row) = one_line_list_index_at(
             settings_items_area(self.terminal_area),
@@ -2679,7 +2696,7 @@ impl App {
                             }
                         }
                         SearchMode::Settings => {
-                            let len = settings_items(self.config.duck_enabled).len();
+                            let len = settings_items().len();
                             if len > 0 {
                                 self.settings_selected =
                                     scroll_by(self.settings_selected, delta, len);
@@ -2824,7 +2841,7 @@ impl App {
 
     fn apply_settings_toggle(&mut self, idx: usize) {
         use crate::i18n;
-        let Some(&item) = settings_items(self.config.duck_enabled).get(idx) else {
+        let Some(&item) = settings_items().get(idx) else {
             return;
         };
         match item {
@@ -3084,7 +3101,7 @@ impl App {
     fn open_settings_at(&mut self, item: SettingItem) {
         self.show_search_modal = true;
         self.modal_mode = SearchMode::Settings;
-        self.settings_selected = settings_items(self.config.duck_enabled)
+        self.settings_selected = settings_items()
             .iter()
             .position(|candidate| *candidate == item)
             .unwrap_or(0);
@@ -3939,7 +3956,7 @@ mod tests {
 
     #[test]
     fn setting_index_at_visual_row_ignores_headers() {
-        let items = settings_items(false);
+        let items = settings_items();
 
         assert_eq!(setting_index_at_visual_row(&items, 0), None);
         assert_eq!(setting_index_at_visual_row(&items, 6), None);
@@ -3947,7 +3964,7 @@ mod tests {
 
     #[test]
     fn setting_index_at_visual_row_returns_item_index() {
-        let items = settings_items(false);
+        let items = settings_items();
 
         assert_eq!(setting_index_at_visual_row(&items, 1), Some(0));
         assert_eq!(setting_index_at_visual_row(&items, 7), Some(5));
@@ -3955,7 +3972,7 @@ mod tests {
 
     #[test]
     fn settings_visual_row_count_includes_headers() {
-        let items = settings_items(false);
+        let items = settings_items();
         let mut groups: Vec<&str> = items.iter().map(|item| item.group_key()).collect();
         groups.dedup();
 
