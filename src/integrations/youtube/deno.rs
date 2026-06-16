@@ -55,6 +55,16 @@ pub async fn update_if_outdated() {
     }
 }
 
+pub async fn ensure_runtime_ready() {
+    let path = managed_binary_path();
+    if !path.exists() {
+        tracing::warn!("deno runtime is missing, reinstalling before the next YouTube attempt");
+        reinstall(&path).await;
+        return;
+    }
+    update_if_outdated().await;
+}
+
 async fn reinstall(path: &Path) {
     match install_latest(path).await {
         Ok(version) => tracing::info!(%version, "deno updated successfully"),

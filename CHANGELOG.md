@@ -16,6 +16,7 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ### Fixed
 - Audio playback no longer risks a cascading crash if an internal stream lock is left in a poisoned state; the player now recovers instead of panicking.
+- YouTube now recovers automatically within the same session if the bundled Deno runtime goes missing or corrupt: after a failed resolve it re-checks the runtime (at most once every few minutes) and reinstalls it if needed, instead of failing until the app is restarted.
 - YouTube no longer stops working on long-standing installs: the bundled Deno runtime is now kept up to date automatically (like yt-dlp), so playback keeps resolving after a yt-dlp update that requires a newer Deno.
 - Improved YouTube audio reliability so more videos resolve to a clean audio-only stream instead of falling back to a lower-quality combined format.
 

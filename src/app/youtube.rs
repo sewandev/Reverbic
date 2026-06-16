@@ -22,6 +22,7 @@ const PUBLIC_PLAYLISTS_LIMIT: usize = 30;
 const PLAYLIST_VIDEOS_LIMIT: usize = 50;
 const MIX_FETCH_LIMIT: usize = 25;
 const MIX_EXTEND_THRESHOLD: usize = 3;
+const DENO_HEALTH_COOLDOWN: Duration = Duration::from_secs(600);
 
 impl App {
     pub fn ensure_youtube_ready(&mut self) {
@@ -557,6 +558,7 @@ impl App {
                     self.youtube.resolve_task = None;
                     tracing::error!("youtube: resolve failed, surfacing to user: {err}");
                     self.youtube.status = YoutubeStatus::Error(err.to_string());
+                    self.maybe_recover_deno_runtime();
                 }
                 Err(std::sync::mpsc::TryRecvError::Empty) => {
                     self.youtube.resolve_rx = Some(rx);
@@ -569,6 +571,17 @@ impl App {
                 }
             }
         }
+    }
+
+    fn maybe_recover_deno_runtime(&mut self) {
+        let now = Instant::now();
+        if let Some(checked_at) = self.youtube.deno_health_checked_at {
+            if now.duration_since(checked_at) < DENO_HEALTH_COOLDOWN {
+                return;
+            }
+        }
+        self.youtube.deno_health_checked_at = Some(now);
+        tokio::spawn(deno::ensure_runtime_ready());
     }
 
     pub fn poll_youtube_preresolve(&mut self) {
