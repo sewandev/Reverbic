@@ -209,6 +209,8 @@
   "theme.terminal_green": "Terminal Green",
   "theme.picker.title": " Tema ",
   "theme.picker.hint": " [↑↓] Elegir  [↵] Aplicar  [Esc] Cancelar ",
+  "ambient.picker.title": " Modo Ambiente ",
+  "ambient.picker.hint": " [↑↓] Mover  [↵/Espacio] Cambiar  [Esc] Cerrar ",
   "help.recent": "[↵] Guardar  [p] Preview  [Esc] Volver",
   "help.station_search": "[↵] Play  [Backspace] Borrar  [Esc] Cancelar",
   "help.demand.hint": "[↵] Play  [[] -1min  []] +1min  [p] Programa  [Esc] Volver",

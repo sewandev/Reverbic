@@ -6,10 +6,12 @@ use ratatui::{
     Frame,
 };
 
+use crate::app::{ambient_items, SettingItem};
 use crate::audio::{PlayerState, PlayerStatus};
 use crate::i18n::t;
+use crate::ui::strings::screensaver_display;
 use crate::ui::theme::{self, Palette, ThemeId};
-use crate::ui::widgets::theme_picker;
+use crate::ui::widgets::{ambient_picker, theme_picker};
 
 pub(super) fn render_rename_overlay(
     frame: &mut Frame,
@@ -503,6 +505,121 @@ fn theme_picker_row(
         ));
     }
     Line::from(spans)
+}
+
+pub(super) fn render_ambient_picker_overlay(
+    frame: &mut Frame,
+    config: &crate::config::Config,
+    selected: usize,
+    scroll_offset: usize,
+    palette: &Palette,
+) {
+    let items = ambient_items();
+    let item_count = items.len();
+    let area = frame.area();
+    let visible_rows = ambient_picker::visible_rows(area, item_count);
+    let scroll_offset = scroll_offset.min(item_count.saturating_sub(visible_rows));
+    let panel = ambient_picker::panel(area, item_count);
+
+    frame.render_widget(Clear, panel);
+
+    let block = Block::default()
+        .title_top(
+            Line::from(Span::styled(
+                t("ambient.picker.title"),
+                Style::default()
+                    .fg(palette.highlight)
+                    .add_modifier(Modifier::BOLD),
+            ))
+            .alignment(Alignment::Center),
+        )
+        .title_bottom(
+            Line::from(Span::styled(
+                t("ambient.picker.hint"),
+                Style::default().fg(palette.muted),
+            ))
+            .alignment(Alignment::Center),
+        )
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(palette.accent))
+        .style(Style::default().bg(palette.panel_bg));
+
+    let inner = block.inner(panel);
+    frame.render_widget(block, panel);
+
+    let on = t("config.value.on");
+    let off = t("config.value.off");
+
+    for (visible_i, item) in items
+        .iter()
+        .skip(scroll_offset)
+        .take(visible_rows)
+        .enumerate()
+    {
+        let i = scroll_offset + visible_i;
+        let y = inner.y + 1 + visible_i as u16;
+        if y >= inner.bottom() {
+            break;
+        }
+        let active = i == selected;
+        let marker = if active { ">" } else { " " };
+        let label = item.label();
+        let value = ambient_item_value(config, *item);
+
+        let label_style = if active {
+            Style::default()
+                .fg(palette.playing)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(palette.highlight)
+        };
+        let value_style = if active {
+            Style::default()
+                .fg(palette.playing)
+                .add_modifier(Modifier::BOLD)
+        } else if value == on {
+            Style::default().fg(palette.playing)
+        } else if value == off {
+            Style::default().fg(palette.muted)
+        } else {
+            Style::default().fg(palette.accent)
+        };
+
+        let content_width = inner.width.saturating_sub(2) as usize;
+        let left = format!(" {marker} {label}");
+        let pad = content_width.saturating_sub(left.chars().count() + value.chars().count());
+        let line = Line::from(vec![
+            Span::styled(left, label_style),
+            Span::styled(" ".repeat(pad), Style::default().bg(palette.panel_bg)),
+            Span::styled(value, value_style),
+        ]);
+        frame.render_widget(
+            Paragraph::new(line).style(Style::default().bg(palette.panel_bg)),
+            Rect::new(inner.x + 1, y, content_width as u16, 1),
+        );
+    }
+}
+
+fn ambient_item_value(config: &crate::config::Config, item: SettingItem) -> String {
+    let flag = |v: bool| {
+        if v {
+            t("config.value.on")
+        } else {
+            t("config.value.off")
+        }
+    };
+    match item {
+        SettingItem::Screensaver => screensaver_display(config.screensaver_secs),
+        SettingItem::ScreensaverClock => flag(config.screensaver_clock),
+        SettingItem::ScreensaverLogo => flag(config.screensaver_logo),
+        SettingItem::ScreensaverVisualizer => flag(config.screensaver_visualizer),
+        SettingItem::ScreensaverRecentTracks => flag(config.screensaver_recent_tracks),
+        SettingItem::ScreensaverProgressBar => flag(config.screensaver_progress_bar),
+        SettingItem::ScreensaverStationDetails => flag(config.screensaver_station_details),
+        SettingItem::ScreensaverNowPlaying => flag(config.screensaver_now_playing),
+        _ => String::new(),
+    }
 }
 
 pub(super) fn render_game_strip(

@@ -1,3 +1,4 @@
+pub mod ambient_picker;
 pub mod clock;
 pub mod controls;
 pub mod logo;

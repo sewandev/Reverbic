@@ -229,7 +229,7 @@ impl<'a> SearchModalWidget<'a> {
     ) {
         let mut rows: Vec<(String, Option<(String, bool)>)> = Vec::new();
         let mut last_group = "";
-        for item in settings_items(self.duck_enabled, self.screensaver_secs > 0) {
+        for item in settings_items(self.duck_enabled) {
             let gk = item.group_key();
             if gk != last_group {
                 rows.push((t(gk), None));
@@ -356,7 +356,7 @@ impl<'a> SearchModalWidget<'a> {
         Paragraph::new(Span::styled(sep, Style::default().fg(self.palette.dim)))
             .render(Rect::new(content_x, tooltip_area.y, content_w, 1), buf);
 
-        let tooltip = settings_items(self.duck_enabled, self.screensaver_secs > 0)
+        let tooltip = settings_items(self.duck_enabled)
             .get(self.settings_selected)
             .map(|item| t(item.tooltip_key()))
             .unwrap_or_default();

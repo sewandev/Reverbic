@@ -14,6 +14,9 @@ Versionado: [Semantic Versioning](https://semver.org/)
 - El título de la ventana de la terminal ahora refleja lo que se está reproduciendo (por ejemplo, "Reverbic v1.5.5 Radio", "Reverbic v1.5.5 YouTube" o "Reverbic v1.5.5 Spotify"), y vuelve a mostrar solo la versión cuando no hay nada sonando.
 - Nueva subpestaña "Playlists públicas" en YouTube, justo al lado de "Buscar", que busca listas de reproducción públicas por nombre (por ejemplo, escribir "nier automata" lista las playlists que coinciden). Al igual que "Buscar", funciona sin iniciar sesión; abre una playlist para explorar y reproducir sus videos.
 
+### Changed
+- La configuración del Modo Ambiente ahora se abre en una ventana emergente propia (como el selector de temas) en lugar de expandirse en la lista de ajustes. Al elegir "Modo Ambiente" se abre un modal pequeño donde se ajusta el tiempo de activación y se activan o desactivan todos los widgets (reloj, logo, visualizador, pistas recientes, barra de progreso, detalles de la estación, reproducción actual).
+
 ### Fixed
 - La reproducción de audio ya no corre el riesgo de un fallo en cascada si un bloqueo interno del stream queda en estado inconsistente; el reproductor ahora se recupera en lugar de cerrarse abruptamente.
 - YouTube ahora se recupera automáticamente dentro de la misma sesión si el runtime de Deno incluido desaparece o se corrompe: tras un resolve fallido vuelve a verificar el runtime (como máximo una vez cada pocos minutos) y lo reinstala si hace falta, en lugar de fallar hasta reiniciar la app.

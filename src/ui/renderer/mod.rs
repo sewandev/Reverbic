@@ -7,10 +7,10 @@ use crate::app::App;
 use crate::ui::theme;
 use ambient::{render_ambient_mode, AmbientContent};
 use overlays::{
-    render_client_id_overlay, render_cookies_path_overlay, render_device_picker_overlay,
-    render_game_strip, render_help_overlay, render_modal_np_strip, render_modal_spotify_strip,
-    render_playlist_picker_overlay, render_rename_overlay, render_theme_picker_overlay,
-    render_update_toast,
+    render_ambient_picker_overlay, render_client_id_overlay, render_cookies_path_overlay,
+    render_device_picker_overlay, render_game_strip, render_help_overlay, render_modal_np_strip,
+    render_modal_spotify_strip, render_playlist_picker_overlay, render_rename_overlay,
+    render_theme_picker_overlay, render_update_toast,
 };
 
 pub fn render(frame: &mut Frame, app: &App) {
@@ -234,6 +234,16 @@ pub fn render(frame: &mut Frame, app: &App) {
             app.config.theme,
             app.theme_picker_selected,
             app.theme_picker_scroll_offset,
+            palette,
+        );
+    }
+
+    if app.ambient_picker_open {
+        render_ambient_picker_overlay(
+            frame,
+            &app.config,
+            app.ambient_picker_selected,
+            app.ambient_picker_scroll_offset,
             palette,
         );
     }

@@ -14,6 +14,9 @@ Versioning: [Semantic Versioning](https://semver.org/)
 - The terminal window title now reflects what is currently playing (for example, "Reverbic v1.5.5 Radio", "Reverbic v1.5.5 YouTube" or "Reverbic v1.5.5 Spotify"), and goes back to just the version when nothing is playing.
 - New "Public playlists" sub-tab in YouTube, right next to "Search", that searches public playlists by name (for example, typing "nier automata" lists matching playlists). Like "Search", it works without signing in; open a playlist to browse and play its videos.
 
+### Changed
+- The Ambient Mode settings now open in a dedicated pop-up (like the theme picker) instead of expanding inline in the settings list. Selecting "Ambient Mode" opens a small modal where you set the activation time and toggle every widget (clock, logo, visualizer, recent tracks, progress bar, station details, now playing).
+
 ### Fixed
 - Audio playback no longer risks a cascading crash if an internal stream lock is left in a poisoned state; the player now recovers instead of panicking.
 - YouTube now recovers automatically within the same session if the bundled Deno runtime goes missing or corrupt: after a failed resolve it re-checks the runtime (at most once every few minutes) and reinstalls it if needed, instead of failing until the app is restarted.
