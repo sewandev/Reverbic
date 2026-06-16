@@ -739,6 +739,7 @@ impl App {
             return;
         };
         if index == 0 {
+            self.notify_info(crate::i18n::t("notice.control.start_of_list"));
             return;
         }
         self.play_youtube_from_context(ctx, index - 1);

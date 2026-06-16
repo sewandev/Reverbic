@@ -12,6 +12,7 @@ Versionado: [Semantic Versioning](https://semver.org/)
 
 ### Added
 - Controles de pista siguiente/anterior (Ctrl+Derecha / Ctrl+Izquierda) para la reproducción de YouTube, que recorren el contexto actual (resultados de búsqueda, playlist, me gusta, favoritos o mix). El anterior se detiene en el primer elemento; el siguiente extiende el mix o continúa con YouTube Radio al final de una lista, igual que el avance automático.
+- Siguiente/anterior (Ctrl+Derecha / Ctrl+Izquierda) también funcionan en la radio: recorren la lista desde la que se reprodujo la estación (Favoritos o resultados de Búsqueda), o avanzan dentro de la playlist activa. Aparece un aviso breve al inicio/fin de la lista, o cuando no hay nada en reproducción para navegar.
 - El título de la ventana de la terminal ahora refleja lo que se está reproduciendo (por ejemplo, "Reverbic v1.5.5 Radio", "Reverbic v1.5.5 YouTube" o "Reverbic v1.5.5 Spotify"), y vuelve a mostrar solo la versión cuando no hay nada sonando.
 - Nueva subpestaña "Playlists públicas" en YouTube, justo al lado de "Buscar", que busca listas de reproducción públicas por nombre (por ejemplo, escribir "nier automata" lista las playlists que coinciden). Al igual que "Buscar", funciona sin iniciar sesión; abre una playlist para explorar y reproducir sus videos.
 
