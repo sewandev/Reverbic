@@ -637,7 +637,11 @@ fn replace_file(src: &std::path::Path, dst: &std::path::Path) -> std::io::Result
                 Ok(())
             }
             Err(err) => {
-                let _ = std::fs::rename(&backup, dst);
+                if let Err(restore_err) = std::fs::rename(&backup, dst) {
+                    tracing::error!(
+                        "failed to restore config backup after a failed save: {restore_err}"
+                    );
+                }
                 Err(err)
             }
         }
