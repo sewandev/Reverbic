@@ -13,6 +13,10 @@ Versionado: [Semantic Versioning](https://semver.org/)
 ### Added
 - Nueva subpestaña "Playlists públicas" en YouTube, justo al lado de "Buscar", que busca listas de reproducción públicas por nombre (por ejemplo, escribir "nier automata" lista las playlists que coinciden). Al igual que "Buscar", funciona sin iniciar sesión; abre una playlist para explorar y reproducir sus videos.
 
+### Fixed
+- YouTube ya no deja de funcionar en instalaciones antiguas: el runtime de Deno incluido ahora se mantiene actualizado automáticamente (igual que yt-dlp), de modo que la reproducción sigue funcionando tras una actualización de yt-dlp que exige un Deno más nuevo.
+- Se mejoró la fiabilidad del audio de YouTube para que más videos se resuelvan a una pista de solo audio limpia en lugar de caer a un formato combinado de menor calidad.
+
 ### Security
 - Las descargas de actualizaciones ahora usan un directorio privado del usuario en lugar de la carpeta temporal compartida del sistema, cerrando un vector teórico de secuestro por symlink local durante la auto-actualización en sistemas multiusuario.
 

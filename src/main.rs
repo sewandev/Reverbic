@@ -150,6 +150,7 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
     app.start_update_check();
     app.start_youtube_session_health_check();
     tokio::spawn(crate::integrations::youtube::install::update_if_outdated());
+    tokio::spawn(crate::integrations::youtube::deno::update_if_outdated());
     tokio::task::spawn_blocking(crate::audio::stream::clear_youtube_cache);
 
     #[cfg(target_os = "windows")]

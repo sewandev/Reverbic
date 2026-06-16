@@ -1,5 +1,5 @@
 use std::io::{Cursor, Read};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use tokio::io::AsyncWriteExt;
 use zip::ZipArchive;
@@ -7,6 +7,8 @@ use zip::ZipArchive;
 use super::YoutubeError;
 
 const DENO_RELEASES_URL: &str = "https://api.github.com/repos/denoland/deno/releases/latest";
+
+const MIN_DENO_VERSION: (u32, u32, u32) = (2, 3, 0);
 
 pub fn managed_binary_path() -> PathBuf {
     crate::paths::bin_dir().join(binary_name())
@@ -21,7 +23,68 @@ pub async fn ensure_installed() -> Result<PathBuf, YoutubeError> {
     if path.exists() {
         return Ok(path);
     }
+    install_latest(&path).await?;
+    Ok(path)
+}
 
+pub async fn update_if_outdated() {
+    let path = managed_binary_path();
+    if !path.exists() {
+        return;
+    }
+
+    match installed_version(&path).await {
+        Some(version) if version >= MIN_DENO_VERSION => {
+            tracing::info!(
+                ?version,
+                "deno meets the minimum version required by yt-dlp"
+            );
+        }
+        Some(version) => {
+            tracing::warn!(
+                ?version,
+                minimum = ?MIN_DENO_VERSION,
+                "deno is older than the minimum required by yt-dlp, reinstalling"
+            );
+            reinstall(&path).await;
+        }
+        None => {
+            tracing::warn!("deno version could not be determined, reinstalling to be safe");
+            reinstall(&path).await;
+        }
+    }
+}
+
+async fn reinstall(path: &Path) {
+    match install_latest(path).await {
+        Ok(version) => tracing::info!(%version, "deno updated successfully"),
+        Err(e) => tracing::warn!("deno update failed, keeping current binary: {e}"),
+    }
+}
+
+async fn installed_version(binary: &Path) -> Option<(u32, u32, u32)> {
+    let output = tokio::process::Command::new(binary)
+        .arg("--version")
+        .output()
+        .await
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    parse_version(&String::from_utf8_lossy(&output.stdout))
+}
+
+fn parse_version(output: &str) -> Option<(u32, u32, u32)> {
+    let token = output.lines().next()?.split_whitespace().nth(1)?;
+    let core = token.split(['+', '-']).next()?;
+    let mut parts = core.split('.');
+    let major = parts.next()?.parse().ok()?;
+    let minor = parts.next()?.parse().ok()?;
+    let patch = parts.next().unwrap_or("0").parse().ok()?;
+    Some((major, minor, patch))
+}
+
+async fn install_latest(path: &Path) -> Result<String, YoutubeError> {
     let Some(parent) = path.parent() else {
         return Err(install_error("missing parent directory"));
     };
@@ -96,11 +159,11 @@ pub async fn ensure_installed() -> Result<PathBuf, YoutubeError> {
             .map_err(install_error)?;
     }
 
-    tokio::fs::rename(&tmp_path, &path)
+    tokio::fs::rename(&tmp_path, path)
         .await
         .map_err(install_error)?;
 
-    Ok(path)
+    Ok(release.tag_name)
 }
 
 fn install_error(e: impl std::fmt::Display) -> YoutubeError {
@@ -151,7 +214,7 @@ fn asset_name() -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::{asset_name, binary_name, managed_binary_path};
+    use super::{asset_name, binary_name, managed_binary_path, parse_version, MIN_DENO_VERSION};
 
     #[test]
     fn managed_binary_path_uses_bin_directory() {
@@ -166,5 +229,32 @@ mod tests {
     fn asset_name_targets_a_deno_release_zip() {
         assert!(asset_name().starts_with("deno-"));
         assert!(asset_name().ends_with(".zip"));
+    }
+
+    #[test]
+    fn parse_version_reads_first_line() {
+        assert_eq!(
+            parse_version("deno 2.8.2 (stable, release, x86_64-pc-windows-msvc)\nv8 14.2.0"),
+            Some((2, 8, 2))
+        );
+    }
+
+    #[test]
+    fn parse_version_strips_prerelease_and_build() {
+        assert_eq!(parse_version("deno 2.3.0+abcdef"), Some((2, 3, 0)));
+        assert_eq!(parse_version("deno 2.4.1-rc.1"), Some((2, 4, 1)));
+    }
+
+    #[test]
+    fn parse_version_rejects_garbage() {
+        assert_eq!(parse_version(""), None);
+        assert_eq!(parse_version("not a version"), None);
+    }
+
+    #[test]
+    fn outdated_version_is_below_minimum() {
+        assert!((2, 2, 9) < MIN_DENO_VERSION);
+        assert!((2, 3, 0) >= MIN_DENO_VERSION);
+        assert!((2, 8, 2) >= MIN_DENO_VERSION);
     }
 }
