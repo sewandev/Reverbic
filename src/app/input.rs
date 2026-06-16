@@ -567,6 +567,17 @@ impl App {
         }
 
         if event.modifiers.contains(KeyModifiers::CONTROL) {
+            match event.code {
+                KeyCode::Right => {
+                    self.play_next().await;
+                    return;
+                }
+                KeyCode::Left => {
+                    self.play_previous().await;
+                    return;
+                }
+                _ => {}
+            }
             if let KeyCode::Char('d') | KeyCode::Char('D') = event.code {
                 if self.show_search_modal && matches!(self.modal_mode, SearchMode::Spotify) {
                     self.open_spotify_device_picker();

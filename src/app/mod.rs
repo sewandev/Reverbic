@@ -1,3 +1,4 @@
+mod control_center;
 mod favorites;
 mod input;
 mod integrations;
