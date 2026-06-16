@@ -328,19 +328,7 @@ unsafe fn run(
                 };
                 s.recent = ps.recent_titles.iter().take(3).cloned().collect();
                 s.duck_enabled = cfg.duck_enabled;
-                s.source = if dots.spotify == Some(TabDot::Playing)
-                    || dots.spotify == Some(TabDot::Warning)
-                {
-                    Some("Spotify")
-                } else if dots.youtube == Some(TabDot::Playing)
-                    || dots.youtube == Some(TabDot::Danger)
-                {
-                    Some("YouTube")
-                } else if dots.radio == Some(TabDot::Playing) {
-                    Some("Radio")
-                } else {
-                    None
-                };
+                s.source = dots.active_source();
                 s.ostatus = match ps.status {
                     PlayerStatus::Buffering(f) => OStatus::Buffering(f),
                     PlayerStatus::Reconnecting(n) => OStatus::Reconnecting(n),
