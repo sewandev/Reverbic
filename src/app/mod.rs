@@ -132,9 +132,9 @@ pub struct TabDots {
 
 impl TabDots {
     pub fn active_source(&self) -> Option<&'static str> {
-        if self.spotify == Some(TabDot::Playing) || self.spotify == Some(TabDot::Warning) {
+        if self.spotify == Some(TabDot::Playing) {
             Some("Spotify")
-        } else if self.youtube == Some(TabDot::Playing) || self.youtube == Some(TabDot::Danger) {
+        } else if self.youtube == Some(TabDot::Playing) {
             Some("YouTube")
         } else if self.radio == Some(TabDot::Playing) {
             Some("Radio")
@@ -620,6 +620,21 @@ impl App {
             SpotifyPlaybackMode::Auto => {
                 self.spotify_remote_status_is_active() || self.spotify_native_status_is_active()
             }
+        }
+    }
+
+    pub fn terminal_title(&self) -> String {
+        const BASE: &str = concat!("Reverbic v", env!("CARGO_PKG_VERSION"));
+        if let Some(version) = &self.update_available {
+            return if self.update_path.is_some() {
+                format!("Reverbic - Update v{version} Ready")
+            } else {
+                format!("Reverbic - Downloading v{version}...")
+            };
+        }
+        match self.tab_dots().active_source() {
+            Some(source) => format!("{BASE} {source}"),
+            None => BASE.to_string(),
         }
     }
 

@@ -179,7 +179,7 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
     ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     let mut events = EventStream::new();
     let mut double_clicks = DoubleClickTracker::default();
-    let mut last_title_source: Option<&'static str> = None;
+    let mut last_title = String::new();
 
     loop {
         app.poll_dead_url();
@@ -250,25 +250,15 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
         })
         .map_err(|e| error::AppError::Terminal(e.to_string()))?;
         app.terminal_area = last_area;
-        let dots = app.tab_dots();
-        let title_source = dots.active_source();
-        if title_source != last_title_source {
-            last_title_source = title_source;
-            let title = match title_source {
-                Some(source) => {
-                    format!(
-                        concat!("Reverbic v", env!("CARGO_PKG_VERSION"), " {}"),
-                        source
-                    )
-                }
-                None => concat!("Reverbic v", env!("CARGO_PKG_VERSION")).to_string(),
-            };
+        let title = app.terminal_title();
+        if title != last_title {
+            last_title = title.clone();
             terminal::set_title(&title);
         }
         #[cfg(target_os = "windows")]
         {
             if let Some(tx) = &app.dots_tx {
-                let _ = tx.send(dots);
+                let _ = tx.send(app.tab_dots());
             }
         }
         tokio::select! {
