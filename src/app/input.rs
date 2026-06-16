@@ -1553,6 +1553,9 @@ impl App {
             }
             KeyCode::Enter | KeyCode::Char(' ') | KeyCode::Right => {
                 if let Some(&item) = items.get(self.ambient_picker_selected) {
+                    if super::ambient_item_disabled(&self.config, item) {
+                        return;
+                    }
                     self.toggle_ambient_item(item);
                     self.save_config();
                     if let Some(ref tx) = self.windows_tx {
@@ -1628,6 +1631,9 @@ impl App {
             }
             KeyCode::Enter | KeyCode::Char(' ') | KeyCode::Right => {
                 if let Some(&item) = items.get(self.overlay_picker_selected) {
+                    if super::overlay_item_disabled(&self.config, item) {
+                        return;
+                    }
                     self.toggle_overlay_item(item);
                     self.save_config();
                     if let Some(ref tx) = self.windows_tx {

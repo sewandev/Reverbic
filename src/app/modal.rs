@@ -307,6 +307,17 @@ pub fn overlay_items() -> Vec<SettingItem> {
     ]
 }
 
+pub fn ambient_item_disabled(config: &crate::config::Config, item: SettingItem) -> bool {
+    !matches!(item, SettingItem::Screensaver) && config.screensaver_secs == 0
+}
+
+pub fn overlay_item_disabled(config: &crate::config::Config, item: SettingItem) -> bool {
+    matches!(
+        item,
+        SettingItem::OverlayAlpha | SettingItem::OverlayPosition | SettingItem::OverlayStyle
+    ) && config.overlay_mode == crate::config::OverlayMode::Hidden
+}
+
 pub enum AppFocus {
     Stations,
     RecentTracks,
