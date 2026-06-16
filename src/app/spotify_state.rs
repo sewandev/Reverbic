@@ -86,6 +86,7 @@ pub struct SpotifyState {
 
     pub playback_queue: VecDeque<SpotifyTrack>,
     pub radio_queue: VecDeque<SpotifyTrack>,
+    pub(super) native_history: Vec<SpotifyTrack>,
     pub recently_played: VecDeque<String>,
     pub(super) radio_task: Option<tokio::task::JoinHandle<()>>,
     pub(super) radio_rx: Option<std::sync::mpsc::Receiver<Vec<SpotifyTrack>>>,
@@ -227,6 +228,7 @@ impl Default for SpotifyState {
             save_track_rx: None,
             playback_queue: VecDeque::new(),
             radio_queue: VecDeque::new(),
+            native_history: Vec::new(),
             recently_played: VecDeque::new(),
             radio_task: None,
             radio_rx: None,

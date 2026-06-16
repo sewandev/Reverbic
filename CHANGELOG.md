@@ -13,6 +13,7 @@ Versioning: [Semantic Versioning](https://semver.org/)
 ### Added
 - Next/previous track controls (Ctrl+Right / Ctrl+Left) for YouTube playback, moving through the current context (search results, playlist, liked, bookmarks or mix). Previous stops at the first item; next extends the mix or follows YouTube Radio at the end of a list, just like auto-advance.
 - Next/previous (Ctrl+Right / Ctrl+Left) also work for radio: they move through the list the station was played from (Favorites or Search results), or within the active playlist. A short notice appears at the start/end of the list, or when there is nothing playing to navigate.
+- Next/previous (Ctrl+Right / Ctrl+Left) also work for Spotify: in native mode they walk the local queue and a session history for previous; in remote mode they skip on the active device via the Spotify Web API. The Ctrl+Left/Right shortcut now shows in the Ambient Mode controls bar and the help overlay.
 - The terminal window title now reflects what is currently playing (for example, "Reverbic v1.5.5 Radio", "Reverbic v1.5.5 YouTube" or "Reverbic v1.5.5 Spotify"), and goes back to just the version when nothing is playing.
 - New "Public playlists" sub-tab in YouTube, right next to "Search", that searches public playlists by name (for example, typing "nier automata" lists matching playlists). Like "Search", it works without signing in; open a playlist to browse and play its videos.
 

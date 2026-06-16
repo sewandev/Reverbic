@@ -1139,6 +1139,7 @@ fn help_rows(
         vec![
             help_header("help.group.global"),
             Entry("[Tab]", t("help.shortcut.switch_source")),
+            Entry("[Ctrl+←→]", t("help.shortcut.next_prev")),
             Entry("[Alt+O]", t("help.shortcut.open_config")),
             Entry("[Esc]", t("help.shortcut.close_quit")),
         ]
