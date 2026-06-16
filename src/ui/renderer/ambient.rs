@@ -406,6 +406,7 @@ pub(crate) fn render_ambient_mode(
                 let shortcuts = vec![
                     ("Space".to_string(), pause),
                     ("+/-".to_string(), volume),
+                    ("Ctrl ←/→".to_string(), t("screensaver.action.skip")),
                     ("Alt+S".to_string(), t("screensaver.action.stop")),
                     (any_key, exit),
                 ];
@@ -420,6 +421,7 @@ pub(crate) fn render_ambient_mode(
                 let shortcuts = vec![
                     ("Space".to_string(), pause),
                     ("+/-".to_string(), volume),
+                    ("Ctrl ←/→".to_string(), t("screensaver.action.skip")),
                     (any_key, exit),
                 ];
                 (playback.volume_pct as u32, color, shortcuts)

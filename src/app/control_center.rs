@@ -36,7 +36,7 @@ impl App {
         match self.active_control_source() {
             ControlSource::Youtube => self.youtube_jump(1),
             ControlSource::Radio => self.radio_jump(1).await,
-            ControlSource::Spotify => {}
+            ControlSource::Spotify => self.spotify_play_next().await,
             ControlSource::None => self.notify_info(t("notice.control.nothing_playing")),
         }
     }
@@ -45,7 +45,7 @@ impl App {
         match self.active_control_source() {
             ControlSource::Youtube => self.youtube_jump(-1),
             ControlSource::Radio => self.radio_jump(-1).await,
-            ControlSource::Spotify => {}
+            ControlSource::Spotify => self.spotify_play_previous().await,
             ControlSource::None => self.notify_info(t("notice.control.nothing_playing")),
         }
     }
