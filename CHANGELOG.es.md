@@ -11,6 +11,7 @@ Versionado: [Semantic Versioning](https://semver.org/)
 ## [Sin publicar]
 
 ### Added
+- El título de la ventana de la terminal ahora refleja lo que se está reproduciendo (por ejemplo, "Reverbic v1.5.5 Radio", "Reverbic v1.5.5 YouTube" o "Reverbic v1.5.5 Spotify"), y vuelve a mostrar solo la versión cuando no hay nada sonando.
 - Nueva subpestaña "Playlists públicas" en YouTube, justo al lado de "Buscar", que busca listas de reproducción públicas por nombre (por ejemplo, escribir "nier automata" lista las playlists que coinciden). Al igual que "Buscar", funciona sin iniciar sesión; abre una playlist para explorar y reproducir sus videos.
 
 ### Fixed

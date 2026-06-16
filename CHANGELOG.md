@@ -11,6 +11,7 @@ Versioning: [Semantic Versioning](https://semver.org/)
 ## [Unreleased]
 
 ### Added
+- The terminal window title now reflects what is currently playing (for example, "Reverbic v1.5.5 Radio", "Reverbic v1.5.5 YouTube" or "Reverbic v1.5.5 Spotify"), and goes back to just the version when nothing is playing.
 - New "Public playlists" sub-tab in YouTube, right next to "Search", that searches public playlists by name (for example, typing "nier automata" lists matching playlists). Like "Search", it works without signing in; open a playlist to browse and play its videos.
 
 ### Fixed

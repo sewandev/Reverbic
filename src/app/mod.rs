@@ -130,6 +130,20 @@ pub struct TabDots {
     pub youtube: Option<TabDot>,
 }
 
+impl TabDots {
+    pub fn active_source(&self) -> Option<&'static str> {
+        if self.spotify == Some(TabDot::Playing) || self.spotify == Some(TabDot::Warning) {
+            Some("Spotify")
+        } else if self.youtube == Some(TabDot::Playing) || self.youtube == Some(TabDot::Danger) {
+            Some("YouTube")
+        } else if self.radio == Some(TabDot::Playing) {
+            Some("Radio")
+        } else {
+            None
+        }
+    }
+}
+
 pub struct App {
     pub stations: Vec<Station>,
     pub favorites: Vec<FavoriteStation>,
