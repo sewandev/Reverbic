@@ -18,6 +18,7 @@ const YOUTUBE_SEARCH_DEBOUNCE: Duration = Duration::from_millis(700);
 const YOUTUBE_PRERESOLVE_DEBOUNCE: Duration = Duration::from_millis(600);
 const LIKED_VIDEOS_LIMIT: usize = 50;
 const PLAYLISTS_LIMIT: usize = 50;
+const PUBLIC_PLAYLISTS_LIMIT: usize = 30;
 const PLAYLIST_VIDEOS_LIMIT: usize = 50;
 const MIX_FETCH_LIMIT: usize = 25;
 const MIX_EXTEND_THRESHOLD: usize = 3;
@@ -127,6 +128,119 @@ impl App {
         }
     }
 
+    pub fn perform_youtube_public_search(&mut self) {
+        self.schedule_youtube_public_search();
+    }
+
+    pub fn schedule_youtube_public_search(&mut self) {
+        let query = self.youtube.public_query.trim().to_string();
+        if query.is_empty() {
+            self.youtube.public_results.clear();
+            self.youtube.public_loading = false;
+            self.youtube.public_selected = 0;
+            self.youtube.public_scroll_offset = 0;
+            self.youtube.public_search_pending_until = None;
+            abort_task(&mut self.youtube.public_search_task);
+            self.youtube.public_search_rx = None;
+            return;
+        }
+
+        self.youtube.public_loading = true;
+        self.youtube.public_results.clear();
+        self.youtube.public_selected = 0;
+        self.youtube.public_scroll_offset = 0;
+        self.youtube.public_search_pending_until = Some(Instant::now() + YOUTUBE_SEARCH_DEBOUNCE);
+        abort_task(&mut self.youtube.public_search_task);
+        self.youtube.public_search_rx = None;
+
+        if !runtime_installed() {
+            self.ensure_youtube_ready();
+        }
+    }
+
+    pub fn start_youtube_public_search_now(&mut self) {
+        let query = self.youtube.public_query.trim().to_string();
+        self.youtube.public_search_pending_until = None;
+        if query.is_empty() {
+            self.youtube.public_results.clear();
+            self.youtube.public_loading = false;
+            self.youtube.public_selected = 0;
+            self.youtube.public_scroll_offset = 0;
+            abort_task(&mut self.youtube.public_search_task);
+            self.youtube.public_search_rx = None;
+            return;
+        }
+
+        if !runtime_installed() {
+            self.ensure_youtube_ready();
+            return;
+        }
+
+        self.youtube.status = YoutubeStatus::Ready;
+        self.youtube.public_loading = true;
+        self.youtube.public_selected = 0;
+        self.youtube.public_scroll_offset = 0;
+        abort_task(&mut self.youtube.public_search_task);
+        self.youtube.public_search_rx = None;
+
+        let binary = install::managed_binary_path();
+        let deno_path = deno::managed_binary_path();
+        let cookies_path =
+            cookies::configured_cookies_path(self.config.youtube.cookies_path.as_deref());
+        let (tx, rx) = mpsc::channel();
+        self.youtube.public_search_rx = Some(rx);
+        self.youtube.public_search_task = Some(tokio::spawn(async move {
+            let result = playlists::search_playlists(
+                &binary,
+                &query,
+                cookies_path.as_deref(),
+                &deno_path,
+                PUBLIC_PLAYLISTS_LIMIT,
+            )
+            .await;
+            let _ = tx.send(result);
+        }));
+    }
+
+    pub fn poll_youtube_public_search_debounce(&mut self) {
+        let Some(pending_until) = self.youtube.public_search_pending_until else {
+            return;
+        };
+
+        if Instant::now() >= pending_until {
+            self.start_youtube_public_search_now();
+        }
+    }
+
+    pub fn poll_youtube_public_search(&mut self) {
+        let Some(rx) = self.youtube.public_search_rx.take() else {
+            return;
+        };
+        match rx.try_recv() {
+            Ok(Ok(results)) => {
+                self.youtube.public_search_task = None;
+                self.youtube.public_loading = false;
+                self.youtube.status = YoutubeStatus::Ready;
+                self.youtube.public_results = results;
+                self.youtube.public_selected = 0;
+                self.youtube.public_scroll_offset = 0;
+            }
+            Ok(Err(err)) => {
+                self.youtube.public_search_task = None;
+                self.youtube.public_loading = false;
+                tracing::warn!("youtube public playlists search: {err}");
+                self.notify_error(format!("YouTube: {err}"));
+            }
+            Err(std::sync::mpsc::TryRecvError::Empty) => {
+                self.youtube.public_search_rx = Some(rx);
+            }
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                self.youtube.public_search_task = None;
+                self.youtube.public_loading = false;
+            }
+        }
+    }
+
     pub fn poll_youtube_install(&mut self) {
         if let Some(rx) = self.youtube.install_rx.take() {
             match rx.try_recv() {
@@ -135,6 +249,9 @@ impl App {
                     self.youtube.status = YoutubeStatus::Ready;
                     if !self.youtube.query.trim().is_empty() {
                         self.schedule_youtube_search();
+                    }
+                    if !self.youtube.public_query.trim().is_empty() {
+                        self.schedule_youtube_public_search();
                     }
                     match self.youtube.sub_tab {
                         YoutubeSubTab::Liked if self.youtube.liked_videos.is_empty() => {
@@ -527,7 +644,7 @@ impl App {
                 .liked_videos
                 .get(self.youtube.liked_selected)
                 .cloned(),
-            YoutubeSubTab::Playlists => {
+            YoutubeSubTab::Playlists | YoutubeSubTab::PublicPlaylists => {
                 if self.youtube.open_playlist.is_some() {
                     self.youtube
                         .playlist_videos
@@ -914,12 +1031,15 @@ impl App {
                 .liked_videos
                 .get(self.youtube.liked_selected)
                 .cloned(),
-            YoutubeSubTab::Playlists if self.youtube.open_playlist.is_some() => self
-                .youtube
-                .playlist_videos
-                .get(self.youtube.playlist_videos_selected)
-                .cloned(),
-            YoutubeSubTab::Playlists => None,
+            YoutubeSubTab::Playlists | YoutubeSubTab::PublicPlaylists
+                if self.youtube.open_playlist.is_some() =>
+            {
+                self.youtube
+                    .playlist_videos
+                    .get(self.youtube.playlist_videos_selected)
+                    .cloned()
+            }
+            YoutubeSubTab::Playlists | YoutubeSubTab::PublicPlaylists => None,
         };
         let Some(video) = video else {
             return;

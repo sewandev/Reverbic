@@ -54,6 +54,8 @@
   "modal.youtube.no_results": "Sin resultados de YouTube",
   "modal.youtube.retry_hint": "Escribe de nuevo o presiona Enter para reintentar.",
   "modal.youtube.subtab.search": "[ Buscar ]",
+  "modal.youtube.subtab.public_playlists": "[ Playlists públicas ]",
+  "modal.youtube.public_placeholder": "Busca playlists públicas de YouTube…",
   "modal.youtube.search.mix_hint": "Presiona Ctrl+R sobre un video para iniciar una radio infinita",
   "modal.youtube.subtab.bookmarks": "[ Favoritos ]",
   "modal.youtube.subtab.liked": "[ Me gusta ]",

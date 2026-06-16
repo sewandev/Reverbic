@@ -378,6 +378,10 @@ pub(crate) fn youtube_subtab_at(area: Rect, col: u16, row: u16) -> Option<Youtub
         &[
             (t("modal.youtube.subtab.search"), YoutubeSubTab::Search),
             (
+                t("modal.youtube.subtab.public_playlists"),
+                YoutubeSubTab::PublicPlaylists,
+            ),
+            (
                 t("modal.youtube.subtab.bookmarks"),
                 YoutubeSubTab::Bookmarks,
             ),
@@ -476,6 +480,11 @@ pub(crate) fn youtube_body_area(area: Rect) -> Option<Rect> {
 }
 
 pub(crate) fn youtube_search_list_area(area: Rect) -> Option<Rect> {
+    let body = youtube_body_area(area)?;
+    Some(youtube_search_layout(body).list)
+}
+
+pub(crate) fn youtube_public_list_area(area: Rect) -> Option<Rect> {
     let body = youtube_body_area(area)?;
     Some(youtube_search_layout(body).list)
 }

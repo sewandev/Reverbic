@@ -17,8 +17,8 @@ use crate::ui::widgets::{
         spotify_no_device_notice_at, spotify_search_list_area, spotify_subtab_at,
         spotify_titled_track_list_area, two_line_list_index_at, visible_items,
         visible_rows_excluding_scrollbar, youtube_auth_notice_at, youtube_liked_list_area,
-        youtube_playlist_videos_list_area, youtube_playlists_list_area, youtube_search_list_area,
-        youtube_subtab_at, ListItemHeight,
+        youtube_playlist_videos_list_area, youtube_playlists_list_area, youtube_public_list_area,
+        youtube_search_list_area, youtube_subtab_at, ListItemHeight,
     },
     theme_picker,
 };
@@ -124,6 +124,22 @@ impl App {
         keep_selected_visible(
             &mut self.youtube.playlists_scroll_offset,
             self.youtube.playlists_selected,
+            visible,
+        );
+    }
+
+    fn youtube_public_visible_items(&self) -> usize {
+        visible_items(
+            youtube_public_list_area(self.terminal_area),
+            ListItemHeight::TwoLines,
+        )
+    }
+
+    fn keep_youtube_public_visible(&mut self) {
+        let visible = self.youtube_public_visible_items();
+        keep_selected_visible(
+            &mut self.youtube.public_scroll_offset,
+            self.youtube.public_selected,
             visible,
         );
     }
@@ -2157,10 +2173,33 @@ impl App {
     async fn on_click_youtube(&mut self, col: u16, row: u16) {
         match self.youtube.sub_tab {
             YoutubeSubTab::Search => self.on_click_youtube_search(col, row).await,
+            YoutubeSubTab::PublicPlaylists => self.on_click_youtube_public(col, row).await,
             YoutubeSubTab::Bookmarks => self.on_click_youtube_bookmarks(col, row).await,
             YoutubeSubTab::Liked => self.on_click_youtube_liked(col, row).await,
             YoutubeSubTab::Playlists => self.on_click_youtube_playlists(col, row).await,
         }
+    }
+
+    async fn on_click_youtube_public(&mut self, col: u16, row: u16) {
+        if self.youtube.open_playlist.is_some() {
+            self.on_click_youtube_playlist_videos(col, row).await;
+            return;
+        }
+
+        let Some(idx) = two_line_list_index_at(
+            youtube_public_list_area(self.terminal_area),
+            col,
+            row,
+            self.youtube.public_selected,
+            self.youtube_public_visible_items(),
+            self.youtube.public_scroll_offset,
+            self.youtube.public_results.len(),
+        ) else {
+            return;
+        };
+
+        self.youtube.public_selected = idx;
+        self.activate_youtube_public_selected().await;
     }
 
     async fn on_click_youtube_bookmarks(&mut self, col: u16, row: u16) {
@@ -2278,6 +2317,23 @@ impl App {
                         if len > 0 {
                             self.youtube.selected = scroll_by(self.youtube.selected, delta, len);
                             self.keep_youtube_search_visible();
+                        }
+                    }
+                    YoutubeSubTab::PublicPlaylists => {
+                        if self.youtube.open_playlist.is_some() {
+                            let len = self.youtube.playlist_videos.len();
+                            if len > 0 {
+                                self.youtube.playlist_videos_selected =
+                                    scroll_by(self.youtube.playlist_videos_selected, delta, len);
+                                self.keep_youtube_playlist_videos_visible();
+                            }
+                        } else {
+                            let len = self.youtube.public_results.len();
+                            if len > 0 {
+                                self.youtube.public_selected =
+                                    scroll_by(self.youtube.public_selected, delta, len);
+                                self.keep_youtube_public_visible();
+                            }
                         }
                     }
                     YoutubeSubTab::Bookmarks => {
@@ -3296,17 +3352,36 @@ impl App {
     }
 
     async fn on_key_modal_youtube(&mut self, key: KeyCode) {
-        if key == KeyCode::Char(' ') && !matches!(self.youtube.sub_tab, YoutubeSubTab::Search) {
+        if key == KeyCode::Char(' ')
+            && !matches!(
+                self.youtube.sub_tab,
+                YoutubeSubTab::Search | YoutubeSubTab::PublicPlaylists
+            )
+        {
             self.toggle_radio_pause().await;
             return;
         }
         match key {
             KeyCode::Esc => {
                 self.show_help = false;
-                if self.youtube.sub_tab == YoutubeSubTab::Playlists
-                    && self.youtube.open_playlist.is_some()
+                if matches!(
+                    self.youtube.sub_tab,
+                    YoutubeSubTab::Playlists | YoutubeSubTab::PublicPlaylists
+                ) && self.youtube.open_playlist.is_some()
                 {
                     self.close_youtube_playlist();
+                } else if self.youtube.sub_tab == YoutubeSubTab::PublicPlaylists
+                    && (!self.youtube.public_query.is_empty()
+                        || !self.youtube.public_results.is_empty())
+                {
+                    self.youtube.public_query.clear();
+                    self.youtube.public_results.clear();
+                    self.youtube.public_selected = 0;
+                    self.youtube.public_scroll_offset = 0;
+                    self.youtube.public_loading = false;
+                    self.youtube.public_search_pending_until = None;
+                    abort_task(&mut self.youtube.public_search_task);
+                    self.youtube.public_search_rx = None;
                 } else if self.youtube.sub_tab == YoutubeSubTab::Search
                     && (!self.youtube.query.is_empty() || !self.youtube.results.is_empty())
                 {
@@ -3330,6 +3405,7 @@ impl App {
             KeyCode::Left | KeyCode::Right => {
                 let tabs = [
                     YoutubeSubTab::Search,
+                    YoutubeSubTab::PublicPlaylists,
                     YoutubeSubTab::Bookmarks,
                     YoutubeSubTab::Liked,
                     YoutubeSubTab::Playlists,
@@ -3357,6 +3433,7 @@ impl App {
                 }
                 match self.youtube.sub_tab {
                     YoutubeSubTab::Search => self.on_key_youtube_search(key).await,
+                    YoutubeSubTab::PublicPlaylists => self.on_key_youtube_public(key).await,
                     YoutubeSubTab::Bookmarks => self.on_key_youtube_bookmarks(key).await,
                     YoutubeSubTab::Liked => self.on_key_youtube_liked(key).await,
                     YoutubeSubTab::Playlists => self.on_key_youtube_playlists(key).await,
@@ -3366,6 +3443,9 @@ impl App {
     }
 
     fn switch_youtube_sub_tab(&mut self, tab: YoutubeSubTab) {
+        if self.youtube.sub_tab != tab && self.youtube.open_playlist.is_some() {
+            self.close_youtube_playlist();
+        }
         self.youtube.sub_tab = tab;
         match self.youtube.sub_tab {
             YoutubeSubTab::Liked
@@ -3414,6 +3494,64 @@ impl App {
                 self.perform_youtube_search();
             }
             _ => {}
+        }
+    }
+
+    async fn on_key_youtube_public(&mut self, key: KeyCode) {
+        if self.youtube.open_playlist.is_some() {
+            self.on_key_youtube_playlist_videos(key).await;
+            return;
+        }
+        match key {
+            KeyCode::Up => {
+                if !self.youtube.public_results.is_empty() {
+                    self.youtube.public_selected = cycle_prev(
+                        self.youtube.public_selected,
+                        self.youtube.public_results.len(),
+                    );
+                    self.keep_youtube_public_visible();
+                }
+            }
+            KeyCode::Down => {
+                if !self.youtube.public_results.is_empty() {
+                    self.youtube.public_selected = cycle_next(
+                        self.youtube.public_selected,
+                        self.youtube.public_results.len(),
+                    );
+                    self.keep_youtube_public_visible();
+                }
+            }
+            KeyCode::Enter => {
+                self.activate_youtube_public_selected().await;
+            }
+            KeyCode::Backspace => {
+                self.youtube.public_query.pop();
+                self.youtube.public_selected = 0;
+                self.youtube.public_scroll_offset = 0;
+                self.perform_youtube_public_search();
+            }
+            KeyCode::Char(c) if !c.is_control() => {
+                self.youtube.public_query.push(c);
+                self.youtube.public_selected = 0;
+                self.youtube.public_scroll_offset = 0;
+                self.perform_youtube_public_search();
+            }
+            _ => {}
+        }
+    }
+
+    async fn activate_youtube_public_selected(&mut self) {
+        if let Some(playlist) = self
+            .youtube
+            .public_results
+            .get(self.youtube.public_selected)
+            .cloned()
+        {
+            self.fetch_youtube_playlist_videos(playlist);
+        } else if !self.youtube.public_query.trim().is_empty() {
+            self.start_youtube_public_search_now();
+        } else {
+            self.ensure_youtube_ready();
         }
     }
 
