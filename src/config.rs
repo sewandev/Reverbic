@@ -637,7 +637,11 @@ fn replace_file(src: &std::path::Path, dst: &std::path::Path) -> std::io::Result
                 Ok(())
             }
             Err(err) => {
-                let _ = std::fs::rename(&backup, dst);
+                if let Err(restore_err) = std::fs::rename(&backup, dst) {
+                    tracing::error!(
+                        "failed to restore config backup after a failed save: {restore_err}"
+                    );
+                }
                 Err(err)
             }
         }
@@ -831,6 +835,20 @@ mod tests {
         let saved = serde_json::to_value(&config).expect("config should serialize");
 
         assert_eq!(saved["theme"], json!("reverbic"));
+    }
+
+    #[test]
+    fn theme_falls_back_for_unknown_config_values() {
+        let config_with_unknown_theme = json!({
+            "volume": 0.75,
+            "last_selected": 3,
+            "theme": "valor_invalido"
+        });
+
+        let config: Config = serde_json::from_value(config_with_unknown_theme)
+            .expect("config with unknown theme should load");
+
+        assert_eq!(config.theme, ThemeId::Reverbic);
     }
 
     #[test]

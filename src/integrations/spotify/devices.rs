@@ -149,6 +149,46 @@ pub async fn resume_device(token: &str, device_id: &str) -> Result<(), SpotifyEr
     }
 }
 
+pub async fn next_track(token: &str, device_id: &str) -> Result<(), SpotifyError> {
+    let client = spotify_client(10)?;
+    let resp = client
+        .post(format!(
+            "https://api.spotify.com/v1/me/player/next?device_id={device_id}"
+        ))
+        .bearer_auth(token)
+        .header("Content-Length", "0")
+        .send()
+        .await
+        .map_err(|e| SpotifyError::Network(e.to_string()))?;
+    let status = resp.status();
+    if status.is_success() || status.as_u16() == 204 {
+        Ok(())
+    } else {
+        let body = resp.text().await.unwrap_or_default();
+        Err(SpotifyError::from_status(status, &body))
+    }
+}
+
+pub async fn previous_track(token: &str, device_id: &str) -> Result<(), SpotifyError> {
+    let client = spotify_client(10)?;
+    let resp = client
+        .post(format!(
+            "https://api.spotify.com/v1/me/player/previous?device_id={device_id}"
+        ))
+        .bearer_auth(token)
+        .header("Content-Length", "0")
+        .send()
+        .await
+        .map_err(|e| SpotifyError::Network(e.to_string()))?;
+    let status = resp.status();
+    if status.is_success() || status.as_u16() == 204 {
+        Ok(())
+    } else {
+        let body = resp.text().await.unwrap_or_default();
+        Err(SpotifyError::from_status(status, &body))
+    }
+}
+
 pub async fn set_volume(token: &str, device_id: &str, volume_pct: u8) -> Result<(), SpotifyError> {
     let client = spotify_client(8)?;
     let pct = volume_pct.min(100);

@@ -1,3 +1,4 @@
+mod control_center;
 mod favorites;
 mod input;
 mod integrations;
@@ -14,8 +15,9 @@ mod youtube;
 mod youtube_state;
 
 pub use modal::{
-    settings_items, AppFocus, RadioSubTab, SearchMode, SettingItem, SpotifyAuthStatus,
-    SpotifyPlayerStatus, SpotifySubTab, YoutubeSubTab,
+    ambient_item_disabled, ambient_items, overlay_item_disabled, overlay_items, settings_items,
+    AppFocus, RadioSubTab, SearchMode, SettingItem, SpotifyAuthStatus, SpotifyPlayerStatus,
+    SpotifySubTab, YoutubeSubTab,
 };
 use notice::NoticeQueue;
 pub use notice::NoticeSeverity;
@@ -130,6 +132,20 @@ pub struct TabDots {
     pub youtube: Option<TabDot>,
 }
 
+impl TabDots {
+    pub fn active_source(&self) -> Option<&'static str> {
+        if self.spotify == Some(TabDot::Playing) {
+            Some("Spotify")
+        } else if self.youtube == Some(TabDot::Playing) {
+            Some("YouTube")
+        } else if self.radio == Some(TabDot::Playing) {
+            Some("Radio")
+        } else {
+            None
+        }
+    }
+}
+
 pub struct App {
     pub stations: Vec<Station>,
     pub favorites: Vec<FavoriteStation>,
@@ -189,6 +205,14 @@ pub struct App {
     pub cookies_path_error: Option<String>,
     pub theme_picker_open: bool,
     pub theme_picker_selected: usize,
+    pub theme_picker_scroll_offset: usize,
+    pub ambient_picker_open: bool,
+    pub ambient_picker_selected: usize,
+    pub ambient_picker_scroll_offset: usize,
+    pub overlay_picker_open: bool,
+    pub overlay_picker_selected: usize,
+    pub overlay_picker_scroll_offset: usize,
+    pub(super) radio_context: Option<(control_center::RadioSource, usize)>,
     pub click_flash: Option<(usize, Instant)>,
     pub last_activity: Instant,
     pub border_tick: u32,
@@ -308,6 +332,14 @@ impl App {
             cookies_path_error: None,
             theme_picker_open: false,
             theme_picker_selected: 0,
+            theme_picker_scroll_offset: 0,
+            ambient_picker_open: false,
+            ambient_picker_selected: 0,
+            ambient_picker_scroll_offset: 0,
+            overlay_picker_open: false,
+            overlay_picker_selected: 0,
+            overlay_picker_scroll_offset: 0,
+            radio_context: None,
             click_flash: None,
             last_activity: Instant::now(),
             border_tick: 0,
@@ -595,6 +627,21 @@ impl App {
         }
     }
 
+    pub fn terminal_title(&self) -> String {
+        const BASE: &str = concat!("Reverbic v", env!("CARGO_PKG_VERSION"));
+        if let Some(version) = &self.update_available {
+            return if self.update_path.is_some() {
+                format!("Reverbic - Update v{version} Ready")
+            } else {
+                format!("Reverbic - Downloading v{version}...")
+            };
+        }
+        match self.tab_dots().active_source() {
+            Some(source) => format!("{BASE} {source}"),
+            None => BASE.to_string(),
+        }
+    }
+
     pub fn tab_dots(&self) -> TabDots {
         use crate::audio::PlayerStatus;
         let mut dots = TabDots::default();
@@ -728,9 +775,9 @@ impl App {
         self.config.volume = self.player.state().volume;
         let config = self.config.clone();
         tokio::spawn(async move {
-            tokio::task::spawn_blocking(move || config.save())
-                .await
-                .ok();
+            if let Err(e) = tokio::task::spawn_blocking(move || config.save()).await {
+                tracing::warn!("config save task did not complete: {e}");
+            }
         });
     }
 
@@ -869,6 +916,14 @@ mod tests {
             cookies_path_error: None,
             theme_picker_open: false,
             theme_picker_selected: 0,
+            theme_picker_scroll_offset: 0,
+            ambient_picker_open: false,
+            ambient_picker_selected: 0,
+            ambient_picker_scroll_offset: 0,
+            overlay_picker_open: false,
+            overlay_picker_selected: 0,
+            overlay_picker_scroll_offset: 0,
+            radio_context: None,
             click_flash: None,
             last_activity: Instant::now(),
             border_tick: 0,

@@ -52,7 +52,7 @@ pub(crate) fn sha256_hex(bytes: &[u8]) -> String {
         })
 }
 
-pub(crate) const EXTRACTOR_ARGS_DEFAULT: &str = "youtube:player_client=android_vr,web";
+pub(crate) const EXTRACTOR_ARGS_DEFAULT: &str = "youtube:player_client=android_vr,tv,web";
 
 pub(crate) fn summarize_ytdlp_error(raw: &str) -> String {
     const MAX_CHARS: usize = 200;

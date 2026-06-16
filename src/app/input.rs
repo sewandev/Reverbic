@@ -17,9 +17,10 @@ use crate::ui::widgets::{
         spotify_no_device_notice_at, spotify_search_list_area, spotify_subtab_at,
         spotify_titled_track_list_area, two_line_list_index_at, visible_items,
         visible_rows_excluding_scrollbar, youtube_auth_notice_at, youtube_liked_list_area,
-        youtube_playlist_videos_list_area, youtube_playlists_list_area, youtube_search_list_area,
-        youtube_subtab_at, ListItemHeight,
+        youtube_playlist_videos_list_area, youtube_playlists_list_area, youtube_public_list_area,
+        youtube_search_list_area, youtube_subtab_at, ListItemHeight,
     },
+    theme_picker,
 };
 
 use super::modal::{settings_items, SettingItem};
@@ -123,6 +124,22 @@ impl App {
         keep_selected_visible(
             &mut self.youtube.playlists_scroll_offset,
             self.youtube.playlists_selected,
+            visible,
+        );
+    }
+
+    fn youtube_public_visible_items(&self) -> usize {
+        visible_items(
+            youtube_public_list_area(self.terminal_area),
+            ListItemHeight::TwoLines,
+        )
+    }
+
+    fn keep_youtube_public_visible(&mut self) {
+        let visible = self.youtube_public_visible_items();
+        keep_selected_visible(
+            &mut self.youtube.public_scroll_offset,
+            self.youtube.public_selected,
             visible,
         );
     }
@@ -239,11 +256,7 @@ impl App {
     fn settings_selected_row(&self) -> usize {
         let mut row = 0usize;
         let mut last_group = "";
-        for (item_idx, item) in
-            settings_items(self.config.duck_enabled, self.config.screensaver_secs > 0)
-                .iter()
-                .enumerate()
-        {
+        for (item_idx, item) in settings_items().iter().enumerate() {
             let group = item.group_key();
             if group != last_group {
                 row += 1;
@@ -522,6 +535,16 @@ impl App {
             return;
         }
 
+        if self.ambient_picker_open {
+            self.on_key_ambient_picker(event.code);
+            return;
+        }
+
+        if self.overlay_picker_open {
+            self.on_key_overlay_picker(event.code);
+            return;
+        }
+
         if event.modifiers.contains(KeyModifiers::CONTROL)
             && event.modifiers.contains(KeyModifiers::SHIFT)
         {
@@ -544,6 +567,17 @@ impl App {
         }
 
         if event.modifiers.contains(KeyModifiers::CONTROL) {
+            match event.code {
+                KeyCode::Right => {
+                    self.play_next().await;
+                    return;
+                }
+                KeyCode::Left => {
+                    self.play_previous().await;
+                    return;
+                }
+                _ => {}
+            }
             if let KeyCode::Char('d') | KeyCode::Char('D') = event.code {
                 if self.show_search_modal && matches!(self.modal_mode, SearchMode::Spotify) {
                     self.open_spotify_device_picker();
@@ -1310,8 +1344,7 @@ impl App {
     }
 
     fn on_key_modal_settings(&mut self, key: KeyCode) {
-        let count =
-            settings_items(self.config.duck_enabled, self.config.screensaver_secs > 0).len();
+        let count = settings_items().len();
         match key {
             KeyCode::Esc => {
                 self.show_help = false;
@@ -1374,12 +1407,29 @@ impl App {
     }
 
     fn activate_setting_selected(&mut self) {
-        let items = settings_items(self.config.duck_enabled, self.config.screensaver_secs > 0);
+        let items = settings_items();
         if let Some(item) = items.get(self.settings_selected).copied() {
+            if self.setting_disabled(item) {
+                return;
+            }
             self.activate_setting_item(item);
             if matches!(self.modal_mode, SearchMode::Settings) {
                 self.keep_settings_visible();
             }
+        }
+    }
+
+    pub(super) fn setting_disabled(&self, item: SettingItem) -> bool {
+        use crate::config::SpotifyPlaybackMode;
+        match item {
+            SettingItem::SpotifyCrossfade => {
+                self.config.spotify.playback_mode != SpotifyPlaybackMode::Native
+            }
+            SettingItem::DuckVolume => !self.config.duck_enabled,
+            SettingItem::YoutubeCookiesValidate | SettingItem::YoutubeRadioMode => {
+                self.config.youtube.cookies_path.is_none()
+            }
+            _ => false,
         }
     }
 
@@ -1401,6 +1451,8 @@ impl App {
                 self.editing_cookies_path = true;
             }
             SettingItem::Theme => self.open_theme_picker(),
+            SettingItem::Screensaver => self.open_ambient_picker(),
+            SettingItem::OverlayMode => self.open_overlay_picker(),
             SettingItem::ReplayOnboarding => {
                 self.replay_onboarding = true;
                 self.show_search_modal = true;
@@ -1419,26 +1471,40 @@ impl App {
 
     fn open_theme_picker(&mut self) {
         self.theme_picker_selected = crate::ui::theme::ThemeId::all()
-            .iter()
-            .position(|theme| *theme == self.config.theme)
+            .position(|theme| theme == self.config.theme)
             .unwrap_or(0);
+        self.keep_theme_picker_visible();
         self.theme_picker_open = true;
     }
 
+    fn keep_theme_picker_visible(&mut self) {
+        let visible =
+            theme_picker::visible_rows(self.terminal_area, crate::ui::theme::ThemeId::all().len());
+        keep_selected_visible(
+            &mut self.theme_picker_scroll_offset,
+            self.theme_picker_selected,
+            visible,
+        );
+    }
+
     fn on_key_theme_picker(&mut self, key: KeyCode) {
-        let themes = crate::ui::theme::ThemeId::all();
+        let theme_count = crate::ui::theme::ThemeId::all().len();
         match key {
             KeyCode::Esc | KeyCode::Left => {
                 self.theme_picker_open = false;
             }
             KeyCode::Up | KeyCode::Char('k') => {
-                self.theme_picker_selected = cycle_prev(self.theme_picker_selected, themes.len());
+                self.theme_picker_selected = cycle_prev(self.theme_picker_selected, theme_count);
+                self.keep_theme_picker_visible();
             }
             KeyCode::Down | KeyCode::Char('j') => {
-                self.theme_picker_selected = cycle_next(self.theme_picker_selected, themes.len());
+                self.theme_picker_selected = cycle_next(self.theme_picker_selected, theme_count);
+                self.keep_theme_picker_visible();
             }
             KeyCode::Enter => {
-                if let Some(theme) = themes.get(self.theme_picker_selected).copied() {
+                if let Some(theme) =
+                    crate::ui::theme::ThemeId::all().nth(self.theme_picker_selected)
+                {
                     self.config.theme = theme;
                     self.save_config();
                     if let Some(ref tx) = self.windows_tx {
@@ -1446,6 +1512,156 @@ impl App {
                     }
                 }
                 self.theme_picker_open = false;
+            }
+            _ => {}
+        }
+    }
+
+    fn open_ambient_picker(&mut self) {
+        self.ambient_picker_selected = 0;
+        self.keep_ambient_picker_visible();
+        self.ambient_picker_open = true;
+    }
+
+    fn keep_ambient_picker_visible(&mut self) {
+        let visible = crate::ui::widgets::picker::visible_rows(
+            self.terminal_area,
+            super::ambient_items().len(),
+        );
+        keep_selected_visible(
+            &mut self.ambient_picker_scroll_offset,
+            self.ambient_picker_selected,
+            visible,
+        );
+    }
+
+    fn on_key_ambient_picker(&mut self, key: KeyCode) {
+        let items = super::ambient_items();
+        match key {
+            KeyCode::Esc | KeyCode::Left => {
+                self.ambient_picker_open = false;
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                self.ambient_picker_selected =
+                    cycle_prev(self.ambient_picker_selected, items.len());
+                self.keep_ambient_picker_visible();
+            }
+            KeyCode::Down | KeyCode::Char('j') => {
+                self.ambient_picker_selected =
+                    cycle_next(self.ambient_picker_selected, items.len());
+                self.keep_ambient_picker_visible();
+            }
+            KeyCode::Enter | KeyCode::Char(' ') | KeyCode::Right => {
+                if let Some(&item) = items.get(self.ambient_picker_selected) {
+                    if super::ambient_item_disabled(&self.config, item) {
+                        return;
+                    }
+                    self.toggle_ambient_item(item);
+                    self.save_config();
+                    if let Some(ref tx) = self.windows_tx {
+                        let _ = tx.send(self.config.clone());
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn toggle_ambient_item(&mut self, item: SettingItem) {
+        match item {
+            SettingItem::Screensaver => self.config.screensaver_next(),
+            SettingItem::ScreensaverClock => {
+                self.config.screensaver_clock = !self.config.screensaver_clock
+            }
+            SettingItem::ScreensaverLogo => {
+                self.config.screensaver_logo = !self.config.screensaver_logo
+            }
+            SettingItem::ScreensaverVisualizer => {
+                self.config.screensaver_visualizer = !self.config.screensaver_visualizer
+            }
+            SettingItem::ScreensaverRecentTracks => {
+                self.config.screensaver_recent_tracks = !self.config.screensaver_recent_tracks
+            }
+            SettingItem::ScreensaverProgressBar => {
+                self.config.screensaver_progress_bar = !self.config.screensaver_progress_bar
+            }
+            SettingItem::ScreensaverStationDetails => {
+                self.config.screensaver_station_details = !self.config.screensaver_station_details
+            }
+            SettingItem::ScreensaverNowPlaying => {
+                self.config.screensaver_now_playing = !self.config.screensaver_now_playing
+            }
+            _ => {}
+        }
+    }
+
+    fn open_overlay_picker(&mut self) {
+        self.overlay_picker_selected = 0;
+        self.keep_overlay_picker_visible();
+        self.overlay_picker_open = true;
+    }
+
+    fn keep_overlay_picker_visible(&mut self) {
+        let visible = crate::ui::widgets::picker::visible_rows(
+            self.terminal_area,
+            super::overlay_items().len(),
+        );
+        keep_selected_visible(
+            &mut self.overlay_picker_scroll_offset,
+            self.overlay_picker_selected,
+            visible,
+        );
+    }
+
+    fn on_key_overlay_picker(&mut self, key: KeyCode) {
+        let items = super::overlay_items();
+        match key {
+            KeyCode::Esc | KeyCode::Left => {
+                self.overlay_picker_open = false;
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                self.overlay_picker_selected =
+                    cycle_prev(self.overlay_picker_selected, items.len());
+                self.keep_overlay_picker_visible();
+            }
+            KeyCode::Down | KeyCode::Char('j') => {
+                self.overlay_picker_selected =
+                    cycle_next(self.overlay_picker_selected, items.len());
+                self.keep_overlay_picker_visible();
+            }
+            KeyCode::Enter | KeyCode::Char(' ') | KeyCode::Right => {
+                if let Some(&item) = items.get(self.overlay_picker_selected) {
+                    if super::overlay_item_disabled(&self.config, item) {
+                        return;
+                    }
+                    self.toggle_overlay_item(item);
+                    self.save_config();
+                    if let Some(ref tx) = self.windows_tx {
+                        let _ = tx.send(self.config.clone());
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn toggle_overlay_item(&mut self, item: SettingItem) {
+        match item {
+            SettingItem::OverlayMode => self.config.overlay_mode = self.config.overlay_mode.next(),
+            SettingItem::OverlayStyle => {
+                self.config.overlay_style = self.config.overlay_style.next()
+            }
+            SettingItem::OverlayAlpha => {
+                self.config.overlay_alpha = match self.config.overlay_alpha {
+                    v if v < 30 => 30,
+                    v if v < 50 => 50,
+                    v if v < 70 => 70,
+                    v if v < 90 => 90,
+                    _ => 20,
+                };
+            }
+            SettingItem::OverlayPosition => {
+                self.config.overlay_position = self.config.overlay_position.next()
             }
             _ => {}
         }
@@ -1933,7 +2149,7 @@ impl App {
     }
 
     fn on_click_settings(&mut self, col: u16, row: u16) {
-        let items = settings_items(self.config.duck_enabled, self.config.screensaver_secs > 0);
+        let items = settings_items();
         let visual_row_count = settings_visual_row_count(&items);
         let Some(visual_row) = one_line_list_index_at(
             settings_items_area(self.terminal_area),
@@ -2142,10 +2358,33 @@ impl App {
     async fn on_click_youtube(&mut self, col: u16, row: u16) {
         match self.youtube.sub_tab {
             YoutubeSubTab::Search => self.on_click_youtube_search(col, row).await,
+            YoutubeSubTab::PublicPlaylists => self.on_click_youtube_public(col, row).await,
             YoutubeSubTab::Bookmarks => self.on_click_youtube_bookmarks(col, row).await,
             YoutubeSubTab::Liked => self.on_click_youtube_liked(col, row).await,
             YoutubeSubTab::Playlists => self.on_click_youtube_playlists(col, row).await,
         }
+    }
+
+    async fn on_click_youtube_public(&mut self, col: u16, row: u16) {
+        if self.youtube.open_playlist.is_some() {
+            self.on_click_youtube_playlist_videos(col, row).await;
+            return;
+        }
+
+        let Some(idx) = two_line_list_index_at(
+            youtube_public_list_area(self.terminal_area),
+            col,
+            row,
+            self.youtube.public_selected,
+            self.youtube_public_visible_items(),
+            self.youtube.public_scroll_offset,
+            self.youtube.public_results.len(),
+        ) else {
+            return;
+        };
+
+        self.youtube.public_selected = idx;
+        self.activate_youtube_public_selected().await;
     }
 
     async fn on_click_youtube_bookmarks(&mut self, col: u16, row: u16) {
@@ -2263,6 +2502,23 @@ impl App {
                         if len > 0 {
                             self.youtube.selected = scroll_by(self.youtube.selected, delta, len);
                             self.keep_youtube_search_visible();
+                        }
+                    }
+                    YoutubeSubTab::PublicPlaylists => {
+                        if self.youtube.open_playlist.is_some() {
+                            let len = self.youtube.playlist_videos.len();
+                            if len > 0 {
+                                self.youtube.playlist_videos_selected =
+                                    scroll_by(self.youtube.playlist_videos_selected, delta, len);
+                                self.keep_youtube_playlist_videos_visible();
+                            }
+                        } else {
+                            let len = self.youtube.public_results.len();
+                            if len > 0 {
+                                self.youtube.public_selected =
+                                    scroll_by(self.youtube.public_selected, delta, len);
+                                self.keep_youtube_public_visible();
+                            }
                         }
                     }
                     YoutubeSubTab::Bookmarks => {
@@ -2446,11 +2702,7 @@ impl App {
                             }
                         }
                         SearchMode::Settings => {
-                            let len = settings_items(
-                                self.config.duck_enabled,
-                                self.config.screensaver_secs > 0,
-                            )
-                            .len();
+                            let len = settings_items().len();
                             if len > 0 {
                                 self.settings_selected =
                                     scroll_by(self.settings_selected, delta, len);
@@ -2595,9 +2847,7 @@ impl App {
 
     fn apply_settings_toggle(&mut self, idx: usize) {
         use crate::i18n;
-        let Some(&item) =
-            settings_items(self.config.duck_enabled, self.config.screensaver_secs > 0).get(idx)
-        else {
+        let Some(&item) = settings_items().get(idx) else {
             return;
         };
         match item {
@@ -2620,46 +2870,18 @@ impl App {
                         .await;
                 });
             }
-            super::modal::SettingItem::OverlayMode => {
-                self.config.overlay_mode = self.config.overlay_mode.next()
-            }
-            super::modal::SettingItem::OverlayAlpha => {
-                self.config.overlay_alpha = match self.config.overlay_alpha {
-                    v if v < 30 => 30,
-                    v if v < 50 => 50,
-                    v if v < 70 => 70,
-                    v if v < 90 => 90,
-                    _ => 20,
-                };
-            }
-            super::modal::SettingItem::OverlayPosition => {
-                self.config.overlay_position = self.config.overlay_position.next()
-            }
-            super::modal::SettingItem::OverlayStyle => {
-                self.config.overlay_style = self.config.overlay_style.next()
-            }
-            super::modal::SettingItem::Screensaver => self.config.screensaver_next(),
-            super::modal::SettingItem::ScreensaverClock => {
-                self.config.screensaver_clock = !self.config.screensaver_clock
-            }
-            super::modal::SettingItem::ScreensaverLogo => {
-                self.config.screensaver_logo = !self.config.screensaver_logo
-            }
-            super::modal::SettingItem::ScreensaverVisualizer => {
-                self.config.screensaver_visualizer = !self.config.screensaver_visualizer
-            }
-            super::modal::SettingItem::ScreensaverRecentTracks => {
-                self.config.screensaver_recent_tracks = !self.config.screensaver_recent_tracks
-            }
-            super::modal::SettingItem::ScreensaverProgressBar => {
-                self.config.screensaver_progress_bar = !self.config.screensaver_progress_bar
-            }
-            super::modal::SettingItem::ScreensaverStationDetails => {
-                self.config.screensaver_station_details = !self.config.screensaver_station_details
-            }
-            super::modal::SettingItem::ScreensaverNowPlaying => {
-                self.config.screensaver_now_playing = !self.config.screensaver_now_playing
-            }
+            super::modal::SettingItem::OverlayMode
+            | super::modal::SettingItem::OverlayAlpha
+            | super::modal::SettingItem::OverlayPosition
+            | super::modal::SettingItem::OverlayStyle => self.toggle_overlay_item(item),
+            super::modal::SettingItem::Screensaver
+            | super::modal::SettingItem::ScreensaverClock
+            | super::modal::SettingItem::ScreensaverLogo
+            | super::modal::SettingItem::ScreensaverVisualizer
+            | super::modal::SettingItem::ScreensaverRecentTracks
+            | super::modal::SettingItem::ScreensaverProgressBar
+            | super::modal::SettingItem::ScreensaverStationDetails
+            | super::modal::SettingItem::ScreensaverNowPlaying => self.toggle_ambient_item(item),
             super::modal::SettingItem::DuckEnabled => {
                 self.config.duck_enabled = !self.config.duck_enabled
             }
@@ -2885,11 +3107,10 @@ impl App {
     fn open_settings_at(&mut self, item: SettingItem) {
         self.show_search_modal = true;
         self.modal_mode = SearchMode::Settings;
-        self.settings_selected =
-            settings_items(self.config.duck_enabled, self.config.screensaver_secs > 0)
-                .iter()
-                .position(|candidate| *candidate == item)
-                .unwrap_or(0);
+        self.settings_selected = settings_items()
+            .iter()
+            .position(|candidate| *candidate == item)
+            .unwrap_or(0);
         self.settings_scroll_offset = 0;
         self.keep_settings_visible();
     }
@@ -3281,17 +3502,36 @@ impl App {
     }
 
     async fn on_key_modal_youtube(&mut self, key: KeyCode) {
-        if key == KeyCode::Char(' ') && !matches!(self.youtube.sub_tab, YoutubeSubTab::Search) {
+        if key == KeyCode::Char(' ')
+            && !matches!(
+                self.youtube.sub_tab,
+                YoutubeSubTab::Search | YoutubeSubTab::PublicPlaylists
+            )
+        {
             self.toggle_radio_pause().await;
             return;
         }
         match key {
             KeyCode::Esc => {
                 self.show_help = false;
-                if self.youtube.sub_tab == YoutubeSubTab::Playlists
-                    && self.youtube.open_playlist.is_some()
+                if matches!(
+                    self.youtube.sub_tab,
+                    YoutubeSubTab::Playlists | YoutubeSubTab::PublicPlaylists
+                ) && self.youtube.open_playlist.is_some()
                 {
                     self.close_youtube_playlist();
+                } else if self.youtube.sub_tab == YoutubeSubTab::PublicPlaylists
+                    && (!self.youtube.public_query.is_empty()
+                        || !self.youtube.public_results.is_empty())
+                {
+                    self.youtube.public_query.clear();
+                    self.youtube.public_results.clear();
+                    self.youtube.public_selected = 0;
+                    self.youtube.public_scroll_offset = 0;
+                    self.youtube.public_loading = false;
+                    self.youtube.public_search_pending_until = None;
+                    abort_task(&mut self.youtube.public_search_task);
+                    self.youtube.public_search_rx = None;
                 } else if self.youtube.sub_tab == YoutubeSubTab::Search
                     && (!self.youtube.query.is_empty() || !self.youtube.results.is_empty())
                 {
@@ -3315,6 +3555,7 @@ impl App {
             KeyCode::Left | KeyCode::Right => {
                 let tabs = [
                     YoutubeSubTab::Search,
+                    YoutubeSubTab::PublicPlaylists,
                     YoutubeSubTab::Bookmarks,
                     YoutubeSubTab::Liked,
                     YoutubeSubTab::Playlists,
@@ -3342,6 +3583,7 @@ impl App {
                 }
                 match self.youtube.sub_tab {
                     YoutubeSubTab::Search => self.on_key_youtube_search(key).await,
+                    YoutubeSubTab::PublicPlaylists => self.on_key_youtube_public(key).await,
                     YoutubeSubTab::Bookmarks => self.on_key_youtube_bookmarks(key).await,
                     YoutubeSubTab::Liked => self.on_key_youtube_liked(key).await,
                     YoutubeSubTab::Playlists => self.on_key_youtube_playlists(key).await,
@@ -3351,6 +3593,9 @@ impl App {
     }
 
     fn switch_youtube_sub_tab(&mut self, tab: YoutubeSubTab) {
+        if self.youtube.sub_tab != tab && self.youtube.open_playlist.is_some() {
+            self.close_youtube_playlist();
+        }
         self.youtube.sub_tab = tab;
         match self.youtube.sub_tab {
             YoutubeSubTab::Liked
@@ -3399,6 +3644,64 @@ impl App {
                 self.perform_youtube_search();
             }
             _ => {}
+        }
+    }
+
+    async fn on_key_youtube_public(&mut self, key: KeyCode) {
+        if self.youtube.open_playlist.is_some() {
+            self.on_key_youtube_playlist_videos(key).await;
+            return;
+        }
+        match key {
+            KeyCode::Up => {
+                if !self.youtube.public_results.is_empty() {
+                    self.youtube.public_selected = cycle_prev(
+                        self.youtube.public_selected,
+                        self.youtube.public_results.len(),
+                    );
+                    self.keep_youtube_public_visible();
+                }
+            }
+            KeyCode::Down => {
+                if !self.youtube.public_results.is_empty() {
+                    self.youtube.public_selected = cycle_next(
+                        self.youtube.public_selected,
+                        self.youtube.public_results.len(),
+                    );
+                    self.keep_youtube_public_visible();
+                }
+            }
+            KeyCode::Enter => {
+                self.activate_youtube_public_selected().await;
+            }
+            KeyCode::Backspace => {
+                self.youtube.public_query.pop();
+                self.youtube.public_selected = 0;
+                self.youtube.public_scroll_offset = 0;
+                self.perform_youtube_public_search();
+            }
+            KeyCode::Char(c) if !c.is_control() => {
+                self.youtube.public_query.push(c);
+                self.youtube.public_selected = 0;
+                self.youtube.public_scroll_offset = 0;
+                self.perform_youtube_public_search();
+            }
+            _ => {}
+        }
+    }
+
+    async fn activate_youtube_public_selected(&mut self) {
+        if let Some(playlist) = self
+            .youtube
+            .public_results
+            .get(self.youtube.public_selected)
+            .cloned()
+        {
+            self.fetch_youtube_playlist_videos(playlist);
+        } else if !self.youtube.public_query.trim().is_empty() {
+            self.start_youtube_public_search_now();
+        } else {
+            self.ensure_youtube_ready();
         }
     }
 
@@ -3659,7 +3962,7 @@ mod tests {
 
     #[test]
     fn setting_index_at_visual_row_ignores_headers() {
-        let items = settings_items(false, false);
+        let items = settings_items();
 
         assert_eq!(setting_index_at_visual_row(&items, 0), None);
         assert_eq!(setting_index_at_visual_row(&items, 6), None);
@@ -3667,7 +3970,7 @@ mod tests {
 
     #[test]
     fn setting_index_at_visual_row_returns_item_index() {
-        let items = settings_items(false, false);
+        let items = settings_items();
 
         assert_eq!(setting_index_at_visual_row(&items, 1), Some(0));
         assert_eq!(setting_index_at_visual_row(&items, 7), Some(5));
@@ -3675,7 +3978,7 @@ mod tests {
 
     #[test]
     fn settings_visual_row_count_includes_headers() {
-        let items = settings_items(false, false);
+        let items = settings_items();
         let mut groups: Vec<&str> = items.iter().map(|item| item.group_key()).collect();
         groups.dedup();
 

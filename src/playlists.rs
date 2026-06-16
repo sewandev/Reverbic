@@ -24,7 +24,9 @@ pub fn load() -> Vec<RadioPlaylist> {
 }
 
 pub fn save(playlists: &[RadioPlaylist]) {
-    let _ = crate::config::save_json_atomic(&path(), playlists);
+    if let Err(e) = crate::config::save_json_atomic(&path(), playlists) {
+        tracing::error!("failed to save radio playlists: {e}");
+    }
 }
 
 fn path() -> PathBuf {

@@ -49,6 +49,7 @@ pub enum RadioSubTab {
 pub enum YoutubeSubTab {
     #[default]
     Search,
+    PublicPlaylists,
     Bookmarks,
     Liked,
     Playlists,
@@ -204,18 +205,17 @@ impl SettingItem {
             | Self::YoutubeCrossfade
             | Self::YoutubeCookiesPath
             | Self::YoutubeCookiesValidate => "config.group.youtube",
-            Self::OverlayMode
-            | Self::OverlayAlpha
-            | Self::OverlayPosition
-            | Self::OverlayStyle
-            | Self::Screensaver
+            Self::OverlayMode | Self::OverlayAlpha | Self::OverlayPosition | Self::OverlayStyle => {
+                "config.group.overlay"
+            }
+            Self::Screensaver
             | Self::ScreensaverClock
             | Self::ScreensaverLogo
             | Self::ScreensaverVisualizer
             | Self::ScreensaverRecentTracks
             | Self::ScreensaverProgressBar
             | Self::ScreensaverStationDetails
-            | Self::ScreensaverNowPlaying => "config.group.overlay",
+            | Self::ScreensaverNowPlaying => "config.group.ambient",
             Self::DuckEnabled | Self::DuckVolume => "config.group.game",
             Self::MediaKeys
             | Self::TrayIcon
@@ -245,17 +245,17 @@ impl SettingItem {
     }
 }
 
-pub fn settings_items(duck_enabled: bool, screensaver_active: bool) -> Vec<SettingItem> {
+pub fn settings_items() -> Vec<SettingItem> {
     let mut items = vec![
         SettingItem::Autoplay,
         SettingItem::RestoreVolume,
         SettingItem::Crossfade,
         SettingItem::VolumeStep,
         SettingItem::Prebuffer,
+        SettingItem::SpotifyClientId,
         SettingItem::SpotifyRadioMode,
         SettingItem::SpotifyStopOnQuit,
         SettingItem::SpotifyStartOnSpotify,
-        SettingItem::SpotifyClientId,
         SettingItem::SpotifyPlaybackMode,
         SettingItem::SpotifyCrossfade,
         SettingItem::YoutubeRadioMode,
@@ -264,29 +264,9 @@ pub fn settings_items(duck_enabled: bool, screensaver_active: bool) -> Vec<Setti
         SettingItem::YoutubeCookiesPath,
         SettingItem::YoutubeCookiesValidate,
         SettingItem::OverlayMode,
-        SettingItem::OverlayStyle,
-        SettingItem::OverlayAlpha,
-        SettingItem::OverlayPosition,
         SettingItem::Screensaver,
-    ];
-
-    if screensaver_active {
-        items.extend([
-            SettingItem::ScreensaverClock,
-            SettingItem::ScreensaverLogo,
-            SettingItem::ScreensaverVisualizer,
-            SettingItem::ScreensaverRecentTracks,
-            SettingItem::ScreensaverProgressBar,
-            SettingItem::ScreensaverStationDetails,
-            SettingItem::ScreensaverNowPlaying,
-        ]);
-    }
-
-    items.push(SettingItem::DuckEnabled);
-    if duck_enabled {
-        items.push(SettingItem::DuckVolume);
-    }
-    items.extend([
+        SettingItem::DuckEnabled,
+        SettingItem::DuckVolume,
         SettingItem::MediaKeys,
         SettingItem::TrayIcon,
         SettingItem::Notifications,
@@ -296,13 +276,46 @@ pub fn settings_items(duck_enabled: bool, screensaver_active: bool) -> Vec<Setti
         SettingItem::OpenLogs,
         SettingItem::Language,
         SettingItem::Theme,
-    ]);
+    ];
 
     if !cfg!(target_os = "windows") {
         items.retain(|item| !item.is_windows_only());
     }
 
     items
+}
+
+pub fn ambient_items() -> Vec<SettingItem> {
+    vec![
+        SettingItem::Screensaver,
+        SettingItem::ScreensaverClock,
+        SettingItem::ScreensaverLogo,
+        SettingItem::ScreensaverVisualizer,
+        SettingItem::ScreensaverRecentTracks,
+        SettingItem::ScreensaverProgressBar,
+        SettingItem::ScreensaverStationDetails,
+        SettingItem::ScreensaverNowPlaying,
+    ]
+}
+
+pub fn overlay_items() -> Vec<SettingItem> {
+    vec![
+        SettingItem::OverlayMode,
+        SettingItem::OverlayStyle,
+        SettingItem::OverlayAlpha,
+        SettingItem::OverlayPosition,
+    ]
+}
+
+pub fn ambient_item_disabled(config: &crate::config::Config, item: SettingItem) -> bool {
+    !matches!(item, SettingItem::Screensaver) && config.screensaver_secs == 0
+}
+
+pub fn overlay_item_disabled(config: &crate::config::Config, item: SettingItem) -> bool {
+    matches!(
+        item,
+        SettingItem::OverlayAlpha | SettingItem::OverlayPosition | SettingItem::OverlayStyle
+    ) && config.overlay_mode == crate::config::OverlayMode::Hidden
 }
 
 pub enum AppFocus {

@@ -10,6 +10,31 @@ Versionado: [Semantic Versioning](https://semver.org/)
 
 ## [Sin publicar]
 
+## [1.5.6] - 2026-06-16
+
+### Added
+- Controles de pista siguiente/anterior (Ctrl+Derecha / Ctrl+Izquierda) para la reproducción de YouTube, que recorren el contexto actual (resultados de búsqueda, playlist, me gusta, favoritos o mix). El anterior se detiene en el primer elemento; el siguiente extiende el mix o continúa con YouTube Radio al final de una lista, igual que el avance automático.
+- Siguiente/anterior (Ctrl+Derecha / Ctrl+Izquierda) también funcionan en la radio: recorren la lista desde la que se reprodujo la estación (Favoritos o resultados de Búsqueda), o avanzan dentro de la playlist activa. Aparece un aviso breve al inicio/fin de la lista, o cuando no hay nada en reproducción para navegar.
+- Siguiente/anterior (Ctrl+Derecha / Ctrl+Izquierda) también funcionan en Spotify: en modo nativo recorren la cola local y un historial de sesión para el anterior; en modo remoto saltan de pista en el dispositivo activo mediante la Web API de Spotify. El atajo Ctrl+Izquierda/Derecha ahora aparece en la barra de controles del Modo Ambiente y en el panel de ayuda.
+- El título de la ventana de la terminal ahora refleja lo que se está reproduciendo (por ejemplo, "Reverbic v1.5.5 Radio", "Reverbic v1.5.5 YouTube" o "Reverbic v1.5.5 Spotify"), y vuelve a mostrar solo la versión cuando no hay nada sonando.
+- Nueva subpestaña "Playlists públicas" en YouTube, justo al lado de "Buscar", que busca listas de reproducción públicas por nombre (por ejemplo, escribir "nier automata" lista las playlists que coinciden). Al igual que "Buscar", funciona sin iniciar sesión; abre una playlist para explorar y reproducir sus videos.
+- 20 temas oscuros adicionales, seleccionables desde el selector de temas, que ahora permite desplazamiento y muestra una vista previa de color (muestra) por cada tema. La apariencia por defecto de Reverbic no cambia.
+
+### Changed
+- La configuración es más consistente: las opciones que dependen de otro ajuste ahora aparecen deshabilitadas (atenuadas y no editables) en lugar de aparecer y desaparecer. El volumen del Ducking se deshabilita mientras el ducking está apagado, y "YouTube Radio" y "Validar cookies" se deshabilitan hasta configurar un archivo de cookies. Dentro de las ventanas emergentes de Overlay y Modo Ambiente ocurre lo mismo: poner el Overlay en Oculto deshabilita transparencia/posición/estilo, y apagar el Modo Ambiente deshabilita sus widgets. El Client ID de Spotify ahora va primero en la sección de Spotify, por ser el requisito previo para lo demás.
+- La configuración del Modo Ambiente ahora se abre en una ventana emergente propia (como el selector de temas) en lugar de expandirse en la lista de ajustes. Al elegir "Modo Ambiente" se abre un modal pequeño donde se ajusta el tiempo de activación y se activan o desactivan todos los widgets (reloj, logo, visualizador, pistas recientes, barra de progreso, detalles de la estación, reproducción actual).
+- La configuración del Overlay también se abre ahora en una ventana emergente propia: al elegir "Overlay" se abre un modal pequeño con el modo de visualización, el estilo, la transparencia y la posición. El Modo Ambiente y el Overlay ahora son secciones separadas en Configuración en lugar de estar agrupados juntos.
+
+### Fixed
+- La reproducción de audio ya no corre el riesgo de un fallo en cascada si un bloqueo interno del stream queda en estado inconsistente; el reproductor ahora se recupera en lugar de cerrarse abruptamente.
+- YouTube ahora se recupera automáticamente dentro de la misma sesión si el runtime de Deno incluido desaparece o se corrompe: tras un resolve fallido vuelve a verificar el runtime (como máximo una vez cada pocos minutos) y lo reinstala si hace falta, en lugar de fallar hasta reiniciar la app.
+- YouTube ya no deja de funcionar en instalaciones antiguas: el runtime de Deno incluido ahora se mantiene actualizado automáticamente (igual que yt-dlp), de modo que la reproducción sigue funcionando tras una actualización de yt-dlp que exige un Deno más nuevo.
+- Se mejoró la fiabilidad del audio de YouTube para que más videos se resuelvan a una pista de solo audio limpia en lugar de caer a un formato combinado de menor calidad.
+
+### Security
+- Los identificadores de playlists de YouTube ahora se validan antes de usarse para construir la URL de la solicitud, igual que la verificación ya existente para los identificadores de video (defensa en profundidad).
+- Las descargas de actualizaciones ahora usan un directorio privado del usuario en lugar de la carpeta temporal compartida del sistema, cerrando un vector teórico de secuestro por symlink local durante la auto-actualización en sistemas multiusuario.
+
 ## [1.5.5] - 2026-06-14
 
 ### Added

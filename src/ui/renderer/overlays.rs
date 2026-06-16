@@ -1,14 +1,19 @@
 use ratatui::{
     layout::{Alignment, Rect},
-    style::{Modifier, Style},
+    style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, BorderType, Borders, Clear, Paragraph},
     Frame,
 };
 
+use crate::app::{
+    ambient_item_disabled, ambient_items, overlay_item_disabled, overlay_items, SettingItem,
+};
 use crate::audio::{PlayerState, PlayerStatus};
 use crate::i18n::t;
+use crate::ui::strings::screensaver_display;
 use crate::ui::theme::{self, Palette, ThemeId};
+use crate::ui::widgets::{picker, theme_picker};
 
 pub(super) fn render_rename_overlay(
     frame: &mut Frame,
@@ -391,15 +396,14 @@ pub(super) fn render_theme_picker_overlay(
     frame: &mut Frame,
     current: ThemeId,
     selected: usize,
+    scroll_offset: usize,
     palette: &Palette,
 ) {
-    let themes = ThemeId::all();
+    let theme_count = ThemeId::all().len();
     let area = frame.area();
-    let w = area.width.clamp(34, 46);
-    let h = (themes.len() as u16 + 4).clamp(5, area.height);
-    let x = area.width.saturating_sub(w) / 2;
-    let y = area.height.saturating_sub(h) / 2;
-    let panel = Rect::new(x, y, w, h);
+    let visible_rows = theme_picker::visible_rows(area, theme_count);
+    let scroll_offset = scroll_offset.min(theme_count.saturating_sub(visible_rows));
+    let panel = theme_picker::panel(area, theme_count);
 
     frame.render_widget(Clear, panel);
 
@@ -428,8 +432,13 @@ pub(super) fn render_theme_picker_overlay(
     let inner = block.inner(panel);
     frame.render_widget(block, panel);
 
-    for (i, theme) in themes.iter().copied().enumerate() {
-        let y = inner.y + 1 + i as u16;
+    for (visible_i, theme) in ThemeId::all()
+        .skip(scroll_offset)
+        .take(visible_rows)
+        .enumerate()
+    {
+        let i = scroll_offset + visible_i;
+        let y = inner.y + 1 + visible_i as u16;
         if y >= inner.bottom() {
             break;
         }
@@ -447,10 +456,227 @@ pub(super) fn render_theme_picker_overlay(
             Style::default().fg(palette.highlight)
         };
         let label = format!(" {marker} {current_marker} {}", theme.display());
+        let content_width = inner.width.saturating_sub(2);
         frame.render_widget(
-            Paragraph::new(Span::styled(label, style)).style(Style::default().bg(palette.panel_bg)),
-            Rect::new(inner.x + 1, y, inner.width.saturating_sub(2), 1),
+            Paragraph::new(theme_picker_row(
+                label,
+                style,
+                theme::definition(theme).preview,
+                content_width,
+                palette.panel_bg,
+            ))
+            .style(Style::default().bg(palette.panel_bg)),
+            Rect::new(inner.x + 1, y, content_width, 1),
         );
+    }
+}
+
+fn theme_picker_row(
+    label: String,
+    label_style: Style,
+    preview: [Color; 3],
+    content_width: u16,
+    panel_bg: Color,
+) -> Line<'static> {
+    const SWATCH_WIDTH: usize = 2;
+    const SWATCH_GAP: usize = 1;
+    const PREVIEW_WIDTH: usize = SWATCH_WIDTH * 3 + SWATCH_GAP * 2;
+    const PREVIEW_SPACING: usize = 1;
+
+    let content_width = content_width as usize;
+    let label_style = label_style.bg(panel_bg);
+    if content_width < label.len() + PREVIEW_SPACING + PREVIEW_WIDTH {
+        return Line::from(Span::styled(label, label_style));
+    }
+
+    let spacer = " ".repeat(content_width - label.len() - PREVIEW_WIDTH);
+    let mut spans = vec![
+        Span::styled(label, label_style),
+        Span::styled(spacer, Style::default().bg(panel_bg)),
+    ];
+    for (i, color) in preview.into_iter().enumerate() {
+        if i > 0 {
+            spans.push(Span::styled(
+                " ".repeat(SWATCH_GAP),
+                Style::default().bg(panel_bg),
+            ));
+        }
+        spans.push(Span::styled(
+            " ".repeat(SWATCH_WIDTH),
+            Style::default().bg(color),
+        ));
+    }
+    Line::from(spans)
+}
+
+pub(super) fn render_ambient_picker_overlay(
+    frame: &mut Frame,
+    config: &crate::config::Config,
+    selected: usize,
+    scroll_offset: usize,
+    palette: &Palette,
+) {
+    render_list_picker(
+        frame,
+        &ambient_items(),
+        &t("ambient.picker.title"),
+        &t("ambient.picker.hint"),
+        selected,
+        scroll_offset,
+        palette,
+        |item| ambient_item_value(config, item),
+        |item| ambient_item_disabled(config, item),
+    );
+}
+
+pub(super) fn render_overlay_picker_overlay(
+    frame: &mut Frame,
+    config: &crate::config::Config,
+    selected: usize,
+    scroll_offset: usize,
+    palette: &Palette,
+) {
+    render_list_picker(
+        frame,
+        &overlay_items(),
+        &t("overlay.picker.title"),
+        &t("overlay.picker.hint"),
+        selected,
+        scroll_offset,
+        palette,
+        |item| overlay_item_value(config, item),
+        |item| overlay_item_disabled(config, item),
+    );
+}
+
+#[allow(clippy::too_many_arguments)]
+fn render_list_picker(
+    frame: &mut Frame,
+    items: &[SettingItem],
+    title: &str,
+    hint: &str,
+    selected: usize,
+    scroll_offset: usize,
+    palette: &Palette,
+    value_of: impl Fn(SettingItem) -> String,
+    disabled_of: impl Fn(SettingItem) -> bool,
+) {
+    let item_count = items.len();
+    let area = frame.area();
+    let visible_rows = picker::visible_rows(area, item_count);
+    let scroll_offset = scroll_offset.min(item_count.saturating_sub(visible_rows));
+    let panel = picker::panel(area, item_count);
+
+    frame.render_widget(Clear, panel);
+
+    let block = Block::default()
+        .title_top(
+            Line::from(Span::styled(
+                title,
+                Style::default()
+                    .fg(palette.highlight)
+                    .add_modifier(Modifier::BOLD),
+            ))
+            .alignment(Alignment::Center),
+        )
+        .title_bottom(
+            Line::from(Span::styled(hint, Style::default().fg(palette.muted)))
+                .alignment(Alignment::Center),
+        )
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(palette.accent))
+        .style(Style::default().bg(palette.panel_bg));
+
+    let inner = block.inner(panel);
+    frame.render_widget(block, panel);
+
+    let on = t("config.value.on");
+    let off = t("config.value.off");
+
+    for (visible_i, item) in items
+        .iter()
+        .skip(scroll_offset)
+        .take(visible_rows)
+        .enumerate()
+    {
+        let i = scroll_offset + visible_i;
+        let y = inner.y + 1 + visible_i as u16;
+        if y >= inner.bottom() {
+            break;
+        }
+        let active = i == selected;
+        let disabled = disabled_of(*item);
+        let marker = if active { ">" } else { " " };
+        let label = item.label();
+        let value = value_of(*item);
+
+        let label_style = if disabled {
+            Style::default().fg(palette.dim)
+        } else if active {
+            Style::default()
+                .fg(palette.playing)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(palette.highlight)
+        };
+        let value_style = if disabled {
+            Style::default().fg(palette.dim)
+        } else if active {
+            Style::default()
+                .fg(palette.playing)
+                .add_modifier(Modifier::BOLD)
+        } else if value == on {
+            Style::default().fg(palette.playing)
+        } else if value == off {
+            Style::default().fg(palette.muted)
+        } else {
+            Style::default().fg(palette.accent)
+        };
+
+        let content_width = inner.width.saturating_sub(2) as usize;
+        let left = format!(" {marker} {label}");
+        let pad = content_width.saturating_sub(left.chars().count() + value.chars().count());
+        let line = Line::from(vec![
+            Span::styled(left, label_style),
+            Span::styled(" ".repeat(pad), Style::default().bg(palette.panel_bg)),
+            Span::styled(value, value_style),
+        ]);
+        frame.render_widget(
+            Paragraph::new(line).style(Style::default().bg(palette.panel_bg)),
+            Rect::new(inner.x + 1, y, content_width as u16, 1),
+        );
+    }
+}
+
+fn ambient_item_value(config: &crate::config::Config, item: SettingItem) -> String {
+    let flag = |v: bool| {
+        if v {
+            t("config.value.on")
+        } else {
+            t("config.value.off")
+        }
+    };
+    match item {
+        SettingItem::Screensaver => screensaver_display(config.screensaver_secs),
+        SettingItem::ScreensaverClock => flag(config.screensaver_clock),
+        SettingItem::ScreensaverLogo => flag(config.screensaver_logo),
+        SettingItem::ScreensaverVisualizer => flag(config.screensaver_visualizer),
+        SettingItem::ScreensaverRecentTracks => flag(config.screensaver_recent_tracks),
+        SettingItem::ScreensaverProgressBar => flag(config.screensaver_progress_bar),
+        SettingItem::ScreensaverStationDetails => flag(config.screensaver_station_details),
+        SettingItem::ScreensaverNowPlaying => flag(config.screensaver_now_playing),
+        _ => String::new(),
+    }
+}
+
+fn overlay_item_value(config: &crate::config::Config, item: SettingItem) -> String {
+    match item {
+        SettingItem::OverlayMode => config.overlay_mode.display(),
+        SettingItem::OverlayStyle => config.overlay_style.display(),
+        SettingItem::OverlayAlpha => format!("{}%", config.overlay_alpha),
+        SettingItem::OverlayPosition => config.overlay_position.display(),
+        _ => String::new(),
     }
 }
 
@@ -923,6 +1149,7 @@ fn help_rows(
         vec![
             help_header("help.group.global"),
             Entry("[Tab]", t("help.shortcut.switch_source")),
+            Entry("[Ctrl+←→]", t("help.shortcut.next_prev")),
             Entry("[Alt+O]", t("help.shortcut.open_config")),
             Entry("[Esc]", t("help.shortcut.close_quit")),
         ]

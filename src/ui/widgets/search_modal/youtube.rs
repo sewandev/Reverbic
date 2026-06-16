@@ -32,6 +32,12 @@ struct VideoListState<'a> {
     empty_message: &'a str,
 }
 
+struct PlaylistListState<'a> {
+    playlists: &'a [YoutubePlaylist],
+    selected: usize,
+    scroll_offset: usize,
+}
+
 impl<'a> SearchModalWidget<'a> {
     pub(super) fn render_youtube_body(
         &self,
@@ -75,6 +81,9 @@ impl<'a> SearchModalWidget<'a> {
                 YoutubeSubTab::Search => {
                     self.render_youtube_search_body(layout.body, content_x, text_x, text_w, buf)
                 }
+                YoutubeSubTab::PublicPlaylists => {
+                    self.render_youtube_public_body(layout.body, content_x, text_x, text_w, buf)
+                }
                 YoutubeSubTab::Bookmarks => {
                     self.render_youtube_bookmarks_body(layout.body, text_x, text_w, buf)
                 }
@@ -116,6 +125,11 @@ impl<'a> SearchModalWidget<'a> {
             Span::styled(
                 t("modal.youtube.subtab.search"),
                 tab_style(self.youtube_sub_tab == YoutubeSubTab::Search),
+            ),
+            Span::raw("  "),
+            Span::styled(
+                t("modal.youtube.subtab.public_playlists"),
+                tab_style(self.youtube_sub_tab == YoutubeSubTab::PublicPlaylists),
             ),
             Span::raw("  "),
             Span::styled(
@@ -191,7 +205,7 @@ impl<'a> SearchModalWidget<'a> {
             text_area.height = text_area.height.saturating_sub(1);
             Paragraph::new(Span::styled(
                 t("modal.youtube.search.mix_hint"),
-                Style::default().fg(ratatui::style::Color::DarkGray),
+                Style::default().fg(self.palette.muted),
             ))
             .alignment(Alignment::Center)
             .render(text_area, buf);
@@ -276,14 +290,38 @@ impl<'a> SearchModalWidget<'a> {
             return;
         }
 
+        self.render_youtube_playlist_list(
+            area,
+            list_x,
+            list_w,
+            PlaylistListState {
+                playlists: self.youtube_playlists,
+                selected: self.youtube_playlists_selected,
+                scroll_offset: self.youtube_playlists_scroll_offset,
+            },
+            buf,
+        );
+    }
+
+    fn render_youtube_playlist_list(
+        &self,
+        area: Rect,
+        list_x: u16,
+        list_w: u16,
+        state: PlaylistListState,
+        buf: &mut Buffer,
+    ) {
+        let PlaylistListState {
+            playlists,
+            selected,
+            scroll_offset,
+        } = state;
+
         const ITEM_HEIGHT: usize = 2;
         let visible_n = (area.height as usize) / ITEM_HEIGHT;
-        let selected = self.youtube_playlists_selected;
-        let offset =
-            scroll_offset_for_selection(selected, visible_n, self.youtube_playlists_scroll_offset);
+        let offset = scroll_offset_for_selection(selected, visible_n, scroll_offset);
 
-        let items: Vec<ListItem> = self
-            .youtube_playlists
+        let items: Vec<ListItem> = playlists
             .iter()
             .enumerate()
             .skip(offset)
@@ -315,9 +353,76 @@ impl<'a> SearchModalWidget<'a> {
         let list_area = Rect::new(list_x, area.y, list_w, area.height);
         List::new(items).render(list_area, buf);
 
-        if self.youtube_playlists.len() > visible_n {
-            self.render_scrollbar(list_area, self.youtube_playlists.len(), selected, buf);
+        if playlists.len() > visible_n {
+            self.render_scrollbar(list_area, playlists.len(), selected, buf);
         }
+    }
+
+    fn render_youtube_public_body(
+        &self,
+        area: Rect,
+        content_x: u16,
+        text_x: u16,
+        text_w: u16,
+        buf: &mut Buffer,
+    ) {
+        if let Some(playlist) = self.youtube_open_playlist {
+            self.render_youtube_playlist_videos(area, text_x, text_w, playlist, buf);
+            return;
+        }
+
+        let layout = youtube_search_layout(area);
+
+        buf[(content_x, layout.input.y)]
+            .set_symbol("┃")
+            .set_fg(self.palette.youtube)
+            .set_bg(self.palette.panel_bg);
+
+        render_filter_input(
+            self.youtube_public_query,
+            &t("modal.youtube.public_placeholder"),
+            Rect::new(text_x, layout.input.y, text_w, 1),
+            self.palette,
+            buf,
+            self.palette.youtube,
+        );
+
+        buf[(content_x, layout.cap.y)]
+            .set_symbol("╹")
+            .set_fg(self.palette.youtube)
+            .set_bg(self.palette.panel_bg);
+
+        if self.youtube_public_loading {
+            Paragraph::new(Span::styled(
+                format!("{}  {}", spin_frame(), t("modal.loading.youtube")),
+                Style::default().fg(self.palette.muted),
+            ))
+            .render(Rect::new(text_x, layout.list.y, text_w, 1), buf);
+            return;
+        }
+
+        if self.youtube_public_results.is_empty() {
+            if !self.youtube_public_query.is_empty() {
+                Paragraph::new(Span::styled(
+                    t("modal.youtube.no_results"),
+                    Style::default().fg(self.palette.muted),
+                ))
+                .render(Rect::new(text_x, layout.list.y, text_w, 1), buf);
+            }
+            return;
+        }
+
+        self.render_youtube_playlist_list(
+            layout.list,
+            text_x,
+            text_w,
+            PlaylistListState {
+                playlists: self.youtube_public_results,
+                selected: self.youtube_public_selected,
+                scroll_offset: self.youtube_public_scroll_offset,
+            },
+            buf,
+        );
     }
 
     fn render_youtube_playlist_videos(

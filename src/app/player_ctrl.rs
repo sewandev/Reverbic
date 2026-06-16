@@ -94,6 +94,7 @@ impl App {
         }
         let station = self.favorites[index].to_station();
         self.active_playlist = None;
+        self.radio_context = Some((super::control_center::RadioSource::Favorites, index));
         self.play_station(station).await;
     }
 
@@ -105,6 +106,7 @@ impl App {
         tracing::info!("Resolved dynamic station '{}'", station.name);
 
         self.active_playlist = None;
+        self.radio_context = Some((super::control_center::RadioSource::Search, index));
         self.play_station(station).await;
     }
 

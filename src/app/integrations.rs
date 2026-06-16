@@ -430,10 +430,12 @@ impl App {
                             next.name
                         );
                         handle.crossfade_to(next.uri.clone());
-                        self.spotify.now_playing = Some(next);
                     } else {
                         self.spotify.playback_queue.push_front(next);
+                        continue;
                     }
+                    self.push_native_history();
+                    self.spotify.now_playing = Some(next);
                 }
                 SpotifyPlayerEvent::Error(e) => {
                     tracing::warn!("spotify native playback error: {e}");
@@ -1059,6 +1061,7 @@ impl App {
             self.spotify.playback_queue.len()
         );
         if let Some(next) = self.spotify.playback_queue.pop_front() {
+            self.push_native_history();
             tracing::debug!("advance_playback_queue: playing next '{}'", next.name);
             if let Some(handle) = &self.spotify.player_tx {
                 handle.play(vec![next.uri.clone()]);
@@ -1086,6 +1089,77 @@ impl App {
                 if let Some(name) = artist_name {
                     self.fetch_radio_tracks(name, seed_uri);
                 }
+            }
+        }
+    }
+
+    fn push_native_history(&mut self) {
+        const MAX_NATIVE_HISTORY: usize = 50;
+        if let Some(track) = self.spotify.now_playing.clone() {
+            self.spotify.native_history.push(track);
+            if self.spotify.native_history.len() > MAX_NATIVE_HISTORY {
+                self.spotify.native_history.remove(0);
+            }
+        }
+    }
+
+    fn native_next(&mut self) {
+        if self.spotify.playback_queue.is_empty() && !self.config.spotify.radio_enabled {
+            self.notify_info(crate::i18n::t("notice.control.end_of_list"));
+            return;
+        }
+        self.advance_playback_queue();
+    }
+
+    fn native_prev(&mut self) {
+        let Some(prev) = self.spotify.native_history.pop() else {
+            self.notify_info(crate::i18n::t("notice.control.start_of_list"));
+            return;
+        };
+        if let Some(current) = self.spotify.now_playing.take() {
+            self.spotify.playback_queue.push_front(current);
+        }
+        if let Some(handle) = &self.spotify.player_tx {
+            handle.play(vec![prev.uri.clone()]);
+        }
+        self.spotify.now_playing = Some(prev);
+        self.spotify.player_status = SpotifyPlayerStatus::Loading;
+    }
+
+    fn spotify_remote_skip(&mut self, token: String, device_id: String, forward: bool) {
+        let (tx, rx) = std::sync::mpsc::channel();
+        self.spotify.play_result_rx = Some(rx);
+        tokio::spawn(async move {
+            let result = if forward {
+                crate::integrations::spotify::devices::next_track(&token, &device_id).await
+            } else {
+                crate::integrations::spotify::devices::previous_track(&token, &device_id).await
+            };
+            let _ = tx.send(result);
+        });
+        self.start_playback_polling();
+    }
+
+    pub(super) async fn spotify_play_next(&mut self) {
+        match self.spotify_control_target() {
+            super::SpotifyControlTarget::Remote { token, device_id } => {
+                self.spotify_remote_skip(token, device_id, true);
+            }
+            super::SpotifyControlTarget::Native => self.native_next(),
+            super::SpotifyControlTarget::None => {
+                self.notify_info(crate::i18n::t("notice.control.nothing_playing"));
+            }
+        }
+    }
+
+    pub(super) async fn spotify_play_previous(&mut self) {
+        match self.spotify_control_target() {
+            super::SpotifyControlTarget::Remote { token, device_id } => {
+                self.spotify_remote_skip(token, device_id, false);
+            }
+            super::SpotifyControlTarget::Native => self.native_prev(),
+            super::SpotifyControlTarget::None => {
+                self.notify_info(crate::i18n::t("notice.control.nothing_playing"));
             }
         }
     }

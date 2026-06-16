@@ -109,7 +109,7 @@ impl StreamReader {
     }
     pub fn pre_buffer(&mut self, target_bytes: usize, mut progress: impl FnMut(f32)) {
         while self.buffered < target_bytes {
-            let rx = self.rx.lock().expect("StreamReader mutex poisoned");
+            let rx = self.rx.lock().unwrap_or_else(|e| e.into_inner());
             let result = rx.recv_timeout(std::time::Duration::from_millis(100));
             drop(rx);
             match result {
@@ -132,7 +132,7 @@ impl Read for StreamReader {
             return Ok(0);
         }
         if self.buffered == 0 {
-            let rx = self.rx.lock().expect("StreamReader mutex poisoned");
+            let rx = self.rx.lock().unwrap_or_else(|e| e.into_inner());
             match rx.recv() {
                 Ok(chunk) => {
                     drop(rx);
@@ -144,7 +144,7 @@ impl Read for StreamReader {
         {
             let mut pending: Vec<Bytes> = Vec::new();
             {
-                let rx = self.rx.lock().expect("StreamReader mutex poisoned");
+                let rx = self.rx.lock().unwrap_or_else(|e| e.into_inner());
                 while let Ok(chunk) = rx.try_recv() {
                     pending.push(chunk);
                 }
@@ -536,7 +536,8 @@ async fn download_to_file(
         loop {
             match tokio::time::timeout(std::time::Duration::from_secs(5), stream.next()).await {
                 Ok(Some(Ok(bytes))) => {
-                    if file.write_all(&bytes).is_err() {
+                    if let Err(e) = file.write_all(&bytes) {
+                        tracing::error!("File download: disk write failed: {e}");
                         disk_error = true;
                         break;
                     }
@@ -566,7 +567,6 @@ async fn download_to_file(
         }
 
         if disk_error {
-            tracing::error!("File download: disk write failed, aborting");
             break;
         }
 
@@ -591,7 +591,9 @@ async fn download_to_file(
         break;
     }
 
-    let _ = file.flush();
+    if let Err(e) = file.flush() {
+        tracing::warn!("File download: final flush failed, file may be incomplete: {e}");
+    }
     tracing::info!("File download ended at {current_offset} bytes");
     download_done.store(true, Ordering::Release);
     Ok(())

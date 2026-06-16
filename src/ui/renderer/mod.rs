@@ -7,31 +7,31 @@ use crate::app::App;
 use crate::ui::theme;
 use ambient::{render_ambient_mode, AmbientContent};
 use overlays::{
-    render_client_id_overlay, render_cookies_path_overlay, render_device_picker_overlay,
-    render_game_strip, render_help_overlay, render_modal_np_strip, render_modal_spotify_strip,
-    render_playlist_picker_overlay, render_rename_overlay, render_theme_picker_overlay,
-    render_update_toast,
+    render_ambient_picker_overlay, render_client_id_overlay, render_cookies_path_overlay,
+    render_device_picker_overlay, render_game_strip, render_help_overlay, render_modal_np_strip,
+    render_modal_spotify_strip, render_overlay_picker_overlay, render_playlist_picker_overlay,
+    render_rename_overlay, render_theme_picker_overlay, render_update_toast,
 };
 
 pub fn render(frame: &mut Frame, app: &App) {
     let area = frame.area();
+    let palette = theme::palette(app.config.theme);
     if area.width < crate::ui::widgets::search_modal::MODAL_MIN_WIDTH
         || area.height < crate::ui::widgets::search_modal::MODAL_MIN_HEIGHT
     {
         use ratatui::{
-            style::{Color, Style},
+            style::Style,
             text::{Line, Span},
             widgets::Paragraph,
         };
         let msg = Paragraph::new(Line::from(Span::styled(
             "[ terminal too small ]",
-            Style::default().fg(Color::DarkGray),
+            Style::default().fg(palette.muted),
         )));
         frame.render_widget(msg, area);
         return;
     }
 
-    let palette = theme::palette(app.config.theme);
     let player_state = app.player_state();
 
     if app.screensaver_active() {
@@ -229,7 +229,33 @@ pub fn render(frame: &mut Frame, app: &App) {
     }
 
     if app.theme_picker_open {
-        render_theme_picker_overlay(frame, app.config.theme, app.theme_picker_selected, palette);
+        render_theme_picker_overlay(
+            frame,
+            app.config.theme,
+            app.theme_picker_selected,
+            app.theme_picker_scroll_offset,
+            palette,
+        );
+    }
+
+    if app.ambient_picker_open {
+        render_ambient_picker_overlay(
+            frame,
+            &app.config,
+            app.ambient_picker_selected,
+            app.ambient_picker_scroll_offset,
+            palette,
+        );
+    }
+
+    if app.overlay_picker_open {
+        render_overlay_picker_overlay(
+            frame,
+            &app.config,
+            app.overlay_picker_selected,
+            app.overlay_picker_scroll_offset,
+            palette,
+        );
     }
 
     if let Some(ref version) = app.update_available {

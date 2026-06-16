@@ -150,6 +150,7 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
     app.start_update_check();
     app.start_youtube_session_health_check();
     tokio::spawn(crate::integrations::youtube::install::update_if_outdated());
+    tokio::spawn(crate::integrations::youtube::deno::update_if_outdated());
     tokio::task::spawn_blocking(crate::audio::stream::clear_youtube_cache);
 
     #[cfg(target_os = "windows")]
@@ -178,6 +179,7 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
     ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     let mut events = EventStream::new();
     let mut double_clicks = DoubleClickTracker::default();
+    let mut last_title = String::new();
 
     loop {
         app.poll_dead_url();
@@ -209,6 +211,8 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
         app.poll_youtube_install();
         app.poll_youtube_search_debounce();
         app.poll_youtube_search();
+        app.poll_youtube_public_search_debounce();
+        app.poll_youtube_public_search();
         app.poll_youtube_resolve().await;
         app.poll_youtube_liked();
         app.poll_youtube_playlists();
@@ -246,6 +250,11 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
         })
         .map_err(|e| error::AppError::Terminal(e.to_string()))?;
         app.terminal_area = last_area;
+        let title = app.terminal_title();
+        if title != last_title {
+            last_title = title.clone();
+            terminal::set_title(&title);
+        }
         #[cfg(target_os = "windows")]
         {
             if let Some(tx) = &app.dots_tx {
