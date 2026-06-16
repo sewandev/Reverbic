@@ -256,11 +256,7 @@ impl App {
     fn settings_selected_row(&self) -> usize {
         let mut row = 0usize;
         let mut last_group = "";
-        for (item_idx, item) in
-            settings_items(self.config.duck_enabled, self.config.screensaver_secs > 0)
-                .iter()
-                .enumerate()
-        {
+        for (item_idx, item) in settings_items(self.config.duck_enabled).iter().enumerate() {
             let group = item.group_key();
             if group != last_group {
                 row += 1;
@@ -536,6 +532,11 @@ impl App {
 
         if self.theme_picker_open {
             self.on_key_theme_picker(event.code);
+            return;
+        }
+
+        if self.ambient_picker_open {
+            self.on_key_ambient_picker(event.code);
             return;
         }
 
@@ -1327,8 +1328,7 @@ impl App {
     }
 
     fn on_key_modal_settings(&mut self, key: KeyCode) {
-        let count =
-            settings_items(self.config.duck_enabled, self.config.screensaver_secs > 0).len();
+        let count = settings_items(self.config.duck_enabled).len();
         match key {
             KeyCode::Esc => {
                 self.show_help = false;
@@ -1391,7 +1391,7 @@ impl App {
     }
 
     fn activate_setting_selected(&mut self) {
-        let items = settings_items(self.config.duck_enabled, self.config.screensaver_secs > 0);
+        let items = settings_items(self.config.duck_enabled);
         if let Some(item) = items.get(self.settings_selected).copied() {
             self.activate_setting_item(item);
             if matches!(self.modal_mode, SearchMode::Settings) {
@@ -1418,6 +1418,7 @@ impl App {
                 self.editing_cookies_path = true;
             }
             SettingItem::Theme => self.open_theme_picker(),
+            SettingItem::Screensaver => self.open_ambient_picker(),
             SettingItem::ReplayOnboarding => {
                 self.replay_onboarding = true;
                 self.show_search_modal = true;
@@ -1477,6 +1478,81 @@ impl App {
                     }
                 }
                 self.theme_picker_open = false;
+            }
+            _ => {}
+        }
+    }
+
+    fn open_ambient_picker(&mut self) {
+        self.ambient_picker_selected = 0;
+        self.keep_ambient_picker_visible();
+        self.ambient_picker_open = true;
+    }
+
+    fn keep_ambient_picker_visible(&mut self) {
+        let visible = crate::ui::widgets::ambient_picker::visible_rows(
+            self.terminal_area,
+            super::ambient_items().len(),
+        );
+        keep_selected_visible(
+            &mut self.ambient_picker_scroll_offset,
+            self.ambient_picker_selected,
+            visible,
+        );
+    }
+
+    fn on_key_ambient_picker(&mut self, key: KeyCode) {
+        let items = super::ambient_items();
+        match key {
+            KeyCode::Esc | KeyCode::Left => {
+                self.ambient_picker_open = false;
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                self.ambient_picker_selected =
+                    cycle_prev(self.ambient_picker_selected, items.len());
+                self.keep_ambient_picker_visible();
+            }
+            KeyCode::Down | KeyCode::Char('j') => {
+                self.ambient_picker_selected =
+                    cycle_next(self.ambient_picker_selected, items.len());
+                self.keep_ambient_picker_visible();
+            }
+            KeyCode::Enter | KeyCode::Char(' ') | KeyCode::Right => {
+                if let Some(&item) = items.get(self.ambient_picker_selected) {
+                    self.toggle_ambient_item(item);
+                    self.save_config();
+                    if let Some(ref tx) = self.windows_tx {
+                        let _ = tx.send(self.config.clone());
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn toggle_ambient_item(&mut self, item: SettingItem) {
+        match item {
+            SettingItem::Screensaver => self.config.screensaver_next(),
+            SettingItem::ScreensaverClock => {
+                self.config.screensaver_clock = !self.config.screensaver_clock
+            }
+            SettingItem::ScreensaverLogo => {
+                self.config.screensaver_logo = !self.config.screensaver_logo
+            }
+            SettingItem::ScreensaverVisualizer => {
+                self.config.screensaver_visualizer = !self.config.screensaver_visualizer
+            }
+            SettingItem::ScreensaverRecentTracks => {
+                self.config.screensaver_recent_tracks = !self.config.screensaver_recent_tracks
+            }
+            SettingItem::ScreensaverProgressBar => {
+                self.config.screensaver_progress_bar = !self.config.screensaver_progress_bar
+            }
+            SettingItem::ScreensaverStationDetails => {
+                self.config.screensaver_station_details = !self.config.screensaver_station_details
+            }
+            SettingItem::ScreensaverNowPlaying => {
+                self.config.screensaver_now_playing = !self.config.screensaver_now_playing
             }
             _ => {}
         }
@@ -1964,7 +2040,7 @@ impl App {
     }
 
     fn on_click_settings(&mut self, col: u16, row: u16) {
-        let items = settings_items(self.config.duck_enabled, self.config.screensaver_secs > 0);
+        let items = settings_items(self.config.duck_enabled);
         let visual_row_count = settings_visual_row_count(&items);
         let Some(visual_row) = one_line_list_index_at(
             settings_items_area(self.terminal_area),
@@ -2517,11 +2593,7 @@ impl App {
                             }
                         }
                         SearchMode::Settings => {
-                            let len = settings_items(
-                                self.config.duck_enabled,
-                                self.config.screensaver_secs > 0,
-                            )
-                            .len();
+                            let len = settings_items(self.config.duck_enabled).len();
                             if len > 0 {
                                 self.settings_selected =
                                     scroll_by(self.settings_selected, delta, len);
@@ -2666,9 +2738,7 @@ impl App {
 
     fn apply_settings_toggle(&mut self, idx: usize) {
         use crate::i18n;
-        let Some(&item) =
-            settings_items(self.config.duck_enabled, self.config.screensaver_secs > 0).get(idx)
-        else {
+        let Some(&item) = settings_items(self.config.duck_enabled).get(idx) else {
             return;
         };
         match item {
@@ -2709,28 +2779,14 @@ impl App {
             super::modal::SettingItem::OverlayStyle => {
                 self.config.overlay_style = self.config.overlay_style.next()
             }
-            super::modal::SettingItem::Screensaver => self.config.screensaver_next(),
-            super::modal::SettingItem::ScreensaverClock => {
-                self.config.screensaver_clock = !self.config.screensaver_clock
-            }
-            super::modal::SettingItem::ScreensaverLogo => {
-                self.config.screensaver_logo = !self.config.screensaver_logo
-            }
-            super::modal::SettingItem::ScreensaverVisualizer => {
-                self.config.screensaver_visualizer = !self.config.screensaver_visualizer
-            }
-            super::modal::SettingItem::ScreensaverRecentTracks => {
-                self.config.screensaver_recent_tracks = !self.config.screensaver_recent_tracks
-            }
-            super::modal::SettingItem::ScreensaverProgressBar => {
-                self.config.screensaver_progress_bar = !self.config.screensaver_progress_bar
-            }
-            super::modal::SettingItem::ScreensaverStationDetails => {
-                self.config.screensaver_station_details = !self.config.screensaver_station_details
-            }
-            super::modal::SettingItem::ScreensaverNowPlaying => {
-                self.config.screensaver_now_playing = !self.config.screensaver_now_playing
-            }
+            super::modal::SettingItem::Screensaver
+            | super::modal::SettingItem::ScreensaverClock
+            | super::modal::SettingItem::ScreensaverLogo
+            | super::modal::SettingItem::ScreensaverVisualizer
+            | super::modal::SettingItem::ScreensaverRecentTracks
+            | super::modal::SettingItem::ScreensaverProgressBar
+            | super::modal::SettingItem::ScreensaverStationDetails
+            | super::modal::SettingItem::ScreensaverNowPlaying => self.toggle_ambient_item(item),
             super::modal::SettingItem::DuckEnabled => {
                 self.config.duck_enabled = !self.config.duck_enabled
             }
@@ -2956,11 +3012,10 @@ impl App {
     fn open_settings_at(&mut self, item: SettingItem) {
         self.show_search_modal = true;
         self.modal_mode = SearchMode::Settings;
-        self.settings_selected =
-            settings_items(self.config.duck_enabled, self.config.screensaver_secs > 0)
-                .iter()
-                .position(|candidate| *candidate == item)
-                .unwrap_or(0);
+        self.settings_selected = settings_items(self.config.duck_enabled)
+            .iter()
+            .position(|candidate| *candidate == item)
+            .unwrap_or(0);
         self.settings_scroll_offset = 0;
         self.keep_settings_visible();
     }
@@ -3812,7 +3867,7 @@ mod tests {
 
     #[test]
     fn setting_index_at_visual_row_ignores_headers() {
-        let items = settings_items(false, false);
+        let items = settings_items(false);
 
         assert_eq!(setting_index_at_visual_row(&items, 0), None);
         assert_eq!(setting_index_at_visual_row(&items, 6), None);
@@ -3820,7 +3875,7 @@ mod tests {
 
     #[test]
     fn setting_index_at_visual_row_returns_item_index() {
-        let items = settings_items(false, false);
+        let items = settings_items(false);
 
         assert_eq!(setting_index_at_visual_row(&items, 1), Some(0));
         assert_eq!(setting_index_at_visual_row(&items, 7), Some(5));
@@ -3828,7 +3883,7 @@ mod tests {
 
     #[test]
     fn settings_visual_row_count_includes_headers() {
-        let items = settings_items(false, false);
+        let items = settings_items(false);
         let mut groups: Vec<&str> = items.iter().map(|item| item.group_key()).collect();
         groups.dedup();
 

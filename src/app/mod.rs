@@ -14,8 +14,8 @@ mod youtube;
 mod youtube_state;
 
 pub use modal::{
-    settings_items, AppFocus, RadioSubTab, SearchMode, SettingItem, SpotifyAuthStatus,
-    SpotifyPlayerStatus, SpotifySubTab, YoutubeSubTab,
+    ambient_items, settings_items, AppFocus, RadioSubTab, SearchMode, SettingItem,
+    SpotifyAuthStatus, SpotifyPlayerStatus, SpotifySubTab, YoutubeSubTab,
 };
 use notice::NoticeQueue;
 pub use notice::NoticeSeverity;
@@ -204,6 +204,9 @@ pub struct App {
     pub theme_picker_open: bool,
     pub theme_picker_selected: usize,
     pub theme_picker_scroll_offset: usize,
+    pub ambient_picker_open: bool,
+    pub ambient_picker_selected: usize,
+    pub ambient_picker_scroll_offset: usize,
     pub click_flash: Option<(usize, Instant)>,
     pub last_activity: Instant,
     pub border_tick: u32,
@@ -324,6 +327,9 @@ impl App {
             theme_picker_open: false,
             theme_picker_selected: 0,
             theme_picker_scroll_offset: 0,
+            ambient_picker_open: false,
+            ambient_picker_selected: 0,
+            ambient_picker_scroll_offset: 0,
             click_flash: None,
             last_activity: Instant::now(),
             border_tick: 0,
@@ -886,6 +892,9 @@ mod tests {
             theme_picker_open: false,
             theme_picker_selected: 0,
             theme_picker_scroll_offset: 0,
+            ambient_picker_open: false,
+            ambient_picker_selected: 0,
+            ambient_picker_scroll_offset: 0,
             click_flash: None,
             last_activity: Instant::now(),
             border_tick: 0,

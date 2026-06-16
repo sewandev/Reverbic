@@ -246,7 +246,7 @@ impl SettingItem {
     }
 }
 
-pub fn settings_items(duck_enabled: bool, screensaver_active: bool) -> Vec<SettingItem> {
+pub fn settings_items(duck_enabled: bool) -> Vec<SettingItem> {
     let mut items = vec![
         SettingItem::Autoplay,
         SettingItem::RestoreVolume,
@@ -271,18 +271,6 @@ pub fn settings_items(duck_enabled: bool, screensaver_active: bool) -> Vec<Setti
         SettingItem::Screensaver,
     ];
 
-    if screensaver_active {
-        items.extend([
-            SettingItem::ScreensaverClock,
-            SettingItem::ScreensaverLogo,
-            SettingItem::ScreensaverVisualizer,
-            SettingItem::ScreensaverRecentTracks,
-            SettingItem::ScreensaverProgressBar,
-            SettingItem::ScreensaverStationDetails,
-            SettingItem::ScreensaverNowPlaying,
-        ]);
-    }
-
     items.push(SettingItem::DuckEnabled);
     if duck_enabled {
         items.push(SettingItem::DuckVolume);
@@ -304,6 +292,19 @@ pub fn settings_items(duck_enabled: bool, screensaver_active: bool) -> Vec<Setti
     }
 
     items
+}
+
+pub fn ambient_items() -> Vec<SettingItem> {
+    vec![
+        SettingItem::Screensaver,
+        SettingItem::ScreensaverClock,
+        SettingItem::ScreensaverLogo,
+        SettingItem::ScreensaverVisualizer,
+        SettingItem::ScreensaverRecentTracks,
+        SettingItem::ScreensaverProgressBar,
+        SettingItem::ScreensaverStationDetails,
+        SettingItem::ScreensaverNowPlaying,
+    ]
 }
 
 pub enum AppFocus {
