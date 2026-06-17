@@ -423,7 +423,7 @@
   "onboarding.welcome.body": "Tu próxima canción favorita podría estar a un Enter de distancia.",
   "onboarding.welcome.sources": "Radio en vivo, Spotify y YouTube: más de 50.000 emisoras del mundo esperan a que las descubras.",
   "onboarding.welcome.performance": "Pensado al 100% para escuchar música sin parar, con el máximo rendimiento que solo una terminal puede ofrecer.",
-  "onboarding.appearance.heading": "Hazlo tuyo",
+  "onboarding.appearance.heading": "Idioma y tema",
   "onboarding.appearance.theme": "Tema",
   "onboarding.overlay.heading": "Tu música, siempre visible con overlay",
   "Top Tracks": "[ Top Tracks ]",
@@ -453,5 +453,9 @@
   "onboarding.hint.unmute": "Reactivar sonido",
   "onboarding.hint.skip": "Omitir",
   "onboarding.maximize_hint": "Maximiza la pantalla para una experiencia completa",
-  "onboarding.appearance.language": "Idioma"
+  "onboarding.appearance.language": "Idioma",
+  "onboarding.theme.heading": "Elige tu estilo",
+  "onboarding.quicksetup.heading": "Ajustes rápidos",
+  "onboarding.hint.preview": "Previsualizar",
+  "onboarding.hint.themes": "Temas"
 }

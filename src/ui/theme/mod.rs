@@ -83,6 +83,15 @@ impl ThemeId {
             .unwrap_or(0);
         themes[(position + 1) % themes.len()].id
     }
+
+    pub fn prev(self) -> Self {
+        let themes = definitions();
+        let position = themes
+            .iter()
+            .position(|definition| definition.id == self)
+            .unwrap_or(0);
+        themes[(position + themes.len() - 1) % themes.len()].id
+    }
 }
 
 #[derive(Debug)]

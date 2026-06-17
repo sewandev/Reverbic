@@ -1,5 +1,5 @@
 pub(crate) mod ambient;
-mod overlays;
+pub(crate) mod overlays;
 
 use ratatui::{layout::Rect, Frame};
 

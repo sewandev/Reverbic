@@ -423,7 +423,7 @@
   "onboarding.welcome.body": "Your next favorite song could be just one Enter away.",
   "onboarding.welcome.sources": "Live radio, Spotify and YouTube: over 50,000 stations from around the world, waiting to be discovered.",
   "onboarding.welcome.performance": "Built 100% for non-stop listening, with the kind of performance only a terminal can deliver.",
-  "onboarding.appearance.heading": "Make it yours",
+  "onboarding.appearance.heading": "Language & theme",
   "onboarding.appearance.theme": "Theme",
   "onboarding.overlay.heading": "Your music, always in view with the overlay",
   "Top Tracks": "[ Top Tracks ]",
@@ -453,5 +453,9 @@
   "onboarding.hint.unmute": "Unmute",
   "onboarding.hint.skip": "Skip",
   "onboarding.maximize_hint": "Maximize your terminal for a full experience",
-  "onboarding.appearance.language": "Language"
+  "onboarding.appearance.language": "Language",
+  "onboarding.theme.heading": "Choose your vibe",
+  "onboarding.quicksetup.heading": "Quick setup",
+  "onboarding.hint.preview": "Preview",
+  "onboarding.hint.themes": "Themes"
 }

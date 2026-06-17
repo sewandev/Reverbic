@@ -133,7 +133,7 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
     );
 
     if !app.config.onboarding_completed {
-        onboarding::run(tui, &mut app.config, &app.player).await?;
+        onboarding::run(tui, &mut app.config).await?;
         app.config.onboarding_completed = true;
         app.config.save();
     }
@@ -281,7 +281,7 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
 
         if app.replay_onboarding {
             app.replay_onboarding = false;
-            onboarding::run(tui, &mut app.config, &app.player).await?;
+            onboarding::run(tui, &mut app.config).await?;
             if let Some(ref tx) = app.windows_tx {
                 let _ = tx.send(app.config.clone());
             }
