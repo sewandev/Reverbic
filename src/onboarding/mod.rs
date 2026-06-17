@@ -155,21 +155,19 @@ fn change_focused_option(state: &mut OnboardingState, forward: bool) {
     }
 }
 
-#[cfg(target_os = "windows")]
 fn change_setup_option(state: &mut OnboardingState, forward: bool) {
-    match state.focused_option {
-        0 => transitions::cycle_overlay_mode(state, forward),
-        1 => transitions::cycle_overlay_position(state, forward),
-        2 => transitions::toggle_autoplay_last(state),
-        _ => transitions::toggle_auto_update(state),
-    }
-}
-
-#[cfg(not(target_os = "windows"))]
-fn change_setup_option(state: &mut OnboardingState, _forward: bool) {
-    match state.focused_option {
-        0 => transitions::toggle_autoplay_last(state),
-        _ => transitions::toggle_auto_update(state),
+    if cfg!(target_os = "windows") {
+        match state.focused_option {
+            0 => transitions::cycle_overlay_mode(state, forward),
+            1 => transitions::cycle_overlay_position(state, forward),
+            2 => transitions::toggle_autoplay_last(state),
+            _ => transitions::toggle_auto_update(state),
+        }
+    } else {
+        match state.focused_option {
+            0 => transitions::toggle_autoplay_last(state),
+            _ => transitions::toggle_auto_update(state),
+        }
     }
 }
 
