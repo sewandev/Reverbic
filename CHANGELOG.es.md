@@ -10,6 +10,12 @@ Versionado: [Semantic Versioning](https://semver.org/)
 
 ## [Sin publicar]
 
+### Changed
+- La primera ejecución es más corta, directa y consistente: solo dos pasos. El primero va directo al idioma y al tema; al pulsar Enter sobre el tema se abre el mismo selector de temas que en Ajustes, donde cada tema se previsualiza en vivo (el logo y el borde animado se recolorean al recorrer la lista). El segundo cubre el resto (overlay, reanudar la última estación, auto-actualización). Todos los pasos comparten los mismos controles (flecha arriba/abajo para moverse, izquierda/derecha para cambiar, Tab para continuar). El resto de opciones técnicas (crossfade, modo ambiente, modos de Spotify, transparencia y demás) ya no se preguntan al inicio y siguen configurables en Ajustes.
+
+### Removed
+- Se quitaron las pantallas de bienvenida y de resumen para ir directo al grano, y la introducción ya no reproduce música de fondo desde YouTube (tardaba en cargar) ni muestra el arte ASCII animado, dejándola instantánea y enfocada.
+
 ## [1.5.6] - 2026-06-16
 
 ### Added

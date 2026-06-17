@@ -392,7 +392,7 @@ pub(super) fn render_cookies_path_overlay(
     );
 }
 
-pub(super) fn render_theme_picker_overlay(
+pub(crate) fn render_theme_picker_overlay(
     frame: &mut Frame,
     current: ThemeId,
     selected: usize,
