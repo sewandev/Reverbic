@@ -82,7 +82,7 @@ const screenshots = [
 			</div>
 			<div class="hero-carousel">
 				<div class="carousel" role="region" aria-roledescription="carrusel" aria-label="Capturas de Reverbic">
-					<button type="button" class="carousel-btn carousel-prev glass" aria-label="Captura anterior">
+					<button type="button" class="carousel-btn carousel-prev" aria-label="Captura anterior">
 						<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
 					</button>
 					<ul class="carousel-track" tabindex="0">
@@ -98,7 +98,7 @@ const screenshots = [
 							</li>
 						))}
 					</ul>
-					<button type="button" class="carousel-btn carousel-next glass" aria-label="Captura siguiente">
+					<button type="button" class="carousel-btn carousel-next" aria-label="Captura siguiente">
 						<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
 					</button>
 				</div>
@@ -472,13 +472,14 @@ const screenshots = [
 		height: 44px;
 		border-radius: 999px;
 		border: 1px solid rgba(255, 255, 255, 0.12);
+		background: rgba(15, 16, 26, 0.72);
 		color: white;
 		cursor: pointer;
 		transition: background-color 0.2s ease, opacity 0.2s ease;
 	}
 
 	.carousel-btn:hover {
-		background: rgba(255, 255, 255, 0.12);
+		background: rgba(40, 44, 70, 0.85);
 	}
 
 	.carousel-btn:disabled {
