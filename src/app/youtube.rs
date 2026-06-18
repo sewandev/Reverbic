@@ -840,6 +840,14 @@ impl App {
                     attempt = attempts + 1,
                     "youtube: stream URL rejected (403/404), re-resolving and retrying"
                 );
+                self.show_notice(
+                    crate::app::NoticeSeverity::Info,
+                    format!(
+                        "«{name}»: {}",
+                        crate::i18n::t("notice.youtube.reconnecting")
+                    ),
+                    4,
+                );
                 if self.play_youtube_from_context(ctx, index) {
                     return;
                 }

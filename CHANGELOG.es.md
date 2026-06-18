@@ -15,6 +15,7 @@ Versionado: [Semantic Versioning](https://semver.org/)
 
 ### Fixed
 - La reproducción de YouTube ya no se queda muda y atascada cuando YouTube rechaza la URL del audio (HTTP 403). El reproductor vuelve a resolver el video una vez con una URL nueva y reintenta automáticamente; si aun así falla, salta a la siguiente pista de la lista (o se detiene si no hay), siempre mostrando un aviso breve en vez de dejar una pista silenciada y congelada.
+- Mientras Reverbic vuelve a resolver y reconectar un stream de YouTube rechazado brevemente (HTTP 403) a mitad de canción, ahora muestra un aviso «conexión perdida, reconectando…» durante ese hueco, en vez de dejar una pausa muda sin explicación en pantalla cuando el reintento tiene éxito.
 - La reproducción de YouTube que se corta a mitad de canción (caída de conexión o descarga lenta) ahora muestra un aviso y pasa a la siguiente pista, en vez de terminar la canción en silencio sin explicación.
 - Una descarga de YouTube estancada ahora se detecta mucho más rápido: en vez de quedarse en silencio hasta un minuto, la reproducción reacciona a los pocos segundos de que el flujo de datos se detiene y avanza, así una descarga congelada ya no deja un hueco muerto largo.
 - Se contiene la cascada de fallos: si varias pistas de YouTube fallan en un lapso corto (normalmente porque YouTube está limitando la conexión), el avance automático se detiene con un mensaje claro pidiendo reintentar en un momento, en vez de recorrer toda la lista saltando cada pista.

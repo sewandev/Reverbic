@@ -15,6 +15,7 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ### Fixed
 - YouTube playback no longer goes silent and stuck when a stream URL is rejected by YouTube (HTTP 403). The player now re-resolves the video once with a fresh URL and retries automatically; if it still fails, it skips to the next track in the list (or stops if there is none), always showing a brief notice instead of leaving a muted, frozen track.
+- While Reverbic re-resolves and reconnects a YouTube stream that was briefly rejected (HTTP 403) mid-song, it now shows a "connection lost, reconnecting…" notice during the gap, instead of leaving a silent pause with no on-screen explanation when the retry succeeds.
 - YouTube playback that gets cut short mid-song (a connection drop or a slow download) now shows a notice and moves on to the next track, instead of ending the song silently with no explanation.
 - A stalled YouTube download is now detected much faster: instead of sitting in silence for up to a minute, playback reacts within seconds of the data flow stopping and moves on, so a frozen download no longer leaves a long dead gap.
 - A failure storm is now contained: if several YouTube tracks fail to play within a short window (typically because YouTube is rate-limiting the connection), auto-advance stops with a clear message asking to try again in a moment, instead of racing through the whole list skipping every track.

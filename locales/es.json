@@ -64,6 +64,7 @@
   "modal.youtube.bookmarks_empty": "Sin favoritos. Presiona Alt+F sobre un video para guardarlo localmente, sin necesidad de cuenta.",
   "notice.youtube_bookmark_added": "★ Guardado en Favoritos de YouTube",
   "notice.youtube_bookmark_removed": "☆ Quitado de Favoritos de YouTube",
+  "notice.youtube.reconnecting": "conexión perdida, reconectando…",
   "notice.youtube.dead_url_skip": "no se pudo reproducir, saltando a la siguiente",
   "notice.youtube.dead_url_stop": "no se pudo reproducir (YouTube rechazó la conexión)",
   "notice.audio_engine_down": "El motor de audio falló. Reinicia Reverbic para continuar.",
