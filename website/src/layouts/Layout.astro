@@ -1,23 +1,50 @@
 ---
+import reverbicAvatar from '../assets/reverbic-avatar.svg';
+
 interface Props {
 	title: string;
+	description?: string;
 }
 
-const { title } = Astro.props;
+const {
+	title,
+	description = 'Reverbic es un reproductor de terminal ultraligero para Radio global, Spotify y YouTube. Construido en Rust para Windows, macOS y Linux.',
+} = Astro.props;
+
+const canonicalURL = new URL(Astro.url.pathname, Astro.site);
+const socialImage = new URL(reverbicAvatar.src, Astro.site);
+const faviconHref = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/favicon.svg`;
 ---
 
 <!doctype html>
 <html lang="es">
 	<head>
 		<meta charset="UTF-8" />
-		<meta name="description" content="Reverbic - The Ultimate TUI Radio & Spotify Player for Windows" />
-		<meta name="viewport" content="width=device-width" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<meta name="generator" content={Astro.generator} />
+		<meta name="theme-color" content="#0a0a0f" />
+		<link rel="icon" type="image/svg+xml" href={faviconHref} />
+		<link rel="canonical" href={canonicalURL} />
+
+		<title>{title}</title>
+		<meta name="description" content={description} />
+
+		<meta property="og:type" content="website" />
+		<meta property="og:locale" content="es_ES" />
+		<meta property="og:site_name" content="Reverbic" />
+		<meta property="og:title" content={title} />
+		<meta property="og:description" content={description} />
+		<meta property="og:url" content={canonicalURL} />
+		<meta property="og:image" content={socialImage} />
+
+		<meta name="twitter:card" content="summary_large_image" />
+		<meta name="twitter:title" content={title} />
+		<meta name="twitter:description" content={description} />
+		<meta name="twitter:image" content={socialImage} />
+
 		<link rel="preconnect" href="https://fonts.googleapis.com">
 		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 		<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-		<title>{title}</title>
 	</head>
 	<body>
 		<slot />
@@ -31,6 +58,9 @@ const { title } = Astro.props;
 		--bg-card: rgba(255, 255, 255, 0.03);
 		--text-main: #ffffff;
 		--text-muted: #94a3b8;
+
+		--z-base: 1;
+		--z-nav: 100;
 	}
 	* {
 		box-sizing: border-box;
@@ -44,8 +74,8 @@ const { title } = Astro.props;
 		scroll-behavior: smooth;
 	}
 	body {
-		min-height: 100vh;
-		background-image: 
+		min-height: 100dvh;
+		background-image:
 			radial-gradient(circle at 15% 50%, rgba(23, 61, 220, 0.15), transparent 25%),
 			radial-gradient(circle at 85% 30%, rgba(23, 61, 220, 0.1), transparent 25%);
 		background-attachment: fixed;
@@ -53,12 +83,31 @@ const { title } = Astro.props;
 	h1, h2, h3, h4, h5, h6 {
 		font-family: 'Poppins', sans-serif;
 	}
-	
+
+	:focus-visible {
+		outline: 2px solid var(--primary-hover);
+		outline-offset: 3px;
+		border-radius: 4px;
+	}
+
 	/* Glassmorphism utilities */
 	.glass {
 		background: var(--bg-card);
 		backdrop-filter: blur(10px);
 		-webkit-backdrop-filter: blur(10px);
 		border: 1px solid rgba(255, 255, 255, 0.05);
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		html {
+			scroll-behavior: auto;
+		}
+		*,
+		*::before,
+		*::after {
+			animation-duration: 0.01ms !important;
+			animation-iteration-count: 1 !important;
+			transition-duration: 0.01ms !important;
+		}
 	}
 </style>
