@@ -12,6 +12,12 @@ import themeShot from '../assets/screenshots/theme.png';
 
 const screenshots = [
 	{
+		src: playerShot,
+		alt: 'Interfaz de Reverbic reproduciendo música: reloj, barra de progreso, visualizador y canciones recientes.',
+		title: 'Reproductor en vivo',
+		description: 'Reloj, progreso de pista, visualizador y tu historial reciente de un vistazo.',
+	},
+	{
 		src: radioShot,
 		alt: 'Búsqueda de radio en Reverbic mostrando estaciones de Tomorrowland One World Radio.',
 		title: 'Radio global',
@@ -74,14 +80,30 @@ const screenshots = [
 					Ver código fuente
 				</a>
 			</div>
-			<figure class="hero-shot">
-				<Image
-					src={playerShot}
-					alt="Interfaz de Reverbic reproduciendo música: reloj, barra de progreso, visualizador y canciones recientes."
-					loading="eager"
-					class="hero-shot-img"
-				/>
-			</figure>
+			<div class="hero-carousel">
+				<div class="carousel" role="region" aria-roledescription="carrusel" aria-label="Capturas de Reverbic">
+					<button type="button" class="carousel-btn carousel-prev glass" aria-label="Captura anterior">
+						<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+					</button>
+					<ul class="carousel-track" tabindex="0">
+						{screenshots.map((shot, index) => (
+							<li class="carousel-slide" aria-roledescription="diapositiva" aria-label={`${index + 1} de ${screenshots.length}: ${shot.title}`}>
+								<figure class="shot">
+									<Image src={shot.src} alt={shot.alt} loading={index === 0 ? 'eager' : 'lazy'} class="shot-img" />
+									<figcaption class="shot-caption">
+										<h3>{shot.title}</h3>
+										<p>{shot.description}</p>
+									</figcaption>
+								</figure>
+							</li>
+						))}
+					</ul>
+					<button type="button" class="carousel-btn carousel-next glass" aria-label="Captura siguiente">
+						<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+					</button>
+				</div>
+				<div class="carousel-dots" aria-hidden="true"></div>
+			</div>
 		</section>
 
 		<section class="features">
@@ -123,33 +145,6 @@ const screenshots = [
 					<p>Desarrollado en Rust. Consume apenas <span class="stat">~25MB</span> de RAM y <span class="stat">&lt;1%</span> de CPU en reposo. Sin instaladores.</p>
 				</div>
 			</div>
-		</section>
-
-		<section class="showcase">
-			<h2 class="section-title">Reverbic en acción</h2>
-			<p class="showcase-subtitle">Una interfaz de terminal cuidada, rápida y con todo a la vista.</p>
-			<div class="carousel" role="region" aria-roledescription="carrusel" aria-label="Capturas de Reverbic">
-				<button type="button" class="carousel-btn carousel-prev glass" aria-label="Captura anterior">
-					<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
-				</button>
-				<ul class="carousel-track" tabindex="0">
-					{screenshots.map((shot, index) => (
-						<li class="carousel-slide" aria-roledescription="diapositiva" aria-label={`${index + 1} de ${screenshots.length}: ${shot.title}`}>
-							<figure class="shot">
-								<Image src={shot.src} alt={shot.alt} loading="lazy" class="shot-img" />
-								<figcaption class="shot-caption">
-									<h3>{shot.title}</h3>
-									<p>{shot.description}</p>
-								</figcaption>
-							</figure>
-						</li>
-					))}
-				</ul>
-				<button type="button" class="carousel-btn carousel-next glass" aria-label="Captura siguiente">
-					<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
-				</button>
-			</div>
-			<div class="carousel-dots" aria-hidden="true"></div>
 		</section>
 
 		<script>
@@ -288,23 +283,9 @@ const screenshots = [
 		animation: float 6s ease-in-out infinite;
 	}
 
-	.hero-shot {
+	.hero-carousel {
 		width: 100%;
 		margin-top: 3.5rem;
-		padding: 1rem 1rem 0;
-		border-radius: 16px;
-		border: 1px solid rgba(255, 255, 255, 0.08);
-		background: linear-gradient(180deg, rgba(23, 61, 220, 0.1), rgba(255, 255, 255, 0.02));
-		box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
-	}
-
-	.hero-shot-img {
-		display: block;
-		width: 100%;
-		height: auto;
-		border-radius: 10px 10px 0 0;
-		border: 1px solid rgba(255, 255, 255, 0.1);
-		border-bottom: none;
 	}
 
 	@keyframes float {
@@ -445,22 +426,9 @@ const screenshots = [
 		font-weight: 600;
 	}
 	
-	.showcase {
-		max-width: 1200px;
-		width: 100%;
-		padding: 4rem 1rem;
-	}
-
-	.showcase-subtitle {
-		text-align: center;
-		color: var(--text-muted);
-		margin-top: -2rem;
-		margin-bottom: 3rem;
-		text-wrap: pretty;
-	}
-
 	.carousel {
 		position: relative;
+		width: 100%;
 		max-width: 880px;
 		margin: 0 auto;
 	}
