@@ -27,6 +27,7 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ### Changed
 - The first-run experience is shorter, more direct and consistent: just two steps. Step one gets straight to language and theme; pressing Enter on the theme opens the same theme picker as Settings, where every theme previews live (logo and animated border recolor as you move through the list). Step two covers the rest (overlay, resume last station, auto-update). All steps now share the same controls (arrow up/down to move, left/right to change, Tab to continue). The remaining technical options (crossfade, ambient mode, Spotify modes, transparency, and more) are no longer asked up front and stay configurable in Settings.
+- Windows binaries no longer require the Visual C++ Redistributable to be installed: the C runtime is now linked statically.
 
 ### Removed
 - The greeting/welcome and summary screens were removed in favor of going straight to the point, and the intro no longer streams background music from YouTube (it was slow to load) nor shows the animated ASCII art, keeping it instant and focused.
