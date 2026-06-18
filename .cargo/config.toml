@@ -1,2 +1,7 @@
 [profile.dev]
 debug = 1
+
+# Statically link the MSVC C runtime so Windows binaries do not require the
+# Visual C++ Redistributable to be installed separately.
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]
