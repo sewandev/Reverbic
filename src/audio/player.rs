@@ -79,6 +79,7 @@ pub struct PlayerState {
     pub playback_pos_secs: Option<f32>,
     pub playback_duration_secs: Option<f32>,
     pub is_dead_url: bool,
+    pub ended_early: bool,
 }
 
 impl Default for PlayerState {
@@ -99,6 +100,7 @@ impl Default for PlayerState {
             playback_pos_secs: None,
             playback_duration_secs: None,
             is_dead_url: false,
+            ended_early: false,
         }
     }
 }
@@ -149,6 +151,9 @@ impl<S: Source<Item = f32>> Source for MeterSource<S> {
     }
     fn total_duration(&self) -> Option<std::time::Duration> {
         self.inner.total_duration()
+    }
+    fn try_seek(&mut self, pos: std::time::Duration) -> Result<(), rodio::source::SeekError> {
+        self.inner.try_seek(pos)
     }
 }
 
@@ -226,7 +231,12 @@ impl AudioPlayer {
         let handle = tokio::runtime::Handle::current();
 
         std::thread::spawn(move || {
-            audio_loop(cmd_rx, state_tx, handle);
+            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                audio_loop(cmd_rx, state_tx, handle);
+            }));
+            if result.is_err() {
+                error!("audio engine thread panicked and is shutting down");
+            }
         });
 
         Self { cmd_tx, state_rx }
@@ -243,6 +253,10 @@ impl AudioPlayer {
 
     pub fn state(&self) -> PlayerState {
         self.state_rx.borrow().clone()
+    }
+
+    pub fn is_alive(&self) -> bool {
+        !self.cmd_tx.is_closed()
     }
 
     pub fn clone_sender(&self) -> mpsc::Sender<PlayerCommand> {
@@ -611,8 +625,10 @@ fn check_on_demand_finished(st: &mut AudioLoopState, state_tx: &watch::Sender<Pl
         p.stop();
     }
     let pos = st.od.current_pos();
+    let mut ended_early = false;
     if let Some(duration) = state_tx.borrow().playback_duration_secs {
         if duration > 0.0 && pos < duration * 0.9 {
+            ended_early = true;
             warn!(
                 "On-demand: track ended early at {pos:.0}s of {duration:.0}s (possible decode failure): {}",
                 station.name
@@ -627,6 +643,7 @@ fn check_on_demand_finished(st: &mut AudioLoopState, state_tx: &watch::Sender<Pl
     let _ = state_tx.send(PlayerState {
         station: Some(station),
         volume: st.current_volume,
+        ended_early,
         ..Default::default()
     });
 }
@@ -877,7 +894,7 @@ fn schedule_retry(
     } else {
         error!("Stream failed after {} attempts: {error_msg}", retry_count);
         let _ = state_tx.send(PlayerState {
-            status: PlayerStatus::Error(format!("Stream: {} failed attempts", retry_count)),
+            status: PlayerStatus::Error(crate::i18n::t("status.stream_failed")),
             station: Some(station),
             volume: st.current_volume,
             ..Default::default()

@@ -882,6 +882,12 @@ impl App {
                     }
                     return;
                 }
+                KeyCode::Left | KeyCode::Right => {
+                    let delta = if key == KeyCode::Left { -10.0 } else { 10.0 };
+                    if self.seek_relative(delta).await {
+                        return;
+                    }
+                }
                 _ => {}
             }
             self.last_activity = Instant::now();
@@ -925,6 +931,14 @@ impl App {
             KeyCode::Char('-') => {
                 self.adjust_volume(-(self.config.volume_step as f32 / 100.0))
                     .await;
+                return;
+            }
+            KeyCode::Char(',') => {
+                self.seek_relative(-10.0).await;
+                return;
+            }
+            KeyCode::Char('.') => {
+                self.seek_relative(10.0).await;
                 return;
             }
             KeyCode::Char('q') => {
@@ -1869,10 +1883,33 @@ impl App {
         }
     }
 
+    async fn seek_relative(&mut self, delta_secs: f32) -> bool {
+        let state = self.player.state();
+        let (Some(pos), Some(duration)) = (state.playback_pos_secs, state.playback_duration_secs)
+        else {
+            return false;
+        };
+        let target = (pos + delta_secs).clamp(0.0, duration);
+        self.player.send(PlayerCommand::Seek(target)).await;
+        true
+    }
+
+    async fn seek_to_ratio(&mut self, ratio: f32) {
+        let Some(duration) = self.player.state().playback_duration_secs else {
+            return;
+        };
+        let target = (ratio.clamp(0.0, 1.0) * duration).clamp(0.0, duration);
+        self.player.send(PlayerCommand::Seek(target)).await;
+    }
+
     pub async fn on_click(&mut self, col: u16, row: u16) {
         let screensaver_was_active = self.screensaver_active();
-        self.last_activity = Instant::now();
         if screensaver_was_active {
+            if let Some(ratio) = crate::ui::renderer::ambient::seek_ratio_at(col, row) {
+                self.seek_to_ratio(ratio).await;
+                return;
+            }
+            self.last_activity = Instant::now();
             if crate::ui::renderer::ambient::url_hit_at(col, row) {
                 if let Some(d) = self.station_details.as_ref() {
                     if !d.homepage.is_empty() {
@@ -1882,6 +1919,7 @@ impl App {
             }
             return;
         }
+        self.last_activity = Instant::now();
 
         if self.show_search_modal {
             self.on_click_search_modal(col, row).await;

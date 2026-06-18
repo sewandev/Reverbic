@@ -113,6 +113,10 @@ pub struct YoutubeState {
     pub playback_context: Option<(YoutubePlaybackContext, usize)>,
     pub was_playing: bool,
     pub crossfade_from: Option<String>,
+
+    pub(super) dead_seen: bool,
+    pub(super) dead_recovery: Option<(String, u8)>,
+    pub(super) recent_failures: Vec<std::time::Instant>,
 }
 
 impl YoutubeState {
@@ -220,6 +224,9 @@ impl Default for YoutubeState {
             playback_context: None,
             was_playing: false,
             crossfade_from: None,
+            dead_seen: false,
+            dead_recovery: None,
+            recent_failures: Vec::new(),
         }
     }
 }

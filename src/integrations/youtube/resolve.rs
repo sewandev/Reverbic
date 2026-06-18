@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use tokio::process::Command;
@@ -10,6 +11,7 @@ use super::{YoutubeChapter, YoutubeError};
 type ResolvedStream = (String, HashMap<String, String>, Vec<YoutubeChapter>);
 
 const CACHE_TTL_SECS: u64 = 4 * 3600;
+const RESOLVE_TIMEOUT: Duration = Duration::from_secs(45);
 const CACHE_MAX_ENTRIES: usize = 200;
 const CACHE_MAX_FILE_BYTES: u64 = 1024 * 1024;
 
@@ -168,16 +170,28 @@ async fn run_yt_dlp_resolve(
     cookies_path: Option<&Path>,
     deno_path: &Path,
 ) -> Result<ResolvedStream, YoutubeError> {
-    let output = Command::new(binary)
+    let process = Command::new(binary)
         .args(build_resolve_args(watch_url, cookies_path, deno_path))
-        .output()
-        .await
-        .map_err(|e| {
+        .kill_on_drop(true)
+        .output();
+    let output = match tokio::time::timeout(RESOLVE_TIMEOUT, process).await {
+        Ok(result) => result.map_err(|e| {
             YoutubeError::Resolve(format!(
                 "{}: {e}",
                 crate::i18n::t("modal.youtube.resolve_failed")
             ))
-        })?;
+        })?,
+        Err(_) => {
+            tracing::error!(
+                watch_url,
+                "yt-dlp resolve timed out after {}s",
+                RESOLVE_TIMEOUT.as_secs()
+            );
+            return Err(YoutubeError::Resolve(crate::i18n::t(
+                "modal.youtube.resolve_timeout",
+            )));
+        }
+    };
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);

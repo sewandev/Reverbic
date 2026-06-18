@@ -397,6 +397,14 @@ impl Read for FileBackedReader {
                 return Ok(n);
             }
             if self.download_done.load(Ordering::Acquire) {
+                let total = self.total_len.load(Ordering::Acquire);
+                tracing::warn!(
+                    pos = self.pos,
+                    written,
+                    total,
+                    dead = self.dead_url.load(Ordering::Acquire),
+                    "File-backed read: EOF (download_done) at pos>=written"
+                );
                 return Ok(0);
             }
             if wait_start.elapsed() > std::time::Duration::from_secs(FILE_READ_STARVATION_SECS) {
