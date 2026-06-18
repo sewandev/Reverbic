@@ -10,6 +10,19 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ## [Unreleased]
 
+### Added
+- The YouTube progress bar can now be used to seek. In Ambient Mode / screensaver you can click anywhere on the bar to jump to that position, and the left/right arrows skip 10 seconds back/forward without leaving the screensaver. In the main view, `,` and `.` seek -/+ 10 seconds. Seeking applies to on-demand sources (YouTube and podcasts); live radio stays non-seekable. The new shortcuts show in the Ambient Mode controls bar and the help overlay.
+
+### Fixed
+- YouTube playback no longer goes silent and stuck when a stream URL is rejected by YouTube (HTTP 403). The player now re-resolves the video once with a fresh URL and retries automatically; if it still fails, it skips to the next track in the list (or stops if there is none), always showing a brief notice instead of leaving a muted, frozen track.
+- YouTube playback that gets cut short mid-song (a connection drop or a slow download) now shows a notice and moves on to the next track, instead of ending the song silently with no explanation.
+- A failure storm is now contained: if several YouTube tracks fail to play within a short window (typically because YouTube is rate-limiting the connection), auto-advance stops with a clear message asking to try again in a moment, instead of racing through the whole list skipping every track.
+- A YouTube video that cannot be resolved during automatic playback now surfaces a brief notice, instead of only updating a status the user may not be looking at.
+- A radio station that cannot be played after several attempts now shows a clear, localized message suggesting another station, instead of a raw technical error.
+- Next/previous controls now work even while a track is in an error state, so you can skip a station or video that failed to play instead of being stuck on it.
+- Resolving a YouTube video can no longer hang forever if yt-dlp stalls: it now times out after a while, reports it clearly, and the runaway process is terminated, instead of leaving playback frozen on a spinner.
+- If the internal audio engine ever fails unexpectedly, the app now detects it and shows a clear message asking to restart, instead of silently freezing with unresponsive controls and no explanation. A crash in the engine also no longer garbles the screen.
+
 ### Changed
 - The first-run experience is shorter, more direct and consistent: just two steps. Step one gets straight to language and theme; pressing Enter on the theme opens the same theme picker as Settings, where every theme previews live (logo and animated border recolor as you move through the list). Step two covers the rest (overlay, resume last station, auto-update). All steps now share the same controls (arrow up/down to move, left/right to change, Tab to continue). The remaining technical options (crossfade, ambient mode, Spotify modes, transparency, and more) are no longer asked up front and stay configurable in Settings.
 

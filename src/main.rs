@@ -182,6 +182,7 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
     let mut last_title = String::new();
 
     loop {
+        app.poll_audio_health();
         app.poll_dead_url();
         app.poll_favorites_enrichment();
         app.poll_update_check();

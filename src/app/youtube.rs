@@ -23,6 +23,9 @@ const PLAYLIST_VIDEOS_LIMIT: usize = 50;
 const MIX_FETCH_LIMIT: usize = 25;
 const MIX_EXTEND_THRESHOLD: usize = 3;
 const DENO_HEALTH_COOLDOWN: Duration = Duration::from_secs(600);
+const MAX_DEAD_URL_RECOVERY: u8 = 1;
+const YOUTUBE_FAILURE_WINDOW: Duration = Duration::from_secs(60);
+const YOUTUBE_FAILURE_BURST_LIMIT: usize = 4;
 
 impl App {
     pub fn ensure_youtube_ready(&mut self) {
@@ -559,6 +562,12 @@ impl App {
                     tracing::error!("youtube: resolve failed, surfacing to user: {err}");
                     self.youtube.status = YoutubeStatus::Error(err.to_string());
                     self.maybe_recover_deno_runtime();
+                    if self.youtube.dead_recovery.is_some() {
+                        let name = self.current_context_video_name();
+                        self.give_up_youtube_dead_url(name);
+                    } else {
+                        self.notify_warning(format!("YouTube: {err}"));
+                    }
                 }
                 Err(std::sync::mpsc::TryRecvError::Empty) => {
                     self.youtube.resolve_rx = Some(rx);
@@ -568,6 +577,10 @@ impl App {
                     tracing::error!("youtube: resolve task ended without sending a result");
                     self.youtube.status =
                         YoutubeStatus::Error(crate::i18n::t("modal.youtube.resolve_failed"));
+                    if self.youtube.dead_recovery.is_some() {
+                        let name = self.current_context_video_name();
+                        self.give_up_youtube_dead_url(name);
+                    }
                 }
             }
         }
@@ -683,6 +696,16 @@ impl App {
             self.youtube.was_playing = false;
             self.youtube.crossfade_from = None;
             if should_advance {
+                if state.ended_early {
+                    let name = self.current_context_video_name();
+                    if !self.youtube_failure_budget_ok() {
+                        return;
+                    }
+                    self.notify_warning(format!(
+                        "«{name}»: {}",
+                        crate::i18n::t("notice.youtube.interrupted")
+                    ));
+                }
                 self.advance_youtube_playback();
             }
             return;
@@ -798,6 +821,92 @@ impl App {
                 self.youtube.playback_context = None;
             }
         }
+    }
+
+    pub(super) fn recover_youtube_dead_url(&mut self, key: String, name: String) {
+        let attempts = self
+            .youtube
+            .dead_recovery
+            .as_ref()
+            .filter(|(k, _)| *k == key)
+            .map(|(_, n)| *n)
+            .unwrap_or(0);
+
+        if attempts < MAX_DEAD_URL_RECOVERY {
+            if let Some((ctx, index)) = self.youtube.playback_context.clone() {
+                self.youtube.dead_recovery = Some((key.clone(), attempts + 1));
+                tracing::warn!(
+                    station = %key,
+                    attempt = attempts + 1,
+                    "youtube: stream URL rejected (403/404), re-resolving and retrying"
+                );
+                if self.play_youtube_from_context(ctx, index) {
+                    return;
+                }
+            }
+        }
+
+        self.give_up_youtube_dead_url(name);
+    }
+
+    fn give_up_youtube_dead_url(&mut self, name: String) {
+        self.youtube.dead_recovery = None;
+        if !self.youtube_failure_budget_ok() {
+            return;
+        }
+        if self.youtube_will_advance() {
+            tracing::warn!("youtube: stream URL dead after retry, skipping to next track");
+            self.notify_warning(format!(
+                "«{name}»: {}",
+                crate::i18n::t("notice.youtube.dead_url_skip")
+            ));
+            self.advance_youtube_playback();
+        } else {
+            tracing::warn!("youtube: stream URL dead after retry, no next track to skip to");
+            self.youtube.playback_context = None;
+            self.notify_error(format!(
+                "«{name}»: {}",
+                crate::i18n::t("notice.youtube.dead_url_stop")
+            ));
+        }
+    }
+
+    fn youtube_failure_budget_ok(&mut self) -> bool {
+        let now = Instant::now();
+        self.youtube
+            .recent_failures
+            .retain(|t| now.duration_since(*t) < YOUTUBE_FAILURE_WINDOW);
+        self.youtube.recent_failures.push(now);
+        if self.youtube.recent_failures.len() >= YOUTUBE_FAILURE_BURST_LIMIT {
+            self.youtube.recent_failures.clear();
+            self.youtube.playback_context = None;
+            self.youtube.dead_recovery = None;
+            tracing::warn!(
+                "youtube: too many playback failures in a short window, stopping auto-advance (likely rate-limited)"
+            );
+            self.notify_error(crate::i18n::t("notice.youtube.rate_limited"));
+            return false;
+        }
+        true
+    }
+
+    fn youtube_will_advance(&self) -> bool {
+        let Some((ctx, index)) = self.youtube.playback_context.as_ref() else {
+            return false;
+        };
+        if index + 1 < self.youtube_context_list(ctx).len() {
+            return true;
+        }
+        matches!(ctx, YoutubePlaybackContext::Mix) || self.config.youtube_radio_mode
+    }
+
+    fn current_context_video_name(&self) -> String {
+        self.youtube
+            .playback_context
+            .as_ref()
+            .and_then(|(ctx, index)| self.youtube_context_list(ctx).get(*index))
+            .map(|video| video.title.clone())
+            .unwrap_or_default()
     }
 
     fn youtube_library_cookies_path(&mut self) -> Option<PathBuf> {
