@@ -64,6 +64,7 @@
   "modal.youtube.bookmarks_empty": "No bookmarks. Press Alt+F on a video to save it locally, no account needed.",
   "notice.youtube_bookmark_added": "★ Saved to YouTube bookmarks",
   "notice.youtube_bookmark_removed": "☆ Removed from YouTube bookmarks",
+  "notice.youtube.reconnecting": "connection lost, reconnecting…",
   "notice.youtube.dead_url_skip": "couldn't play, skipping to the next track",
   "notice.youtube.dead_url_stop": "couldn't play (YouTube refused the connection)",
   "notice.audio_engine_down": "The audio engine failed. Restart Reverbic to continue.",
