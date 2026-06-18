@@ -27,14 +27,14 @@ pub async fn search_playlists(
         encode_query(query)
     );
 
-    let output = Command::new(binary)
-        .args(build_flat_playlist_args(
-            &url,
-            limit,
-            cookies_path,
-            deno_path,
-        ))
-        .output()
+    let mut command = Command::new(binary);
+    command.args(build_flat_playlist_args(
+        &url,
+        limit,
+        cookies_path,
+        deno_path,
+    ));
+    let output = super::run_ytdlp_output(command, super::YTDLP_NETWORK_TIMEOUT, "playlist_search")
         .await
         .map_err(|e| {
             YoutubeError::Search(format!(
@@ -152,14 +152,14 @@ async fn run_flat_playlist(
     cookies_path: Option<&Path>,
     deno_path: &Path,
 ) -> Result<Vec<u8>, YoutubeError> {
-    let output = Command::new(binary)
-        .args(build_flat_playlist_args(
-            url,
-            limit,
-            cookies_path,
-            deno_path,
-        ))
-        .output()
+    let mut command = Command::new(binary);
+    command.args(build_flat_playlist_args(
+        url,
+        limit,
+        cookies_path,
+        deno_path,
+    ));
+    let output = super::run_ytdlp_output(command, super::YTDLP_NETWORK_TIMEOUT, "playlist_fetch")
         .await
         .map_err(|e| {
             YoutubeError::Library(format!(

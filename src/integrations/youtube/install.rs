@@ -76,9 +76,9 @@ async fn installed_version(binary: &Path) -> Option<String> {
         }
     }
 
-    let output = tokio::process::Command::new(binary)
-        .arg("--version")
-        .output()
+    let mut command = tokio::process::Command::new(binary);
+    command.arg("--version");
+    let output = super::run_ytdlp_output(command, super::YTDLP_LOCAL_TIMEOUT, "ytdlp_version")
         .await
         .ok()?;
     if !output.status.success() {

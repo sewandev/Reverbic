@@ -73,9 +73,9 @@ async fn reinstall(path: &Path) {
 }
 
 async fn installed_version(binary: &Path) -> Option<(u32, u32, u32)> {
-    let output = tokio::process::Command::new(binary)
-        .arg("--version")
-        .output()
+    let mut command = tokio::process::Command::new(binary);
+    command.arg("--version");
+    let output = super::run_ytdlp_output(command, super::YTDLP_LOCAL_TIMEOUT, "deno_version")
         .await
         .ok()?;
     if !output.status.success() {
