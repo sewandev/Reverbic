@@ -1,0 +1,617 @@
+---
+import { Image } from 'astro:assets';
+import { getRelativeLocaleUrl } from 'astro:i18n';
+import Layout from '../layouts/Layout.astro';
+import logo from '../assets/logo.svg';
+import reverbicAvatar from '../assets/reverbic-avatar.svg';
+import playerShot from '../assets/screenshots/player.png';
+import youtubeShot from '../assets/screenshots/youtube-search.png';
+import settingsShot from '../assets/screenshots/settings.png';
+import radioShot from '../assets/screenshots/radio.png';
+import spotifyShot from '../assets/screenshots/spotify.png';
+import themeShot from '../assets/screenshots/theme.png';
+import { useTranslations, type Lang } from '../i18n';
+
+interface Props {
+	lang: Lang;
+}
+
+const { lang } = Astro.props;
+const t = useTranslations(lang);
+
+const enUrl = getRelativeLocaleUrl('en', '/');
+const esUrl = getRelativeLocaleUrl('es', '/');
+
+const screenshots = [
+	{ src: playerShot, key: 'player' },
+	{ src: radioShot, key: 'radio' },
+	{ src: spotifyShot, key: 'spotify' },
+	{ src: youtubeShot, key: 'youtube' },
+	{ src: themeShot, key: 'theme' },
+	{ src: settingsShot, key: 'settings' },
+] as const;
+---
+
+<Layout title="Reverbic - TUI Radio & Spotify Player" description={t('meta.description')} lang={lang}>
+	<main>
+		<nav class="navbar glass">
+			<div class="nav-content">
+				<div class="logo-container">
+					<img src={logo.src} alt="Reverbic" class="nav-logo" />
+				</div>
+				<div class="nav-right">
+					<div class="lang-switch" aria-label="Language">
+						<a href={enUrl} class:list={['lang-opt', { active: lang === 'en' }]} hreflang="en" aria-current={lang === 'en' ? 'true' : undefined}>EN</a>
+						<a href={esUrl} class:list={['lang-opt', { active: lang === 'es' }]} hreflang="es" aria-current={lang === 'es' ? 'true' : undefined}>ES</a>
+					</div>
+					<div class="nav-links">
+						<a href="https://github.com/sewandev/Reverbic" target="_blank" rel="noopener noreferrer" class="nav-link">GitHub</a>
+						<a href="https://github.com/sewandev/Reverbic/releases" target="_blank" rel="noopener noreferrer" class="btn btn-outline">{t('nav.download')}</a>
+					</div>
+				</div>
+			</div>
+		</nav>
+
+		<section class="hero">
+			<div class="glow-effect"></div>
+			<img src={reverbicAvatar.src} alt="Reverbic" class="hero-logo" />
+			<h1>{t('hero.title')} <span class="text-gradient">{t('hero.title_accent')}</span></h1>
+			<p class="subtitle">{t('hero.subtitle')}</p>
+			<div class="cta-group">
+				<a href="https://github.com/sewandev/Reverbic/releases/latest" target="_blank" rel="noopener noreferrer" class="btn btn-primary">
+					<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+					{t('cta.download')}
+				</a>
+				<a href="https://github.com/sewandev/Reverbic" target="_blank" rel="noopener noreferrer" class="btn btn-secondary glass">
+					{t('cta.source')}
+				</a>
+			</div>
+			<div class="hero-carousel">
+				<div class="carousel" role="region" aria-roledescription="carousel" aria-label={t('carousel.aria')} data-dot-label={t('carousel.dot_label')}>
+					<button type="button" class="carousel-btn carousel-prev" aria-label={t('carousel.prev')}>
+						<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+					</button>
+					<ul class="carousel-track" tabindex="0">
+						{screenshots.map((shot, index) => (
+							<li class="carousel-slide" aria-roledescription={t('carousel.slide_role')} aria-label={`${index + 1} ${t('carousel.of')} ${screenshots.length}: ${t(`shot.${shot.key}.title` as const)}`}>
+								<figure class="shot">
+									<Image src={shot.src} alt={t(`shot.${shot.key}.alt` as const)} loading={index === 0 ? 'eager' : 'lazy'} class="shot-img" />
+									<figcaption class="shot-caption">
+										<h3>{t(`shot.${shot.key}.title` as const)}</h3>
+										<p>{t(`shot.${shot.key}.desc` as const)}</p>
+									</figcaption>
+								</figure>
+							</li>
+						))}
+					</ul>
+					<button type="button" class="carousel-btn carousel-next" aria-label={t('carousel.next')}>
+						<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+					</button>
+				</div>
+				<div class="carousel-dots" aria-hidden="true"></div>
+			</div>
+		</section>
+
+		<section class="features">
+			<h2 class="section-title">{t('features.title')}</h2>
+			<div class="grid">
+				<div class="card glass">
+					<div class="icon-wrapper">
+						<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 0 1 0 8.49m-8.48-.01a6 6 0 0 1 0-8.49m11.31-2.82a10 10 0 0 1 0 14.14m-14.14 0a10 10 0 0 1 0-14.14"/></svg>
+					</div>
+					<h3>{t('feature.radio.title')}</h3>
+					<p>{t('feature.radio.desc')}</p>
+				</div>
+				<div class="card glass">
+					<div class="icon-wrapper">
+						<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+					</div>
+					<h3>{t('feature.spotify.title')}</h3>
+					<p>{t('feature.spotify.desc')}</p>
+				</div>
+				<div class="card glass">
+					<div class="icon-wrapper">
+						<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17Z"/><path d="m10 15 5-3-5-3z"/></svg>
+					</div>
+					<h3>{t('feature.youtube.title')}</h3>
+					<p>{t('feature.youtube.desc')}</p>
+				</div>
+				<div class="card glass">
+					<div class="icon-wrapper">
+						<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 12h4"/><path d="M8 10v4"/><line x1="15" y1="13" x2="15.01" y2="13"/><line x1="18" y1="11" x2="18.01" y2="11"/></svg>
+					</div>
+					<h3>{t('feature.overlay.title')}</h3>
+					<p>{t('feature.overlay.desc')}</p>
+				</div>
+				<div class="card glass">
+					<div class="icon-wrapper">
+						<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+					</div>
+					<h3>{t('feature.light.title')}</h3>
+					<p>{t('feature.light.p1')} <span class="stat">~25MB</span> {t('feature.light.p2')} <span class="stat">&lt;1%</span> {t('feature.light.p3')}</p>
+				</div>
+				<div class="card glass">
+					<div class="icon-wrapper">
+						<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>
+					</div>
+					<h3>{t('feature.themes.title')}</h3>
+					<p>{t('feature.themes.desc')}</p>
+				</div>
+				<div class="card glass">
+					<div class="icon-wrapper">
+						<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+					</div>
+					<h3>{t('feature.login.title')}</h3>
+					<p>{t('feature.login.desc')}</p>
+				</div>
+				<div class="card glass">
+					<div class="icon-wrapper">
+						<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
+					</div>
+					<h3>{t('feature.sponsorblock.title')}</h3>
+					<p>{t('feature.sponsorblock.desc')}</p>
+				</div>
+			</div>
+		</section>
+
+		<script>
+			const track = document.querySelector<HTMLUListElement>('.carousel-track');
+			const prevBtn = document.querySelector<HTMLButtonElement>('.carousel-prev');
+			const nextBtn = document.querySelector<HTMLButtonElement>('.carousel-next');
+			const dotsWrap = document.querySelector<HTMLDivElement>('.carousel-dots');
+			const carousel = document.querySelector<HTMLDivElement>('.carousel');
+
+			if (track && prevBtn && nextBtn && dotsWrap) {
+				const slides = Array.from(track.querySelectorAll<HTMLLIElement>('.carousel-slide'));
+				const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+				const dotLabel = carousel?.getAttribute('data-dot-label') ?? '';
+
+				slides.forEach((_, index) => {
+					const dot = document.createElement('button');
+					dot.type = 'button';
+					dot.className = 'carousel-dot';
+					dot.setAttribute('aria-label', `${dotLabel} ${index + 1}`);
+					dot.addEventListener('click', () => goTo(index));
+					dotsWrap.appendChild(dot);
+				});
+				const dots = Array.from(dotsWrap.querySelectorAll<HTMLButtonElement>('.carousel-dot'));
+
+				const goTo = (index: number) => {
+					const clamped = Math.max(0, Math.min(index, slides.length - 1));
+					track.scrollTo({ left: slides[clamped].offsetLeft - track.offsetLeft, behavior: reduceMotion ? 'auto' : 'smooth' });
+				};
+
+				const currentIndex = () => Math.round(track.scrollLeft / track.clientWidth);
+
+				prevBtn.addEventListener('click', () => goTo(currentIndex() - 1));
+				nextBtn.addEventListener('click', () => goTo(currentIndex() + 1));
+
+				const update = () => {
+					const index = currentIndex();
+					dots.forEach((dot, i) => dot.setAttribute('aria-current', i === index ? 'true' : 'false'));
+					prevBtn.disabled = index <= 0;
+					nextBtn.disabled = index >= slides.length - 1;
+				};
+
+				track.addEventListener('scroll', () => window.requestAnimationFrame(update), { passive: true });
+				update();
+			}
+		</script>
+
+		<footer class="glass">
+			<p>{t('footer.made_by')} <a href="https://github.com/sewandev" target="_blank" rel="noopener noreferrer">sewandev</a></p>
+		</footer>
+	</main>
+</Layout>
+
+<style>
+	main {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		padding: 0 1rem;
+	}
+
+	.navbar {
+		width: 100%;
+		position: fixed;
+		top: 0;
+		z-index: var(--z-nav);
+		padding: 1rem 0;
+		padding-top: max(1rem, env(safe-area-inset-top));
+		border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+	}
+
+	.nav-content {
+		max-width: 1200px;
+		margin: 0 auto;
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		padding: 0 2rem;
+	}
+
+	.logo-container {
+		display: flex;
+		align-items: center;
+	}
+
+	.nav-logo {
+		height: 32px;
+		width: auto;
+		object-fit: contain;
+	}
+
+	.nav-right {
+		display: flex;
+		align-items: center;
+		gap: 1.5rem;
+	}
+
+	.lang-switch {
+		display: inline-flex;
+		border: 1px solid rgba(255, 255, 255, 0.15);
+		border-radius: 999px;
+		overflow: hidden;
+	}
+
+	.lang-opt {
+		padding: 0.25rem 0.7rem;
+		font-size: 0.8rem;
+		font-weight: 600;
+		color: var(--text-muted);
+		text-decoration: none;
+		transition: background-color 0.2s ease, color 0.2s ease;
+	}
+
+	.lang-opt.active {
+		background: var(--primary);
+		color: white;
+	}
+
+	.lang-opt:not(.active):hover {
+		color: white;
+	}
+
+	.nav-links {
+		display: flex;
+		align-items: center;
+		gap: 1.5rem;
+	}
+
+	.nav-link {
+		color: var(--text-muted);
+		text-decoration: none;
+		font-weight: 500;
+		transition: color 0.2s;
+	}
+
+	.nav-link:hover {
+		color: white;
+	}
+
+	.hero {
+		position: relative;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		text-align: center;
+		padding: 4.5rem 1rem 5rem;
+		max-width: 960px;
+	}
+
+	.glow-effect {
+		position: absolute;
+		top: 40%;
+		left: 50%;
+		transform: translate(-50%, -50%);
+		width: 500px;
+		height: 500px;
+		background: var(--primary);
+		filter: blur(140px);
+		opacity: 0.25;
+		z-index: -1;
+		border-radius: 50%;
+	}
+
+	.hero-logo {
+		width: 400px;
+		max-width: 90vw;
+		height: auto;
+		margin-bottom: -3rem;
+		filter: drop-shadow(0 0 30px rgba(23, 61, 220, 0.2));
+		animation: float 6s ease-in-out infinite;
+	}
+
+	.hero-carousel {
+		width: 100%;
+		margin-top: 3.5rem;
+	}
+
+	@keyframes float {
+		0% { transform: translateY(0px); }
+		50% { transform: translateY(-8px); }
+		100% { transform: translateY(0px); }
+	}
+
+	h1 {
+		font-size: 3.5rem;
+		font-weight: 700;
+		line-height: 1.1;
+		margin-bottom: 1.5rem;
+		letter-spacing: -1px;
+		text-wrap: balance;
+	}
+
+	.text-gradient {
+		background: linear-gradient(135deg, #60a5fa, var(--primary));
+		-webkit-background-clip: text;
+		-webkit-text-fill-color: transparent;
+		background-clip: text;
+	}
+
+	.subtitle {
+		font-size: 1.25rem;
+		color: var(--text-muted);
+		margin-bottom: 3rem;
+		max-width: 600px;
+		line-height: 1.6;
+		text-wrap: pretty;
+	}
+
+	.cta-group {
+		display: flex;
+		gap: 1rem;
+		flex-wrap: wrap;
+		justify-content: center;
+	}
+
+	.btn {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.875rem 1.5rem;
+		border-radius: 8px;
+		font-weight: 600;
+		text-decoration: none;
+		transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+		font-family: 'Inter', sans-serif;
+	}
+
+	.btn-primary {
+		background: var(--primary);
+		color: white;
+		box-shadow: 0 4px 14px rgba(23, 61, 220, 0.4);
+	}
+
+	.btn-primary:hover {
+		background: var(--primary-hover);
+		transform: translateY(-2px);
+		box-shadow: 0 6px 20px rgba(23, 61, 220, 0.6);
+	}
+
+	.btn-secondary {
+		color: white;
+	}
+
+	.btn-secondary:hover {
+		background: rgba(255, 255, 255, 0.1);
+		transform: translateY(-2px);
+	}
+
+	.btn-outline {
+		border: 1px solid rgba(255,255,255,0.2);
+		color: white;
+		padding: 0.5rem 1rem;
+	}
+
+	.btn-outline:hover {
+		background: rgba(255,255,255,0.1);
+	}
+
+	.features {
+		max-width: 1200px;
+		width: 100%;
+		padding: 4rem 1rem;
+	}
+
+	.section-title {
+		text-align: center;
+		font-size: 2.5rem;
+		margin-bottom: 3rem;
+		text-wrap: balance;
+	}
+
+	.grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+		gap: 2rem;
+	}
+
+	.card {
+		padding: 2.5rem 2rem;
+		border-radius: 16px;
+		transition: transform 0.3s ease, background-color 0.3s ease, border-color 0.3s ease;
+		border: 1px solid rgba(255, 255, 255, 0.03);
+	}
+
+	.card:hover {
+		transform: translateY(-5px);
+		background: rgba(255, 255, 255, 0.08);
+		border-color: rgba(23, 61, 220, 0.3);
+	}
+
+	.icon-wrapper {
+		margin-bottom: 1.5rem;
+		display: inline-flex;
+		padding: 12px;
+		border-radius: 12px;
+		background: rgba(23, 61, 220, 0.1);
+	}
+
+	.card h3 {
+		font-size: 1.25rem;
+		margin-bottom: 1rem;
+	}
+
+	.card p {
+		color: var(--text-muted);
+		line-height: 1.6;
+		text-wrap: pretty;
+	}
+
+	.stat {
+		font-variant-numeric: tabular-nums;
+		color: var(--text-main);
+		font-weight: 600;
+	}
+
+	.carousel {
+		position: relative;
+		width: 100%;
+		max-width: 880px;
+		margin: 0 auto;
+	}
+
+	.carousel-track {
+		display: flex;
+		overflow-x: auto;
+		scroll-snap-type: x mandatory;
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		scrollbar-width: none;
+		-webkit-overflow-scrolling: touch;
+	}
+
+	.carousel-track::-webkit-scrollbar {
+		display: none;
+	}
+
+	.carousel-track:focus-visible {
+		outline: 2px solid var(--primary-hover);
+		outline-offset: 4px;
+		border-radius: 16px;
+	}
+
+	.carousel-slide {
+		flex: 0 0 100%;
+		scroll-snap-align: center;
+		padding: 0 0.5rem;
+	}
+
+	.carousel-btn {
+		position: absolute;
+		top: 38%;
+		transform: translateY(-50%);
+		z-index: var(--z-base);
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 44px;
+		height: 44px;
+		border-radius: 999px;
+		border: 1px solid rgba(255, 255, 255, 0.12);
+		background: rgba(15, 16, 26, 0.72);
+		color: white;
+		cursor: pointer;
+		transition: background-color 0.2s ease, opacity 0.2s ease;
+	}
+
+	.carousel-btn:hover {
+		background: rgba(40, 44, 70, 0.85);
+	}
+
+	.carousel-btn:disabled {
+		opacity: 0.3;
+		cursor: not-allowed;
+	}
+
+	.carousel-prev {
+		left: -0.5rem;
+	}
+
+	.carousel-next {
+		right: -0.5rem;
+	}
+
+	.carousel-dots {
+		display: flex;
+		justify-content: center;
+		gap: 0.5rem;
+		margin-top: 1.5rem;
+	}
+
+	.carousel-dot {
+		width: 8px;
+		height: 8px;
+		padding: 0;
+		border-radius: 999px;
+		border: none;
+		background: rgba(255, 255, 255, 0.2);
+		cursor: pointer;
+		transition: background-color 0.2s ease, width 0.2s ease;
+	}
+
+	.carousel-dot[aria-current='true'] {
+		width: 22px;
+		background: var(--primary);
+	}
+
+	.shot {
+		border-radius: 16px;
+		border: 1px solid rgba(255, 255, 255, 0.08);
+		background: linear-gradient(180deg, rgba(23, 61, 220, 0.08), rgba(255, 255, 255, 0.02));
+		padding: 1rem 1rem 0;
+		box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35);
+		margin: 0;
+	}
+
+	.shot-img {
+		display: block;
+		width: 100%;
+		height: auto;
+		border-radius: 8px;
+		border: 1px solid rgba(255, 255, 255, 0.1);
+		box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+	}
+
+	.shot-caption {
+		padding: 1.25rem 0.25rem;
+	}
+
+	.shot-caption h3 {
+		font-size: 1.125rem;
+		margin-bottom: 0.5rem;
+	}
+
+	.shot-caption p {
+		color: var(--text-muted);
+		line-height: 1.6;
+		text-wrap: pretty;
+	}
+
+	footer {
+		width: 100%;
+		text-align: center;
+		padding: 2rem;
+		margin-top: 4rem;
+		border-top: 1px solid rgba(255, 255, 255, 0.05);
+		color: var(--text-muted);
+	}
+
+	footer a {
+		color: var(--primary);
+		text-decoration: none;
+		font-weight: 600;
+	}
+
+	@media (max-width: 768px) {
+		h1 {
+			font-size: 2.5rem;
+		}
+		.nav-links {
+			display: none;
+		}
+	}
+</style>

@@ -1,23 +1,26 @@
 ---
+import { getAbsoluteLocaleUrl } from 'astro:i18n';
 import reverbicAvatar from '../assets/reverbic-avatar.svg';
+import type { Lang } from '../i18n';
 
 interface Props {
 	title: string;
-	description?: string;
+	description: string;
+	lang: Lang;
 }
 
-const {
-	title,
-	description = 'Reverbic es un reproductor de terminal ultraligero para Radio global, Spotify y YouTube. Construido en Rust para Windows, macOS y Linux.',
-} = Astro.props;
+const { title, description, lang } = Astro.props;
 
 const canonicalURL = new URL(Astro.url.pathname, Astro.site);
 const socialImage = new URL(reverbicAvatar.src, Astro.site);
 const faviconHref = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/favicon.svg`;
+const ogLocale = lang === 'es' ? 'es_ES' : 'en_US';
+const enURL = getAbsoluteLocaleUrl('en', '/');
+const esURL = getAbsoluteLocaleUrl('es', '/');
 ---
 
 <!doctype html>
-<html lang="es">
+<html lang={lang}>
 	<head>
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -25,12 +28,15 @@ const faviconHref = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/favicon.svg`
 		<meta name="theme-color" content="#0a0a0f" />
 		<link rel="icon" type="image/svg+xml" href={faviconHref} />
 		<link rel="canonical" href={canonicalURL} />
+		<link rel="alternate" hreflang="en" href={enURL} />
+		<link rel="alternate" hreflang="es" href={esURL} />
+		<link rel="alternate" hreflang="x-default" href={enURL} />
 
 		<title>{title}</title>
 		<meta name="description" content={description} />
 
 		<meta property="og:type" content="website" />
-		<meta property="og:locale" content="es_ES" />
+		<meta property="og:locale" content={ogLocale} />
 		<meta property="og:site_name" content="Reverbic" />
 		<meta property="og:title" content={title} />
 		<meta property="og:description" content={description} />
