@@ -170,28 +170,20 @@ async fn run_yt_dlp_resolve(
     cookies_path: Option<&Path>,
     deno_path: &Path,
 ) -> Result<ResolvedStream, YoutubeError> {
-    let process = Command::new(binary)
-        .args(build_resolve_args(watch_url, cookies_path, deno_path))
-        .kill_on_drop(true)
-        .output();
-    let output = match tokio::time::timeout(RESOLVE_TIMEOUT, process).await {
-        Ok(result) => result.map_err(|e| {
-            YoutubeError::Resolve(format!(
-                "{}: {e}",
-                crate::i18n::t("modal.youtube.resolve_failed")
-            ))
-        })?,
-        Err(_) => {
-            tracing::error!(
-                watch_url,
-                "yt-dlp resolve timed out after {}s",
-                RESOLVE_TIMEOUT.as_secs()
-            );
-            return Err(YoutubeError::Resolve(crate::i18n::t(
-                "modal.youtube.resolve_timeout",
-            )));
-        }
-    };
+    let mut command = Command::new(binary);
+    command.args(build_resolve_args(watch_url, cookies_path, deno_path));
+    let output = super::run_ytdlp_output(command, RESOLVE_TIMEOUT, "resolve")
+        .await
+        .map_err(|e| {
+            if e.kind() == std::io::ErrorKind::TimedOut {
+                YoutubeError::Resolve(crate::i18n::t("modal.youtube.resolve_timeout"))
+            } else {
+                YoutubeError::Resolve(format!(
+                    "{}: {e}",
+                    crate::i18n::t("modal.youtube.resolve_failed")
+                ))
+            }
+        })?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -252,10 +244,12 @@ async fn probe_live_status(
     args.push("-j".to_string());
     args.push(watch_url.to_string());
 
-    let output = match Command::new(binary).args(args).output().await {
+    let mut command = Command::new(binary);
+    command.args(args);
+    let output = match super::run_ytdlp_output(command, RESOLVE_TIMEOUT, "live_probe").await {
         Ok(output) => output,
         Err(e) => {
-            tracing::debug!(watch_url, "live status probe failed to spawn: {e}");
+            tracing::debug!(watch_url, "live status probe failed: {e}");
             return None;
         }
     };
