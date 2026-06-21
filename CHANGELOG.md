@@ -10,6 +10,8 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ## [Unreleased]
 
+## [1.5.7] - 2026-06-21
+
 ### Added
 - YouTube error and recovery notices (rejected stream, reconnecting, stalled download, rate limiting, skipped track, etc.) now also appear as a brief floating message in Ambient Mode / screensaver, not only in the main view, so you find out what happened without leaving the screensaver.
 - The YouTube progress bar can now be used to seek. In Ambient Mode / screensaver you can click anywhere on the bar to jump to that position, and the left/right arrows skip 10 seconds back/forward without leaving the screensaver. In the main view, `,` and `.` seek -/+ 10 seconds. Seeking applies to on-demand sources (YouTube and podcasts); live radio stays non-seekable. The new shortcuts show in the Ambient Mode controls bar and the help overlay.
