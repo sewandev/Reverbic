@@ -6,6 +6,7 @@ use ratatui::{
     Frame,
 };
 
+use crate::app::NoticeSeverity;
 use crate::audio::{PlayerState, PlayerStatus};
 use crate::i18n::t;
 use crate::station::StationDetails;
@@ -446,6 +447,51 @@ pub(crate) fn render_ambient_mode(
             .intersection(inner),
         );
     }
+}
+
+pub(crate) fn render_ambient_notice(
+    frame: &mut Frame,
+    area: Rect,
+    text: &str,
+    severity: NoticeSeverity,
+    palette: &Palette,
+) {
+    let max_w = area.width.saturating_sub(4);
+    if max_w < 8 {
+        return;
+    }
+
+    let border_color = match severity {
+        NoticeSeverity::Error => palette.danger,
+        NoticeSeverity::Warning => palette.warning,
+        NoticeSeverity::Info => palette.accent,
+    };
+
+    let label = strings::truncate(text, max_w.saturating_sub(2) as usize);
+    let content = format!(" {label} ");
+    let w = (content.chars().count() as u16 + 2).min(area.width);
+    let h = 3;
+    let x = area.x + area.width.saturating_sub(w) / 2;
+    let y = area.y + 1;
+    let rect = Rect::new(x, y, w, h).intersection(area);
+
+    frame.render_widget(Clear, rect);
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(border_color))
+        .style(Style::default().bg(palette.panel_bg));
+    frame.render_widget(
+        Paragraph::new(content)
+            .block(block)
+            .alignment(Alignment::Center)
+            .style(
+                Style::default()
+                    .fg(border_color)
+                    .add_modifier(Modifier::BOLD),
+            ),
+        rect,
+    );
 }
 
 fn render_radio_info(
