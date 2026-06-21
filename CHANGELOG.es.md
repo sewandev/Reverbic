@@ -10,6 +10,8 @@ Versionado: [Semantic Versioning](https://semver.org/)
 
 ## [Sin publicar]
 
+## [1.5.7] - 2026-06-21
+
 ### Added
 - Los avisos de error y recuperación de YouTube (stream rechazado, reconectando, descarga estancada, límite de tasa, pista omitida, etc.) ahora también aparecen como un mensaje flotante breve en el Modo Ambiente / protector de pantalla, no solo en la vista principal, así te enteras de lo ocurrido sin salir del protector.
 - La barra de progreso de YouTube ahora permite saltar a otra posición. En el Modo Ambiente / protector de pantalla puedes hacer clic en cualquier punto de la barra para saltar ahí, y las flechas izquierda/derecha avanzan/retroceden 10 segundos sin salir del protector. En la vista principal, `,` y `.` saltan -/+ 10 segundos. El salto aplica a fuentes bajo demanda (YouTube y podcasts); la radio en vivo sigue sin permitir salto. Los nuevos atajos aparecen en la barra de controles del Modo Ambiente y en la ayuda.
