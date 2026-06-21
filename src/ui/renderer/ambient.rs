@@ -6,6 +6,7 @@ use ratatui::{
     Frame,
 };
 
+use crate::app::NoticeSeverity;
 use crate::audio::{PlayerState, PlayerStatus};
 use crate::i18n::t;
 use crate::station::StationDetails;
@@ -157,6 +158,7 @@ pub(crate) fn render_ambient_mode(
     let bg = palette.panel_bg;
 
     register_url_hit(None);
+    register_seek_hit(None);
 
     frame.render_widget(Clear, area);
     for y in area.top()..area.bottom() {
@@ -403,13 +405,16 @@ pub(crate) fn render_ambient_mode(
                 } else {
                     palette.accent
                 };
-                let shortcuts = vec![
+                let mut shortcuts = vec![
                     ("Space".to_string(), pause),
                     ("+/-".to_string(), volume),
                     ("Ctrl ←/→".to_string(), t("screensaver.action.skip")),
-                    ("Alt+S".to_string(), t("screensaver.action.stop")),
-                    (any_key, exit),
                 ];
+                if state.playback_duration_secs.is_some() {
+                    shortcuts.push(("←/→".to_string(), t("screensaver.action.seek")));
+                }
+                shortcuts.push(("Alt+S".to_string(), t("screensaver.action.stop")));
+                shortcuts.push((any_key, exit));
                 (pct, color, shortcuts)
             }
             AmbientContent::Spotify { playback, .. } => {
@@ -442,6 +447,51 @@ pub(crate) fn render_ambient_mode(
             .intersection(inner),
         );
     }
+}
+
+pub(crate) fn render_ambient_notice(
+    frame: &mut Frame,
+    area: Rect,
+    text: &str,
+    severity: NoticeSeverity,
+    palette: &Palette,
+) {
+    let max_w = area.width.saturating_sub(4);
+    if max_w < 8 {
+        return;
+    }
+
+    let border_color = match severity {
+        NoticeSeverity::Error => palette.danger,
+        NoticeSeverity::Warning => palette.warning,
+        NoticeSeverity::Info => palette.accent,
+    };
+
+    let label = strings::truncate(text, max_w.saturating_sub(2) as usize);
+    let content = format!(" {label} ");
+    let w = (content.chars().count() as u16 + 2).min(area.width);
+    let h = 3;
+    let x = area.x + area.width.saturating_sub(w) / 2;
+    let y = area.y + 1;
+    let rect = Rect::new(x, y, w, h).intersection(area);
+
+    frame.render_widget(Clear, rect);
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(border_color))
+        .style(Style::default().bg(palette.panel_bg));
+    frame.render_widget(
+        Paragraph::new(content)
+            .block(block)
+            .alignment(Alignment::Center)
+            .style(
+                Style::default()
+                    .fg(border_color)
+                    .add_modifier(Modifier::BOLD),
+            ),
+        rect,
+    );
 }
 
 fn render_radio_info(
@@ -561,10 +611,9 @@ fn render_radio_info(
 
         let progress_w = ctx.cw.saturating_sub(15) as usize; // reserve space for text
 
-        let mut spans = vec![Span::styled(
-            format!("{p_m:02}:{p_s:02}  "),
-            Style::default().fg(ctx.palette.muted),
-        )];
+        let prefix = format!("{p_m:02}:{p_s:02}  ");
+        let prefix_w = prefix.chars().count() as u16;
+        let mut spans = vec![Span::styled(prefix, Style::default().fg(ctx.palette.muted))];
         spans.extend(progress_bar.into_spans(progress_w));
         spans.push(Span::styled(
             format!("  {t_m:02}:{t_s:02}"),
@@ -575,6 +624,15 @@ fn render_radio_info(
             Paragraph::new(Line::from(spans)).style(Style::default().bg(ctx.bg)),
             Rect::new(ctx.cx, row, ctx.cw, 1).intersection(ctx.inner),
         );
+
+        if state.playback_duration_secs.is_some() && progress_w > 0 {
+            register_seek_hit(Some(Rect::new(
+                ctx.cx + prefix_w,
+                row,
+                progress_w as u16,
+                1,
+            )));
+        }
         row += 1;
     }
 
@@ -875,6 +933,32 @@ pub(crate) fn url_hit_at(col: u16, row: u16) -> bool {
     let w = (packed >> 16) as u16;
     let h = packed as u16;
     col >= x && col < x.saturating_add(w) && row >= y && row < y.saturating_add(h)
+}
+
+static SEEK_HIT_RECT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+fn register_seek_hit(rect: Option<Rect>) {
+    let packed = match rect {
+        Some(r) if r.width > 0 => {
+            ((r.x as u64) << 48) | ((r.y as u64) << 32) | ((r.width as u64) << 16)
+        }
+        _ => 0,
+    };
+    SEEK_HIT_RECT.store(packed, std::sync::atomic::Ordering::Relaxed);
+}
+
+pub(crate) fn seek_ratio_at(col: u16, row: u16) -> Option<f32> {
+    let packed = SEEK_HIT_RECT.load(std::sync::atomic::Ordering::Relaxed);
+    if packed == 0 {
+        return None;
+    }
+    let x = (packed >> 48) as u16;
+    let y = (packed >> 32) as u16;
+    let w = (packed >> 16) as u16;
+    if row != y || col < x || col >= x.saturating_add(w) {
+        return None;
+    }
+    Some((col - x) as f32 / w as f32)
 }
 
 fn fmt_ms(ms: u32) -> String {

@@ -79,6 +79,15 @@ impl OverlayMode {
             Self::Games => Self::WhenPlaying,
         }
     }
+
+    pub fn prev(self) -> Self {
+        match self {
+            Self::WhenPlaying => Self::Games,
+            Self::Always => Self::WhenPlaying,
+            Self::Hidden => Self::Always,
+            Self::Games => Self::Hidden,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Default)]
@@ -161,6 +170,15 @@ impl OverlayPosition {
             Self::TopRight => Self::BottomRight,
             Self::BottomRight => Self::BottomLeft,
             Self::BottomLeft => Self::TopLeft,
+        }
+    }
+
+    pub fn prev(self) -> Self {
+        match self {
+            Self::TopLeft => Self::BottomLeft,
+            Self::TopRight => Self::TopLeft,
+            Self::BottomRight => Self::TopRight,
+            Self::BottomLeft => Self::BottomRight,
         }
     }
 }

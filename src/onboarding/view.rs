@@ -1,6 +1,6 @@
 use ratatui::{
     layout::{Alignment, Constraint, Layout, Rect},
-    style::{Modifier, Style},
+    style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, BorderType, Borders, Paragraph, Wrap},
     Frame,
@@ -8,22 +8,26 @@ use ratatui::{
 
 use crate::i18n::t;
 
-use crate::ui::strings::{crossfade_display, screensaver_display, truncate};
-use crate::ui::theme::{self, Palette};
+use crate::ui::renderer::overlays::render_theme_picker_overlay;
+use crate::ui::strings::truncate;
+use crate::ui::theme::{self, Palette, ThemeId};
+use crate::ui::widgets::{scroll_offset_for_selection, theme_picker};
 
-use super::ascii_gif::AsciiGif;
 use super::state::{OnboardingState, Step};
 
 const PANEL_WIDTH: u16 = 88;
 const PANEL_HEIGHT: u16 = 21;
-const GIF_GAP: u16 = 4;
-const RADIO_MARKER_WIDTH: usize = 4;
+const LOGO_RESERVED: u16 = 3;
+const MARKER_WIDTH: usize = 2;
+const SWATCH_WIDTH: usize = 2;
+const SWATCH_GAP: usize = 1;
+const PREVIEW_WIDTH: u16 = (SWATCH_WIDTH * 3 + SWATCH_GAP * 2) as u16;
 
 pub struct ViewCtx<'a> {
     pub palette: &'a Palette,
     pub border_tick: u32,
-    pub ascii_gif: Option<&'a AsciiGif>,
 }
+
 pub fn render(frame: &mut Frame, area: Rect, state: &OnboardingState, ctx: &ViewCtx<'_>) {
     let palette = ctx.palette;
     let bg = palette.panel_bg;
@@ -33,26 +37,18 @@ pub fn render(frame: &mut Frame, area: Rect, state: &OnboardingState, ctx: &View
             frame.buffer_mut()[(x, y)].set_bg(palette.overlay_color);
         }
     }
-    let gif = ctx
-        .ascii_gif
-        .filter(|gif| area.width >= PANEL_WIDTH + GIF_GAP + gif.cols);
+
     let content_area = Rect::new(
         area.x,
-        area.y + 1,
+        area.y + LOGO_RESERVED,
         area.width,
-        area.height.saturating_sub(1),
+        area.height.saturating_sub(LOGO_RESERVED),
     );
-    let group_width = PANEL_WIDTH + gif.map_or(0, |gif| GIF_GAP + gif.cols);
-    let group = centered(content_area, group_width, PANEL_HEIGHT);
-    let panel = Rect::new(group.x, group.y, PANEL_WIDTH.min(group.width), group.height);
+    let panel = centered(content_area, PANEL_WIDTH, PANEL_HEIGHT);
 
-    render_maximize_hint(frame, panel, palette);
+    render_logo_header(frame, panel, palette, ctx.border_tick);
 
-    let title = format!(
-        " {}/{} ",
-        state.step.enabled_position() + 1,
-        Step::enabled_count()
-    );
+    let title = format!(" {}/{} ", state.step.position() + 1, Step::ALL.len());
     let block = Block::default()
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
@@ -72,39 +68,35 @@ pub fn render(frame: &mut Frame, area: Rect, state: &OnboardingState, ctx: &View
         Layout::vertical([Constraint::Fill(1), Constraint::Length(2)]).areas(inner);
 
     match state.step {
-        Step::Welcome => render_welcome(frame, body, ctx),
         Step::Appearance => render_appearance_step(frame, body, state, palette),
-        Step::OverlayPreferences => render_overlay_step(frame, body, state, palette),
-        Step::PlaybackPreferences => render_playback_step(frame, body, state, palette),
-        Step::SpotifyPreferences => render_spotify_step(frame, body, state, palette),
-        Step::Summary => render_summary(frame, body, state, palette),
+        Step::Setup => render_setup_step(frame, body, state, palette),
     }
 
     render_footer(frame, footer, state, palette);
 
-    if let Some(gif) = gif {
-        render_ascii_gif(frame, panel, gif);
+    if state.theme_picker_open {
+        render_theme_picker(frame, area, state, palette);
     }
 }
 
-fn render_ascii_gif(frame: &mut Frame, panel: Rect, gif: &AsciiGif) {
-    let x = panel.right() + GIF_GAP;
-    let y = panel.y + panel.height.saturating_sub(gif.rows) / 2;
-    let height = gif.rows.min(panel.bottom().saturating_sub(y));
-    gif.render(frame.buffer_mut(), Rect::new(x, y, gif.cols, height));
+fn render_theme_picker(frame: &mut Frame, area: Rect, state: &OnboardingState, palette: &Palette) {
+    let count = ThemeId::all().len();
+    let selected = ThemeId::all()
+        .position(|theme| theme == state.theme)
+        .unwrap_or(0);
+    let visible = theme_picker::visible_rows(area, count);
+    let scroll = scroll_offset_for_selection(selected, visible, 0);
+    render_theme_picker_overlay(frame, state.theme_before_picker, selected, scroll, palette);
 }
 
-fn render_maximize_hint(frame: &mut Frame, panel: Rect, palette: &Palette) {
-    frame.render_widget(
-        Paragraph::new(Span::styled(
-            t("onboarding.maximize_hint"),
-            Style::default()
-                .fg(palette.highlight)
-                .add_modifier(Modifier::BOLD),
-        ))
-        .alignment(Alignment::Center),
-        Rect::new(panel.x, panel.y - 1, panel.width, 1),
-    );
+fn render_logo_header(frame: &mut Frame, panel: Rect, palette: &Palette, tick: u32) {
+    crate::ui::widgets::logo::LogoWidget::new(palette.overlay_color, tick, palette)
+        .render_centered(
+            frame,
+            panel.x,
+            panel.width,
+            panel.y.saturating_sub(LOGO_RESERVED),
+        );
 }
 
 fn centered(area: Rect, width: u16, height: u16) -> Rect {
@@ -115,219 +107,118 @@ fn centered(area: Rect, width: u16, height: u16) -> Rect {
     Rect::new(x, y, w, h)
 }
 
-fn render_welcome(frame: &mut Frame, area: Rect, ctx: &ViewCtx<'_>) {
-    let palette = ctx.palette;
-    let bg = palette.panel_bg;
-    let bg_style = Style::default().bg(bg);
-
-    let logo_y = area.y + 2;
-    crate::ui::widgets::logo::LogoWidget::new(bg, ctx.border_tick, palette).render_centered(
-        frame,
-        area.x,
-        area.width,
-        logo_y.saturating_sub(2),
-    );
-
-    let text_y = logo_y + 3;
-    let text_area = Rect::new(
-        area.x + 2,
-        text_y,
-        area.width.saturating_sub(4),
-        area.bottom().saturating_sub(text_y),
-    );
-    frame.render_widget(
-        Paragraph::new(vec![
-            Line::from(Span::styled(
-                t("onboarding.welcome.heading"),
-                Style::default()
-                    .fg(palette.highlight)
-                    .add_modifier(Modifier::BOLD),
-            )),
-            Line::from(""),
-            Line::from(Span::styled(
-                t("onboarding.welcome.body"),
-                Style::default().fg(palette.highlight),
-            )),
-            Line::from(""),
-            Line::from(Span::styled(
-                t("onboarding.welcome.sources"),
-                Style::default().fg(palette.dim),
-            )),
-            Line::from(""),
-            Line::from(Span::styled(
-                t("onboarding.welcome.performance"),
-                Style::default().fg(palette.dim),
-            )),
-        ])
-        .alignment(Alignment::Center)
-        .wrap(Wrap { trim: true })
-        .style(bg_style),
-        text_area,
-    );
-}
-
 fn render_appearance_step(
     frame: &mut Frame,
     area: Rect,
     state: &OnboardingState,
     palette: &Palette,
 ) {
-    let mut rows = vec![
-        (
-            t("onboarding.appearance.language"),
-            state.language.display(),
-            t("config.tooltip.language"),
+    let bg = palette.panel_bg;
+    let bg_style = Style::default().bg(bg);
+    let list_x = area.x + 2;
+    let list_w = area.width.saturating_sub(4);
+
+    frame.render_widget(
+        Paragraph::new(Line::from(Span::styled(
+            t("onboarding.appearance.heading").to_uppercase(),
+            Style::default()
+                .fg(palette.muted)
+                .add_modifier(Modifier::BOLD),
+        )))
+        .style(bg_style),
+        Rect::new(list_x, area.y + 1, list_w, 1),
+    );
+
+    field_row(
+        frame,
+        Rect::new(list_x, area.y + 3, list_w, 1),
+        &t("onboarding.appearance.language"),
+        &state.language.display(),
+        state.focused_option == 0,
+        palette,
+    );
+
+    let theme_y = area.y + 5;
+    field_row(
+        frame,
+        Rect::new(list_x, theme_y, list_w.saturating_sub(PREVIEW_WIDTH + 2), 1),
+        &t("onboarding.appearance.theme"),
+        &state.theme.display(),
+        state.focused_option == 1,
+        palette,
+    );
+    render_swatches(
+        frame,
+        Rect::new(
+            list_x + list_w.saturating_sub(PREVIEW_WIDTH),
+            theme_y,
+            PREVIEW_WIDTH,
+            1,
         ),
-        (
-            t("onboarding.appearance.theme"),
-            state.theme.display(),
-            t("config.tooltip.theme"),
-        ),
-    ];
-    if cfg!(target_os = "windows") {
-        rows.push((
-            t("config.setting.overlay_style"),
-            state.overlay_style.display(),
-            t("config.tooltip.overlay_style"),
+        theme::definition(state.theme).preview,
+        bg,
+    );
+
+    let tooltip = if state.focused_option == 0 {
+        t("config.tooltip.language")
+    } else {
+        t("config.tooltip.theme")
+    };
+    render_tooltip(frame, list_x, list_w, area.bottom(), &tooltip, palette);
+}
+
+fn render_swatches(frame: &mut Frame, area: Rect, preview: [Color; 3], bg: Color) {
+    let mut spans = Vec::new();
+    for (i, color) in preview.into_iter().enumerate() {
+        if i > 0 {
+            spans.push(Span::styled(
+                " ".repeat(SWATCH_GAP),
+                Style::default().bg(bg),
+            ));
+        }
+        spans.push(Span::styled(
+            " ".repeat(SWATCH_WIDTH),
+            Style::default().bg(color),
         ));
     }
-    render_option_step(
-        frame,
+    frame.render_widget(
+        Paragraph::new(Line::from(spans)).style(Style::default().bg(bg)),
         area,
-        &t("onboarding.appearance.heading"),
-        &rows,
-        state.focused_option,
-        palette,
     );
 }
 
-fn render_overlay_step(frame: &mut Frame, area: Rect, state: &OnboardingState, palette: &Palette) {
-    let rows = [
-        (
+fn render_setup_step(frame: &mut Frame, area: Rect, state: &OnboardingState, palette: &Palette) {
+    let mut rows = Vec::new();
+    if cfg!(target_os = "windows") {
+        rows.push((
             t("onboarding.overlay.mode"),
             state.overlay_mode.display(),
             t("config.tooltip.overlay"),
-        ),
-        (
+        ));
+        rows.push((
             t("onboarding.overlay.position"),
             state.overlay_position.display(),
             t("config.tooltip.overlay_position"),
-        ),
-        (
-            t("onboarding.overlay.alpha"),
-            format!("{}%", state.overlay_alpha),
-            t("config.tooltip.overlay_alpha"),
-        ),
-    ];
-    render_option_step(
-        frame,
-        area,
-        &t("onboarding.overlay.heading"),
-        &rows,
-        state.focused_option,
-        palette,
-    );
-
-    let note_y = area.y + 3 + rows.len() as u16 * 2;
-    if note_y < area.bottom() {
-        frame.render_widget(
-            Paragraph::new(Line::from(Span::styled(
-                t("onboarding.overlay.windows_only"),
-                Style::default().fg(palette.dim),
-            )))
-            .alignment(Alignment::Center)
-            .style(Style::default().bg(palette.panel_bg)),
-            Rect::new(area.x + 2, note_y, area.width.saturating_sub(4), 1),
-        );
+        ));
     }
-}
+    rows.push((
+        t("onboarding.playback.autoplay"),
+        on_off_label(state.autoplay_last),
+        t("config.tooltip.autoplay"),
+    ));
+    rows.push((
+        t("onboarding.playback.auto_update"),
+        on_off_label(state.auto_update),
+        t("config.tooltip.auto_update"),
+    ));
 
-fn render_playback_step(frame: &mut Frame, area: Rect, state: &OnboardingState, palette: &Palette) {
-    let rows = [
-        (
-            t("onboarding.playback.autoplay"),
-            on_off_label(state.autoplay_last),
-            t("config.tooltip.autoplay"),
-        ),
-        (
-            t("onboarding.playback.restore_volume"),
-            on_off_label(state.restore_volume),
-            t("config.tooltip.restore_volume"),
-        ),
-        (
-            t("onboarding.playback.crossfade"),
-            crossfade_display(state.crossfade_secs),
-            t("config.tooltip.crossfade"),
-        ),
-        (
-            t("onboarding.playback.screensaver"),
-            screensaver_display(state.screensaver_secs),
-            t("config.tooltip.screensaver"),
-        ),
-        (
-            t("onboarding.playback.auto_update"),
-            on_off_label(state.auto_update),
-            t("config.tooltip.auto_update"),
-        ),
-    ];
-    render_option_step(
-        frame,
-        area,
-        &t("onboarding.playback.heading"),
-        &rows,
-        state.focused_option,
-        palette,
-    );
-}
-
-fn render_spotify_step(frame: &mut Frame, area: Rect, state: &OnboardingState, palette: &Palette) {
-    let rows = [
-        (
-            t("config.setting.spotify_stop_on_quit"),
-            on_off_label(state.spotify_stop_on_quit),
-            t("config.tooltip.spotify_stop_on_quit"),
-        ),
-        (
-            t("config.setting.spotify_start_on_spotify"),
-            on_off_label(state.spotify_start_on_spotify),
-            t("config.tooltip.spotify_start_on_spotify"),
-        ),
-        (
-            t("config.setting.spotify_playback_mode"),
-            state.spotify_playback_mode.display(),
-            t("config.tooltip.spotify_playback_mode"),
-        ),
-        (
-            t("config.setting.spotify_radio_mode"),
-            on_off_label(state.spotify_radio_enabled),
-            t("config.tooltip.spotify_radio_mode"),
-        ),
-    ];
-    render_option_step(
-        frame,
-        area,
-        &t("config.group.spotify"),
-        &rows,
-        state.focused_option,
-        palette,
-    );
-}
-
-fn render_option_step(
-    frame: &mut Frame,
-    area: Rect,
-    heading: &str,
-    rows: &[(String, String, String)],
-    focused: usize,
-    palette: &Palette,
-) {
     let bg_style = Style::default().bg(palette.panel_bg);
     let list_x = area.x + 2;
     let list_w = area.width.saturating_sub(4);
 
     frame.render_widget(
         Paragraph::new(Line::from(Span::styled(
-            heading.to_uppercase(),
+            t("onboarding.quicksetup.heading").to_uppercase(),
             Style::default()
                 .fg(palette.muted)
                 .add_modifier(Modifier::BOLD),
@@ -341,29 +232,40 @@ fn render_option_step(
         if y >= area.bottom() {
             break;
         }
-        render_radio_row(
+        field_row(
             frame,
             Rect::new(list_x, y, list_w, 1),
             label,
             value,
-            i == focused,
+            i == state.focused_option,
             palette,
         );
     }
 
-    let sep_y = area.bottom().saturating_sub(3);
+    let tooltip = rows
+        .get(state.focused_option)
+        .map(|(_, _, tooltip)| tooltip.as_str())
+        .unwrap_or_default();
+    render_tooltip(frame, list_x, list_w, area.bottom(), tooltip, palette);
+}
+
+fn render_tooltip(
+    frame: &mut Frame,
+    list_x: u16,
+    list_w: u16,
+    area_bottom: u16,
+    tooltip: &str,
+    palette: &Palette,
+) {
+    let bg_style = Style::default().bg(palette.panel_bg);
+    let sep_y = area_bottom.saturating_sub(3);
     let sep = "─".repeat(list_w as usize);
     frame.render_widget(
         Paragraph::new(Span::styled(sep, Style::default().fg(palette.dim))).style(bg_style),
         Rect::new(list_x, sep_y, list_w, 1),
     );
-
-    let tooltip = rows
-        .get(focused)
-        .map(|(_, _, tooltip)| tooltip.as_str())
-        .unwrap_or_default();
     frame.render_widget(
-        Paragraph::new(tooltip)
+        Paragraph::new(tooltip.to_string())
             .wrap(Wrap { trim: true })
             .style(Style::default().fg(palette.dim).bg(palette.panel_bg)),
         Rect::new(list_x, sep_y + 1, list_w, 2),
@@ -378,21 +280,7 @@ fn on_off_label(value: bool) -> String {
     }
 }
 
-fn radio_label_layout(label: &str, label_col_w: usize) -> (String, usize) {
-    let label_str = truncate(label, label_col_w.saturating_sub(RADIO_MARKER_WIDTH));
-    let padding = label_col_w.saturating_sub(RADIO_MARKER_WIDTH + label_str.chars().count());
-    (label_str, padding)
-}
-
-fn radio_marker(focused: bool) -> &'static str {
-    if focused {
-        "(•) "
-    } else {
-        "( ) "
-    }
-}
-
-fn render_radio_row(
+fn field_row(
     frame: &mut Frame,
     area: Rect,
     label: &str,
@@ -400,185 +288,66 @@ fn render_radio_row(
     focused: bool,
     palette: &Palette,
 ) {
-    let marker = radio_marker(focused);
-    let label_style = if focused {
-        Style::default()
-            .fg(palette.radio_accent)
-            .add_modifier(Modifier::BOLD)
+    let bg = palette.panel_bg;
+    let marker = if focused { "▸ " } else { "  " };
+    let total = area.width as usize;
+
+    let value_chars = value.chars().count();
+    let value_slot = if focused {
+        value_chars + 4
     } else {
-        Style::default().fg(palette.highlight)
+        value_chars
     };
-    let value_style = if focused {
-        Style::default()
-            .fg(palette.playing)
-            .add_modifier(Modifier::BOLD)
-    } else {
-        Style::default().fg(palette.accent)
-    };
+    let label_budget = total
+        .saturating_sub(MARKER_WIDTH)
+        .saturating_sub(value_slot + 1);
+    let label_str = truncate(label, label_budget);
+    let used = MARKER_WIDTH + label_str.chars().count() + value_slot;
+    let pad = total.saturating_sub(used);
 
-    let label_col_w = (area.width / 2) as usize;
-    let (label_str, padding) = radio_label_layout(label, label_col_w);
-
-    frame.render_widget(
-        Paragraph::new(Line::from(vec![
-            Span::styled(marker, label_style),
-            Span::styled(label_str, label_style),
-            Span::styled(" ".repeat(padding), Style::default()),
-            Span::styled("◀ ", Style::default().fg(palette.dim)),
-            Span::styled(value.to_string(), value_style),
-            Span::styled(" ▶", Style::default().fg(palette.dim)),
-        ]))
-        .style(Style::default().bg(palette.panel_bg)),
-        area,
-    );
-}
-
-fn render_summary(frame: &mut Frame, area: Rect, state: &OnboardingState, palette: &Palette) {
-    let bg_style = Style::default().bg(palette.panel_bg);
-    let rows = summary_rows(state);
-
-    frame.render_widget(
-        Paragraph::new(Line::from(Span::styled(
-            t("onboarding.summary.heading"),
+    let (marker_style, label_style) = if focused {
+        (
+            Style::default()
+                .fg(palette.radio_accent)
+                .add_modifier(Modifier::BOLD),
             Style::default()
                 .fg(palette.highlight)
                 .add_modifier(Modifier::BOLD),
-        )))
-        .alignment(Alignment::Center)
-        .style(bg_style),
-        Rect::new(area.x, area.y + 1, area.width, 1),
-    );
-
-    let list_x = area.x + 4;
-    let list_w = area.width.saturating_sub(8);
-    let col_w = (list_w / 2).saturating_sub(2);
-    let rows_count = rows.len() as u16;
-    let rows_per_col = rows_count.div_ceil(2);
-
-    for (i, (label, value)) in rows.iter().enumerate() {
-        let col = i as u16 / rows_per_col;
-        let row = i as u16 % rows_per_col;
-
-        let y = area.y + 3 + row;
-        if y >= area.bottom() {
-            continue;
-        }
-
-        let x = if col == 0 { list_x } else { list_x + col_w + 4 };
-        let w = col_w;
-        let value_chars = value.chars().count();
-        let max_label_w = w.saturating_sub(value_chars as u16 + 1) as usize;
-
-        let label_str = truncate(label, max_label_w);
-        let padding = (w as usize)
-            .saturating_sub(label_str.chars().count())
-            .saturating_sub(value_chars);
-        frame.render_widget(
-            Paragraph::new(Line::from(vec![
-                Span::styled(label_str, Style::default().fg(palette.dim)),
-                Span::styled(" ".repeat(padding), Style::default()),
-                Span::styled(value.clone(), Style::default().fg(palette.accent)),
-            ]))
-            .style(bg_style),
-            Rect::new(x, y, w, 1),
-        );
-    }
-
-    let body_y = area.y + 5 + rows_per_col;
-    if body_y < area.bottom() {
-        frame.render_widget(
-            Paragraph::new(Span::styled(
-                t("onboarding.summary.body"),
-                Style::default()
-                    .fg(palette.highlight)
-                    .add_modifier(Modifier::BOLD),
-            ))
-            .alignment(Alignment::Center)
-            .wrap(Wrap { trim: true })
-            .style(bg_style),
-            Rect::new(area.x + 2, body_y, area.width.saturating_sub(4), 2),
-        );
-    }
-
-    let shortcuts_y = body_y + 3;
-    if shortcuts_y < area.bottom() {
-        frame.render_widget(
-            Paragraph::new(Span::styled(
-                t("onboarding.summary.shortcuts"),
-                Style::default().fg(palette.dim),
-            ))
-            .alignment(Alignment::Center)
-            .wrap(Wrap { trim: true })
-            .style(bg_style),
-            Rect::new(area.x + 2, shortcuts_y, area.width.saturating_sub(4), 1),
-        );
-    }
-}
-
-fn summary_rows(state: &OnboardingState) -> Vec<(String, String)> {
-    let mut rows = vec![
+        )
+    } else {
         (
-            t("onboarding.appearance.language"),
-            state.language.display(),
-        ),
-        (t("onboarding.appearance.theme"), state.theme.display()),
+            Style::default().fg(palette.dim),
+            Style::default().fg(palette.dim),
+        )
+    };
+
+    let mut spans = vec![
+        Span::styled(marker, marker_style.bg(bg)),
+        Span::styled(label_str, label_style.bg(bg)),
+        Span::styled(" ".repeat(pad), Style::default().bg(bg)),
     ];
-    if cfg!(target_os = "windows") {
-        rows.extend([
-            (
-                t("config.setting.overlay_style"),
-                state.overlay_style.display(),
-            ),
-            (t("onboarding.overlay.mode"), state.overlay_mode.display()),
-            (
-                t("onboarding.overlay.position"),
-                state.overlay_position.display(),
-            ),
-            (
-                t("onboarding.overlay.alpha"),
-                format!("{}%", state.overlay_alpha),
-            ),
-        ]);
+    if focused {
+        let bracket = Style::default().fg(palette.accent).bg(bg);
+        spans.push(Span::styled("‹ ", bracket));
+        spans.push(Span::styled(
+            value.to_string(),
+            Style::default()
+                .fg(palette.playing)
+                .add_modifier(Modifier::BOLD)
+                .bg(bg),
+        ));
+        spans.push(Span::styled(" ›", bracket));
+    } else {
+        spans.push(Span::styled(
+            value.to_string(),
+            Style::default().fg(palette.muted).bg(bg),
+        ));
     }
-    rows.extend([
-        (
-            t("onboarding.playback.autoplay"),
-            on_off_label(state.autoplay_last),
-        ),
-        (
-            t("onboarding.playback.restore_volume"),
-            on_off_label(state.restore_volume),
-        ),
-        (
-            t("onboarding.playback.crossfade"),
-            crossfade_display(state.crossfade_secs),
-        ),
-        (
-            t("onboarding.playback.screensaver"),
-            screensaver_display(state.screensaver_secs),
-        ),
-        (
-            t("onboarding.playback.auto_update"),
-            on_off_label(state.auto_update),
-        ),
-        (
-            t("config.setting.spotify_stop_on_quit"),
-            on_off_label(state.spotify_stop_on_quit),
-        ),
-        (
-            t("config.setting.spotify_start_on_spotify"),
-            on_off_label(state.spotify_start_on_spotify),
-        ),
-        (
-            t("config.setting.spotify_playback_mode"),
-            state.spotify_playback_mode.display(),
-        ),
-        (
-            t("config.setting.spotify_radio_mode"),
-            on_off_label(state.spotify_radio_enabled),
-        ),
-    ]);
-    rows
+
+    frame.render_widget(
+        Paragraph::new(Line::from(spans)).style(Style::default().bg(bg)),
+        area,
+    );
 }
 
 fn hint(palette: &Palette, key: &str, label: String) -> [Span<'static>; 2] {
@@ -593,124 +362,70 @@ fn hint(palette: &Palette, key: &str, label: String) -> [Span<'static>; 2] {
     ]
 }
 
-fn volume_indicator(volume: f32) -> String {
-    let pct = (volume.clamp(0.0, 1.0) * 100.0).round() as u32;
-    format!("♪ {pct}%")
-}
-
 fn render_footer(frame: &mut Frame, area: Rect, state: &OnboardingState, palette: &Palette) {
     let mut spans: Vec<Span<'static>> = Vec::new();
+    let is_last = state.step.position() + 1 == Step::ALL.len();
 
-    if state.step.option_count() > 0 {
-        spans.extend(hint(palette, "↑↓", t("onboarding.hint.navigate")));
-        spans.extend(hint(palette, "↵", t("onboarding.hint.change")));
+    spans.extend(hint(palette, "↑↓", t("onboarding.hint.navigate")));
+    spans.extend(hint(palette, "←→", t("onboarding.hint.change")));
+    if state.step == Step::Appearance && state.focused_option == 1 {
+        spans.extend(hint(palette, "↵", t("onboarding.hint.themes")));
+    }
+    if is_last {
+        spans.extend(hint(palette, "↵", t("onboarding.hint.finish")));
+    } else {
+        spans.extend(hint(palette, "Tab", t("onboarding.hint.continue")));
     }
     if state.step.position() > 0 {
-        spans.extend(hint(palette, "←", t("hint.back")));
+        spans.extend(hint(palette, "⇧Tab", t("hint.back")));
     }
-    match state.step {
-        Step::Summary => spans.extend(hint(palette, "↵", t("onboarding.hint.finish"))),
-        _ => spans.extend(hint(palette, "→", t("onboarding.hint.continue"))),
-    }
-    let mute_label = if state.muted {
-        t("onboarding.hint.unmute")
-    } else {
-        t("onboarding.hint.mute")
-    };
-    spans.extend(hint(palette, "M", mute_label));
     spans.extend(hint(palette, "Esc", t("onboarding.hint.skip")));
-
-    let bg_style = Style::default().bg(palette.panel_bg);
-
-    let hints_area = if state.step == Step::Welcome {
-        let indicator = volume_indicator(state.volume);
-        let indicator_w = indicator.chars().count() as u16;
-        frame.render_widget(
-            Paragraph::new(Span::styled(
-                indicator,
-                Style::default()
-                    .fg(palette.accent)
-                    .add_modifier(Modifier::BOLD),
-            ))
-            .style(bg_style),
-            Rect::new(
-                area.right().saturating_sub(indicator_w),
-                area.y,
-                indicator_w,
-                1,
-            ),
-        );
-        Rect::new(
-            area.x,
-            area.y,
-            area.width.saturating_sub(indicator_w + 2),
-            area.height,
-        )
-    } else {
-        area
-    };
 
     frame.render_widget(
         Paragraph::new(Line::from(spans))
             .alignment(Alignment::Center)
             .wrap(Wrap { trim: true })
-            .style(bg_style),
-        hints_area,
+            .style(Style::default().bg(palette.panel_bg)),
+        area,
     );
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ui::theme::ThemeId;
     use ratatui::{backend::TestBackend, Terminal};
 
     #[test]
-    fn radio_markers_keep_the_same_visible_width() {
-        assert_eq!(radio_marker(true).chars().count(), RADIO_MARKER_WIDTH);
-        assert_eq!(radio_marker(false).chars().count(), RADIO_MARKER_WIDTH);
-    }
-
-    #[test]
-    fn radio_label_layout_reserves_marker_width_for_padding() {
-        let label_col_w = 24;
-        let (label, padding) = radio_label_layout("Resume last station", label_col_w);
-
-        assert_eq!(
-            RADIO_MARKER_WIDTH + label.chars().count() + padding,
-            label_col_w
-        );
-    }
-
-    #[test]
-    fn summary_rows_include_every_onboarding_setting() {
-        let state = OnboardingState::from_config(&crate::config::Config::default());
-        let rows = summary_rows(&state);
-        let labels: Vec<_> = rows.iter().map(|(label, _)| label.as_str()).collect();
-
-        assert!(labels.contains(&t("onboarding.appearance.theme").as_str()));
-        if cfg!(target_os = "windows") {
-            assert!(labels.contains(&t("config.setting.overlay_style").as_str()));
-            assert!(labels.contains(&t("onboarding.overlay.mode").as_str()));
-            assert!(labels.contains(&t("onboarding.overlay.position").as_str()));
-            assert!(labels.contains(&t("onboarding.overlay.alpha").as_str()));
-        }
-        assert!(labels.contains(&t("onboarding.playback.autoplay").as_str()));
-        assert!(labels.contains(&t("onboarding.playback.restore_volume").as_str()));
-        assert!(labels.contains(&t("onboarding.playback.crossfade").as_str()));
-        assert!(labels.contains(&t("onboarding.playback.screensaver").as_str()));
-        assert!(labels.contains(&t("onboarding.playback.auto_update").as_str()));
-    }
-
-    #[test]
-    fn summary_render_handles_narrow_columns() {
-        let state = OnboardingState::from_config(&crate::config::Config::default());
+    fn field_row_renders_within_narrow_area() {
+        let palette = theme::palette(ThemeId::Reverbic);
         let mut terminal =
-            Terminal::new(TestBackend::new(34, 18)).expect("TestBackend creation is infallible");
-        let palette = theme::palette(state.theme);
+            Terminal::new(TestBackend::new(20, 3)).expect("TestBackend creation is infallible");
 
         terminal
             .draw(|frame| {
-                render_summary(frame, Rect::new(0, 0, 34, 16), &state, palette);
+                field_row(
+                    frame,
+                    Rect::new(0, 0, 20, 1),
+                    "Resume last station",
+                    "On",
+                    true,
+                    palette,
+                );
+            })
+            .expect("TestBackend draw is infallible");
+    }
+
+    #[test]
+    fn appearance_step_renders_without_panicking() {
+        let state = OnboardingState::from_config(&crate::config::Config::default());
+        let palette = theme::palette(state.theme);
+        let mut terminal =
+            Terminal::new(TestBackend::new(60, 18)).expect("TestBackend creation is infallible");
+
+        terminal
+            .draw(|frame| {
+                render_appearance_step(frame, Rect::new(0, 0, 60, 17), &state, palette);
             })
             .expect("TestBackend draw is infallible");
     }

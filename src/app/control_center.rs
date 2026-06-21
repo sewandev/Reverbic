@@ -22,7 +22,7 @@ impl App {
             return ControlSource::Spotify;
         }
         let state = self.player.state();
-        if matches!(state.status, PlayerStatus::Idle | PlayerStatus::Error(_)) {
+        if matches!(state.status, PlayerStatus::Idle) {
             return ControlSource::None;
         }
         match state.station.as_ref() {

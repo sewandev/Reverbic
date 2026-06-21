@@ -392,7 +392,7 @@ pub(super) fn render_cookies_path_overlay(
     );
 }
 
-pub(super) fn render_theme_picker_overlay(
+pub(crate) fn render_theme_picker_overlay(
     frame: &mut Frame,
     current: ThemeId,
     selected: usize,
@@ -1150,6 +1150,7 @@ fn help_rows(
             help_header("help.group.global"),
             Entry("[Tab]", t("help.shortcut.switch_source")),
             Entry("[Ctrl+←→]", t("help.shortcut.next_prev")),
+            Entry("[, .]", t("help.shortcut.seek")),
             Entry("[Alt+O]", t("help.shortcut.open_config")),
             Entry("[Esc]", t("help.shortcut.close_quit")),
         ]

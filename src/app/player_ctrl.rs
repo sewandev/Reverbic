@@ -110,18 +110,43 @@ impl App {
         self.play_station(station).await;
     }
 
+    pub fn poll_audio_health(&mut self) {
+        if self.player.is_alive() {
+            return;
+        }
+        if self.audio_down_notified {
+            return;
+        }
+        self.audio_down_notified = true;
+        tracing::error!("audio engine thread is down; commands will no longer be processed");
+        self.notify_error(crate::i18n::t("notice.audio_engine_down"));
+    }
+
     pub fn poll_dead_url(&mut self) {
         let state = self.player.state();
-        if state.is_dead_url {
-            if let Some(station) = &state.station {
-                self.dead_urls.insert(station.url.clone());
-                if let Some(video_id) = station.key.strip_prefix("youtube:") {
-                    crate::integrations::youtube::resolve::invalidate_cached_url(&format!(
-                        "https://www.youtube.com/watch?v={video_id}"
-                    ));
-                }
+        let is_dead = state.is_dead_url;
+        let was_dead = std::mem::replace(&mut self.youtube.dead_seen, is_dead);
+
+        if !is_dead {
+            if matches!(state.status, PlayerStatus::Playing) {
+                self.youtube.dead_recovery = None;
             }
+            return;
         }
+        if was_dead {
+            return;
+        }
+        let Some(station) = state.station.clone() else {
+            return;
+        };
+        self.dead_urls.insert(station.url.clone());
+        let Some(video_id) = station.key.strip_prefix("youtube:") else {
+            return;
+        };
+        crate::integrations::youtube::resolve::invalidate_cached_url(&format!(
+            "https://www.youtube.com/watch?v={video_id}"
+        ));
+        self.recover_youtube_dead_url(station.key.clone(), station.name.clone());
     }
 
     pub(super) fn play_random_result(&self) -> Option<usize> {

@@ -185,7 +185,15 @@ impl Seek for StreamReader {
 
 const MAX_DOWNLOAD_RETRIES: u32 = 5;
 const DOWNLOAD_RETRY_PAUSE: std::time::Duration = std::time::Duration::from_secs(2);
-const FILE_READ_STARVATION_SECS: u64 = 60;
+const FILE_READ_STARVATION_SECS: u64 = 30;
+const FILE_READ_STALL_MS: u64 = 12_000;
+
+fn unix_now_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
+}
 
 pub fn youtube_cache_dir() -> std::path::PathBuf {
     crate::paths::youtube_media_cache_dir()
@@ -397,11 +405,27 @@ impl Read for FileBackedReader {
                 return Ok(n);
             }
             if self.download_done.load(Ordering::Acquire) {
+                let total = self.total_len.load(Ordering::Acquire);
+                tracing::warn!(
+                    pos = self.pos,
+                    written,
+                    total,
+                    dead = self.dead_url.load(Ordering::Acquire),
+                    "File-backed read: EOF (download_done) at pos>=written"
+                );
                 return Ok(0);
             }
-            if wait_start.elapsed() > std::time::Duration::from_secs(FILE_READ_STARVATION_SECS) {
+            let last_chunk = self.last_chunk_at.load(Ordering::Acquire);
+            let stalled_ms = unix_now_ms().saturating_sub(last_chunk);
+            let stalled = last_chunk != 0 && stalled_ms >= FILE_READ_STALL_MS;
+            if stalled
+                || wait_start.elapsed() > std::time::Duration::from_secs(FILE_READ_STARVATION_SECS)
+            {
                 tracing::warn!(
-                    "File-backed read starved for {FILE_READ_STARVATION_SECS}s, signaling EOF"
+                    pos = self.pos,
+                    written,
+                    stalled_ms,
+                    "File-backed read underrun: download not progressing, signaling EOF"
                 );
                 return Ok(0);
             }
@@ -543,11 +567,7 @@ async fn download_to_file(
                     }
                     current_offset += bytes.len() as u64;
                     written.store(current_offset, Ordering::Release);
-                    let now_ms = std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .map(|d| d.as_millis() as u64)
-                        .unwrap_or(0);
-                    last_chunk_at.store(now_ms, Ordering::Release);
+                    last_chunk_at.store(unix_now_ms(), Ordering::Release);
                     retry_count = 0;
                 }
                 Ok(Some(Err(e))) => {

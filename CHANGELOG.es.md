@@ -10,6 +10,32 @@ Versionado: [Semantic Versioning](https://semver.org/)
 
 ## [Sin publicar]
 
+## [1.5.7] - 2026-06-21
+
+### Added
+- Los avisos de error y recuperación de YouTube (stream rechazado, reconectando, descarga estancada, límite de tasa, pista omitida, etc.) ahora también aparecen como un mensaje flotante breve en el Modo Ambiente / protector de pantalla, no solo en la vista principal, así te enteras de lo ocurrido sin salir del protector.
+- La barra de progreso de YouTube ahora permite saltar a otra posición. En el Modo Ambiente / protector de pantalla puedes hacer clic en cualquier punto de la barra para saltar ahí, y las flechas izquierda/derecha avanzan/retroceden 10 segundos sin salir del protector. En la vista principal, `,` y `.` saltan -/+ 10 segundos. El salto aplica a fuentes bajo demanda (YouTube y podcasts); la radio en vivo sigue sin permitir salto. Los nuevos atajos aparecen en la barra de controles del Modo Ambiente y en la ayuda.
+
+### Fixed
+- La reproducción de YouTube ya no se queda muda y atascada cuando YouTube rechaza la URL del audio (HTTP 403). El reproductor vuelve a resolver el video una vez con una URL nueva y reintenta automáticamente; si aun así falla, salta a la siguiente pista de la lista (o se detiene si no hay), siempre mostrando un aviso breve en vez de dejar una pista silenciada y congelada.
+- Mientras Reverbic vuelve a resolver y reconectar un stream de YouTube rechazado brevemente (HTTP 403) a mitad de canción, ahora muestra un aviso «conexión perdida, reconectando…» durante ese hueco, en vez de dejar una pausa muda sin explicación en pantalla cuando el reintento tiene éxito.
+- La reproducción de YouTube que se corta a mitad de canción (caída de conexión o descarga lenta) ahora muestra un aviso y pasa a la siguiente pista, en vez de terminar la canción en silencio sin explicación.
+- Una descarga de YouTube estancada ahora se detecta mucho más rápido: en vez de quedarse en silencio hasta un minuto, la reproducción reacciona a los pocos segundos de que el flujo de datos se detiene y avanza, así una descarga congelada ya no deja un hueco muerto largo.
+- Se contiene la cascada de fallos: si varias pistas de YouTube fallan en un lapso corto (normalmente porque YouTube está limitando la conexión), el avance automático se detiene con un mensaje claro pidiendo reintentar en un momento, en vez de recorrer toda la lista saltando cada pista.
+- Un video de YouTube que no se puede resolver durante la reproducción automática ahora muestra un aviso breve, en vez de solo actualizar un estado que el usuario quizá no está mirando.
+- Una estación de radio que no se puede reproducir tras varios intentos ahora muestra un mensaje claro y localizado sugiriendo probar otra, en vez de un error técnico crudo.
+- Los controles de siguiente/anterior ahora funcionan incluso cuando una pista está en estado de error, así puedes saltar una estación o video que falló al reproducir en vez de quedarte atascado en él.
+- Resolver un video de YouTube ya no puede colgarse indefinidamente si yt-dlp se traba: ahora expira tras un tiempo, lo informa con claridad y el proceso colgado se termina, en vez de dejar la reproducción congelada en un spinner.
+- Si el motor de audio interno llega a fallar de forma inesperada, la app ahora lo detecta y muestra un mensaje claro pidiendo reiniciar, en vez de congelarse en silencio con los controles sin responder y sin explicación. Un fallo del motor tampoco corrompe ya la pantalla.
+- Las búsquedas de YouTube, las cargas de listas/biblioteca y las comprobaciones de versión del runtime ya no pueden colgarse indefinidamente si yt-dlp se traba: todas expiran y terminan el proceso colgado, así un panel nunca queda cargando para siempre.
+
+### Changed
+- La primera ejecución es más corta, directa y consistente: solo dos pasos. El primero va directo al idioma y al tema; al pulsar Enter sobre el tema se abre el mismo selector de temas que en Ajustes, donde cada tema se previsualiza en vivo (el logo y el borde animado se recolorean al recorrer la lista). El segundo cubre el resto (overlay, reanudar la última estación, auto-actualización). Todos los pasos comparten los mismos controles (flecha arriba/abajo para moverse, izquierda/derecha para cambiar, Tab para continuar). El resto de opciones técnicas (crossfade, modo ambiente, modos de Spotify, transparencia y demás) ya no se preguntan al inicio y siguen configurables en Ajustes.
+- Los binarios de Windows ya no requieren tener instalado el Visual C++ Redistributable: el runtime de C ahora se enlaza estáticamente.
+
+### Removed
+- Se quitaron las pantallas de bienvenida y de resumen para ir directo al grano, y la introducción ya no reproduce música de fondo desde YouTube (tardaba en cargar) ni muestra el arte ASCII animado, dejándola instantánea y enfocada.
+
 ## [1.5.6] - 2026-06-16
 
 ### Added

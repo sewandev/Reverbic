@@ -73,6 +73,31 @@ pub(crate) fn summarize_ytdlp_error(raw: &str) -> String {
         line.to_string()
     }
 }
+pub(crate) const YTDLP_NETWORK_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(45);
+pub(crate) const YTDLP_LOCAL_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(15);
+
+pub(crate) async fn run_ytdlp_output(
+    mut cmd: tokio::process::Command,
+    timeout: std::time::Duration,
+    log_ctx: &str,
+) -> std::io::Result<std::process::Output> {
+    cmd.kill_on_drop(true);
+    match tokio::time::timeout(timeout, cmd.output()).await {
+        Ok(result) => result,
+        Err(_) => {
+            tracing::error!(
+                ctx = log_ctx,
+                "yt-dlp command timed out after {}s",
+                timeout.as_secs()
+            );
+            Err(std::io::Error::new(
+                std::io::ErrorKind::TimedOut,
+                "yt-dlp command timed out",
+            ))
+        }
+    }
+}
+
 pub(crate) const EXTRACTOR_ARGS_FLAT: &str =
     "youtube:player_client=android,web;player_skip=configs,webpage";
 

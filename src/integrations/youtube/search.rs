@@ -12,9 +12,9 @@ pub async fn search_videos(
     cookies_path: Option<&Path>,
     deno_path: &Path,
 ) -> Result<Vec<YoutubeVideo>, YoutubeError> {
-    let output = Command::new(binary)
-        .args(build_search_args(query, limit, cookies_path, deno_path))
-        .output()
+    let mut command = Command::new(binary);
+    command.args(build_search_args(query, limit, cookies_path, deno_path));
+    let output = super::run_ytdlp_output(command, super::YTDLP_NETWORK_TIMEOUT, "search")
         .await
         .map_err(|e| {
             YoutubeError::Search(format!(
