@@ -5,7 +5,7 @@ use ratatui::{layout::Rect, Frame};
 
 use crate::app::App;
 use crate::ui::theme;
-use ambient::{render_ambient_mode, AmbientContent};
+use ambient::{render_ambient_mode, render_ambient_notice, AmbientContent};
 use overlays::{
     render_ambient_picker_overlay, render_client_id_overlay, render_cookies_path_overlay,
     render_device_picker_overlay, render_game_strip, render_help_overlay, render_modal_np_strip,
@@ -85,6 +85,9 @@ pub fn render(frame: &mut Frame, app: &App) {
                         palette,
                     );
                 }
+                if let Some(ref notice) = app.save_notice {
+                    render_ambient_notice(frame, area, notice, app.save_notice_severity, palette);
+                }
                 return;
             }
         }
@@ -126,6 +129,9 @@ pub fn render(frame: &mut Frame, app: &App) {
                 area,
                 palette,
             );
+        }
+        if let Some(ref notice) = app.save_notice {
+            render_ambient_notice(frame, area, notice, app.save_notice_severity, palette);
         }
         return;
     }
