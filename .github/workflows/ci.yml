@@ -7,8 +7,31 @@ on:
     branches: [develop]
 
 jobs:
-  check:
-    name: Check & lint (${{ matrix.os }})
+  lint:
+    name: Lint & Format (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libasound2-dev
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: cargo fmt
+        run: cargo fmt --check
+
+      - name: cargo clippy
+        run: cargo clippy --all-features -- -D warnings
+
+  test:
+    name: Test (${{ matrix.os }})
+    needs: lint
     runs-on: ${{ matrix.os }}
 
     strategy:
@@ -27,21 +50,9 @@ jobs:
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy, rustfmt
 
-      - name: cargo fmt
-        run: cargo fmt --check
-
-      - name: Cache cargo registry
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-cargo-
+      - name: Rust Cache
+        uses: swatinem/rust-cache@v2
 
       - name: cargo check
         run: cargo check --all-features
@@ -49,12 +60,9 @@ jobs:
       - name: cargo test
         run: cargo test --all-features
 
-      - name: cargo clippy
-        run: cargo clippy --all-features -- -D warnings
-
   required_check:
     name: Check & lint
-    needs: check
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - run: echo "All checks passed!"
