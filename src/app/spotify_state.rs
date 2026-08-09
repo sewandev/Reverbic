@@ -30,7 +30,6 @@ pub(super) enum SpotifyRemoteSkipDirection {
 #[derive(Debug)]
 pub(super) struct SpotifyRemoteSkipOperation {
     pub(super) id: u64,
-    pub(super) token: String,
     pub(super) device_id: String,
     pub(super) direction: SpotifyRemoteSkipDirection,
 }
@@ -58,7 +57,6 @@ pub(super) struct SpotifyRemoteSkipQueue {
 impl SpotifyRemoteSkipQueue {
     pub(super) fn enqueue(
         &mut self,
-        token: String,
         device_id: String,
         direction: SpotifyRemoteSkipDirection,
     ) -> u64 {
@@ -69,7 +67,6 @@ impl SpotifyRemoteSkipQueue {
             .expect("Spotify remote skip operation ID exhausted");
         self.pending.push_back(SpotifyRemoteSkipOperation {
             id,
-            token,
             device_id,
             direction,
         });
@@ -116,16 +113,8 @@ mod remote_skip_queue_tests {
     #[test]
     fn remote_skips_are_started_one_at_a_time_in_input_order() {
         let mut queue = SpotifyRemoteSkipQueue::default();
-        let first_id = queue.enqueue(
-            "token".to_string(),
-            "device".to_string(),
-            SpotifyRemoteSkipDirection::Next,
-        );
-        let second_id = queue.enqueue(
-            "token".to_string(),
-            "device".to_string(),
-            SpotifyRemoteSkipDirection::Previous,
-        );
+        let first_id = queue.enqueue("device".to_string(), SpotifyRemoteSkipDirection::Next);
+        let second_id = queue.enqueue("device".to_string(), SpotifyRemoteSkipDirection::Previous);
 
         let first = queue.begin_next().expect("first skip starts");
         assert_eq!(first.id, first_id);
@@ -141,11 +130,7 @@ mod remote_skip_queue_tests {
     #[test]
     fn stale_result_cannot_release_the_current_operation() {
         let mut queue = SpotifyRemoteSkipQueue::default();
-        queue.enqueue(
-            "token".to_string(),
-            "device".to_string(),
-            SpotifyRemoteSkipDirection::Next,
-        );
+        queue.enqueue("device".to_string(), SpotifyRemoteSkipDirection::Next);
         let current = queue.begin_next().expect("skip starts");
 
         assert!(!queue.complete(current.id + 1, &current.device_id));
@@ -157,16 +142,8 @@ mod remote_skip_queue_tests {
     #[test]
     fn invalidating_remote_skips_drops_current_and_pending_operations() {
         let mut queue = SpotifyRemoteSkipQueue::default();
-        queue.enqueue(
-            "token".to_string(),
-            "device".to_string(),
-            SpotifyRemoteSkipDirection::Next,
-        );
-        queue.enqueue(
-            "token".to_string(),
-            "device".to_string(),
-            SpotifyRemoteSkipDirection::Previous,
-        );
+        queue.enqueue("device".to_string(), SpotifyRemoteSkipDirection::Next);
+        queue.enqueue("device".to_string(), SpotifyRemoteSkipDirection::Previous);
         queue.begin_next().expect("first skip starts");
 
         queue.invalidate();
@@ -237,6 +214,8 @@ pub struct SpotifyState {
 
     pub(super) play_result_rx: Option<std::sync::mpsc::Receiver<Result<(), SpotifyError>>>,
     pub(super) remote_skip_queue: SpotifyRemoteSkipQueue,
+    pub(super) remote_skip_paused_for_token_refresh: bool,
+    pub(super) remote_skip_task: Option<tokio::task::JoinHandle<()>>,
     pub(super) remote_skip_result_rx: Option<std::sync::mpsc::Receiver<SpotifyRemoteSkipResult>>,
     pub(super) save_track_rx: Option<std::sync::mpsc::Receiver<Result<String, String>>>,
 
@@ -321,6 +300,7 @@ impl SpotifyState {
         abort(&mut self.search_more_task);
         abort(&mut self.devices_task);
         abort(&mut self.playback_task);
+        abort(&mut self.remote_skip_task);
         abort(&mut self.token_refresh_task);
         abort(&mut self.radio_task);
         abort(&mut self.liked_task);
@@ -382,6 +362,8 @@ impl Default for SpotifyState {
             token_refresh_rx: None,
             play_result_rx: None,
             remote_skip_queue: SpotifyRemoteSkipQueue::default(),
+            remote_skip_paused_for_token_refresh: false,
+            remote_skip_task: None,
             remote_skip_result_rx: None,
             save_track_rx: None,
             playback_queue: VecDeque::new(),

@@ -750,6 +750,8 @@ impl App {
                     self.config.save();
                     self.spotify.token_refreshed_at = Some(std::time::Instant::now());
                     self.start_playback_polling();
+                    self.spotify.remote_skip_paused_for_token_refresh = false;
+                    self.start_next_spotify_remote_skip();
                     tracing::info!("spotify: access_token refreshed");
                 }
                 Ok(Err(e)) => {
@@ -843,6 +845,7 @@ impl App {
         };
         match rx.try_recv() {
             Ok(outcome) => {
+                self.spotify.remote_skip_task = None;
                 if !self
                     .spotify
                     .remote_skip_queue
@@ -859,9 +862,18 @@ impl App {
                     SpotifyControlTarget::Remote { device_id, .. }
                         if device_id == outcome.device_id =>
                     {
+                        let unauthorized = matches!(
+                            &outcome.result,
+                            Err(crate::integrations::spotify::SpotifyError::Unauthorized)
+                        );
+                        if unauthorized {
+                            self.spotify.remote_skip_paused_for_token_refresh = true;
+                        }
                         self.handle_spotify_remote_command_result(outcome.result);
                         self.start_playback_polling();
-                        self.start_next_spotify_remote_skip();
+                        if !unauthorized {
+                            self.start_next_spotify_remote_skip();
+                        }
                     }
                     SpotifyControlTarget::Remote { .. } => {
                         tracing::debug!(
@@ -886,6 +898,7 @@ impl App {
                 self.spotify.remote_skip_result_rx = Some(rx);
             }
             Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                self.spotify.remote_skip_task = None;
                 tracing::warn!("spotify remote skip: result channel disconnected");
                 self.spotify.remote_skip_queue.abandon_current();
                 self.start_next_spotify_remote_skip();
@@ -1194,26 +1207,24 @@ impl App {
         self.spotify.player_status = SpotifyPlayerStatus::Loading;
     }
 
-    fn spotify_remote_skip(
-        &mut self,
-        token: String,
-        device_id: String,
-        direction: SpotifyRemoteSkipDirection,
-    ) {
-        self.spotify
-            .remote_skip_queue
-            .enqueue(token, device_id, direction);
+    fn spotify_remote_skip(&mut self, device_id: String, direction: SpotifyRemoteSkipDirection) {
+        self.spotify.remote_skip_queue.enqueue(device_id, direction);
         self.start_next_spotify_remote_skip();
     }
 
     pub(super) fn cancel_spotify_remote_skips(&mut self) {
+        abort_task(&mut self.spotify.remote_skip_task);
         self.spotify.remote_skip_queue.invalidate();
+        self.spotify.remote_skip_paused_for_token_refresh = false;
         self.spotify.remote_skip_result_rx = None;
     }
 
     fn start_next_spotify_remote_skip(&mut self) {
-        let active_device_id = match self.spotify_control_target() {
-            SpotifyControlTarget::Remote { device_id, .. } => device_id,
+        if self.spotify.remote_skip_paused_for_token_refresh {
+            return;
+        }
+        let (token, active_device_id) = match self.spotify_control_target() {
+            SpotifyControlTarget::Remote { token, device_id } => (token, device_id),
             SpotifyControlTarget::Native | SpotifyControlTarget::None => {
                 self.cancel_spotify_remote_skips();
                 return;
@@ -1237,18 +1248,15 @@ impl App {
         };
         let (tx, rx) = std::sync::mpsc::channel();
         self.spotify.remote_skip_result_rx = Some(rx);
-        tokio::spawn(async move {
+        let handle = tokio::spawn(async move {
             let result = match operation.direction {
                 SpotifyRemoteSkipDirection::Next => {
-                    crate::integrations::spotify::devices::next_track(
-                        &operation.token,
-                        &operation.device_id,
-                    )
-                    .await
+                    crate::integrations::spotify::devices::next_track(&token, &operation.device_id)
+                        .await
                 }
                 SpotifyRemoteSkipDirection::Previous => {
                     crate::integrations::spotify::devices::previous_track(
-                        &operation.token,
+                        &token,
                         &operation.device_id,
                     )
                     .await
@@ -1260,12 +1268,13 @@ impl App {
                 result,
             });
         });
+        self.spotify.remote_skip_task = Some(handle);
     }
 
     pub(super) async fn spotify_play_next(&mut self) {
         match self.spotify_control_target() {
-            super::SpotifyControlTarget::Remote { token, device_id } => {
-                self.spotify_remote_skip(token, device_id, SpotifyRemoteSkipDirection::Next);
+            super::SpotifyControlTarget::Remote { device_id, .. } => {
+                self.spotify_remote_skip(device_id, SpotifyRemoteSkipDirection::Next);
             }
             super::SpotifyControlTarget::Native => self.native_next(),
             super::SpotifyControlTarget::None => {
@@ -1276,8 +1285,8 @@ impl App {
 
     pub(super) async fn spotify_play_previous(&mut self) {
         match self.spotify_control_target() {
-            super::SpotifyControlTarget::Remote { token, device_id } => {
-                self.spotify_remote_skip(token, device_id, SpotifyRemoteSkipDirection::Previous);
+            super::SpotifyControlTarget::Remote { device_id, .. } => {
+                self.spotify_remote_skip(device_id, SpotifyRemoteSkipDirection::Previous);
             }
             super::SpotifyControlTarget::Native => self.native_prev(),
             super::SpotifyControlTarget::None => {
@@ -1805,16 +1814,12 @@ mod tests {
     #[tokio::test]
     async fn stopping_remote_polling_cancels_current_and_queued_skips() {
         let mut app = App::new().await;
-        app.spotify.remote_skip_queue.enqueue(
-            "token".to_string(),
-            "device".to_string(),
-            SpotifyRemoteSkipDirection::Next,
-        );
-        app.spotify.remote_skip_queue.enqueue(
-            "token".to_string(),
-            "device".to_string(),
-            SpotifyRemoteSkipDirection::Previous,
-        );
+        app.spotify
+            .remote_skip_queue
+            .enqueue("device".to_string(), SpotifyRemoteSkipDirection::Next);
+        app.spotify
+            .remote_skip_queue
+            .enqueue("device".to_string(), SpotifyRemoteSkipDirection::Previous);
         let operation = app
             .spotify
             .remote_skip_queue
@@ -1822,9 +1827,15 @@ mod tests {
             .expect("remote skip starts");
         let (tx, rx) = std::sync::mpsc::channel();
         app.spotify.remote_skip_result_rx = Some(rx);
+        let task = tokio::spawn(async { std::future::pending::<()>().await });
+        let abort_handle = task.abort_handle();
+        app.spotify.remote_skip_task = Some(task);
 
         app.stop_playback_polling();
+        tokio::task::yield_now().await;
 
+        assert!(abort_handle.is_finished());
+        assert!(app.spotify.remote_skip_task.is_none());
         assert!(app.spotify.remote_skip_result_rx.is_none());
         assert!(app.spotify.remote_skip_queue.begin_next().is_none());
         assert!(
@@ -1846,11 +1857,9 @@ mod tests {
         app.spotify.active_backend = Some(SpotifyPlaybackBackend::Remote);
         app.spotify.player_status = SpotifyPlayerStatus::Loading;
 
-        app.spotify.remote_skip_queue.enqueue(
-            "token".to_string(),
-            "old-device".to_string(),
-            SpotifyRemoteSkipDirection::Next,
-        );
+        app.spotify
+            .remote_skip_queue
+            .enqueue("old-device".to_string(), SpotifyRemoteSkipDirection::Next);
         let operation = app
             .spotify
             .remote_skip_queue
@@ -1878,6 +1887,51 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn unauthorized_remote_skip_waits_for_token_refresh_before_dispatching_next() {
+        let mut app = App::new().await;
+        app.config.spotify.playback_mode = SpotifyPlaybackMode::Remote;
+        app.spotify.access_token = Some("expired-token".to_string());
+        app.spotify.active_device_id = Some("device".to_string());
+        app.spotify.active_backend = Some(SpotifyPlaybackBackend::Remote);
+        app.spotify
+            .remote_skip_queue
+            .enqueue("device".to_string(), SpotifyRemoteSkipDirection::Next);
+        app.spotify
+            .remote_skip_queue
+            .enqueue("device".to_string(), SpotifyRemoteSkipDirection::Previous);
+        let operation = app
+            .spotify
+            .remote_skip_queue
+            .begin_next()
+            .expect("first skip starts");
+        let (tx, rx) = std::sync::mpsc::channel();
+        app.spotify.remote_skip_result_rx = Some(rx);
+        tx.send(SpotifyRemoteSkipResult {
+            id: operation.id,
+            device_id: operation.device_id,
+            result: Err(crate::integrations::spotify::SpotifyError::Unauthorized),
+        })
+        .expect("receiver is alive");
+
+        app.poll_spotify_remote_skip_result();
+
+        assert!(app.spotify.remote_skip_paused_for_token_refresh);
+        assert!(app.spotify.remote_skip_task.is_none());
+        assert!(app.spotify.remote_skip_result_rx.is_none());
+        app.spotify_play_next().await;
+        assert!(
+            app.spotify.remote_skip_task.is_none(),
+            "new input must not resume the queue with the expired token"
+        );
+        let pending = app
+            .spotify
+            .remote_skip_queue
+            .begin_next()
+            .expect("queued skip waits for refreshed credentials");
+        assert_eq!(pending.direction, SpotifyRemoteSkipDirection::Previous);
+    }
+
+    #[tokio::test]
     async fn remote_skip_result_in_native_mode_does_not_restart_polling_or_dispatch_queue() {
         let mut app = App::new().await;
         app.config.spotify.playback_mode = SpotifyPlaybackMode::Native;
@@ -1885,16 +1939,12 @@ mod tests {
         app.spotify.active_device_id = Some("device".to_string());
         app.spotify.active_backend = Some(SpotifyPlaybackBackend::Native);
 
-        app.spotify.remote_skip_queue.enqueue(
-            "token".to_string(),
-            "device".to_string(),
-            SpotifyRemoteSkipDirection::Next,
-        );
-        app.spotify.remote_skip_queue.enqueue(
-            "token".to_string(),
-            "device".to_string(),
-            SpotifyRemoteSkipDirection::Previous,
-        );
+        app.spotify
+            .remote_skip_queue
+            .enqueue("device".to_string(), SpotifyRemoteSkipDirection::Next);
+        app.spotify
+            .remote_skip_queue
+            .enqueue("device".to_string(), SpotifyRemoteSkipDirection::Previous);
         let operation = app
             .spotify
             .remote_skip_queue

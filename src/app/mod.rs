@@ -1072,12 +1072,10 @@ mod tests {
             std::future::pending::<()>().await;
         }));
         app.spotify.remote_skip_queue.enqueue(
-            "token".to_string(),
             "device".to_string(),
             spotify_state::SpotifyRemoteSkipDirection::Next,
         );
         app.spotify.remote_skip_queue.enqueue(
-            "token".to_string(),
             "device".to_string(),
             spotify_state::SpotifyRemoteSkipDirection::Previous,
         );
