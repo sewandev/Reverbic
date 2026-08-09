@@ -102,6 +102,11 @@ impl SpotifyRemoteSkipQueue {
     pub(super) fn abandon_current(&mut self) {
         self.in_flight = None;
     }
+
+    pub(super) fn invalidate(&mut self) {
+        self.pending.clear();
+        self.in_flight = None;
+    }
 }
 
 #[cfg(test)]
@@ -147,6 +152,26 @@ mod remote_skip_queue_tests {
         assert!(!queue.complete(current.id, "different-device"));
         assert!(queue.begin_next().is_none());
         assert!(queue.complete(current.id, &current.device_id));
+    }
+
+    #[test]
+    fn invalidating_remote_skips_drops_current_and_pending_operations() {
+        let mut queue = SpotifyRemoteSkipQueue::default();
+        queue.enqueue(
+            "token".to_string(),
+            "device".to_string(),
+            SpotifyRemoteSkipDirection::Next,
+        );
+        queue.enqueue(
+            "token".to_string(),
+            "device".to_string(),
+            SpotifyRemoteSkipDirection::Previous,
+        );
+        queue.begin_next().expect("first skip starts");
+
+        queue.invalidate();
+
+        assert!(queue.begin_next().is_none());
     }
 }
 

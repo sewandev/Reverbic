@@ -855,17 +855,32 @@ impl App {
                     );
                     return;
                 }
-                if self.spotify.active_device_id.as_deref() == Some(outcome.device_id.as_str()) {
-                    self.handle_spotify_remote_command_result(outcome.result);
-                } else {
-                    tracing::debug!(
-                        operation_id = outcome.id,
-                        device_id = outcome.device_id,
-                        "spotify remote skip: device changed, ignoring result state"
-                    );
+                match self.spotify_control_target() {
+                    SpotifyControlTarget::Remote { device_id, .. }
+                        if device_id == outcome.device_id =>
+                    {
+                        self.handle_spotify_remote_command_result(outcome.result);
+                        self.start_playback_polling();
+                        self.start_next_spotify_remote_skip();
+                    }
+                    SpotifyControlTarget::Remote { .. } => {
+                        tracing::debug!(
+                            operation_id = outcome.id,
+                            device_id = outcome.device_id,
+                            "spotify remote skip: device changed, ignoring result state"
+                        );
+                        self.start_playback_polling();
+                        self.start_next_spotify_remote_skip();
+                    }
+                    SpotifyControlTarget::Native | SpotifyControlTarget::None => {
+                        tracing::debug!(
+                            operation_id = outcome.id,
+                            device_id = outcome.device_id,
+                            "spotify remote skip: remote control is no longer active"
+                        );
+                        self.cancel_spotify_remote_skips();
+                    }
                 }
-                self.start_playback_polling();
-                self.start_next_spotify_remote_skip();
             }
             Err(std::sync::mpsc::TryRecvError::Empty) => {
                 self.spotify.remote_skip_result_rx = Some(rx);
@@ -1190,12 +1205,24 @@ impl App {
         self.start_next_spotify_remote_skip();
     }
 
+    pub(super) fn cancel_spotify_remote_skips(&mut self) {
+        self.spotify.remote_skip_queue.invalidate();
+        self.spotify.remote_skip_result_rx = None;
+    }
+
     fn start_next_spotify_remote_skip(&mut self) {
+        let active_device_id = match self.spotify_control_target() {
+            SpotifyControlTarget::Remote { device_id, .. } => device_id,
+            SpotifyControlTarget::Native | SpotifyControlTarget::None => {
+                self.cancel_spotify_remote_skips();
+                return;
+            }
+        };
         let operation = loop {
             let Some(operation) = self.spotify.remote_skip_queue.begin_next() else {
                 return;
             };
-            if self.spotify.active_device_id.as_deref() == Some(operation.device_id.as_str()) {
+            if active_device_id == operation.device_id {
                 break operation;
             }
             tracing::debug!(
@@ -1777,6 +1804,7 @@ mod tests {
     #[tokio::test]
     async fn remote_skip_result_from_previous_device_does_not_update_player_state() {
         let mut app = App::new().await;
+        app.spotify.access_token = Some("token".to_string());
         app.spotify.active_device_id = Some("new-device".to_string());
         app.spotify.active_backend = Some(SpotifyPlaybackBackend::Remote);
         app.spotify.player_status = SpotifyPlayerStatus::Loading;
@@ -1810,6 +1838,46 @@ mod tests {
             app.spotify.player_status,
             SpotifyPlayerStatus::Loading
         ));
+    }
+
+    #[tokio::test]
+    async fn remote_skip_result_in_native_mode_does_not_restart_polling_or_dispatch_queue() {
+        let mut app = App::new().await;
+        app.config.spotify.playback_mode = SpotifyPlaybackMode::Native;
+        app.spotify.access_token = Some("token".to_string());
+        app.spotify.active_device_id = Some("device".to_string());
+        app.spotify.active_backend = Some(SpotifyPlaybackBackend::Native);
+
+        app.spotify.remote_skip_queue.enqueue(
+            "token".to_string(),
+            "device".to_string(),
+            SpotifyRemoteSkipDirection::Next,
+        );
+        app.spotify.remote_skip_queue.enqueue(
+            "token".to_string(),
+            "device".to_string(),
+            SpotifyRemoteSkipDirection::Previous,
+        );
+        let operation = app
+            .spotify
+            .remote_skip_queue
+            .begin_next()
+            .expect("skip starts");
+        let (tx, rx) = std::sync::mpsc::channel();
+        app.spotify.remote_skip_result_rx = Some(rx);
+        tx.send(SpotifyRemoteSkipResult {
+            id: operation.id,
+            device_id: operation.device_id,
+            result: Ok(()),
+        })
+        .expect("receiver is alive");
+
+        app.poll_spotify_remote_skip_result();
+
+        assert!(app.spotify.playback_task.is_none());
+        assert!(app.spotify.playback_rx.is_none());
+        assert!(app.spotify.remote_skip_result_rx.is_none());
+        assert!(app.spotify.remote_skip_queue.begin_next().is_none());
     }
 
     #[tokio::test]
