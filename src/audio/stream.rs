@@ -5,15 +5,54 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::sync::{mpsc, Mutex};
+use std::time::{Duration, Instant};
 
 use crate::metadata::parse_icy_title;
+
+#[derive(Clone, Default)]
+pub(crate) struct ProgressClock {
+    last_progress: Arc<Mutex<Option<Instant>>>,
+}
+
+impl ProgressClock {
+    pub(crate) fn record_progress(&self) {
+        self.record_progress_at(Instant::now());
+    }
+
+    fn record_progress_at(&self, now: Instant) {
+        let mut last_progress = self
+            .last_progress
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        *last_progress = Some(now);
+    }
+
+    pub(crate) fn elapsed(&self) -> Option<Duration> {
+        self.elapsed_at(Instant::now())
+    }
+
+    pub(crate) fn elapsed_at(&self, now: Instant) -> Option<Duration> {
+        let last_progress = *self
+            .last_progress
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        last_progress.map(|last| now.saturating_duration_since(last))
+    }
+
+    #[cfg(test)]
+    pub(crate) fn with_last_progress_at(last_progress: Instant) -> Self {
+        Self {
+            last_progress: Arc::new(Mutex::new(Some(last_progress))),
+        }
+    }
+}
 
 pub struct StreamReader {
     rx: Mutex<mpsc::Receiver<Bytes>>,
     chunks: VecDeque<Bytes>,
     offset: usize,
     buffered: usize,
-    last_chunk_at: Arc<AtomicU64>,
+    progress_clock: ProgressClock,
     download_done: Arc<AtomicBool>,
     dead_url: Arc<AtomicBool>,
 }
@@ -23,16 +62,12 @@ impl StreamReader {
         if chunk.is_empty() {
             return;
         }
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_millis() as u64)
-            .unwrap_or(0);
-        self.last_chunk_at.store(now, Ordering::Release);
+        self.progress_clock.record_progress();
         self.buffered += chunk.len();
         self.chunks.push_back(chunk);
     }
-    pub fn last_chunk_arc(&self) -> Arc<AtomicU64> {
-        Arc::clone(&self.last_chunk_at)
+    pub(crate) fn progress_clock(&self) -> ProgressClock {
+        self.progress_clock.clone()
     }
 
     pub fn connect(
@@ -66,13 +101,13 @@ impl StreamReader {
             }
         });
 
-        let last_chunk_at = Arc::new(AtomicU64::new(0));
+        let progress_clock = ProgressClock::default();
         let reader = Self {
             rx: Mutex::new(audio_rx),
             chunks: VecDeque::new(),
             offset: 0,
             buffered: 0,
-            last_chunk_at,
+            progress_clock,
             download_done,
             dead_url,
         };
@@ -96,13 +131,13 @@ impl StreamReader {
             }
         });
 
-        let last_chunk_at = Arc::new(AtomicU64::new(0));
+        let progress_clock = ProgressClock::default();
         Self {
             rx: Mutex::new(audio_rx),
             chunks: VecDeque::new(),
             offset: 0,
             buffered: 0,
-            last_chunk_at,
+            progress_clock,
             download_done: Arc::new(AtomicBool::new(false)),
             dead_url: Arc::new(AtomicBool::new(false)),
         }
@@ -186,13 +221,10 @@ impl Seek for StreamReader {
 const MAX_DOWNLOAD_RETRIES: u32 = 5;
 const DOWNLOAD_RETRY_PAUSE: std::time::Duration = std::time::Duration::from_secs(2);
 const FILE_READ_STARVATION_SECS: u64 = 30;
-const FILE_READ_STALL_MS: u64 = 12_000;
+const FILE_READ_STALL_SECS: u64 = 12;
 
-fn unix_now_ms() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis() as u64)
-        .unwrap_or(0)
+fn file_read_is_stalled(stalled_for: Option<Duration>) -> bool {
+    stalled_for.is_some_and(|elapsed| elapsed >= Duration::from_secs(FILE_READ_STALL_SECS))
 }
 
 pub fn youtube_cache_dir() -> std::path::PathBuf {
@@ -213,7 +245,7 @@ pub struct FileBackedReader {
     pos: u64,
     written: Arc<AtomicU64>,
     total_len: Arc<AtomicU64>,
-    last_chunk_at: Arc<AtomicU64>,
+    progress_clock: ProgressClock,
     download_done: Arc<AtomicBool>,
     dead_url: Arc<AtomicBool>,
 }
@@ -302,13 +334,13 @@ impl FileBackedReader {
         let (title_tx, title_rx) = mpsc::sync_channel::<String>(1);
         let written = Arc::new(AtomicU64::new(0));
         let total_len = Arc::new(AtomicU64::new(0));
-        let last_chunk_at = Arc::new(AtomicU64::new(0));
+        let progress_clock = ProgressClock::default();
         let download_done = Arc::new(AtomicBool::new(false));
         let dead_url = Arc::new(AtomicBool::new(false));
 
         let written_task = Arc::clone(&written);
         let total_task = Arc::clone(&total_len);
-        let last_chunk_task = Arc::clone(&last_chunk_at);
+        let progress_clock_task = progress_clock.clone();
         let done_task = Arc::clone(&download_done);
         let dead_task = Arc::clone(&dead_url);
         let task = handle.spawn(async move {
@@ -318,7 +350,7 @@ impl FileBackedReader {
                 write_file,
                 written_task,
                 total_task,
-                last_chunk_task,
+                progress_clock_task,
                 done_task,
                 dead_task,
             )
@@ -340,7 +372,7 @@ impl FileBackedReader {
                 pos: 0,
                 written,
                 total_len,
-                last_chunk_at,
+                progress_clock,
                 download_done,
                 dead_url,
             },
@@ -349,8 +381,8 @@ impl FileBackedReader {
         ))
     }
 
-    pub fn last_chunk_arc(&self) -> Arc<AtomicU64> {
-        Arc::clone(&self.last_chunk_at)
+    pub(crate) fn progress_clock(&self) -> ProgressClock {
+        self.progress_clock.clone()
     }
 
     pub fn download_done_arc(&self) -> Arc<AtomicBool> {
@@ -415,16 +447,15 @@ impl Read for FileBackedReader {
                 );
                 return Ok(0);
             }
-            let last_chunk = self.last_chunk_at.load(Ordering::Acquire);
-            let stalled_ms = unix_now_ms().saturating_sub(last_chunk);
-            let stalled = last_chunk != 0 && stalled_ms >= FILE_READ_STALL_MS;
+            let stalled_for = self.progress_clock.elapsed();
+            let stalled = file_read_is_stalled(stalled_for);
             if stalled
                 || wait_start.elapsed() > std::time::Duration::from_secs(FILE_READ_STARVATION_SECS)
             {
                 tracing::warn!(
                     pos = self.pos,
                     written,
-                    stalled_ms,
+                    stalled_ms = stalled_for.map(|elapsed| elapsed.as_millis()),
                     "File-backed read underrun: download not progressing, signaling EOF"
                 );
                 return Ok(0);
@@ -468,7 +499,7 @@ async fn download_to_file(
     mut file: std::fs::File,
     written: Arc<AtomicU64>,
     total_len: Arc<AtomicU64>,
-    last_chunk_at: Arc<AtomicU64>,
+    progress_clock: ProgressClock,
     download_done: Arc<AtomicBool>,
     dead_url: Arc<AtomicBool>,
 ) -> Result<(), reqwest::Error> {
@@ -567,7 +598,7 @@ async fn download_to_file(
                     }
                     current_offset += bytes.len() as u64;
                     written.store(current_offset, Ordering::Release);
-                    last_chunk_at.store(unix_now_ms(), Ordering::Release);
+                    progress_clock.record_progress();
                     retry_count = 0;
                 }
                 Ok(Some(Err(e))) => {
@@ -1102,6 +1133,60 @@ impl IcyStripper {
 mod tests {
     use super::*;
     use std::sync::mpsc;
+
+    #[test]
+    fn progress_clock_starts_without_progress() {
+        let clock = ProgressClock::default();
+
+        assert_eq!(clock.elapsed_at(Instant::now()), None);
+    }
+
+    #[test]
+    fn progress_clock_measures_elapsed_time_monotonically() {
+        let started = Instant::now();
+        let clock = ProgressClock::with_last_progress_at(started);
+
+        assert_eq!(
+            clock.elapsed_at(started + Duration::from_secs(11)),
+            Some(Duration::from_secs(11))
+        );
+        assert_eq!(
+            clock.elapsed_at(started + Duration::from_secs(FILE_READ_STALL_SECS)),
+            Some(Duration::from_secs(FILE_READ_STALL_SECS))
+        );
+
+        clock.record_progress_at(started + Duration::from_secs(20));
+        assert_eq!(
+            clock.elapsed_at(started + Duration::from_secs(25)),
+            Some(Duration::from_secs(5))
+        );
+    }
+
+    #[test]
+    fn file_read_stall_uses_the_twelve_second_threshold() {
+        assert!(!file_read_is_stalled(None));
+        assert!(!file_read_is_stalled(Some(Duration::from_secs(11))));
+        assert!(file_read_is_stalled(Some(Duration::from_secs(12))));
+    }
+
+    #[test]
+    fn progress_clock_recovers_from_a_poisoned_lock() {
+        let clock = ProgressClock::default();
+        let poisoned_clock = clock.clone();
+        let _ = std::thread::spawn(move || {
+            let _guard = poisoned_clock
+                .last_progress
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            panic!("poison progress clock for test");
+        })
+        .join();
+        let now = Instant::now();
+
+        clock.record_progress_at(now);
+
+        assert_eq!(clock.elapsed_at(now), Some(Duration::ZERO));
+    }
 
     fn make_stripper(metaint: usize) -> (IcyStripper, mpsc::Receiver<String>) {
         let (tx, rx) = mpsc::sync_channel(8);
