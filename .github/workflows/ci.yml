@@ -62,7 +62,13 @@ jobs:
 
   required_check:
     name: Check & lint
-    needs: test
+    needs: [lint, test]
+    if: ${{ always() }}
     runs-on: ubuntu-latest
     steps:
-      - run: echo "All checks passed!"
+      - name: Verify required jobs
+        run: |
+          if [ "${{ needs.lint.result }}" != "success" ] || \
+             [ "${{ needs.test.result }}" != "success" ]; then
+            exit 1
+          fi
