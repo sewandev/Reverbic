@@ -22,6 +22,135 @@ type PlaylistsResultRx =
 type AlbumsResultRx = std::sync::mpsc::Receiver<Result<(Vec<SpotifyAlbum>, bool), SpotifyError>>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum SpotifyRemoteSkipDirection {
+    Next,
+    Previous,
+}
+
+#[derive(Debug)]
+pub(super) struct SpotifyRemoteSkipOperation {
+    pub(super) id: u64,
+    pub(super) token: String,
+    pub(super) device_id: String,
+    pub(super) direction: SpotifyRemoteSkipDirection,
+}
+
+#[derive(Debug)]
+pub(super) struct SpotifyRemoteSkipResult {
+    pub(super) id: u64,
+    pub(super) device_id: String,
+    pub(super) result: Result<(), SpotifyError>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct SpotifyRemoteSkipInFlight {
+    id: u64,
+    device_id: String,
+}
+
+#[derive(Debug, Default)]
+pub(super) struct SpotifyRemoteSkipQueue {
+    next_id: u64,
+    pending: VecDeque<SpotifyRemoteSkipOperation>,
+    in_flight: Option<SpotifyRemoteSkipInFlight>,
+}
+
+impl SpotifyRemoteSkipQueue {
+    pub(super) fn enqueue(
+        &mut self,
+        token: String,
+        device_id: String,
+        direction: SpotifyRemoteSkipDirection,
+    ) -> u64 {
+        let id = self.next_id;
+        self.next_id = self
+            .next_id
+            .checked_add(1)
+            .expect("Spotify remote skip operation ID exhausted");
+        self.pending.push_back(SpotifyRemoteSkipOperation {
+            id,
+            token,
+            device_id,
+            direction,
+        });
+        id
+    }
+
+    pub(super) fn begin_next(&mut self) -> Option<SpotifyRemoteSkipOperation> {
+        if self.in_flight.is_some() {
+            return None;
+        }
+        let operation = self.pending.pop_front()?;
+        self.in_flight = Some(SpotifyRemoteSkipInFlight {
+            id: operation.id,
+            device_id: operation.device_id.clone(),
+        });
+        Some(operation)
+    }
+
+    pub(super) fn complete(&mut self, id: u64, device_id: &str) -> bool {
+        let is_current = self
+            .in_flight
+            .as_ref()
+            .is_some_and(|current| current.id == id && current.device_id == device_id);
+        if is_current {
+            self.in_flight = None;
+        }
+        is_current
+    }
+
+    pub(super) fn abandon_current(&mut self) {
+        self.in_flight = None;
+    }
+}
+
+#[cfg(test)]
+mod remote_skip_queue_tests {
+    use super::*;
+
+    #[test]
+    fn remote_skips_are_started_one_at_a_time_in_input_order() {
+        let mut queue = SpotifyRemoteSkipQueue::default();
+        let first_id = queue.enqueue(
+            "token".to_string(),
+            "device".to_string(),
+            SpotifyRemoteSkipDirection::Next,
+        );
+        let second_id = queue.enqueue(
+            "token".to_string(),
+            "device".to_string(),
+            SpotifyRemoteSkipDirection::Previous,
+        );
+
+        let first = queue.begin_next().expect("first skip starts");
+        assert_eq!(first.id, first_id);
+        assert_eq!(first.direction, SpotifyRemoteSkipDirection::Next);
+        assert!(queue.begin_next().is_none(), "only one skip may run");
+
+        assert!(queue.complete(first.id, &first.device_id));
+        let second = queue.begin_next().expect("second skip starts next");
+        assert_eq!(second.id, second_id);
+        assert_eq!(second.direction, SpotifyRemoteSkipDirection::Previous);
+    }
+
+    #[test]
+    fn stale_result_cannot_release_the_current_operation() {
+        let mut queue = SpotifyRemoteSkipQueue::default();
+        queue.enqueue(
+            "token".to_string(),
+            "device".to_string(),
+            SpotifyRemoteSkipDirection::Next,
+        );
+        let current = queue.begin_next().expect("skip starts");
+
+        assert!(!queue.complete(current.id + 1, &current.device_id));
+        assert!(!queue.complete(current.id, "different-device"));
+        assert!(queue.begin_next().is_none());
+        assert!(queue.complete(current.id, &current.device_id));
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum SpotifyPlaybackBackend {
     Remote,
     Native,
@@ -82,6 +211,8 @@ pub struct SpotifyState {
         Option<std::sync::mpsc::Receiver<Result<(String, String), String>>>,
 
     pub(super) play_result_rx: Option<std::sync::mpsc::Receiver<Result<(), SpotifyError>>>,
+    pub(super) remote_skip_queue: SpotifyRemoteSkipQueue,
+    pub(super) remote_skip_result_rx: Option<std::sync::mpsc::Receiver<SpotifyRemoteSkipResult>>,
     pub(super) save_track_rx: Option<std::sync::mpsc::Receiver<Result<String, String>>>,
 
     pub playback_queue: VecDeque<SpotifyTrack>,
@@ -225,6 +356,8 @@ impl Default for SpotifyState {
             token_refresh_task: None,
             token_refresh_rx: None,
             play_result_rx: None,
+            remote_skip_queue: SpotifyRemoteSkipQueue::default(),
+            remote_skip_result_rx: None,
             save_track_rx: None,
             playback_queue: VecDeque::new(),
             radio_queue: VecDeque::new(),

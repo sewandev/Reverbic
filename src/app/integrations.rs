@@ -1,5 +1,7 @@
 use super::modal::{SearchMode, SpotifyAuthStatus, SpotifyPlayerStatus};
-use super::spotify_state::{SpotifyPlaybackBackend, SpotifySearchPage};
+use super::spotify_state::{
+    SpotifyPlaybackBackend, SpotifyRemoteSkipDirection, SpotifyRemoteSkipResult, SpotifySearchPage,
+};
 use super::{abort_task, App, SpotifyControlTarget};
 use crate::config::{Config, SpotifyPlaybackMode};
 
@@ -767,61 +769,111 @@ impl App {
     }
 
     pub fn poll_spotify_play_result(&mut self) {
-        use crate::integrations::spotify::SpotifyError;
         if let Some(rx) = self.spotify.play_result_rx.take() {
             match rx.try_recv() {
-                Ok(Ok(())) => {
-                    if self.spotify.active_backend == Some(SpotifyPlaybackBackend::Remote) {
-                        self.spotify.player_status = SpotifyPlayerStatus::Playing;
-                    }
-                }
-                Ok(Err(SpotifyError::Unauthorized)) => {
-                    if self.spotify.active_backend == Some(SpotifyPlaybackBackend::Remote) {
-                        self.spotify.active_backend = None;
-                    }
-                    self.spotify.player_status = SpotifyPlayerStatus::Error(crate::i18n::t(
-                        "integrations.spotify.error.generic",
-                    ));
-                    tracing::warn!("spotify play: token expirado, renovando");
-                    self.spotify.token_refreshed_at =
-                        Some(std::time::Instant::now() - std::time::Duration::from_secs(60 * 60));
-                }
-                Ok(Err(SpotifyError::DeviceUnavailable)) => {
-                    if self.spotify.active_backend == Some(SpotifyPlaybackBackend::Remote) {
-                        self.spotify.active_backend = None;
-                    }
-                    if let Some(dead_id) = self.spotify.active_device_id.take() {
-                        tracing::warn!(
-                            device_id = dead_id,
-                            "spotify play_on_device: device did not respond, evicting it"
-                        );
-                        self.spotify.failed_device_ids.insert(dead_id.clone());
-                        self.spotify
-                            .devices
-                            .retain(|d| d.id.as_deref() != Some(&dead_id));
-                    }
-                    self.spotify.active_device_id = resolve_active_spotify_device(
-                        &self.spotify.devices,
-                        self.spotify.active_device_id.as_deref(),
-                    );
-                    let message = crate::i18n::t("integrations.spotify.error.device_gone");
-                    self.spotify.player_status = SpotifyPlayerStatus::Error(message.clone());
-                    self.notify_error(format!("Spotify: {message}"));
-                    self.fetch_spotify_devices();
-                }
-                Ok(Err(e)) => {
-                    tracing::warn!("spotify play_on_device: {e}");
-                    if self.spotify.active_backend == Some(SpotifyPlaybackBackend::Remote) {
-                        self.spotify.active_backend = None;
-                    }
-                    self.spotify.player_status = SpotifyPlayerStatus::Error(crate::i18n::t(
-                        "integrations.spotify.error.generic",
-                    ));
-                }
+                Ok(result) => self.handle_spotify_remote_command_result(result),
                 Err(std::sync::mpsc::TryRecvError::Empty) => {
                     self.spotify.play_result_rx = Some(rx);
                 }
                 Err(std::sync::mpsc::TryRecvError::Disconnected) => {}
+            }
+        }
+    }
+
+    fn handle_spotify_remote_command_result(
+        &mut self,
+        result: Result<(), crate::integrations::spotify::SpotifyError>,
+    ) {
+        use crate::integrations::spotify::SpotifyError;
+        match result {
+            Ok(()) => {
+                if self.spotify.active_backend == Some(SpotifyPlaybackBackend::Remote) {
+                    self.spotify.player_status = SpotifyPlayerStatus::Playing;
+                }
+            }
+            Err(SpotifyError::Unauthorized) => {
+                if self.spotify.active_backend == Some(SpotifyPlaybackBackend::Remote) {
+                    self.spotify.active_backend = None;
+                }
+                self.spotify.player_status = SpotifyPlayerStatus::Error(crate::i18n::t(
+                    "integrations.spotify.error.generic",
+                ));
+                tracing::warn!("spotify command: token expirado, renovando");
+                self.spotify.token_refreshed_at =
+                    Some(std::time::Instant::now() - std::time::Duration::from_secs(60 * 60));
+            }
+            Err(SpotifyError::DeviceUnavailable) => {
+                if self.spotify.active_backend == Some(SpotifyPlaybackBackend::Remote) {
+                    self.spotify.active_backend = None;
+                }
+                if let Some(dead_id) = self.spotify.active_device_id.take() {
+                    tracing::warn!(
+                        device_id = dead_id,
+                        "spotify command: device did not respond, evicting it"
+                    );
+                    self.spotify.failed_device_ids.insert(dead_id.clone());
+                    self.spotify
+                        .devices
+                        .retain(|d| d.id.as_deref() != Some(&dead_id));
+                }
+                self.spotify.active_device_id = resolve_active_spotify_device(
+                    &self.spotify.devices,
+                    self.spotify.active_device_id.as_deref(),
+                );
+                let message = crate::i18n::t("integrations.spotify.error.device_gone");
+                self.spotify.player_status = SpotifyPlayerStatus::Error(message.clone());
+                self.notify_error(format!("Spotify: {message}"));
+                self.fetch_spotify_devices();
+            }
+            Err(e) => {
+                tracing::warn!("spotify command: {e}");
+                if self.spotify.active_backend == Some(SpotifyPlaybackBackend::Remote) {
+                    self.spotify.active_backend = None;
+                }
+                self.spotify.player_status = SpotifyPlayerStatus::Error(crate::i18n::t(
+                    "integrations.spotify.error.generic",
+                ));
+            }
+        }
+    }
+
+    pub fn poll_spotify_remote_skip_result(&mut self) {
+        let Some(rx) = self.spotify.remote_skip_result_rx.take() else {
+            return;
+        };
+        match rx.try_recv() {
+            Ok(outcome) => {
+                if !self
+                    .spotify
+                    .remote_skip_queue
+                    .complete(outcome.id, &outcome.device_id)
+                {
+                    tracing::debug!(
+                        operation_id = outcome.id,
+                        device_id = outcome.device_id,
+                        "spotify remote skip: ignoring stale result"
+                    );
+                    return;
+                }
+                if self.spotify.active_device_id.as_deref() == Some(outcome.device_id.as_str()) {
+                    self.handle_spotify_remote_command_result(outcome.result);
+                } else {
+                    tracing::debug!(
+                        operation_id = outcome.id,
+                        device_id = outcome.device_id,
+                        "spotify remote skip: device changed, ignoring result state"
+                    );
+                }
+                self.start_playback_polling();
+                self.start_next_spotify_remote_skip();
+            }
+            Err(std::sync::mpsc::TryRecvError::Empty) => {
+                self.spotify.remote_skip_result_rx = Some(rx);
+            }
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                tracing::warn!("spotify remote skip: result channel disconnected");
+                self.spotify.remote_skip_queue.abandon_current();
+                self.start_next_spotify_remote_skip();
             }
         }
     }
@@ -1126,24 +1178,66 @@ impl App {
         self.spotify.player_status = SpotifyPlayerStatus::Loading;
     }
 
-    fn spotify_remote_skip(&mut self, token: String, device_id: String, forward: bool) {
-        let (tx, rx) = std::sync::mpsc::channel();
-        self.spotify.play_result_rx = Some(rx);
-        tokio::spawn(async move {
-            let result = if forward {
-                crate::integrations::spotify::devices::next_track(&token, &device_id).await
-            } else {
-                crate::integrations::spotify::devices::previous_track(&token, &device_id).await
+    fn spotify_remote_skip(
+        &mut self,
+        token: String,
+        device_id: String,
+        direction: SpotifyRemoteSkipDirection,
+    ) {
+        self.spotify
+            .remote_skip_queue
+            .enqueue(token, device_id, direction);
+        self.start_next_spotify_remote_skip();
+    }
+
+    fn start_next_spotify_remote_skip(&mut self) {
+        let operation = loop {
+            let Some(operation) = self.spotify.remote_skip_queue.begin_next() else {
+                return;
             };
-            let _ = tx.send(result);
+            if self.spotify.active_device_id.as_deref() == Some(operation.device_id.as_str()) {
+                break operation;
+            }
+            tracing::debug!(
+                operation_id = operation.id,
+                device_id = operation.device_id,
+                "spotify remote skip: device changed, dropping queued operation"
+            );
+            self.spotify
+                .remote_skip_queue
+                .complete(operation.id, &operation.device_id);
+        };
+        let (tx, rx) = std::sync::mpsc::channel();
+        self.spotify.remote_skip_result_rx = Some(rx);
+        tokio::spawn(async move {
+            let result = match operation.direction {
+                SpotifyRemoteSkipDirection::Next => {
+                    crate::integrations::spotify::devices::next_track(
+                        &operation.token,
+                        &operation.device_id,
+                    )
+                    .await
+                }
+                SpotifyRemoteSkipDirection::Previous => {
+                    crate::integrations::spotify::devices::previous_track(
+                        &operation.token,
+                        &operation.device_id,
+                    )
+                    .await
+                }
+            };
+            let _ = tx.send(SpotifyRemoteSkipResult {
+                id: operation.id,
+                device_id: operation.device_id,
+                result,
+            });
         });
-        self.start_playback_polling();
     }
 
     pub(super) async fn spotify_play_next(&mut self) {
         match self.spotify_control_target() {
             super::SpotifyControlTarget::Remote { token, device_id } => {
-                self.spotify_remote_skip(token, device_id, true);
+                self.spotify_remote_skip(token, device_id, SpotifyRemoteSkipDirection::Next);
             }
             super::SpotifyControlTarget::Native => self.native_next(),
             super::SpotifyControlTarget::None => {
@@ -1155,7 +1249,7 @@ impl App {
     pub(super) async fn spotify_play_previous(&mut self) {
         match self.spotify_control_target() {
             super::SpotifyControlTarget::Remote { token, device_id } => {
-                self.spotify_remote_skip(token, device_id, false);
+                self.spotify_remote_skip(token, device_id, SpotifyRemoteSkipDirection::Previous);
             }
             super::SpotifyControlTarget::Native => self.native_prev(),
             super::SpotifyControlTarget::None => {
@@ -1678,6 +1772,44 @@ mod tests {
             duration_ms: 123_000,
             uri: uri.to_string(),
         }
+    }
+
+    #[tokio::test]
+    async fn remote_skip_result_from_previous_device_does_not_update_player_state() {
+        let mut app = App::new().await;
+        app.spotify.active_device_id = Some("new-device".to_string());
+        app.spotify.active_backend = Some(SpotifyPlaybackBackend::Remote);
+        app.spotify.player_status = SpotifyPlayerStatus::Loading;
+
+        app.spotify.remote_skip_queue.enqueue(
+            "token".to_string(),
+            "old-device".to_string(),
+            SpotifyRemoteSkipDirection::Next,
+        );
+        let operation = app
+            .spotify
+            .remote_skip_queue
+            .begin_next()
+            .expect("skip starts");
+        let (tx, rx) = std::sync::mpsc::channel();
+        app.spotify.remote_skip_result_rx = Some(rx);
+        tx.send(SpotifyRemoteSkipResult {
+            id: operation.id,
+            device_id: operation.device_id,
+            result: Err(crate::integrations::spotify::SpotifyError::Unauthorized),
+        })
+        .expect("receiver is alive");
+
+        app.poll_spotify_remote_skip_result();
+
+        assert_eq!(
+            app.spotify.active_backend,
+            Some(SpotifyPlaybackBackend::Remote)
+        );
+        assert!(matches!(
+            app.spotify.player_status,
+            SpotifyPlayerStatus::Loading
+        ));
     }
 
     #[tokio::test]
