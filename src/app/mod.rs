@@ -517,7 +517,6 @@ impl App {
         match mode {
             SpotifyPlaybackMode::Native => {
                 self.pause_remote_spotify();
-                self.cancel_spotify_remote_skips();
                 self.stop_playback_polling();
             }
             SpotifyPlaybackMode::Remote => {

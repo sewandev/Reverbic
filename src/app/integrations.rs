@@ -1027,6 +1027,7 @@ impl App {
         abort_task(&mut self.spotify.playback_task);
         self.spotify.playback_rx = None;
         self.spotify.playback = None;
+        self.cancel_spotify_remote_skips();
         if self.spotify.active_backend == Some(SpotifyPlaybackBackend::Remote) {
             self.spotify.active_backend = None;
         }
@@ -1799,6 +1800,42 @@ mod tests {
             duration_ms: 123_000,
             uri: uri.to_string(),
         }
+    }
+
+    #[tokio::test]
+    async fn stopping_remote_polling_cancels_current_and_queued_skips() {
+        let mut app = App::new().await;
+        app.spotify.remote_skip_queue.enqueue(
+            "token".to_string(),
+            "device".to_string(),
+            SpotifyRemoteSkipDirection::Next,
+        );
+        app.spotify.remote_skip_queue.enqueue(
+            "token".to_string(),
+            "device".to_string(),
+            SpotifyRemoteSkipDirection::Previous,
+        );
+        let operation = app
+            .spotify
+            .remote_skip_queue
+            .begin_next()
+            .expect("remote skip starts");
+        let (tx, rx) = std::sync::mpsc::channel();
+        app.spotify.remote_skip_result_rx = Some(rx);
+
+        app.stop_playback_polling();
+
+        assert!(app.spotify.remote_skip_result_rx.is_none());
+        assert!(app.spotify.remote_skip_queue.begin_next().is_none());
+        assert!(
+            tx.send(SpotifyRemoteSkipResult {
+                id: operation.id,
+                device_id: operation.device_id,
+                result: Ok(()),
+            })
+            .is_err(),
+            "remote skip result receiver was dropped"
+        );
     }
 
     #[tokio::test]
