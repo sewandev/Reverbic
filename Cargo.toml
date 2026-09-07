@@ -65,7 +65,7 @@ windows = { version = "0.58", features = [
 ] }
 
 [build-dependencies]
-embed-resource = "2"
+embed-resource = "3"
 
 # Vendored TLS-patched fork of hyper-proxy2 to drop the vulnerable rustls-webpki
 # 0.102.8 instance pulled transitively through librespot-core. See issue #169.
