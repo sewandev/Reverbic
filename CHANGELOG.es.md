@@ -10,6 +10,20 @@ Versionado: [Semantic Versioning](https://semver.org/)
 
 ## [Sin publicar]
 
+## [1.5.8] - 2026-09-07
+
+### Added
+- Soporte oficial de instalación mediante Winget: Reverbic ahora se puede instalar en Windows con `winget install Sewandev.Reverbic` como método recomendado junto al script de PowerShell.
+
+### Fixed
+- Los comandos de pista siguiente/anterior en el modo remoto de Spotify ahora se serializan a través de una cola FIFO, permitiendo una sola solicitud en curso a la vez. Esto evita condiciones de carrera y ejecuciones fuera de orden al saltar pistas rápidamente, descarta respuestas obsoletas de dispositivos anteriores y mantiene sincronizado el estado de reproducción remoto.
+- La detección de descargas estancadas en streams ahora utiliza un reloj monotónico (`ProgressClock` con `std::time::Instant`) en lugar de marcas de tiempo del reloj del sistema. Esto evita falsas alertas de estancamiento o demoras en la reconexión provocadas por correcciones de NTP, cambios manuales de hora o ajustes de zona horaria.
+- El flujo de CI ahora propaga de forma fiable los fallos de lint y formato al check de estado obligatorio, garantizando que las comprobaciones de PR fallen cuando el análisis de código o formato detecta problemas.
+
+### Changed
+- Flujo de CI optimizado: se separaron las revisiones de formato y clippy en un trabajo inicial de fallo rápido y se integró `swatinem/rust-cache` para acelerar notablemente las ejecuciones de compilación y pruebas.
+- Actualización general de dependencias: Ratatui 0.30.2, Zip 8.6.0, Bytes 1.12.0, Clap 4.6.6, Rand 0.10.2, Thiserror 2.0.20, y actualización de acciones en los workflows de GitHub.
+
 ## [1.5.7] - 2026-06-21
 
 ### Added
@@ -332,7 +346,12 @@ Versionado: [Semantic Versioning](https://semver.org/)
 - Templates de issues (bug, feature, pregunta)
 - Logo y assets embebidos en el ejecutable (sin dependencias externas)
 
-[Sin publicar]: https://github.com/sewandev/Reverbic/compare/v1.5.3...HEAD
+[Sin publicar]: https://github.com/sewandev/Reverbic/compare/v1.5.8...HEAD
+[1.5.8]: https://github.com/sewandev/Reverbic/compare/v1.5.7...v1.5.8
+[1.5.7]: https://github.com/sewandev/Reverbic/compare/v1.5.6...v1.5.7
+[1.5.6]: https://github.com/sewandev/Reverbic/compare/v1.5.5...v1.5.6
+[1.5.5]: https://github.com/sewandev/Reverbic/compare/v1.5.4...v1.5.5
+[1.5.4]: https://github.com/sewandev/Reverbic/compare/v1.5.3...v1.5.4
 [1.5.3]: https://github.com/sewandev/Reverbic/compare/v1.5.2...v1.5.3
 [1.5.2]: https://github.com/sewandev/Reverbic/compare/v1.5.1...v1.5.2
 [1.5.1]: https://github.com/sewandev/Reverbic/compare/v1.5.0...v1.5.1
