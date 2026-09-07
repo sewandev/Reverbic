@@ -1071,6 +1071,21 @@ mod tests {
         app.spotify.playback_task = Some(tokio::spawn(async {
             std::future::pending::<()>().await;
         }));
+        app.spotify.remote_skip_queue.enqueue(
+            "device".to_string(),
+            spotify_state::SpotifyRemoteSkipDirection::Next,
+        );
+        app.spotify.remote_skip_queue.enqueue(
+            "device".to_string(),
+            spotify_state::SpotifyRemoteSkipDirection::Previous,
+        );
+        let skip_operation = app
+            .spotify
+            .remote_skip_queue
+            .begin_next()
+            .expect("remote skip starts");
+        let (skip_tx, skip_rx) = std::sync::mpsc::channel();
+        app.spotify.remote_skip_result_rx = Some(skip_rx);
 
         app.set_spotify_playback_mode(SpotifyPlaybackMode::Native);
 
@@ -1082,6 +1097,18 @@ mod tests {
         assert!(app.spotify.playback.is_none());
         assert!(app.spotify.playback_rx.is_none());
         assert!(app.spotify.playback_task.is_none());
+        assert!(app.spotify.remote_skip_result_rx.is_none());
+        assert!(app.spotify.remote_skip_queue.begin_next().is_none());
+        assert!(
+            skip_tx
+                .send(spotify_state::SpotifyRemoteSkipResult {
+                    id: skip_operation.id,
+                    device_id: skip_operation.device_id,
+                    result: Ok(()),
+                })
+                .is_err(),
+            "skip result receiver was dropped"
+        );
     }
 
     #[tokio::test]

@@ -28,6 +28,9 @@
 
 ```bash
 # Instalación rápida (Windows)
+winget install Sewandev.Reverbic
+
+# O, mediante script de PowerShell (Windows)
 irm https://raw.githubusercontent.com/sewandev/Reverbic/main/install.ps1 | iex
 
 # Instalación rápida (macOS / Linux)

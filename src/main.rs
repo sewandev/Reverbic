@@ -194,6 +194,7 @@ async fn run(tui: &mut terminal::Tui) -> Result<()> {
         app.poll_spotify_auth();
         app.poll_token_refresh();
         app.poll_spotify_play_result();
+        app.poll_spotify_remote_skip_result();
         app.poll_spotify_search();
         app.poll_spotify_search_more();
         app.poll_spotify_player_events();
